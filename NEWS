@@ -1,0 +1,9 @@
+dbus-broker - Modern D-Bus Message Broker
+
+CHANGES WITH 1:
+
+        * Initial release of dbus-broker.
+
+        Contributions from: David Herrmann
+
+        - Berlin, 2017-03-06

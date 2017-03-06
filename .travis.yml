@@ -1,0 +1,39 @@
+dist: trusty
+language: c
+
+matrix:
+  include:
+    - os: linux
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+            - llvm-toolchain-trusty-3.9
+          packages:
+            - gcc-5
+      env:
+        - MATRIX_CC="gcc-5"
+    - os: linux
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+            - llvm-toolchain-trusty-3.9
+          packages:
+            - clang-3.9
+      env:
+        - MATRIX_CC="clang-3.9"
+
+install:
+  - curl -L "https://github.com/ninja-build/ninja/releases/download/v1.7.2/ninja-linux.zip" -o "ninja-linux.zip"
+  - mkdir -p "$HOME/.local/bin"
+  - unzip "ninja-linux.zip" -d "$HOME/.local/bin"
+  - chmod 755 "$HOME/.local/bin/ninja"
+  - pip3 install meson
+
+script:
+  - export PATH="$HOME/.local/bin:$PATH"
+  - export CC=${MATRIX_CC}
+  - meson "build"
+  - ninja -C "build"
+  - ninja -C "build" test
