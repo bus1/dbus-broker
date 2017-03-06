@@ -1,0 +1,9 @@
+[submodule "subprojects/c-rbtree"]
+	path = subprojects/c-rbtree
+	url = https://github.com/c-util/c-rbtree.git
+[submodule "subprojects/c-sundry"]
+	path = subprojects/c-sundry
+	url = https://github.com/c-util/c-sundry.git
+[submodule "subprojects/c-list"]
+	path = subprojects/c-list
+	url = https://github.com/c-util/c-list.git
