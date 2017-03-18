@@ -12,12 +12,12 @@ libdbus_broker_private = static_library('dbus-broker-private',
                                         ],
                                         c_args: [
                                                 '-fvisibility=hidden',
-                                                '-fno-common'
+                                                '-fno-common',
                                         ],
                                         dependencies: [
                                                 dep_clist,
                                                 dep_crbtree,
-                                                dep_csundry
+                                                dep_csundry,
                                         ],
                                         pic: true)
 libdbus_broker_dep = declare_dependency(include_directories: include_directories('.'),
@@ -25,7 +25,7 @@ libdbus_broker_dep = declare_dependency(include_directories: include_directories
                                         dependencies: [
                                                 dep_clist,
                                                 dep_crbtree,
-                                                dep_csundry
+                                                dep_csundry,
                                         ],
                                         version: meson.project_version())
 
