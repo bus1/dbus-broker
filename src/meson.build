@@ -7,7 +7,8 @@
 
 libdbus_broker_private = static_library('dbus-broker-private',
                                         [
-                                                'dbus-message.c'
+                                                'dbus-message.c',
+                                                'dispatch.c',
                                         ],
                                         c_args: [
                                                 '-fvisibility=hidden',
