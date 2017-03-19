@@ -10,15 +10,18 @@
 struct UserUsage {
         _Atomic unsigned long n_refs;
         UserEntry *entry;
-        uid_t uid;
+
         unsigned int n_bytes;
         unsigned int n_fds;
+
+        uid_t uid;
         CRBNode rb;
 };
 
 struct UserRegistry {
         unsigned int max_bytes;
         unsigned int max_fds;
+
         CRBTree users;
 };
 
@@ -122,14 +125,26 @@ static int user_usage_ref_by_actor(UserEntry *entry,
 }
 
 /**
- * user_charge_init() - XXX
+ * user_charge_init() - initialize charge object
+ * @charge:     charge object to initialize
+ *
+ * This initializes a new charge object.
  */
 void user_charge_init(UserCharge *charge) {
-        *charge = (UserCharge){};
+        charge->usage = NULL;
+        charge->n_bytes = 0;
+        charge->n_fds = 0;
 }
 
 /**
- * user_charge_deinit() - XXX
+ * user_charge_deinit() - destroy charge object
+ * @charge:     charge object to destroy
+ *
+ * This destroys a charge object that was previously initialized via
+ * user_charge_init(). The caller must make sure the object is not currently in
+ * use before calling this.
+ *
+ * This function is a no-op and only does safety checks on the charge object.
  */
 void user_charge_deinit(UserCharge *charge) {
         assert(!charge->usage);
@@ -148,7 +163,24 @@ static int user_charge_check(unsigned int remaining,
 }
 
 /**
- * user_charge_apply() - XXX
+ * user_charge_apply() - apply a charge
+ * @charge:     charge object used to record the charge
+ * @entry:      user entry to charge on
+ * @actor:      user entry charged on behalf of
+ * @n_bytes:    number of bytes to charge
+ * @n_fds:      number of fds to charge
+ *
+ * Charge @entry @n_bytes and @n_fds on behalf of @actor. Record the charge in
+ * @charge so it can later be undone.
+ *
+ * @charge must be initialized and not currently be in use.
+ *
+ * @actor is at most allowed to consume an n'th of @entry's resources that have
+ * not been consumed by any other user, where n is one more than the total
+ * number of actors currently pinning any of @entry's resources. If this quota
+ * is exceeded the charge fails to apply and this is a no-op.
+ *
+ * Return: 0 on success, or a negative error code on failure.
  */
 int user_charge_apply(UserCharge *charge,
                       UserEntry *entry,
@@ -157,6 +189,8 @@ int user_charge_apply(UserCharge *charge,
                       unsigned int n_fds) {
         _c_cleanup_(user_usage_unrefp) UserUsage *usage = NULL;
         int r;
+
+        assert(!charge->usage);
 
         r = user_usage_ref_by_actor(entry, &usage, actor);
         if (r < 0)
@@ -190,7 +224,11 @@ int user_charge_apply(UserCharge *charge,
 }
 
 /**
- * user_charge_release() - XXX
+ * user_charge_release() - undo a charge
+ * @charge:     object to operate on
+ *
+ * This reverses the effect of user_charge_apply(), and releases the pinned
+ * resources, allowing the charge object to be reused.
  */
 void user_charge_release(UserCharge *charge) {
         UserUsage *usage = charge->usage;
@@ -247,7 +285,13 @@ static int user_entry_new(UserEntry **entryp,
 }
 
 /**
- * user_entry_free() - XXX
+ * user_entry_free() - destroy a user entry
+ * @n_refs:             the reference count
+ * @userdata:           unused userdata
+ *
+ * This is the callback called when the last reference to the user entry has
+ * been released. It verifies that the object is infact unused, unregisteres it
+ * from the user registry and frees the resources.
  */
 void user_entry_free(_Atomic unsigned long *n_refs, void *userdata) {
         UserEntry *entry = c_container_of(n_refs, UserEntry, n_refs);
@@ -276,7 +320,16 @@ static int user_entry_compare(CRBTree *tree, void *k, CRBNode *rb) {
 }
 
 /**
- * user_entry_ref_by_uid() - XXX
+ * user_entry_ref_by_uid() - lookup entry in registry
+ * @registry:           registry to query
+ * @entryp:             pointer to entry
+ * @uid:                uid of entry to lookup
+ *
+ * This looks up a user entry with UID @uid in @registry, if it exists, and
+ * acquires a new refernce to it. If the entry does not exist in the registry,
+ * it is created and added to the registry before being returned.
+ *
+ * Return: 0 on success, or a negative error code on failure.
  */
 int user_entry_ref_by_uid(UserRegistry *registry,
                           UserEntry **entryp,
@@ -308,7 +361,16 @@ int user_entry_ref_by_uid(UserRegistry *registry,
 }
 
 /**
- * user_registry_new() - XXX
+ * user_registry_new() - allocate a new user registry
+ * @registryp:          pointer to the new registry
+ * @max_bytes:          max bytes allocated to each user
+ * @max_fds:            max fds allocated to each user
+ *
+ * Allocate a new user registry. New user entries can be instantiated from the
+ * registry, in which case they are assigned the maximum number of resources as
+ * given in @max_bytes and @max_fds.
+ *
+ * Return: 0 on success, or a negative error code on failure.
  */
 int user_registry_new(UserRegistry **registryp,
                       unsigned int max_bytes,
@@ -329,9 +391,19 @@ int user_registry_new(UserRegistry **registryp,
 }
 
 /**
- * user_registry_free() - XXX
+ * user_registry_free() - destroy user registry
+ * @registry:           user registry to operate on, or NULL
+ *
+ * This destroys the user registry, previously created via user_registry_new().
+ * All user elements instantiated from the registry must have been destroyed
+ * before the registry is freed.
+ *
+ * If @registry is NULL, this is a no-op.
  */
 void user_registry_free(UserRegistry *registry) {
+        if (!registry)
+                return;
+
         assert(!registry->users.root);
 
         free(registry);

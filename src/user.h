@@ -1,9 +1,9 @@
 #pragma once
 
 /*
- * D-Bus User Accounting
+ * User Accounting
  *
- * Different users can communicate via the dbus broker, and many resources are
+ * Different users can communicate via the dbus broker, and some resources are
  * shared between multiple users. The UserEntry object represents the UID of a
  * user, like "struct user_struct" does in the kernel. It is used to account
  * global resources, apply limits, and calculate quotas if different UIDs
@@ -13,16 +13,15 @@
  * by a user. They prevent a single user from exhausting local resources. Each
  * peer that is created is always owned by the user that initialized it. All
  * resources allocated on that peer are accounted on that pinned user.
- * Additionally to global resources, there are local limits per peer, that can
- * be controlled by each peer individually (e.g., specifying a maximum pool
- * size). Those local limits allow a user to distribute the globally available
- * resources across its peer instances.
  *
  * Since the dbus broker allows communication across UID boundaries, any such
  * transmission of resources must be properly accounted. The dbus broker employs
  * dynamic quotas to fairly distribute available resources. Those quotas make
  * sure that available resources of a peer cannot be exhausted by remote UIDs,
- * but are fairly divided among all communicating peers.
+ * but are fairly divided among all communicating peers. The share granted to
+ * each remote UID is between 1/n and 1/n^2 of the total amount of resources
+ * available to the local UID, where n is the number of UIDs consuming a share
+ * of the local UID's resources at the time of accounting.
  */
 
 #include <c-macro.h>
@@ -38,6 +37,7 @@ typedef struct UserRegistry UserRegistry;
 
 struct UserCharge {
         UserUsage *usage;
+
         unsigned int n_bytes;
         unsigned int n_fds;
 };
@@ -45,13 +45,16 @@ struct UserCharge {
 struct UserEntry {
         _Atomic unsigned long n_refs;
         UserRegistry *registry;
-        uid_t uid;
+
         unsigned int n_bytes;
         unsigned int n_fds;
         unsigned int max_bytes;
         unsigned int max_fds;
+
         CRBTree usages;
         unsigned int n_usages;
+
+        uid_t uid;
         CRBNode rb;
 };
 
