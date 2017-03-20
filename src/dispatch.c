@@ -17,7 +17,7 @@ void dispatch_file_init(DispatchFile *file,
                         DispatchContext *ctx,
                         CList *ready_list) {
         file->context = dispatch_context_ref(ctx);
-        file->fn = NULL;
+        file->fn = fn;
         file->ready_list = ready_list;
         file->ready_link = (CList)C_LIST_INIT(file->ready_link);
         file->fd = -1;
