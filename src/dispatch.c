@@ -23,6 +23,8 @@ void dispatch_file_init(DispatchFile *file,
         file->fd = -1;
         file->mask = 0;
         file->events = 0;
+
+        ++file->context->n_files;
 }
 
 /**
@@ -30,6 +32,9 @@ void dispatch_file_init(DispatchFile *file,
  */
 void dispatch_file_deinit(DispatchFile *file) {
         dispatch_file_drop(file);
+
+        if (file->context)
+                --file->context->n_files;
 
         c_list_unlink_init(&file->ready_link);
         file->ready_list = NULL;
