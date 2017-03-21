@@ -11,7 +11,7 @@ static void test_setup(void) {
         UserEntry *entry1, *entry2, *entry3;
         int r;
 
-        r = user_registry_new(&registry, 1024, 1024, 1024);
+        r = user_registry_new(&registry, 1024, 1024, 1024, 1024);
         assert(r >= 0);
         assert(registry);
 
@@ -39,7 +39,7 @@ static void test_quota(void) {
         UserCharge charge1, charge2;
         int r;
 
-        r = user_registry_new(&registry, 1024, 1024, 1024);
+        r = user_registry_new(&registry, 1024, 1024, 1024, 1024);
         assert(r >= 0);
 
         r = user_entry_ref_by_uid(registry, &entry1, 1);

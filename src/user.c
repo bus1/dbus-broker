@@ -23,6 +23,7 @@ struct UserRegistry {
         unsigned int max_bytes;
         unsigned int max_fds;
         unsigned int max_names;
+        unsigned int max_peers;
 
         CRBTree users;
 };
@@ -265,7 +266,8 @@ static int user_entry_new(UserEntry **entryp,
                           uid_t uid,
                           unsigned int max_bytes,
                           unsigned int max_fds,
-                          unsigned int max_names) {
+                          unsigned int max_names,
+                          unsigned int max_peers) {
         UserEntry *entry;
 
         entry = malloc(sizeof(*entry));
@@ -277,9 +279,11 @@ static int user_entry_new(UserEntry **entryp,
         entry->max_bytes = max_bytes;
         entry->max_fds = max_fds;
         entry->max_names = max_names;
+        entry->max_peers = max_peers;
         entry->n_bytes = entry->max_bytes;
         entry->n_fds = entry->max_fds;
         entry->n_names = entry->max_names;
+        entry->n_peers = entry->max_peers;
         entry->usages = (CRBTree){};
         entry->n_usages = 0;
         entry->registry = NULL;
@@ -307,6 +311,7 @@ void user_entry_free(_Atomic unsigned long *n_refs, void *userdata) {
         assert(entry->n_bytes == entry->max_bytes);
         assert(entry->n_fds == entry->max_fds);
         assert(entry->n_names == entry->max_names);
+        assert(entry->n_peers == entry->max_peers);
 
         user_entry_unlink(entry);
 
@@ -352,7 +357,8 @@ int user_entry_ref_by_uid(UserRegistry *registry,
                 r = user_entry_new(&entry, uid,
                                    registry->max_bytes,
                                    registry->max_fds,
-                                   registry->max_names);
+                                   registry->max_names,
+                                   registry->max_peers);
                 if (r < 0)
                         return r;
 
@@ -372,18 +378,20 @@ int user_entry_ref_by_uid(UserRegistry *registry,
  * @registryp:          pointer to the new registry
  * @max_bytes:          max bytes allocated to each user
  * @max_fds:            max fds allocated to each user
- * @max_names:            max names owned by each user
+ * @max_names:          max names owned by each user
+ * @max_peers:          max peers owned by each user
  *
  * Allocate a new user registry. New user entries can be instantiated from the
  * registry, in which case they are assigned the maximum number of resources as
- * given in @max_bytes, @max_fds and @max_names.
+ * given in @max_bytes, @max_fds, @max_names and @max_peers.
  *
  * Return: 0 on success, or a negative error code on failure.
  */
 int user_registry_new(UserRegistry **registryp,
                       unsigned int max_bytes,
                       unsigned int max_fds,
-                      unsigned int max_names) {
+                      unsigned int max_names,
+                      unsigned int max_peers) {
         UserRegistry *registry;
 
         registry = malloc(sizeof(*registry));
@@ -393,6 +401,7 @@ int user_registry_new(UserRegistry **registryp,
         registry->max_bytes = max_bytes;
         registry->max_fds = max_fds;
         registry->max_names = max_names;
+        registry->max_peers = max_peers;
         registry->users = (CRBTree) {};
 
         *registryp = registry;

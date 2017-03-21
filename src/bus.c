@@ -13,7 +13,8 @@
 int bus_new(Bus **busp,
             unsigned int max_bytes,
             unsigned int max_fds,
-            unsigned int max_names) {
+            unsigned int max_names,
+            unsigned int max_peers) {
         _c_cleanup_(bus_freep) Bus *bus = NULL;
         int r;
 
@@ -30,7 +31,8 @@ int bus_new(Bus **busp,
         r = user_registry_new(&bus->users,
                               max_bytes,
                               max_fds,
-                              max_names);
+                              max_names,
+                              max_peers);
         if (r < 0)
                 return r;
 

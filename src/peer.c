@@ -13,9 +13,14 @@
 int peer_new(Peer **peerp, uint64_t id, UserEntry *user) {
         _c_cleanup_(peer_freep) Peer *peer = NULL;
 
+        if (user->n_peers < 1)
+                return -EDQUOT;
+
         peer = calloc(1, sizeof(*peer));
         if (!peer)
                 return -ENOMEM;
+
+        user->n_peers --;
 
         peer->id = id;
         peer->user = user_entry_ref(user);
@@ -35,6 +40,8 @@ Peer *peer_free(Peer *peer) {
 
         assert(!peer->names.root);
         assert(!c_rbnode_is_linked(&peer->rb));
+
+        peer->user->n_peers ++;
 
         user_entry_unref(peer->user);
         free(peer);

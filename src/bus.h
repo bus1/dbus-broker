@@ -27,7 +27,8 @@ struct Bus {
 int bus_new(Bus **busp,
             unsigned int max_bytes,
             unsigned int max_fds,
-            unsigned int max_names);
+            unsigned int max_names,
+            unsigned int max_peers);
 Bus *bus_free(Bus *bus);
 
 int bus_run(Bus *bus);

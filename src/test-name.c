@@ -16,7 +16,7 @@ static void test_setup(void) {
         uint32_t reply;
         int r;
 
-        r = bus_new(&bus, 1024, 1024, 1024);
+        r = bus_new(&bus, 1024, 1024, 1024, 1024);
         assert(r >= 0);
 
         assert(user_entry_ref_by_uid(bus->users, &user, 1) >= 0);
@@ -54,7 +54,7 @@ static void test_release(void) {
         uint32_t reply;
         int r;
 
-        r = bus_new(&bus, 1024, 1024, 1024);
+        r = bus_new(&bus, 1024, 1024, 1024, 1024);
         assert(r >= 0);
 
         assert(user_entry_ref_by_uid(bus->users, &user, 1) >= 0);
@@ -89,7 +89,7 @@ static void test_queue(void) {
         uint32_t reply;
         int r;
 
-        r = bus_new(&bus, 1024, 1024, 1024);
+        r = bus_new(&bus, 1024, 1024, 1024, 1024);
         assert(r >= 0);
 
         assert(user_entry_ref_by_uid(bus->users, &user, 1) >= 0);

@@ -14,7 +14,7 @@ static void test_setup(void) {
         Peer *peer;
         int r;
 
-        r = bus_new(&bus, 1024, 1024, 1024);
+        r = bus_new(&bus, 1024, 1024, 1024, 1024);
         assert(r >= 0);
         r = user_entry_ref_by_uid(bus->users, &user, 1);
         assert(r >= 0);
