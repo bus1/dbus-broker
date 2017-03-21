@@ -9,6 +9,7 @@ libdbus_broker_private = static_library('dbus-broker-private',
                                         [
                                                 'dbus-message.c',
                                                 'dispatch.c',
+                                                'name.c',
                                                 'peer.c',
                                                 'user.c',
                                         ],
@@ -45,3 +46,6 @@ test('Peer', test_peer)
 
 test_user = executable('test-user', ['test-user.c'], dependencies: libdbus_broker_dep)
 test('User Accounting', test_user)
+
+test_name = executable('test-name', ['test-name.c'], dependencies: libdbus_broker_dep)
+test('Name Registry', test_name)

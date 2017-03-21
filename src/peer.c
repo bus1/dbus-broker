@@ -31,6 +31,8 @@ Peer *peer_free(Peer *peer) {
         if (!peer)
                 return NULL;
 
+        assert(!peer->names.root);
+
         user_entry_unref(peer->user);
         free(peer);
 
