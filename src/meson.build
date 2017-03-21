@@ -40,5 +40,8 @@ libdbus_broker_dep = declare_dependency(include_directories: include_directories
 test_message = executable('test-message', ['test-message.c'], dependencies: libdbus_broker_dep)
 test('D-Bus Message Abstraction', test_message)
 
+test_peer = executable('test-peer', ['test-peer.c'], dependencies: libdbus_broker_dep)
+test('Peer', test_peer)
+
 test_user = executable('test-user', ['test-user.c'], dependencies: libdbus_broker_dep)
 test('User Accounting', test_user)
