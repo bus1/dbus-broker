@@ -4,6 +4,7 @@
  * Name Registry
  */
 
+#include <c-macro.h>
 #include <stdlib.h>
 #include <sys/types.h>
 #include "peer.h"
@@ -40,3 +41,5 @@ void name_registry_acquire_unique_name(NameRegistry *registry, Peer *peer);
 void name_registry_release_all_names(NameRegistry *registry, Peer *peer);
 Peer *name_registry_resolve_name(NameRegistry *registry,
                                  const char *name);
+
+C_DEFINE_CLEANUP(NameRegistry *, name_registry_free);

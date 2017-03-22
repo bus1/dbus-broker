@@ -244,16 +244,14 @@ static int name_entry_add_owner(NameEntry *entry,
 }
 
 int name_registry_new(NameRegistry **registryp) {
-        NameRegistry *registry;
+        _c_cleanup_(name_registry_freep) NameRegistry *registry = NULL;
 
-        registry = malloc(sizeof(*registry));
+        registry = calloc(1, sizeof(*registry));
         if (!registry)
                 return -ENOMEM;
 
-        registry->entries.root = NULL;
-        registry->ids = 0;
-
         *registryp = registry;
+        registry = NULL;
         return 0;
 }
 
