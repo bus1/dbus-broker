@@ -257,13 +257,16 @@ int name_registry_new(NameRegistry **registryp) {
         return 0;
 }
 
-void name_registry_free(NameRegistry *registry) {
+NameRegistry *name_registry_free(NameRegistry *registry) {
         if (!registry)
-                return;
+                return NULL;
 
+        assert(!registry->peers.root);
         assert(!registry->entries.root);
 
         free(registry);
+
+        return NULL;
 }
 
 /* add new name entry with its first owner to the registry */

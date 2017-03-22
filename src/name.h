@@ -25,7 +25,7 @@
 typedef struct NameRegistry NameRegistry;
 
 int name_registry_new(NameRegistry **registryp);
-void name_registry_free(NameRegistry *registry);
+NameRegistry *name_registry_free(NameRegistry *registry);
 
 int name_registry_request_name(NameRegistry *registry,
                                Peer *peer,
