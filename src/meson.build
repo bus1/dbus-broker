@@ -7,6 +7,7 @@
 
 libdbus_broker_private = static_library('dbus-broker-private',
                                         [
+                                                'bus.c',
                                                 'dbus-message.c',
                                                 'dbus-variant.c',
                                                 'dispatch.c',
@@ -41,6 +42,9 @@ libdbus_broker_dep = declare_dependency(include_directories: include_directories
 
 test_message = executable('test-message', ['test-message.c'], dependencies: libdbus_broker_dep)
 test('D-Bus Message Abstraction', test_message)
+
+test_bus = executable('test-bus', ['test-bus.c'], dependencies: libdbus_broker_dep)
+test('Bus', test_bus)
 
 test_peer = executable('test-peer', ['test-peer.c'], dependencies: libdbus_broker_dep)
 test('Peer', test_peer)
