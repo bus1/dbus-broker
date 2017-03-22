@@ -182,9 +182,9 @@ static void test_queue(void) {
 
         name_registry_release_name(registry, peer1, "foobar", &reply);
         assert(reply == DBUS_RELEASE_NAME_REPLY_RELEASED);
-        name_registry_free(registry);
         name_registry_release_all_names(registry, peer2);
         name_registry_release_all_names(registry, peer1);
+        name_registry_free(registry);
         peer_free(peer2);
         peer_free(peer1);
         user_entry_unref(user);
