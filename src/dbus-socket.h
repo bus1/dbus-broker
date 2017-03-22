@@ -1,0 +1,45 @@
+#pragma once
+
+/*
+ * D-Bus Socket Abstraction
+ */
+
+#include <c-macro.h>
+#include <stdlib.h>
+
+typedef struct DBusMessage DBusMessage;
+typedef struct DBusSocket DBusSocket;
+
+#define DBUS_SOCKET_LINE_MAX (16UL * 1024UL) /* taken from dbus-daemon(1) */
+#define DBUS_SOCKET_FD_MAX (253UL) /* taken from kernel SCM_MAX_FD */
+
+struct DBusSocket {
+        bool lines_done : 1;
+
+        struct DBusSocketIn {
+                int fd;
+
+                int *fds;
+                size_t n_fds;
+
+                char *data;
+                size_t data_size;
+                size_t data_start;
+                size_t data_end;
+                size_t data_pos;
+
+                DBusMessage *pending_message;
+        } in;
+
+        struct DBusSocketOut {
+                int fd;
+        } out;
+};
+
+int dbus_socket_new(DBusSocket **socketp, int fd_in, int fd_out);
+DBusSocket *dbus_socket_free(DBusSocket *socket);
+
+int dbus_socket_read_line(DBusSocket *socket, char **linep, size_t *np);
+int dbus_socket_read_message(DBusSocket *socket, DBusMessage **messagep);
+
+C_DEFINE_CLEANUP(DBusSocket *, dbus_socket_free);
