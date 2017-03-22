@@ -4,7 +4,6 @@
 
 #include <c-macro.h>
 #include <stdlib.h>
-#include <sys/types.h>
 #include "bus.h"
 #include "driver.h"
 #include "name.h"

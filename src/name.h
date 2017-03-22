@@ -6,7 +6,6 @@
 
 #include <c-macro.h>
 #include <stdlib.h>
-#include <sys/types.h>
 #include "peer.h"
 
 /* from the spec */

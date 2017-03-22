@@ -7,7 +7,6 @@
 #include <c-macro.h>
 #include <c-rbtree.h>
 #include <stdlib.h>
-#include <sys/types.h>
 
 typedef struct Bus Bus;
 typedef struct Peer Peer;

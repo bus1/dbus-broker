@@ -5,6 +5,7 @@
 #include <c-macro.h>
 #include <c-ref.h>
 #include <stdlib.h>
+#include <sys/types.h>
 #include "user.h"
 
 struct UserUsage {
