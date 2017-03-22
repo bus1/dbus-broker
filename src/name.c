@@ -30,6 +30,8 @@ struct NameEntry {
 
 struct NameRegistry {
         CRBTree entries;
+        CRBTree peers;
+        uint64_t ids;
 };
 
 static void dbus_driver_notify_name_owner_change(const char *name,
@@ -39,6 +41,13 @@ static void dbus_driver_notify_name_owner_change(const char *name,
 }
 
 static void name_entry_free(NameEntry *entry);
+
+static int peer_compare(CRBTree *tree, void *k, CRBNode *rb) {
+        Peer *peer = c_container_of(rb, Peer, rb);
+        char *name = k;
+
+        return strcmp(peer->unique_name, name);
+}
 
 /* new owner object linked into the owning peer */
 static int name_owner_new(Peer *peer,
@@ -242,6 +251,7 @@ int name_registry_new(NameRegistry **registryp) {
                 return -ENOMEM;
 
         registry->entries.root = NULL;
+        registry->ids = 0;
 
         *registryp = registry;
         return 0;
@@ -302,6 +312,9 @@ int name_registry_request_name(NameRegistry *registry,
         NameOwner *owner;
         uint32_t reply;
         int r;
+
+        assert(c_rbnode_is_linked(&peer->rb));
+        assert(name[0] != ':');
 
         slot = c_rbtree_find_slot(&registry->entries,
                                   name_entry_compare,
@@ -376,6 +389,34 @@ void name_registry_release_name(NameRegistry *registry,
         *replyp = DBUS_RELEASE_NAME_REPLY_RELEASED;
 }
 
+void name_registry_acquire_unique_name(NameRegistry *registry, Peer *peer) {
+        CRBNode *parent, **slot;
+        int r;
+
+        assert(!c_rbnode_is_linked(&peer->rb));
+
+        r = sprintf(peer->unique_name, ":1.%"PRIu64, registry->ids ++);
+        assert(r > 3);
+
+        dbus_driver_notify_name_owner_change(peer->unique_name, NULL, peer);
+
+        slot = c_rbtree_find_slot(&registry->peers,
+                                  peer_compare,
+                                  peer->unique_name,
+                                  &parent);
+        assert(slot); /* peer->unique_name is guaranteed to be unique */
+        c_rbtree_add(&registry->peers, parent, slot, &peer->rb);
+}
+
+static void name_registry_release_unique_name(NameRegistry *registry,
+                                              Peer *peer) {
+        assert(c_rbnode_is_linked(&peer->rb));
+
+        dbus_driver_notify_name_owner_change(peer->unique_name, peer, NULL);
+
+        c_rbtree_remove_init(&registry->peers, &peer->rb);
+}
+
 void name_registry_release_all_names(NameRegistry *registry, Peer *peer) {
         CRBNode *n;
 
@@ -386,11 +427,21 @@ void name_registry_release_all_names(NameRegistry *registry, Peer *peer) {
 
                 name_owner_release(owner);
         }
+
+        name_registry_release_unique_name(registry, peer);
 }
 
 Peer *name_registry_resolve_name(NameRegistry *registry, const char *name) {
         NameEntry *entry;
         NameOwner *owner;
+
+        if (name[0] == ':') {
+                return c_rbtree_find_entry(&registry->peers,
+                                           peer_compare,
+                                           name,
+                                           Peer,
+                                           rb);
+        }
 
         entry = c_rbtree_find_entry(&registry->entries,
                                     name_entry_compare,

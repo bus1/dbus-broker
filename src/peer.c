@@ -18,6 +18,7 @@ int peer_new(Peer **peerp, UserEntry *user) {
                 return -ENOMEM;
 
         peer->user = user_entry_ref(user);
+        c_rbnode_init(&peer->rb);
 
         *peerp = peer;
         peer = NULL;
@@ -32,6 +33,7 @@ Peer *peer_free(Peer *peer) {
                 return NULL;
 
         assert(!peer->names.root);
+        assert(!c_rbnode_is_linked(&peer->rb));
 
         user_entry_unref(peer->user);
         free(peer);

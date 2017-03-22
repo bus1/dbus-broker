@@ -36,6 +36,7 @@ void name_registry_release_name(NameRegistry *registry,
                                 Peer *peer,
                                 const char *name,
                                 uint32_t *replyp);
+void name_registry_acquire_unique_name(NameRegistry *registry, Peer *peer);
 void name_registry_release_all_names(NameRegistry *registry, Peer *peer);
 Peer *name_registry_resolve_name(NameRegistry *registry,
                                  const char *name);

@@ -11,7 +11,7 @@
 static void test_setup(void) {
         UserRegistry *user_registry;
         UserEntry *user;
-        Peer *peer;
+        Peer *peer, *p;
         NameRegistry *registry;
         uint32_t reply;
         int r;
@@ -23,11 +23,23 @@ static void test_setup(void) {
         r = name_registry_new(&registry);
         assert(r >= 0);
 
+        name_registry_acquire_unique_name(registry, peer);
+        p = name_registry_resolve_name(registry, ":1.0");
+        assert(p == peer);
+
         r = name_registry_request_name(registry, peer, "foobar", 0, &reply);
         assert(r >= 0);
+        p = name_registry_resolve_name(registry, "foobar");
+        assert(p == peer);
         assert(reply == DBUS_REQUEST_NAME_REPLY_PRIMARY_OWNER);
         name_registry_release_name(registry, peer, "foobar", &reply);
         assert(reply == DBUS_RELEASE_NAME_REPLY_RELEASED);
+        p = name_registry_resolve_name(registry, "foobar");
+        assert(p == NULL);
+
+        name_registry_release_all_names(registry, peer);
+        p = name_registry_resolve_name(registry, ":1.0");
+        assert(p == NULL);
 
         name_registry_free(registry);
         peer_free(peer);
@@ -48,6 +60,8 @@ static void test_release(void) {
         assert(peer_new(&peer1, user) >= 0);
         assert(peer_new(&peer2, user) >= 0);
         assert(name_registry_new(&registry) >= 0);
+        name_registry_acquire_unique_name(registry, peer1);
+        name_registry_acquire_unique_name(registry, peer2);
 
         r = name_registry_request_name(registry, peer1, "foobar", 0, &reply);
         assert(r >= 0);
@@ -59,6 +73,8 @@ static void test_release(void) {
         name_registry_release_name(registry, peer1, "foobar", &reply);
         assert(reply == DBUS_RELEASE_NAME_REPLY_RELEASED);
 
+        name_registry_release_all_names(registry, peer2);
+        name_registry_release_all_names(registry, peer1);
         name_registry_free(registry);
         peer_free(peer2);
         peer_free(peer1);
@@ -79,6 +95,8 @@ static void test_queue(void) {
         assert(peer_new(&peer1, user) >= 0);
         assert(peer_new(&peer2, user) >= 0);
         assert(name_registry_new(&registry) >= 0);
+        name_registry_acquire_unique_name(registry, peer1);
+        name_registry_acquire_unique_name(registry, peer2);
 
         /* first to request */
         r = name_registry_request_name(registry, peer1, "foobar", 0, &reply);
@@ -165,6 +183,8 @@ static void test_queue(void) {
         name_registry_release_name(registry, peer1, "foobar", &reply);
         assert(reply == DBUS_RELEASE_NAME_REPLY_RELEASED);
         name_registry_free(registry);
+        name_registry_release_all_names(registry, peer2);
+        name_registry_release_all_names(registry, peer1);
         peer_free(peer2);
         peer_free(peer1);
         user_entry_unref(user);
