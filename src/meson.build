@@ -44,10 +44,10 @@ test_message = executable('test-message', ['test-message.c'], dependencies: libd
 test('D-Bus Message Abstraction', test_message)
 
 test_bus = executable('test-bus', ['test-bus.c'], dependencies: libdbus_broker_dep)
-test('Bus', test_bus)
+test('Bus Management', test_bus)
 
 test_peer = executable('test-peer', ['test-peer.c'], dependencies: libdbus_broker_dep)
-test('Peer', test_peer)
+test('Peer Handling', test_peer)
 
 test_user = executable('test-user', ['test-user.c'], dependencies: libdbus_broker_dep)
 test('User Accounting', test_user)
