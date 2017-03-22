@@ -14,7 +14,7 @@ typedef struct DBusVariantType DBusVariantType;
  *                      can be used to initialize DBusVariantType objects, if
  *                      needed.
  *                      Note that these are given as tuples, so you might have
- *                      to strip the surrounding brackets (via C_IDENTITY or
+ *                      to strip the surrounding brackets (via C_EXPAND or
  *                      similar).
  */
 #define DBUS_VARIANT_TYPE_b (1, 0, 1)

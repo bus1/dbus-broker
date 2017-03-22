@@ -11,24 +11,21 @@ _Static_assert(DBUS_VARIANT_TYPE_LENGTH_MAX * 8 < (1 << DBUS_VARIANT_TYPE_SIZE_B
 _Static_assert(sizeof(DBusVariantType) == 2,
                "Unexpected padding in DBusVariantType");
 
-/* XXX: move C_IDENTITY() to c-macro.h */
-#define C_INTERNAL_IDENTITY(...) __VA_ARGS__
-#define C_IDENTITY(...) C_INTERNAL_IDENTITY __VA_ARGS__
 const DBusVariantType dbus_variant_type_builtins[256] = {
-        ['b'] = { C_IDENTITY(DBUS_VARIANT_TYPE_b), 1 },
-        ['y'] = { C_IDENTITY(DBUS_VARIANT_TYPE_y), 1 },
-        ['n'] = { C_IDENTITY(DBUS_VARIANT_TYPE_n), 1 },
-        ['q'] = { C_IDENTITY(DBUS_VARIANT_TYPE_q), 1 },
-        ['i'] = { C_IDENTITY(DBUS_VARIANT_TYPE_i), 1 },
-        ['u'] = { C_IDENTITY(DBUS_VARIANT_TYPE_u), 1 },
-        ['x'] = { C_IDENTITY(DBUS_VARIANT_TYPE_x), 1 },
-        ['t'] = { C_IDENTITY(DBUS_VARIANT_TYPE_t), 1 },
-        ['h'] = { C_IDENTITY(DBUS_VARIANT_TYPE_h), 1 },
-        ['d'] = { C_IDENTITY(DBUS_VARIANT_TYPE_d), 1 },
-        ['s'] = { C_IDENTITY(DBUS_VARIANT_TYPE_s), 1 },
-        ['o'] = { C_IDENTITY(DBUS_VARIANT_TYPE_o), 1 },
-        ['g'] = { C_IDENTITY(DBUS_VARIANT_TYPE_g), 1 },
-        ['v'] = { C_IDENTITY(DBUS_VARIANT_TYPE_v), 1 },
+        ['b'] = { C_EXPAND(DBUS_VARIANT_TYPE_b), 1 },
+        ['y'] = { C_EXPAND(DBUS_VARIANT_TYPE_y), 1 },
+        ['n'] = { C_EXPAND(DBUS_VARIANT_TYPE_n), 1 },
+        ['q'] = { C_EXPAND(DBUS_VARIANT_TYPE_q), 1 },
+        ['i'] = { C_EXPAND(DBUS_VARIANT_TYPE_i), 1 },
+        ['u'] = { C_EXPAND(DBUS_VARIANT_TYPE_u), 1 },
+        ['x'] = { C_EXPAND(DBUS_VARIANT_TYPE_x), 1 },
+        ['t'] = { C_EXPAND(DBUS_VARIANT_TYPE_t), 1 },
+        ['h'] = { C_EXPAND(DBUS_VARIANT_TYPE_h), 1 },
+        ['d'] = { C_EXPAND(DBUS_VARIANT_TYPE_d), 1 },
+        ['s'] = { C_EXPAND(DBUS_VARIANT_TYPE_s), 1 },
+        ['o'] = { C_EXPAND(DBUS_VARIANT_TYPE_o), 1 },
+        ['g'] = { C_EXPAND(DBUS_VARIANT_TYPE_g), 1 },
+        ['v'] = { C_EXPAND(DBUS_VARIANT_TYPE_v), 1 },
 };
 
 /**
