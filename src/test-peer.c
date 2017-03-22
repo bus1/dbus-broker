@@ -13,9 +13,10 @@ static void test_setup(void) {
         Peer *peer;
         int r;
 
-        assert(user_registry_new(&registry, 1024, 1024, 1024) >= 0);
-        assert(user_entry_ref_by_uid(registry, &user, 1) >= 0);
-
+        r = user_registry_new(&registry, 1024, 1024, 1024);
+        assert(r >= 0);
+        r = user_entry_ref_by_uid(registry, &user, 1);
+        assert(r >= 0);
         r = peer_new(&peer, user);
         assert(r >= 0);
 
