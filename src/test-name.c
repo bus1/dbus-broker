@@ -20,10 +20,10 @@ static void test_setup(void) {
         assert(r >= 0);
 
         assert(user_entry_ref_by_uid(bus->users, &user, 1) >= 0);
-        assert(peer_new(&peer, user) >= 0);
+        assert(peer_new(&peer, bus->ids ++, user) >= 0);
 
-        name_registry_acquire_unique_name(bus->names, peer);
-        p = name_registry_resolve_name(bus->names, ":1.0");
+        bus_register_peer(bus, peer);
+        p = bus_find_peer(bus, 0);
         assert(p == peer);
 
         r = name_registry_request_name(bus->names, peer, "foobar", 0, &reply);
@@ -37,7 +37,10 @@ static void test_setup(void) {
         assert(p == NULL);
 
         name_registry_release_all_names(bus->names, peer);
-        p = name_registry_resolve_name(bus->names, ":1.0");
+        p = bus_find_peer(bus, 0);
+        assert(p == peer);
+        bus_unregister_peer(bus, peer);
+        p = bus_find_peer(bus, 0);
         assert(p == NULL);
 
         peer_free(peer);
@@ -55,10 +58,10 @@ static void test_release(void) {
         assert(r >= 0);
 
         assert(user_entry_ref_by_uid(bus->users, &user, 1) >= 0);
-        assert(peer_new(&peer1, user) >= 0);
-        assert(peer_new(&peer2, user) >= 0);
-        name_registry_acquire_unique_name(bus->names, peer1);
-        name_registry_acquire_unique_name(bus->names, peer2);
+        assert(peer_new(&peer1, bus->ids ++, user) >= 0);
+        assert(peer_new(&peer2, bus->ids ++, user) >= 0);
+        bus_register_peer(bus, peer1);
+        bus_register_peer(bus, peer2);
 
         r = name_registry_request_name(bus->names, peer1, "foobar", 0, &reply);
         assert(r >= 0);
@@ -71,7 +74,9 @@ static void test_release(void) {
         assert(reply == DBUS_RELEASE_NAME_REPLY_RELEASED);
 
         name_registry_release_all_names(bus->names, peer2);
+        bus_unregister_peer(bus, peer2);
         name_registry_release_all_names(bus->names, peer1);
+        bus_unregister_peer(bus, peer1);
         peer_free(peer2);
         peer_free(peer1);
         user_entry_unref(user);
@@ -88,10 +93,10 @@ static void test_queue(void) {
         assert(r >= 0);
 
         assert(user_entry_ref_by_uid(bus->users, &user, 1) >= 0);
-        assert(peer_new(&peer1, user) >= 0);
-        assert(peer_new(&peer2, user) >= 0);
-        name_registry_acquire_unique_name(bus->names, peer1);
-        name_registry_acquire_unique_name(bus->names, peer2);
+        assert(peer_new(&peer1, bus->ids ++, user) >= 0);
+        assert(peer_new(&peer2, bus->ids ++, user) >= 0);
+        bus_register_peer(bus, peer1);
+        bus_register_peer(bus, peer2);
 
         /* first to request */
         r = name_registry_request_name(bus->names, peer1, "foobar", 0, &reply);
@@ -178,7 +183,9 @@ static void test_queue(void) {
         name_registry_release_name(bus->names, peer1, "foobar", &reply);
         assert(reply == DBUS_RELEASE_NAME_REPLY_RELEASED);
         name_registry_release_all_names(bus->names, peer2);
+        bus_unregister_peer(bus, peer2);
         name_registry_release_all_names(bus->names, peer1);
+        bus_unregister_peer(bus, peer1);
         peer_free(peer2);
         peer_free(peer1);
         user_entry_unref(user);

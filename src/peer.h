@@ -16,10 +16,10 @@ struct Peer {
         UserEntry *user;
         CRBTree names;
         CRBNode rb;
-        char unique_name[3 + C_DECIMAL_MAX(uint64_t)];
+        uint64_t id;
 };
 
-int peer_new(Peer **peerp, UserEntry *user);
+int peer_new(Peer **peerp, uint64_t id, UserEntry *user);
 Peer *peer_free(Peer *peer);
 
 C_DEFINE_CLEANUP(Peer *, peer_free);

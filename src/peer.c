@@ -10,13 +10,14 @@
 /**
  * peer_new() - XXX
  */
-int peer_new(Peer **peerp, UserEntry *user) {
+int peer_new(Peer **peerp, uint64_t id, UserEntry *user) {
         _c_cleanup_(peer_freep) Peer *peer = NULL;
 
         peer = calloc(1, sizeof(*peer));
         if (!peer)
                 return -ENOMEM;
 
+        peer->id = id;
         peer->user = user_entry_ref(user);
         c_rbnode_init(&peer->rb);
 
