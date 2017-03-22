@@ -16,7 +16,7 @@ void dispatch_file_init(DispatchFile *file,
                         DispatchFn fn,
                         DispatchContext *ctx,
                         CList *ready_list) {
-        file->context = dispatch_context_ref(ctx);
+        file->context = ctx;
         file->fn = fn;
         file->ready_list = ready_list;
         file->ready_link = (CList)C_LIST_INIT(file->ready_link);
@@ -39,7 +39,7 @@ void dispatch_file_deinit(DispatchFile *file) {
         c_list_unlink_init(&file->ready_link);
         file->ready_list = NULL;
         file->fn = NULL;
-        file->context = dispatch_context_unref(file->context);
+        file->context = NULL;
 }
 
 /**
@@ -113,7 +113,7 @@ void dispatch_file_drop(DispatchFile *file) {
  * dispatch_context_new() - XXX
  */
 int dispatch_context_new(DispatchContext **ctxp) {
-        _c_cleanup_(dispatch_context_unrefp) DispatchContext *ctx = NULL;
+        _c_cleanup_(dispatch_context_freep) DispatchContext *ctx = NULL;
 
         ctx = calloc(1, sizeof(*ctx));
         if (!ctx)
@@ -128,14 +128,19 @@ int dispatch_context_new(DispatchContext **ctxp) {
         return 0;
 }
 
-/* internal callback for dispatch_context_unref() */
-void dispatch_context_free(_Atomic unsigned long *n_refs, void *userdata) {
-        DispatchContext *ctx = c_container_of(n_refs, DispatchContext, n_refs);
+/**
+ * dispatch_context_free() - XXX
+ */
+DispatchContext *dispatch_context_free(DispatchContext *ctx) {
+        if (!ctx)
+                return NULL;
 
         assert(!ctx->n_files);
 
         c_close(ctx->epoll_fd);
         free(ctx);
+
+        return NULL;
 }
 
 /**
