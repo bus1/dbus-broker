@@ -5,6 +5,7 @@
 #include <c-macro.h>
 #include <stdlib.h>
 #include "bus.h"
+#include "dispatch.h"
 #include "driver.h"
 #include "name.h"
 #include "user.h"
@@ -20,6 +21,8 @@ int bus_new(Bus **busp,
         if (!bus)
                 return -ENOMEM;
 
+        bus->ready_list = (CList)C_LIST_INIT(bus->ready_list);
+
         r = name_registry_new(&bus->names);
         if (r < 0)
                 return r;
@@ -28,6 +31,10 @@ int bus_new(Bus **busp,
                               max_bytes,
                               max_fds,
                               max_names);
+        if (r < 0)
+                return r;
+
+        r = dispatch_context_new(&bus->dispatcher);
         if (r < 0)
                 return r;
 
@@ -41,13 +48,46 @@ Bus *bus_free(Bus *bus) {
                 return NULL;
 
         assert(!bus->peers.root);
+        assert(c_list_is_empty(&bus->ready_list));
 
+        dispatch_context_free(bus->dispatcher);
         user_registry_free(bus->users);
         name_registry_free(bus->names);
 
         free(bus);
 
         return NULL;
+}
+
+int bus_dispatch(Bus *bus) {
+        DispatchFile *file, *safe;
+        int r;
+
+        /*
+         * XXX: This avoids starvation by dispatching only one event from each
+         *      file, but we probably want something better than that.
+         */
+        c_list_for_each_entry_safe(file, safe, &bus->ready_list, ready_link) {
+                r = file->fn(file, file->events);
+                if (r < 0)
+                        return r;
+        }
+
+        return 0;
+}
+
+int bus_run(Bus *bus) {
+        int r;
+
+        for (;;) {
+                r = bus_dispatch(bus);
+                if (r < 0)
+                        return r;
+
+                r = dispatch_context_poll(bus->dispatcher, -1, NULL);
+                if (r < 0)
+                        return r;
+        }
 }
 
 static int peer_compare(CRBTree *tree, void *k, CRBNode *rb) {
