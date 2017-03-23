@@ -11,16 +11,16 @@
 
 static void test_setup(void) {
         _c_cleanup_(bus_freep) Bus *bus = NULL;
-        UserEntry *user;
-        Peer *peer, *p;
+        _c_cleanup_(peer_freep) Peer *peer = NULL;
+        Peer *p;
         uint32_t reply;
         int r;
 
         r = bus_new(&bus, 1024, 1024, 1024, 1024);
         assert(r >= 0);
 
-        assert(user_entry_ref_by_uid(bus->users, &user, 1) >= 0);
-        assert(peer_new(&peer, bus->ids ++, user) >= 0);
+        r = peer_new(bus, &peer, 1);
+        assert(r >= 0);
 
         bus_register_peer(bus, peer);
         p = bus_find_peer(bus, 0);
@@ -42,24 +42,21 @@ static void test_setup(void) {
         bus_unregister_peer(bus, peer);
         p = bus_find_peer(bus, 0);
         assert(p == NULL);
-
-        peer_free(peer);
-        user_entry_unref(user);
 }
 
 static void test_release(void) {
         _c_cleanup_(bus_freep) Bus *bus = NULL;
-        UserEntry *user;
-        Peer *peer1, *peer2;
+        _c_cleanup_(peer_freep) Peer *peer1 = NULL, *peer2 = NULL;
         uint32_t reply;
         int r;
 
         r = bus_new(&bus, 1024, 1024, 1024, 1024);
         assert(r >= 0);
 
-        assert(user_entry_ref_by_uid(bus->users, &user, 1) >= 0);
-        assert(peer_new(&peer1, bus->ids ++, user) >= 0);
-        assert(peer_new(&peer2, bus->ids ++, user) >= 0);
+        r = peer_new(bus, &peer1, 1);
+        assert(r >= 0);
+        r = peer_new(bus, &peer2, 1);
+        assert(r >= 0);
         bus_register_peer(bus, peer1);
         bus_register_peer(bus, peer2);
 
@@ -77,24 +74,22 @@ static void test_release(void) {
         bus_unregister_peer(bus, peer2);
         name_registry_release_all_names(bus->names, peer1);
         bus_unregister_peer(bus, peer1);
-        peer_free(peer2);
-        peer_free(peer1);
-        user_entry_unref(user);
 }
 
 static void test_queue(void) {
         _c_cleanup_(bus_freep) Bus *bus = NULL;
-        UserEntry *user;
-        Peer *peer1, *peer2, *peer;
+        _c_cleanup_(peer_freep) Peer *peer1 = NULL, *peer2 = NULL;
+        Peer *peer;
         uint32_t reply;
         int r;
 
         r = bus_new(&bus, 1024, 1024, 1024, 1024);
         assert(r >= 0);
 
-        assert(user_entry_ref_by_uid(bus->users, &user, 1) >= 0);
-        assert(peer_new(&peer1, bus->ids ++, user) >= 0);
-        assert(peer_new(&peer2, bus->ids ++, user) >= 0);
+        r = peer_new(bus, &peer1, 1);
+        assert(r >= 0);
+        r = peer_new(bus, &peer2, 1);
+        assert(r >= 0);
         bus_register_peer(bus, peer1);
         bus_register_peer(bus, peer2);
 
@@ -186,9 +181,6 @@ static void test_queue(void) {
         bus_unregister_peer(bus, peer2);
         name_registry_release_all_names(bus->names, peer1);
         bus_unregister_peer(bus, peer1);
-        peer_free(peer2);
-        peer_free(peer1);
-        user_entry_unref(user);
 }
 
 int main(int argc, char **argv) {

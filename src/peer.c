@@ -4,14 +4,22 @@
 
 #include <c-macro.h>
 #include <stdlib.h>
+#include <sys/types.h>
+#include "bus.h"
 #include "peer.h"
 #include "user.h"
 
 /**
  * peer_new() - XXX
  */
-int peer_new(Peer **peerp, uint64_t id, UserEntry *user) {
+int peer_new(Bus *bus, Peer **peerp, uid_t uid) {
         _c_cleanup_(peer_freep) Peer *peer = NULL;
+        _c_cleanup_(user_entry_unrefp) UserEntry *user = NULL;
+        int r;
+
+        r = user_entry_ref_by_uid(bus->users, &user, uid);
+        if (r < 0)
+                return r;
 
         if (user->n_peers < 1)
                 return -EDQUOT;
@@ -22,9 +30,10 @@ int peer_new(Peer **peerp, uint64_t id, UserEntry *user) {
 
         user->n_peers --;
 
-        peer->id = id;
-        peer->user = user_entry_ref(user);
+        peer->id = bus->ids ++;
         c_rbnode_init(&peer->rb);
+        peer->user = user;
+        user = NULL;
 
         *peerp = peer;
         peer = NULL;
