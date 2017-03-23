@@ -3,14 +3,61 @@
  */
 
 #include <c-macro.h>
+#include <poll.h>
 #include <stdlib.h>
+#include <sys/socket.h>
 #include "bus.h"
 #include "dispatch.h"
 #include "driver.h"
 #include "name.h"
 #include "user.h"
 
+static int bus_accept(DispatchFile *file, uint32_t events) {
+        Bus *bus = c_container_of(file, Bus, accept_file);
+        _c_cleanup_(c_closep) int fd = -1;
+        _c_cleanup_(user_entry_unrefp) UserEntry *user = NULL;
+        _c_cleanup_(peer_freep) Peer *peer = NULL;
+        struct ucred ucred;
+        socklen_t socklen = sizeof(ucred);
+        int r;
+
+        if (!(events & POLLIN))
+                return 0;
+
+        fd = accept4(bus->fd, NULL, NULL, SOCK_NONBLOCK | SOCK_CLOEXEC);
+        if (fd < 0) {
+                if (errno == EAGAIN) {
+                        dispatch_file_clear(file, POLLIN);
+                        return 0;
+                } else if (errno == ECONNRESET || errno == EPERM) {
+                        /* ignore pending errors on the new socket */
+                        return 0;
+                }
+                return -errno;
+        }
+
+        r = getsockopt(fd, SOL_SOCKET, SO_PEERCRED, &ucred, &socklen);
+        if (r < 0)
+                return -errno;
+
+        r = peer_new(bus, &peer, fd, ucred.uid);
+        if (r < 0)
+                return r;
+        fd = -1;
+
+        r = peer_start(peer);
+        if (r < 0)
+                return r;
+
+        /* XXX: consider only registering the peer after SASL completed */
+        bus_register_peer(bus, peer);
+
+        peer = NULL;
+        return 0;
+}
+
 int bus_new(Bus **busp,
+            int fd,
             unsigned int max_bytes,
             unsigned int max_fds,
             unsigned int max_names,
@@ -23,6 +70,7 @@ int bus_new(Bus **busp,
                 return -ENOMEM;
 
         bus->ready_list = (CList)C_LIST_INIT(bus->ready_list);
+        bus->fd = fd;
 
         r = name_registry_new(&bus->names);
         if (r < 0)
@@ -40,6 +88,11 @@ int bus_new(Bus **busp,
         if (r < 0)
                 return r;
 
+        dispatch_file_init(&bus->accept_file,
+                           bus_accept,
+                           bus->dispatcher,
+                           &bus->ready_list);
+
         *busp = bus;
         bus = NULL;
         return 0;
@@ -52,6 +105,7 @@ Bus *bus_free(Bus *bus) {
         assert(!bus->peers.root);
         assert(c_list_is_empty(&bus->ready_list));
 
+        dispatch_file_deinit(&bus->accept_file);
         dispatch_context_free(bus->dispatcher);
         user_registry_free(bus->users);
         name_registry_free(bus->names);

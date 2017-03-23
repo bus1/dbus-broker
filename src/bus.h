@@ -8,6 +8,7 @@
 #include <c-macro.h>
 #include <c-rbtree.h>
 #include <stdlib.h>
+#include "dispatch.h"
 
 typedef struct Bus Bus;
 typedef struct Peer Peer;
@@ -17,6 +18,8 @@ typedef struct DispatchContext DispatchContext;
 
 struct Bus {
         DispatchContext *dispatcher;
+        DispatchFile accept_file;
+        int fd;
         CList ready_list;
         NameRegistry *names;
         UserRegistry *users;
@@ -25,6 +28,7 @@ struct Bus {
 };
 
 int bus_new(Bus **busp,
+            int fd,
             unsigned int max_bytes,
             unsigned int max_fds,
             unsigned int max_names,
