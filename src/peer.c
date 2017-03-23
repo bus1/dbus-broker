@@ -6,13 +6,14 @@
 #include <stdlib.h>
 #include <sys/types.h>
 #include "bus.h"
+#include "dbus-socket.h"
 #include "peer.h"
 #include "user.h"
 
 /**
  * peer_new() - XXX
  */
-int peer_new(Bus *bus, Peer **peerp, uid_t uid) {
+int peer_new(Bus *bus, Peer **peerp, int fd, uid_t uid) {
         _c_cleanup_(peer_freep) Peer *peer = NULL;
         _c_cleanup_(user_entry_unrefp) UserEntry *user = NULL;
         int r;
@@ -30,10 +31,15 @@ int peer_new(Bus *bus, Peer **peerp, uid_t uid) {
 
         user->n_peers --;
 
-        peer->id = bus->ids ++;
         c_rbnode_init(&peer->rb);
         peer->user = user;
         user = NULL;
+
+        r = dbus_socket_new(&peer->socket, fd, fd);
+        if (r < 0)
+                return r;
+
+        peer->id = bus->ids ++;
 
         *peerp = peer;
         peer = NULL;
@@ -52,6 +58,7 @@ Peer *peer_free(Peer *peer) {
 
         peer->user->n_peers ++;
 
+        dbus_socket_free(peer->socket);
         user_entry_unref(peer->user);
         free(peer);
 

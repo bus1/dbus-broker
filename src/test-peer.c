@@ -15,7 +15,7 @@ static void test_setup(void) {
         r = bus_new(&bus, 1024, 1024, 1024, 1024);
         assert(r >= 0);
 
-        r = peer_new(bus, &peer, 1);
+        r = peer_new(bus, &peer, -1, 1);
         assert(r >= 0);
 }
 
