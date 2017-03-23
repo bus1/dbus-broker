@@ -14,6 +14,7 @@ typedef struct DBusSocket DBusSocket;
 #define DBUS_SOCKET_FD_MAX (253UL) /* taken from kernel SCM_MAX_FD */
 
 struct DBusSocket {
+        bool null_byte_done : 1;
         bool lines_done : 1;
 
         struct DBusSocketIn {

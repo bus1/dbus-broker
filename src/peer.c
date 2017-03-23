@@ -37,21 +37,6 @@ static int peer_dispatch_line(Peer *peer) {
         return 0;
 }
 
-static int peer_dispatch_null_byte(Peer *peer) {
-        uint8_t byte;
-        int r;
-
-        r = recv(peer->socket->in.fd, &byte, sizeof(byte), 0);
-        if (r < 0)
-                return -errno;
-        if (r != sizeof(byte) || byte != 0)
-                return -EINVAL;
-
-        peer->null_byte_done = true;
-
-        return 0;
-}
-
 static int peer_dispatch(DispatchFile *file, uint32_t mask) {
         Peer *peer = c_container_of(file, Peer, dispatch_file);
         int r;
@@ -59,12 +44,10 @@ static int peer_dispatch(DispatchFile *file, uint32_t mask) {
         if (!(mask & POLLIN))
                 return 0;
 
-        if (_c_likely_(peer->socket->lines_done)) {
+        if (_c_likely_(peer->authenticated)) {
                 r = peer_dispatch_message(peer);
-        } else if (_c_likely_(peer->null_byte_done)) {
-                r = peer_dispatch_line(peer);
         } else {
-                r = peer_dispatch_null_byte(peer);
+                r = peer_dispatch_line(peer);
         }
 
         if (r == -EAGAIN) {

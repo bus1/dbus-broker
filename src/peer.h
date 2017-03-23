@@ -16,7 +16,7 @@ typedef struct Peer Peer;
 typedef struct UserEntry UserEntry;
 
 struct Peer {
-        bool null_byte_done : 1;
+        bool authenticated : 1;
         DispatchFile dispatch_file;
         DBusSocket *socket;
         UserEntry *user;
