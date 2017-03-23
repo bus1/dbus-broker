@@ -3,12 +3,80 @@
  */
 
 #include <c-macro.h>
+#include <poll.h>
 #include <stdlib.h>
+#include <sys/socket.h>
 #include <sys/types.h>
 #include "bus.h"
+#include "dbus-message.h"
 #include "dbus-socket.h"
+#include "dispatch.h"
 #include "peer.h"
 #include "user.h"
+
+static int peer_dispatch_message(Peer *peer) {
+        _c_cleanup_(dbus_message_unrefp) DBusMessage *message = NULL;
+        int r;
+
+        r = dbus_socket_read_message(peer->socket, &message);
+        if (r < 0)
+                return r;
+
+        return 0;
+}
+
+static int peer_dispatch_line(Peer *peer) {
+        char *line;
+        size_t n;
+        int r;
+
+        r = dbus_socket_read_line(peer->socket, &line, &n);
+        if (r < 0)
+                return r;
+
+        return 0;
+}
+
+static int peer_dispatch_null_byte(Peer *peer) {
+        uint8_t byte;
+        int r;
+
+        r = recv(peer->socket->in.fd, &byte, sizeof(byte), 0);
+        if (r < 0)
+                return -errno;
+        if (r != sizeof(byte) || byte != 0)
+                return -EINVAL;
+
+        peer->null_byte_done = true;
+
+        return 0;
+}
+
+static int peer_dispatch(DispatchFile *file, uint32_t mask) {
+        Peer *peer = c_container_of(file, Peer, dispatch_file);
+        int r;
+
+        if (!(mask & POLLIN))
+                return 0;
+
+        if (_c_likely_(peer->socket->lines_done)) {
+                r = peer_dispatch_message(peer);
+        } else if (_c_likely_(peer->null_byte_done)) {
+                r = peer_dispatch_line(peer);
+        } else {
+                r = peer_dispatch_null_byte(peer);
+        }
+
+        if (r == -EAGAIN) {
+                /* nothing to be done */
+                dispatch_file_clear(&peer->dispatch_file, POLLIN);
+        } else if (r < 0) {
+                /* XXX: swallow error code and simply tear down this peer */
+                return 0;
+        }
+
+        return 0;
+}
 
 /**
  * peer_new() - XXX
@@ -34,6 +102,10 @@ int peer_new(Bus *bus, Peer **peerp, int fd, uid_t uid) {
         c_rbnode_init(&peer->rb);
         peer->user = user;
         user = NULL;
+        dispatch_file_init(&peer->dispatch_file,
+                           peer_dispatch,
+                           bus->dispatcher,
+                           &bus->ready_list);
 
         r = dbus_socket_new(&peer->socket, fd, fd);
         if (r < 0)
@@ -58,9 +130,20 @@ Peer *peer_free(Peer *peer) {
 
         peer->user->n_peers ++;
 
+        dispatch_file_deinit(&peer->dispatch_file);
         dbus_socket_free(peer->socket);
         user_entry_unref(peer->user);
         free(peer);
 
         return NULL;
+}
+
+int peer_start(Peer *peer) {
+        return dispatch_file_select(&peer->dispatch_file,
+                                    peer->socket->in.fd,
+                                    POLLIN);
+}
+
+void peer_stop(Peer *peer) {
+        dispatch_file_drop(&peer->dispatch_file);
 }
