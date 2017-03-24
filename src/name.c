@@ -90,13 +90,20 @@ static int name_owner_compare(CRBTree *tree, void *k, CRBNode *rb) {
 
 void name_owner_release(NameOwner *owner) {
         if (c_list_first(&owner->entry->owners) == &owner->entry_link) {
-                NameOwner *next = c_container_of(owner->entry_link.next,
-                                                 NameOwner,
-                                                 entry_link);
+                Peer *new_peer;
+
+                if (c_list_last(&owner->entry->owners) != &owner->entry_link) {
+                        NameOwner *next = c_list_entry(owner->entry_link.next,
+                                                       NameOwner,
+                                                       entry_link);
+                        new_peer = next->peer;
+                } else {
+                        new_peer = NULL;
+                }
 
                 dbus_driver_notify_name_owner_change(owner->entry->name,
-                                                owner->peer,
-                                                next ? next->peer : NULL);
+                                                     owner->peer,
+                                                     new_peer);
         }
 
         name_owner_free(owner);
