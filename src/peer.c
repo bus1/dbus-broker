@@ -26,6 +26,7 @@ static int peer_dispatch_message(Peer *peer) {
 }
 
 static int peer_dispatch_line(Peer *peer) {
+        char buffer[DBUS_SASL_MAX_OUT_LINE_LENGTH];
         char *line;
         size_t n;
         int r;
@@ -33,6 +34,16 @@ static int peer_dispatch_line(Peer *peer) {
         r = dbus_socket_read_line(peer->socket, &line, &n);
         if (r < 0)
                 return r;
+
+        r = dbus_sasl_dispatch(&peer->sasl, line, buffer, &n);
+        if (r < 0) {
+                return r;
+        } else if (r == 1) {
+                peer->authenticated = true;
+                return 0;
+        }
+
+        /* XXX: write outpt to the socket */
 
         return 0;
 }
@@ -91,6 +102,7 @@ int peer_new(Bus *bus, Peer **peerp, int fd, uid_t uid) {
                            peer_dispatch,
                            bus->dispatcher,
                            &bus->ready_list);
+        dbus_sasl_init(&peer->sasl, uid, bus->guid);
 
         r = dbus_socket_new(&peer->socket, fd, fd);
         if (r < 0)
@@ -116,6 +128,7 @@ Peer *peer_free(Peer *peer) {
         peer->user->n_peers ++;
 
         dispatch_file_deinit(&peer->dispatch_file);
+        dbus_sasl_deinit(&peer->sasl);
         dbus_socket_free(peer->socket);
         user_entry_unref(peer->user);
         free(peer);

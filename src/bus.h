@@ -17,6 +17,7 @@ typedef struct UserRegistry UserRegistry;
 typedef struct DispatchContext DispatchContext;
 
 struct Bus {
+        char guid[16];
         DispatchContext *dispatcher;
         DispatchFile accept_file;
         int fd;

@@ -71,6 +71,7 @@ int bus_new(Bus **busp,
 
         bus->ready_list = (CList)C_LIST_INIT(bus->ready_list);
         bus->fd = fd;
+        /* XXX: initialize guid with random data */
 
         r = name_registry_new(&bus->names);
         if (r < 0)
