@@ -9,6 +9,7 @@ libdbus_broker_private = static_library('dbus-broker-private',
                                         [
                                                 'bus.c',
                                                 'dbus-message.c',
+                                                'dbus-sasl.c',
                                                 'dbus-socket.c',
                                                 'dbus-variant.c',
                                                 'dispatch.c',
@@ -43,6 +44,9 @@ libdbus_broker_dep = declare_dependency(include_directories: include_directories
 
 test_message = executable('test-message', ['test-message.c'], dependencies: libdbus_broker_dep)
 test('D-Bus Message Abstraction', test_message)
+
+test_sasl = executable('test-sasl', ['test-sasl.c'], dependencies: libdbus_broker_dep)
+test('D-Bus SASL Parser', test_sasl)
 
 test_bus = executable('test-bus', ['test-bus.c'], dependencies: libdbus_broker_dep)
 test('Bus Management', test_bus)
