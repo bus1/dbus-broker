@@ -119,10 +119,6 @@ int bus_dispatch(Bus *bus) {
         DispatchFile *file, *safe;
         int r;
 
-        /*
-         * XXX: This avoids starvation by dispatching only one event from each
-         *      file, but we probably want something better than that.
-         */
         c_list_for_each_entry_safe(file, safe, &bus->ready_list, ready_link) {
                 r = file->fn(file, file->events);
                 if (r < 0)

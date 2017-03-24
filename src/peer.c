@@ -44,18 +44,20 @@ static int peer_dispatch(DispatchFile *file, uint32_t mask) {
         if (!(mask & POLLIN))
                 return 0;
 
-        if (_c_likely_(peer->authenticated)) {
-                r = peer_dispatch_message(peer);
-        } else {
-                r = peer_dispatch_line(peer);
-        }
-
-        if (r == -EAGAIN) {
-                /* nothing to be done */
-                dispatch_file_clear(&peer->dispatch_file, POLLIN);
-        } else if (r < 0) {
-                /* XXX: swallow error code and simply tear down this peer */
-                return 0;
+        for (unsigned int i = 0; i < 32; i ++) {
+                if (_c_likely_(peer->authenticated)) {
+                        r = peer_dispatch_message(peer);
+                } else {
+                        r = peer_dispatch_line(peer);
+                }
+                if (r == -EAGAIN) {
+                        /* nothing to be done */
+                        dispatch_file_clear(&peer->dispatch_file, POLLIN);
+                        return 0;
+                } else if (r < 0) {
+                        /* XXX: swallow error code and tear down this peer */
+                        return 0;
+                }
         }
 
         return 0;
