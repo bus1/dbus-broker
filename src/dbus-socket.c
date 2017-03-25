@@ -135,9 +135,10 @@ static int dbus_socket_line_pop(DBusSocket *socket, char **linep, size_t *np) {
         /* skip the very first byte of the stream, which must be 0 */
         if (_c_unlikely_(!socket->in.null_byte_done) &&
             socket->in.data_pos < socket->in.data_end) {
-                if (socket->in.data[socket->in.data_pos ++] != '\0')
+                if (socket->in.data[socket->in.data_pos] != '\0')
                         return -EBADMSG;
 
+                socket->in.data_start = ++socket->in.data_pos;
                 socket->in.null_byte_done = true;
         }
 
