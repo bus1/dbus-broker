@@ -6,6 +6,7 @@
 
 #include <c-macro.h>
 #include <stdlib.h>
+#include <c-list.h>
 
 typedef struct DBusMessage DBusMessage;
 typedef struct DBusSocket DBusSocket;
@@ -33,6 +34,10 @@ struct DBusSocket {
         } in;
 
         struct DBusSocketOut {
+                bool lines_done : 1;
+
+                CList lines;
+                CList messages;
         } out;
 };
 
@@ -41,5 +46,11 @@ DBusSocket *dbus_socket_free(DBusSocket *socket);
 
 int dbus_socket_read_line(DBusSocket *socket, char **linep, size_t *np);
 int dbus_socket_read_message(DBusSocket *socket, DBusMessage **messagep);
+
+int dbus_socket_reserve_line(DBusSocket *socket,
+                             size_t n_bytes,
+                             char **linep,
+                             size_t **posp);
+int dbus_socket_queue_message(DBusSocket *socket, DBusMessage *message);
 
 C_DEFINE_CLEANUP(DBusSocket *, dbus_socket_free);

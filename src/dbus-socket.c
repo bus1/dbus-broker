@@ -11,6 +11,7 @@
  * line-helpers, anymore!
  */
 
+#include <c-list.h>
 #include <c-macro.h>
 #include <stdlib.h>
 #include <sys/socket.h>
@@ -18,6 +19,55 @@
 #include <sys/un.h>
 #include "dbus-socket.h"
 #include "dbus-message.h"
+
+typedef struct DBusSocketLineBuffer DBusSocketLineBuffer;
+typedef struct DBusSocketMessageEntry DBusSocketMessageEntry;
+
+struct DBusSocketLineBuffer {
+        CList link;
+        size_t data_size;
+        size_t data_pos;
+        char data[];
+};
+
+struct DBusSocketMessageEntry {
+        CList link;
+        DBusMessage *message;
+};
+
+static int dbus_socket_line_buffer_new(DBusSocketLineBuffer **bufferp,
+                                       DBusSocket *socket,
+                                       size_t n_bytes) {
+        DBusSocketLineBuffer *buffer;
+
+        n_bytes = C_MAX(n_bytes, 2048);
+
+        buffer = calloc(1, sizeof(*buffer) + n_bytes);
+        if (!buffer)
+                return -ENOMEM;
+
+        buffer->data_size = n_bytes;
+        c_list_link_tail(&socket->out.lines, &buffer->link);
+
+        *bufferp = buffer;
+        return 0;
+}
+
+static DBusSocketLineBuffer *
+dbus_socket_line_buffer_free(DBusSocketLineBuffer *buffer) {
+        c_list_unlink(&buffer->link);
+        free(buffer);
+        return NULL;
+}
+
+
+static DBusSocketMessageEntry *
+dbus_socket_message_entry_free(DBusSocketMessageEntry *entry) {
+        dbus_message_unref(entry->message);
+        c_list_unlink(&entry->link);
+        free(entry);
+        return NULL;
+}
 
 int dbus_socket_new(DBusSocket **socketp, int fd) {
         _c_cleanup_(dbus_socket_freep) DBusSocket *socket = NULL;
@@ -27,6 +77,9 @@ int dbus_socket_new(DBusSocket **socketp, int fd) {
                 return -ENOMEM;
 
         socket->fd = fd;
+
+        socket->out.lines = (CList)C_LIST_INIT(socket->out.lines);
+        socket->out.messages = (CList)C_LIST_INIT(socket->out.messages);
 
         socket->in.data_size = 2048;
         socket->in.data = malloc(socket->in.data_size);
@@ -39,6 +92,9 @@ int dbus_socket_new(DBusSocket **socketp, int fd) {
 }
 
 DBusSocket *dbus_socket_free(DBusSocket *socket) {
+        DBusSocketLineBuffer *line;
+        DBusSocketMessageEntry *entry;
+
         if (!socket)
                 return NULL;
 
@@ -46,6 +102,16 @@ DBusSocket *dbus_socket_free(DBusSocket *socket) {
                 close(socket->in.fds[--socket->in.n_fds]);
 
         socket->fd = c_close(socket->fd);
+
+        while ((line = c_list_first_entry(&socket->out.lines,
+                                         DBusSocketLineBuffer,
+                                         link)))
+                dbus_socket_line_buffer_free(line);
+
+        while ((entry = c_list_first_entry(&socket->out.messages,
+                                         DBusSocketMessageEntry,
+                                         link)))
+                dbus_socket_message_entry_free(entry);
 
         dbus_message_unref(socket->in.pending_message);
         free(socket->in.data);
@@ -364,4 +430,45 @@ int dbus_socket_read_message(DBusSocket *socket, DBusMessage **messagep) {
         }
 
         return dbus_socket_message_pop(socket, messagep);
+}
+
+int dbus_socket_reserve_line(DBusSocket *socket,
+                             size_t n_bytes,
+                             char **linep,
+                             size_t **posp) {
+        DBusSocketLineBuffer *buffer;
+        int r;
+
+        assert(!socket->out.lines_done);
+
+        buffer = c_list_last_entry(&socket->out.lines,
+                                   DBusSocketLineBuffer,
+                                   link);
+
+        if (!buffer || buffer->data_size - buffer->data_pos < n_bytes) {
+                r = dbus_socket_line_buffer_new(&buffer, socket, n_bytes);
+                if (r < 0)
+                        return r;
+        }
+
+        *linep = buffer->data + buffer->data_pos;
+        *posp = &buffer->data_pos;
+        return 0;
+}
+
+int dbus_socket_queue_message(DBusSocket *socket, DBusMessage *message) {
+        DBusSocketMessageEntry *entry;
+
+        if (_c_unlikely_(!socket->out.lines_done)) {
+                socket->out.lines_done = true;
+        }
+
+        entry = calloc(1, sizeof(*entry));
+        if (!entry)
+                return 0;
+
+        entry->message = dbus_message_ref(message);
+        c_list_link_tail(&socket->out.messages, &entry->link);
+
+        return 0;
 }
