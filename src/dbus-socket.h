@@ -14,12 +14,12 @@ typedef struct DBusSocket DBusSocket;
 #define DBUS_SOCKET_FD_MAX (253UL) /* taken from kernel SCM_MAX_FD */
 
 struct DBusSocket {
+        int fd;
+
         bool null_byte_done : 1;
         bool lines_done : 1;
 
         struct DBusSocketIn {
-                int fd;
-
                 int *fds;
                 size_t n_fds;
 
@@ -33,11 +33,10 @@ struct DBusSocket {
         } in;
 
         struct DBusSocketOut {
-                int fd;
         } out;
 };
 
-int dbus_socket_new(DBusSocket **socketp, int fd_in, int fd_out);
+int dbus_socket_new(DBusSocket **socketp, int fd);
 DBusSocket *dbus_socket_free(DBusSocket *socket);
 
 int dbus_socket_read_line(DBusSocket *socket, char **linep, size_t *np);

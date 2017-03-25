@@ -104,7 +104,7 @@ int peer_new(Bus *bus, Peer **peerp, int fd, uid_t uid) {
                            &bus->ready_list);
         dbus_sasl_init(&peer->sasl, uid, bus->guid);
 
-        r = dbus_socket_new(&peer->socket, fd, fd);
+        r = dbus_socket_new(&peer->socket, fd);
         if (r < 0)
                 return r;
 
@@ -138,7 +138,7 @@ Peer *peer_free(Peer *peer) {
 
 int peer_start(Peer *peer) {
         return dispatch_file_select(&peer->dispatch_file,
-                                    peer->socket->in.fd,
+                                    peer->socket->fd,
                                     POLLIN);
 }
 

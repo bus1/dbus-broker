@@ -19,15 +19,14 @@
 #include "dbus-socket.h"
 #include "dbus-message.h"
 
-int dbus_socket_new(DBusSocket **socketp, int fd_in, int fd_out) {
+int dbus_socket_new(DBusSocket **socketp, int fd) {
         _c_cleanup_(dbus_socket_freep) DBusSocket *socket = NULL;
 
         socket = calloc(1, sizeof(*socket));
         if (!socket)
                 return -ENOMEM;
 
-        socket->in.fd = fd_in;
-        socket->out.fd = fd_out;
+        socket->fd = fd;
 
         socket->in.data_size = 2048;
         socket->in.data = malloc(socket->in.data_size);
@@ -46,9 +45,7 @@ DBusSocket *dbus_socket_free(DBusSocket *socket) {
         while (socket->in.n_fds)
                 close(socket->in.fds[--socket->in.n_fds]);
 
-        if (socket->out.fd != socket->in.fd)
-                socket->out.fd = c_close(socket->out.fd);
-        socket->in.fd = c_close(socket->in.fd);
+        socket->fd = c_close(socket->fd);
 
         dbus_message_unref(socket->in.pending_message);
         free(socket->in.data);
@@ -249,7 +246,7 @@ int dbus_socket_read_line(DBusSocket *socket, char **linep, size_t *np) {
                 return r;
 
         assert(!socket->in.n_fds);
-        r = dbus_socket_recvmsg(socket->in.fd,
+        r = dbus_socket_recvmsg(socket->fd,
                                 socket->in.data,
                                 &socket->in.data_end,
                                 &socket->in.data_size,
@@ -346,7 +343,7 @@ int dbus_socket_read_message(DBusSocket *socket, DBusMessage **messagep) {
 
         msg = socket->in.pending_message;
         if (msg && msg->n_data - msg->n_copied >= socket->in.data_size - socket->in.data_end) {
-                r = dbus_socket_recvmsg(socket->in.fd,
+                r = dbus_socket_recvmsg(socket->fd,
                                         msg->data,
                                         &msg->n_copied,
                                         &msg->n_data,
@@ -355,7 +352,7 @@ int dbus_socket_read_message(DBusSocket *socket, DBusMessage **messagep) {
                 if (r < 0)
                         return r;
         } else {
-                r = dbus_socket_recvmsg(socket->in.fd,
+                r = dbus_socket_recvmsg(socket->fd,
                                         socket->in.data,
                                         &socket->in.data_end,
                                         &socket->in.data_size,
