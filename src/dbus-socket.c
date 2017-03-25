@@ -20,6 +20,8 @@
 #include "dbus-socket.h"
 #include "dbus-message.h"
 
+#define DBUS_SOCKET_MMSG_MAX (16)
+
 typedef struct DBusSocketLineBuffer DBusSocketLineBuffer;
 typedef struct DBusSocketMessageEntry DBusSocketMessageEntry;
 
@@ -27,12 +29,17 @@ struct DBusSocketLineBuffer {
         CList link;
         size_t data_size;
         size_t data_pos;
+        size_t data_written;
+        struct iovec iov;
         char data[];
 };
 
 struct DBusSocketMessageEntry {
         CList link;
         DBusMessage *message;
+        size_t data_written;
+        struct iovec iov;
+        struct cmsghdr control[];
 };
 
 static int dbus_socket_line_buffer_new(DBusSocketLineBuffer **bufferp,
@@ -458,17 +465,116 @@ int dbus_socket_reserve_line(DBusSocket *socket,
 
 int dbus_socket_queue_message(DBusSocket *socket, DBusMessage *message) {
         DBusSocketMessageEntry *entry;
+        size_t controllen;
 
         if (_c_unlikely_(!socket->out.lines_done)) {
                 socket->out.lines_done = true;
         }
 
-        entry = calloc(1, sizeof(*entry));
+        if (_c_unlikely_(message->n_fds > 0))
+                controllen = CMSG_SPACE(sizeof(int) * message->n_fds);
+        else
+                controllen = 0;
+
+        entry = calloc(1, sizeof(*entry) + controllen);
         if (!entry)
                 return 0;
+
+        if (_c_unlikely_(message->n_fds > 0)) {
+                entry->control[0].cmsg_len = CMSG_LEN(sizeof(int) *
+                                                      message->n_fds);
+                entry->control[0].cmsg_level = SOL_SOCKET;
+                entry->control[0].cmsg_type = SCM_RIGHTS;
+                memcpy(CMSG_DATA(&entry->control[0]),
+                       message->fds,
+                       sizeof(int) * message->n_fds);
+        }
 
         entry->message = dbus_message_ref(message);
         c_list_link_tail(&socket->out.messages, &entry->link);
 
         return 0;
+}
+
+int dbus_socket_write(DBusSocket *socket) {
+        DBusSocketLineBuffer *line, *safe_line;
+        DBusSocketMessageEntry *entry, *safe_entry;
+        struct mmsghdr msgs[DBUS_SOCKET_MMSG_MAX] = {};
+        int vlen = 0;
+
+        c_list_for_each_entry(line, &socket->out.lines, link) {
+                struct msghdr *msg = &msgs[vlen].msg_hdr;
+
+                if (vlen ++ >= DBUS_SOCKET_MMSG_MAX)
+                        break;
+
+                assert(line->data_pos >= line->data_written);
+
+                line->iov.iov_base = line->data + line->data_written;
+                line->iov.iov_len = line->data_pos - line->data_written;
+                msg->msg_iov = &line->iov;
+                msg->msg_iovlen = 1;
+        }
+
+        c_list_for_each_entry(entry, &socket->out.messages, link) {
+                struct msghdr *msg = &msgs[vlen].msg_hdr;
+
+                if (vlen ++ >= DBUS_SOCKET_MMSG_MAX)
+                        break;
+
+                assert(entry->message->n_data >= entry->data_written);
+
+                entry->iov.iov_base = (void*)&entry->message->header +
+                                      entry->data_written;
+                entry->iov.iov_len = sizeof(DBusMessageHeader) +
+                                     entry->message->n_data -
+                                     entry->data_written;
+                msg->msg_iov = &entry->iov;
+                msg->msg_iovlen = 1;
+
+                if (_c_unlikely_(entry->message->n_fds > 0 &&
+                                 entry->data_written == 0)) {
+                        msg->msg_control = &entry->control[0];
+                        msg->msg_controllen = entry->control[0].cmsg_len;
+                }
+        }
+
+        if (vlen == 0)
+                return 0;
+
+        vlen = sendmmsg(socket->fd, msgs, vlen, MSG_DONTWAIT);
+        if (vlen < 0)
+                return -errno;
+
+        c_list_for_each_entry_safe(line, safe_line, &socket->out.lines, link) {
+                if (vlen -- == 0)
+                        break;
+
+                line->data_written += msgs[vlen].msg_len;
+
+                if (line->data_written >= line->data_pos) {
+                        assert(line->data_written == line->data_pos);
+                        dbus_socket_line_buffer_free(line);
+                }
+        }
+
+        c_list_for_each_entry_safe(entry,
+                                   safe_entry,
+                                   &socket->out.messages,
+                                   link) {
+                if (vlen -- == 0)
+                        break;
+
+                entry->data_written += msgs[vlen].msg_len;
+
+                if (entry->data_written >= sizeof(DBusMessageHeader) +
+                                           entry->message->n_data) {
+                        assert(entry->data_written ==
+                                        sizeof(DBusMessageHeader) +
+                                        entry->message->n_data);
+                        dbus_socket_message_entry_free(entry);
+                }
+        }
+
+        return 1;
 }

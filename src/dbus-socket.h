@@ -53,4 +53,6 @@ int dbus_socket_reserve_line(DBusSocket *socket,
                              size_t **posp);
 int dbus_socket_queue_message(DBusSocket *socket, DBusMessage *message);
 
+int dbus_socket_write(DBusSocket *socket);
+
 C_DEFINE_CLEANUP(DBusSocket *, dbus_socket_free);
