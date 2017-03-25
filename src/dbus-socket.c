@@ -133,12 +133,12 @@ static int dbus_socket_line_pop(DBusSocket *socket, char **linep, size_t *np) {
         size_t n;
 
         /* skip the very first byte of the stream, which must be 0 */
-        if (_c_unlikely_(!socket->null_byte_done) &&
+        if (_c_unlikely_(!socket->in.null_byte_done) &&
             socket->in.data_pos < socket->in.data_end) {
                 if (socket->in.data[socket->in.data_pos ++] != '\0')
                         return -EBADMSG;
 
-                socket->null_byte_done = true;
+                socket->in.null_byte_done = true;
         }
 
         /*
@@ -235,7 +235,7 @@ static int dbus_socket_line_shift(DBusSocket *socket) {
 int dbus_socket_read_line(DBusSocket *socket, char **linep, size_t *np) {
         int r;
 
-        assert(!socket->lines_done);
+        assert(!socket->in.lines_done);
 
         r = dbus_socket_line_pop(socket, linep, np);
         if (r != -EAGAIN)
@@ -329,8 +329,8 @@ int dbus_socket_read_message(DBusSocket *socket, DBusMessage **messagep) {
         DBusMessage *msg;
         int r;
 
-        if (_c_unlikely_(!socket->lines_done)) {
-                socket->lines_done = true;
+        if (_c_unlikely_(!socket->in.lines_done)) {
+                socket->in.lines_done = true;
         }
 
         r = dbus_socket_message_pop(socket, messagep);

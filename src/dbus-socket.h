@@ -16,10 +16,10 @@ typedef struct DBusSocket DBusSocket;
 struct DBusSocket {
         int fd;
 
-        bool null_byte_done : 1;
-        bool lines_done : 1;
-
         struct DBusSocketIn {
+                bool null_byte_done : 1;
+                bool lines_done : 1;
+
                 int *fds;
                 size_t n_fds;
 
