@@ -40,7 +40,7 @@ static int bus_accept(DispatchFile *file, uint32_t events) {
         if (r < 0)
                 return -errno;
 
-        r = peer_new(bus, &peer, fd, ucred.uid);
+        r = peer_new(bus, &peer, fd, ucred.uid, ucred.pid);
         if (r < 0)
                 return r;
         fd = -1;

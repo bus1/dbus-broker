@@ -112,7 +112,7 @@ int peer_dispatch(DispatchFile *file, uint32_t mask) {
 /**
  * peer_new() - XXX
  */
-int peer_new(Bus *bus, Peer **peerp, int fd, uid_t uid) {
+int peer_new(Bus *bus, Peer **peerp, int fd, uid_t uid, pid_t pid) {
         _c_cleanup_(peer_freep) Peer *peer = NULL;
         _c_cleanup_(user_entry_unrefp) UserEntry *user = NULL;
         int r;
@@ -132,6 +132,7 @@ int peer_new(Bus *bus, Peer **peerp, int fd, uid_t uid) {
 
         c_rbnode_init(&peer->rb);
         peer->user = user;
+        peer->pid = pid;
         user = NULL;
         dispatch_file_init(&peer->dispatch_file,
                            peer_dispatch,

@@ -22,12 +22,13 @@ struct Peer {
         DispatchFile dispatch_file;
         DBusSocket *socket;
         UserEntry *user;
+        pid_t pid;
         CRBTree names;
         CRBNode rb;
         uint64_t id;
 };
 
-int peer_new(Bus *bus, Peer **peerp, int fd, uid_t uid);
+int peer_new(Bus *bus, Peer **peerp, int fd, uid_t uid, pid_t pid);
 Peer *peer_free(Peer *peer);
 
 int peer_dispatch(DispatchFile *file, uint32_t mask);
