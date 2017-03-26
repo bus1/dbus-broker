@@ -41,7 +41,7 @@ void dbus_sasl_deinit(DBusSASL *sasl);
 int dbus_sasl_dispatch(DBusSASL *sasl,
                        char *input,
                        char *buffer,
-                       size_t *n_bufferp);
+                       size_t *posp);
 
 static inline bool dbus_sasl_is_anonymous(DBusSASL *sasl) {
         return sasl->mechanism == DBUS_SASL_MECHANISM_ANONYMOUS;

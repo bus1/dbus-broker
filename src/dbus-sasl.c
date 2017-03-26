@@ -44,54 +44,54 @@ void dbus_sasl_deinit(DBusSASL *sasl) {
 
 static void dbus_sasl_send_rejected(DBusSASL *sasl,
                                     char *buffer,
-                                    size_t *n_bufferp) {
+                                    size_t *posp) {
         const char *rejected = "REJECTED EXTERNAL ANONYMOUS\r\n";
 
         sasl->state = DBUS_SASL_STATE_INIT;
 
         memcpy(buffer, rejected, strlen(rejected));
-        *n_bufferp = strlen(rejected);
+        *posp += strlen(rejected);
 }
 
 static void dbus_sasl_send_ok(DBusSASL *sasl,
                               char *buffer,
-                              size_t *n_bufferp) {
+                              size_t *posp) {
 
         sasl->state = DBUS_SASL_STATE_AUTHENTICATED;
 
         memcpy(buffer, sasl->ok_response, sizeof(sasl->ok_response));
-        *n_bufferp = sizeof(sasl->ok_response);
+        *posp += sizeof(sasl->ok_response);
 }
 
 static void dbus_sasl_send_data(DBusSASL *sasl,
                                 char *buffer,
-                                size_t *n_bufferp) {
+                                size_t *posp) {
         const char *data = "DATA\r\n";
 
         sasl->state = DBUS_SASL_STATE_CHALLENGE;
 
         memcpy(buffer, data, strlen(data));
-        *n_bufferp = strlen(data);
+        *posp += strlen(data);
 }
 
 static void dbus_sasl_send_error(DBusSASL *sasl,
                                  char *buffer,
-                                 size_t *n_bufferp) {
+                                 size_t *posp) {
         const char *error = "ERROR\r\n";
 
         memcpy(buffer, error, strlen(error));
-        *n_bufferp = strlen(error);
+        *posp += strlen(error);
 }
 
 static void dbus_sasl_send_agree_unix_fd(DBusSASL *sasl,
                                          char *buffer,
-                                         size_t *n_bufferp) {
+                                         size_t *posp) {
         const char *agree_unix_fd = "AGREE_UNIX_FD\r\n";
 
         sasl->state = DBUS_SASL_STATE_NEGOTIATED_FDS;
 
         memcpy(buffer, agree_unix_fd, strlen(agree_unix_fd));
-        *n_bufferp = strlen(agree_unix_fd);
+        *posp += strlen(agree_unix_fd);
 }
 
 /*
@@ -166,20 +166,20 @@ static int uid_from_hexstring(char *hex, uid_t *uidp) {
 static int dbus_sasl_handle_data_external(DBusSASL *sasl,
                                           char *input,
                                           char *buffer,
-                                          size_t *n_bufferp) {
+                                          size_t *posp) {
         uid_t uid;
         int r;
 
         r = uid_from_hexstring(input, &uid);
         if (r < 0) {
-                dbus_sasl_send_error(sasl, buffer, n_bufferp);
+                dbus_sasl_send_error(sasl, buffer, posp);
                 return 0;
         }
 
         if (uid == sasl->uid)
-                dbus_sasl_send_ok(sasl, buffer, n_bufferp);
+                dbus_sasl_send_ok(sasl, buffer, posp);
         else
-                dbus_sasl_send_rejected(sasl, buffer, n_bufferp);
+                dbus_sasl_send_rejected(sasl, buffer, posp);
 
         return 0;
 }
@@ -187,9 +187,9 @@ static int dbus_sasl_handle_data_external(DBusSASL *sasl,
 static int dbus_sasl_handle_data_anonymous(DBusSASL *sasl,
                                            char *input,
                                            char *buffer,
-                                           size_t *n_bufferp) {
+                                           size_t *posp) {
         /* we ignore the trace string, and do not verify it */
-        dbus_sasl_send_ok(sasl, buffer, n_bufferp);
+        dbus_sasl_send_ok(sasl, buffer, posp);
 
         return 0;
 }
@@ -197,10 +197,10 @@ static int dbus_sasl_handle_data_anonymous(DBusSASL *sasl,
 static int dbus_sasl_handle_data(DBusSASL *sasl,
                                  char *input,
                                  char *buffer,
-                                 size_t *n_bufferp) {
+                                 size_t *posp) {
         if (!input) {
                 /* for both EXTERNAL and ANONYMOUS the data is optional */
-                dbus_sasl_send_ok(sasl, buffer, n_bufferp);
+                dbus_sasl_send_ok(sasl, buffer, posp);
                 return 0;
         }
 
@@ -209,12 +209,12 @@ static int dbus_sasl_handle_data(DBusSASL *sasl,
                 return dbus_sasl_handle_data_external(sasl,
                                                       input,
                                                       buffer,
-                                                      n_bufferp);
+                                                      posp);
         case DBUS_SASL_MECHANISM_ANONYMOUS:
                 return dbus_sasl_handle_data_anonymous(sasl,
                                                        input,
                                                        buffer,
-                                                       n_bufferp);
+                                                       posp);
         default:
                 assert(0);
         }
@@ -223,11 +223,11 @@ static int dbus_sasl_handle_data(DBusSASL *sasl,
 static int dbus_sasl_handle_auth(DBusSASL *sasl,
                                  char *input,
                                  char *buffer,
-                                 size_t *n_bufferp) {
+                                 size_t *posp) {
         char *data;
 
         if (!input) {
-                dbus_sasl_send_rejected(sasl, buffer, n_bufferp);
+                dbus_sasl_send_rejected(sasl, buffer, posp);
                 return 0;
         }
 
@@ -237,20 +237,20 @@ static int dbus_sasl_handle_auth(DBusSASL *sasl,
                         return dbus_sasl_handle_data_external(sasl,
                                                               data,
                                                               buffer,
-                                                              n_bufferp);
+                                                              posp);
         } else if (dbus_sasl_command_match("ANONYMOUS", input, &data)) {
                 sasl->mechanism = DBUS_SASL_MECHANISM_ANONYMOUS;
                 if (data)
                         return dbus_sasl_handle_data_anonymous(sasl,
                                                                data,
                                                                buffer,
-                                                               n_bufferp);
+                                                               posp);
         } else {
-                dbus_sasl_send_rejected(sasl, buffer, n_bufferp);
+                dbus_sasl_send_rejected(sasl, buffer, posp);
                 return 0;
         }
 
-        dbus_sasl_send_data(sasl, buffer, n_bufferp);
+        dbus_sasl_send_data(sasl, buffer, posp);
 
         return 0;
 }
@@ -258,17 +258,17 @@ static int dbus_sasl_handle_auth(DBusSASL *sasl,
 int dbus_sasl_dispatch_init(DBusSASL *sasl,
                             char *input,
                             char *buffer,
-                            size_t *n_bufferp) {
+                            size_t *posp) {
         char *argument;
 
         if (dbus_sasl_command_match("AUTH", input, &argument))
-                return dbus_sasl_handle_auth(sasl, argument, buffer, n_bufferp);
+                return dbus_sasl_handle_auth(sasl, argument, buffer, posp);
         else if (dbus_sasl_command_match("ERROR", input, &argument))
-                dbus_sasl_send_rejected(sasl, buffer, n_bufferp);
+                dbus_sasl_send_rejected(sasl, buffer, posp);
         else if (dbus_sasl_command_match("BEGIN", input, NULL))
                 return -EBADMSG;
         else
-                dbus_sasl_send_error(sasl, buffer, n_bufferp);
+                dbus_sasl_send_error(sasl, buffer, posp);
 
         return 0;
 }
@@ -276,18 +276,18 @@ int dbus_sasl_dispatch_init(DBusSASL *sasl,
 int dbus_sasl_dispatch_challenge(DBusSASL *sasl,
                                  char *input,
                                  char *buffer,
-                                 size_t *n_bufferp) {
+                                 size_t *posp) {
         char *argument;
 
         if (dbus_sasl_command_match("DATA", input, &argument))
-                return dbus_sasl_handle_data(sasl, argument, buffer, n_bufferp);
+                return dbus_sasl_handle_data(sasl, argument, buffer, posp);
         else if (dbus_sasl_command_match("ERROR", input, &argument) ||
                  dbus_sasl_command_match("CANCEL", input, NULL))
-                dbus_sasl_send_rejected(sasl, buffer, n_bufferp);
+                dbus_sasl_send_rejected(sasl, buffer, posp);
         else if (dbus_sasl_command_match("BEGIN", input, NULL))
                 return -EBADMSG;
         else
-                dbus_sasl_send_error(sasl, buffer, n_bufferp);
+                dbus_sasl_send_error(sasl, buffer, posp);
 
         return 0;
 }
@@ -295,18 +295,18 @@ int dbus_sasl_dispatch_challenge(DBusSASL *sasl,
 int dbus_sasl_dispatch_authenticated(DBusSASL *sasl,
                                      char *input,
                                      char *buffer,
-                                     size_t *n_bufferp) {
+                                     size_t *posp) {
         char *argument;
 
         if (dbus_sasl_command_match("NEGOTIATE_UNIX_FD", input, NULL))
-                dbus_sasl_send_agree_unix_fd(sasl, buffer, n_bufferp);
+                dbus_sasl_send_agree_unix_fd(sasl, buffer, posp);
         else if (dbus_sasl_command_match("BEGIN", input, NULL))
                 return 1;
         else if (dbus_sasl_command_match("ERROR", input, &argument) ||
                    dbus_sasl_command_match("CANCEL", input, NULL))
-                dbus_sasl_send_rejected(sasl, buffer, n_bufferp);
+                dbus_sasl_send_rejected(sasl, buffer, posp);
         else
-                dbus_sasl_send_error(sasl, buffer, n_bufferp);
+                dbus_sasl_send_error(sasl, buffer, posp);
 
         return 0;
 }
@@ -314,16 +314,16 @@ int dbus_sasl_dispatch_authenticated(DBusSASL *sasl,
 int dbus_sasl_dispatch(DBusSASL *sasl,
                        char *input,
                        char *buffer,
-                       size_t *n_bufferp) {
+                       size_t *posp) {
         switch (sasl->state) {
         case DBUS_SASL_STATE_INIT:
-                return dbus_sasl_dispatch_init(sasl, input, buffer, n_bufferp);
+                return dbus_sasl_dispatch_init(sasl, input, buffer, posp);
         case DBUS_SASL_STATE_CHALLENGE:
-                return dbus_sasl_dispatch_challenge(sasl, input, buffer, n_bufferp);
+                return dbus_sasl_dispatch_challenge(sasl, input, buffer, posp);
         case DBUS_SASL_STATE_AUTHENTICATED:
-                return dbus_sasl_dispatch_authenticated(sasl, input, buffer, n_bufferp);
+                return dbus_sasl_dispatch_authenticated(sasl, input, buffer, posp);
         case DBUS_SASL_STATE_NEGOTIATED_FDS:
-                return dbus_sasl_dispatch_authenticated(sasl, input, buffer, n_bufferp);
+                return dbus_sasl_dispatch_authenticated(sasl, input, buffer, posp);
         default:
                 assert(0);
         }

@@ -15,16 +15,16 @@ static void test_setup(void) {
 
 static void assert_dispatch(DBusSASL *sasl, char *in, char *out, int ret) {
         char buffer[DBUS_SASL_MAX_OUT_LINE_LENGTH];
-        size_t n_buffer;
+        size_t pos = 0;
         int r;
 
         assert(strlen(out) <= DBUS_SASL_MAX_OUT_LINE_LENGTH);
 
-        r = dbus_sasl_dispatch(sasl, in, buffer, &n_buffer);
+        r = dbus_sasl_dispatch(sasl, in, buffer, &pos);
         assert(r == ret);
         if (r == 0) {
-                assert(n_buffer == strlen(out));
-                assert(strncmp(buffer, out, n_buffer) == 0);
+                assert(pos == strlen(out));
+                assert(strncmp(buffer, out, pos) == 0);
         }
 }
 
