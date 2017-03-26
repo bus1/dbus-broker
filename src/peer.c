@@ -14,7 +14,7 @@
 #include "peer.h"
 #include "user.h"
 
-static int peer_dispatch_message(Peer *peer) {
+static int peer_dispatch_read_message(Peer *peer) {
         _c_cleanup_(dbus_message_unrefp) DBusMessage *message = NULL;
         int r;
 
@@ -25,17 +25,23 @@ static int peer_dispatch_message(Peer *peer) {
         return 0;
 }
 
-static int peer_dispatch_line(Peer *peer) {
-        char buffer[DBUS_SASL_MAX_OUT_LINE_LENGTH];
-        char *line;
-        size_t n;
+static int peer_dispatch_read_line(Peer *peer) {
+        char *line_in, *line_out;
+        size_t *pos, n_line;
         int r;
 
-        r = dbus_socket_read_line(peer->socket, &line, &n);
+        r = dbus_socket_read_line(peer->socket, &line_in, &n_line);
         if (r < 0)
                 return r;
 
-        r = dbus_sasl_dispatch(&peer->sasl, line, buffer, &n);
+        r = dbus_socket_reserve_line(peer->socket,
+                                     DBUS_SASL_MAX_OUT_LINE_LENGTH,
+                                     &line_out,
+                                     &pos);
+        if (r < 0)
+                return r;
+
+        r = dbus_sasl_dispatch(&peer->sasl, line_in, line_out, pos);
         if (r < 0) {
                 return r;
         } else if (r == 1) {
@@ -43,23 +49,17 @@ static int peer_dispatch_line(Peer *peer) {
                 return 0;
         }
 
-        /* XXX: write outpt to the socket */
-
         return 0;
 }
 
-static int peer_dispatch(DispatchFile *file, uint32_t mask) {
-        Peer *peer = c_container_of(file, Peer, dispatch_file);
+static int peer_dispatch_read(Peer *peer) {
         int r;
-
-        if (!(mask & POLLIN))
-                return 0;
 
         for (unsigned int i = 0; i < 32; i ++) {
                 if (_c_likely_(peer->authenticated)) {
-                        r = peer_dispatch_message(peer);
+                        r = peer_dispatch_read_message(peer);
                 } else {
-                        r = peer_dispatch_line(peer);
+                        r = peer_dispatch_read_line(peer);
                 }
                 if (r == -EAGAIN) {
                         /* nothing to be done */
@@ -69,6 +69,41 @@ static int peer_dispatch(DispatchFile *file, uint32_t mask) {
                         /* XXX: swallow error code and tear down this peer */
                         return 0;
                 }
+        }
+
+        return 0;
+}
+
+static int peer_dispatch_write(Peer *peer) {
+        int r;
+
+        r = dbus_socket_write(peer->socket);
+        if (r == -EAGAIN) {
+                /* not able to write more */
+                dispatch_file_clear(&peer->dispatch_file, POLLOUT);
+                return 0;
+        } if (r < 0) {
+                /* XXX: swallow error code and tear down this peer */
+                return 0;
+        }
+
+        return 0;
+}
+
+int peer_dispatch(DispatchFile *file, uint32_t mask) {
+        Peer *peer = c_container_of(file, Peer, dispatch_file);
+        int r;
+
+        if (mask & POLLIN) {
+                r = peer_dispatch_read(peer);
+                if (r < 0)
+                        return r;
+        }
+
+        if (mask & POLLOUT) {
+                r = peer_dispatch_write(peer);
+                if (r < 0)
+                        return r;
         }
 
         return 0;
@@ -139,7 +174,7 @@ Peer *peer_free(Peer *peer) {
 int peer_start(Peer *peer) {
         return dispatch_file_select(&peer->dispatch_file,
                                     peer->socket->fd,
-                                    POLLIN);
+                                    POLLIN | POLLOUT);
 }
 
 void peer_stop(Peer *peer) {

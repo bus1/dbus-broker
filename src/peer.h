@@ -30,6 +30,8 @@ struct Peer {
 int peer_new(Bus *bus, Peer **peerp, int fd, uid_t uid);
 Peer *peer_free(Peer *peer);
 
+int peer_dispatch(DispatchFile *file, uint32_t mask);
+
 int peer_start(Peer *peer);
 void peer_stop(Peer *peer);
 
