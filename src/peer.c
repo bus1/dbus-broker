@@ -112,7 +112,13 @@ int peer_dispatch(DispatchFile *file, uint32_t mask) {
 /**
  * peer_new() - XXX
  */
-int peer_new(Bus *bus, Peer **peerp, int fd, uid_t uid, pid_t pid) {
+int peer_new(Bus *bus,
+             Peer **peerp,
+             int fd,
+             uid_t uid,
+             pid_t pid,
+             char *seclabel,
+             size_t n_seclabel) {
         _c_cleanup_(peer_freep) Peer *peer = NULL;
         _c_cleanup_(user_entry_unrefp) UserEntry *user = NULL;
         int r;
@@ -134,6 +140,9 @@ int peer_new(Bus *bus, Peer **peerp, int fd, uid_t uid, pid_t pid) {
         peer->matches = (CList)C_LIST_INIT(peer->matches);
         peer->user = user;
         peer->pid = pid;
+        peer->seclabel = seclabel;
+        peer->n_seclabel = n_seclabel;
+
         user = NULL;
         dispatch_file_init(&peer->dispatch_file,
                            peer_dispatch,
@@ -175,6 +184,7 @@ Peer *peer_free(Peer *peer) {
         dbus_sasl_deinit(&peer->sasl);
         dbus_socket_free(peer->socket);
         user_entry_unref(peer->user);
+        free(peer->seclabel);
         free(peer);
 
         return NULL;

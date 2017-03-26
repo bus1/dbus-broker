@@ -19,7 +19,7 @@ static void test_setup(void) {
         r = bus_new(&bus, -1, 1024, 1024, 1024, 1024, 1024);
         assert(r >= 0);
 
-        r = peer_new(bus, &peer, -1, 1, 0);
+        r = peer_new(bus, &peer, -1, 1, 0, NULL, 0);
         assert(r >= 0);
 
         bus_register_peer(bus, peer);
@@ -53,9 +53,9 @@ static void test_release(void) {
         r = bus_new(&bus, -1, 1024, 1024, 1024, 1024, 1024);
         assert(r >= 0);
 
-        r = peer_new(bus, &peer1, -1, 1, 0);
+        r = peer_new(bus, &peer1, -1, 1, 0, NULL, 0);
         assert(r >= 0);
-        r = peer_new(bus, &peer2, -1, 1, 0);
+        r = peer_new(bus, &peer2, -1, 1, 0, NULL, 0);
         assert(r >= 0);
         bus_register_peer(bus, peer1);
         bus_register_peer(bus, peer2);
@@ -86,9 +86,9 @@ static void test_queue(void) {
         r = bus_new(&bus, -1, 1024, 1024, 1024, 1024, 1024);
         assert(r >= 0);
 
-        r = peer_new(bus, &peer1, -1, 1, 0);
+        r = peer_new(bus, &peer1, -1, 1, 0, NULL, 0);
         assert(r >= 0);
-        r = peer_new(bus, &peer2, -1, 1, 0);
+        r = peer_new(bus, &peer2, -1, 1, 0, NULL, 0);
         assert(r >= 0);
         bus_register_peer(bus, peer1);
         bus_register_peer(bus, peer2);

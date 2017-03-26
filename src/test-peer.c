@@ -18,7 +18,7 @@ static void test_setup(void) {
         r = bus_new(&bus, -1, 1024, 1024, 1024, 1024, 1024);
         assert(r >= 0);
 
-        r = peer_new(bus, &peer, -1, 1, 0);
+        r = peer_new(bus, &peer, -1, 1, 0, NULL, 0);
         assert(r >= 0);
 }
 
@@ -30,7 +30,7 @@ static void test_sasl_exchange(Bus *bus, char *sasl_client, char *sasl_server) {
         r = socketpair(AF_UNIX, SOCK_STREAM, 0, pair);
         assert(r >= 0);
 
-        r = peer_new(bus, &peer, pair[0], 1, 0);
+        r = peer_new(bus, &peer, pair[0], 1, 0, NULL, 0);
         assert(r >= 0);
 
         r = send(pair[1], "\0", 1, 0);

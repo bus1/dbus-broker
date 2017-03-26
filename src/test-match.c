@@ -17,7 +17,7 @@ static void test_setup(void) {
         r = bus_new(&bus, -1, 1024, 1024, 1024, 1024, 1024);
         assert(r >= 0);
 
-        r = peer_new(bus, &peer, -1, 1, 0);
+        r = peer_new(bus, &peer, -1, 1, 0, NULL, 0);
         assert(r >= 0);
 
         r = dbus_match_entry_new(&match, &bus->matches, peer, "");
