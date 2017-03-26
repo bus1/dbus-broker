@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <sys/socket.h>
 #include "bus.h"
+#include "dbus-match.h"
 #include "dispatch.h"
 #include "driver.h"
 #include "name.h"
@@ -59,8 +60,9 @@ int bus_new(Bus **busp,
             int fd,
             unsigned int max_bytes,
             unsigned int max_fds,
+            unsigned int max_peers,
             unsigned int max_names,
-            unsigned int max_peers) {
+            unsigned int max_matches) {
         _c_cleanup_(bus_freep) Bus *bus = NULL;
         int r;
 
@@ -70,6 +72,7 @@ int bus_new(Bus **busp,
 
         bus->ready_list = (CList)C_LIST_INIT(bus->ready_list);
         bus->fd = fd;
+        dbus_match_registry_init(&bus->matches);
         /* XXX: initialize guid with random data */
 
         r = name_registry_new(&bus->names);
@@ -79,8 +82,9 @@ int bus_new(Bus **busp,
         r = user_registry_new(&bus->users,
                               max_bytes,
                               max_fds,
+                              max_peers,
                               max_names,
-                              max_peers);
+                              max_matches);
         if (r < 0)
                 return r;
 
@@ -109,6 +113,7 @@ Bus *bus_free(Bus *bus) {
         dispatch_context_free(bus->dispatcher);
         user_registry_free(bus->users);
         name_registry_free(bus->names);
+        dbus_match_registry_deinit(&bus->matches);
 
         free(bus);
 

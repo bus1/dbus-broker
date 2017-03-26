@@ -8,6 +8,7 @@
 #include <c-macro.h>
 #include <c-rbtree.h>
 #include <stdlib.h>
+#include "dbus-match.h"
 #include "dispatch.h"
 
 typedef struct Bus Bus;
@@ -24,6 +25,7 @@ struct Bus {
         CList ready_list;
         NameRegistry *names;
         UserRegistry *users;
+        DBusMatchRegistry matches;
         CRBTree peers;
         uint64_t ids;
 };
@@ -32,8 +34,9 @@ int bus_new(Bus **busp,
             int fd,
             unsigned int max_bytes,
             unsigned int max_fds,
+            unsigned int max_peers,
             unsigned int max_names,
-            unsigned int max_peers);
+            unsigned int max_matches);
 Bus *bus_free(Bus *bus);
 
 int bus_run(Bus *bus);

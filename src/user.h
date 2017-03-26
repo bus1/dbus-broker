@@ -50,10 +50,12 @@ struct UserEntry {
         unsigned int n_fds;
         unsigned int n_names;
         unsigned int n_peers;
+        unsigned int n_matches;
         unsigned int max_bytes;
         unsigned int max_fds;
         unsigned int max_names;
         unsigned int max_peers;
+        unsigned int max_matches;
 
         CRBTree usages;
         unsigned int n_usages;
@@ -83,8 +85,9 @@ void user_entry_free(_Atomic unsigned long *n_refs, void *userdata);
 int user_registry_new(UserRegistry **registryp,
                       unsigned int max_bytes,
                       unsigned int max_fds,
+                      unsigned int max_peers,
                       unsigned int max_names,
-                      unsigned int max_peers);
+                      unsigned int max_matches);
 void user_registry_free(UserRegistry *registry);
 
 /**

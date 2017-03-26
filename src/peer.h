@@ -23,6 +23,7 @@ struct Peer {
         DBusSocket *socket;
         UserEntry *user;
         pid_t pid;
+        CList matches;
         CRBTree names;
         CRBNode rb;
         uint64_t id;

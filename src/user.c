@@ -22,8 +22,9 @@ struct UserUsage {
 struct UserRegistry {
         unsigned int max_bytes;
         unsigned int max_fds;
-        unsigned int max_names;
         unsigned int max_peers;
+        unsigned int max_names;
+        unsigned int max_matches;
 
         CRBTree users;
 };
@@ -266,8 +267,9 @@ static int user_entry_new(UserEntry **entryp,
                           uid_t uid,
                           unsigned int max_bytes,
                           unsigned int max_fds,
+                          unsigned int max_peers,
                           unsigned int max_names,
-                          unsigned int max_peers) {
+                          unsigned int max_matches) {
         UserEntry *entry;
 
         entry = malloc(sizeof(*entry));
@@ -278,12 +280,14 @@ static int user_entry_new(UserEntry **entryp,
         entry->uid = uid;
         entry->max_bytes = max_bytes;
         entry->max_fds = max_fds;
-        entry->max_names = max_names;
         entry->max_peers = max_peers;
+        entry->max_names = max_names;
+        entry->max_matches = max_matches;
         entry->n_bytes = entry->max_bytes;
         entry->n_fds = entry->max_fds;
-        entry->n_names = entry->max_names;
         entry->n_peers = entry->max_peers;
+        entry->n_names = entry->max_names;
+        entry->n_matches = entry->max_matches;
         entry->usages = (CRBTree){};
         entry->n_usages = 0;
         entry->registry = NULL;
@@ -310,8 +314,9 @@ void user_entry_free(_Atomic unsigned long *n_refs, void *userdata) {
 
         assert(entry->n_bytes == entry->max_bytes);
         assert(entry->n_fds == entry->max_fds);
-        assert(entry->n_names == entry->max_names);
         assert(entry->n_peers == entry->max_peers);
+        assert(entry->n_names == entry->max_names);
+        assert(entry->n_matches == entry->max_matches);
 
         user_entry_unlink(entry);
 
@@ -357,8 +362,9 @@ int user_entry_ref_by_uid(UserRegistry *registry,
                 r = user_entry_new(&entry, uid,
                                    registry->max_bytes,
                                    registry->max_fds,
+                                   registry->max_peers,
                                    registry->max_names,
-                                   registry->max_peers);
+                                   registry->max_matches);
                 if (r < 0)
                         return r;
 
@@ -390,8 +396,9 @@ int user_entry_ref_by_uid(UserRegistry *registry,
 int user_registry_new(UserRegistry **registryp,
                       unsigned int max_bytes,
                       unsigned int max_fds,
+                      unsigned int max_peers,
                       unsigned int max_names,
-                      unsigned int max_peers) {
+                      unsigned int max_matches) {
         UserRegistry *registry;
 
         registry = malloc(sizeof(*registry));
@@ -400,8 +407,9 @@ int user_registry_new(UserRegistry **registryp,
 
         registry->max_bytes = max_bytes;
         registry->max_fds = max_fds;
-        registry->max_names = max_names;
         registry->max_peers = max_peers;
+        registry->max_names = max_names;
+        registry->max_matches = max_matches;
         registry->users = (CRBTree) {};
 
         *registryp = registry;

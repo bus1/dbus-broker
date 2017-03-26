@@ -16,7 +16,7 @@ static void test_setup(void) {
         uint32_t reply;
         int r;
 
-        r = bus_new(&bus, -1, 1024, 1024, 1024, 1024);
+        r = bus_new(&bus, -1, 1024, 1024, 1024, 1024, 1024);
         assert(r >= 0);
 
         r = peer_new(bus, &peer, -1, 1, 0);
@@ -50,7 +50,7 @@ static void test_release(void) {
         uint32_t reply;
         int r;
 
-        r = bus_new(&bus, -1, 1024, 1024, 1024, 1024);
+        r = bus_new(&bus, -1, 1024, 1024, 1024, 1024, 1024);
         assert(r >= 0);
 
         r = peer_new(bus, &peer1, -1, 1, 0);
@@ -83,7 +83,7 @@ static void test_queue(void) {
         uint32_t reply;
         int r;
 
-        r = bus_new(&bus, -1, 1024, 1024, 1024, 1024);
+        r = bus_new(&bus, -1, 1024, 1024, 1024, 1024, 1024);
         assert(r >= 0);
 
         r = peer_new(bus, &peer1, -1, 1, 0);

@@ -15,7 +15,7 @@ static void test_setup(void) {
         _c_cleanup_(peer_freep) Peer *peer = NULL;
         int r;
 
-        r = bus_new(&bus, -1, 1024, 1024, 1024, 1024);
+        r = bus_new(&bus, -1, 1024, 1024, 1024, 1024, 1024);
         assert(r >= 0);
 
         r = peer_new(bus, &peer, -1, 1, 0);
@@ -54,7 +54,7 @@ static void test_sasl(void) {
         _c_cleanup_(bus_freep) Bus *bus = NULL;
         int r;
 
-        r = bus_new(&bus, -1, 1024, 1024, 1024, 1024);
+        r = bus_new(&bus, -1, 1024, 1024, 1024, 1024, 1024);
         assert(r >= 0);
 
         test_sasl_exchange(bus,

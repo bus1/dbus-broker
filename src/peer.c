@@ -131,6 +131,7 @@ int peer_new(Bus *bus, Peer **peerp, int fd, uid_t uid, pid_t pid) {
         user->n_peers --;
 
         c_rbnode_init(&peer->rb);
+        peer->matches = (CList)C_LIST_INIT(peer->matches);
         peer->user = user;
         peer->pid = pid;
         user = NULL;
@@ -155,6 +156,8 @@ int peer_new(Bus *bus, Peer **peerp, int fd, uid_t uid, pid_t pid) {
  * peer_free() - XXX
  */
 Peer *peer_free(Peer *peer) {
+        DBusMatchEntry *match;
+
         if (!peer)
                 return NULL;
 
@@ -162,6 +165,11 @@ Peer *peer_free(Peer *peer) {
         assert(!c_rbnode_is_linked(&peer->rb));
 
         peer->user->n_peers ++;
+
+        while ((match = c_list_first_entry(&peer->matches,
+                                           DBusMatchEntry,
+                                           link_peer)))
+                dbus_match_entry_free(match);
 
         dispatch_file_deinit(&peer->dispatch_file);
         dbus_sasl_deinit(&peer->sasl);

@@ -8,6 +8,7 @@
 libdbus_broker_private = static_library('dbus-broker-private',
                                         [
                                                 'bus.c',
+                                                'dbus-match.c',
                                                 'dbus-message.c',
                                                 'dbus-sasl.c',
                                                 'dbus-socket.c',
@@ -51,6 +52,9 @@ test('D-Bus Socket Abstraction', test_socket)
 
 test_sasl = executable('test-sasl', ['test-sasl.c'], dependencies: libdbus_broker_dep)
 test('D-Bus SASL Parser', test_sasl)
+
+test_match = executable('test-match', ['test-match.c'], dependencies: libdbus_broker_dep)
+test('D-Bus Match Handling', test_match)
 
 test_bus = executable('test-bus', ['test-bus.c'], dependencies: libdbus_broker_dep)
 test('Bus Management', test_bus)
