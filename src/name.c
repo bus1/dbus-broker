@@ -29,6 +29,7 @@ struct NameEntry {
 };
 
 struct NameRegistry {
+        /* XXX: use a trie instead? */
         CRBTree entries;
 };
 
@@ -101,7 +102,7 @@ void name_owner_release(NameOwner *owner) {
                         new_peer = NULL;
                 }
 
-                dbus_driver_notify_name_owner_change(owner->entry->name,
+                driver_notify_name_owner_change(owner->entry->name,
                                                      owner->peer,
                                                      new_peer);
         }
@@ -167,7 +168,7 @@ static void name_entry_update_owner(NameEntry *entry,
                               entry_link);
         if (!head) {
                 /* there is no primary owner */
-                dbus_driver_notify_name_owner_change(entry->name,
+                driver_notify_name_owner_change(entry->name,
                                                      NULL,
                                                      owner->peer);
 
@@ -183,7 +184,7 @@ static void name_entry_update_owner(NameEntry *entry,
         } else if ((flags & DBUS_NAME_FLAG_REPLACE_EXISTING) &&
                    (head->flags & DBUS_NAME_FLAG_ALLOW_REPLACEMENT)) {
                 /* we replace the primary owner */
-                dbus_driver_notify_name_owner_change(entry->name,
+                driver_notify_name_owner_change(entry->name,
                                                      head->peer,
                                                      owner->peer);
 

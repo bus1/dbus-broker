@@ -40,6 +40,8 @@ static int bus_accept(DispatchFile *file, uint32_t events) {
         if (r < 0)
                 return -errno;
 
+        /* XXX: get SO_PEERSEC */
+
         r = peer_new(bus, &peer, fd, ucred.uid, ucred.pid);
         if (r < 0)
                 return r;
@@ -48,9 +50,6 @@ static int bus_accept(DispatchFile *file, uint32_t events) {
         r = peer_start(peer);
         if (r < 0)
                 return r;
-
-        /* XXX: consider only registering the peer after SASL completed */
-        bus_register_peer(bus, peer);
 
         peer = NULL;
         return 0;
@@ -167,13 +166,13 @@ void bus_register_peer(Bus *bus, Peer *peer) {
         assert(slot); /* peer->id is guaranteed to be unique */
         c_rbtree_add(&bus->peers, parent, slot, &peer->rb);
 
-        dbus_driver_notify_name_owner_change(NULL, NULL, peer);
+        driver_notify_name_owner_change(NULL, NULL, peer);
 }
 
 void bus_unregister_peer(Bus *bus, Peer *peer) {
         assert(c_rbnode_is_linked(&peer->rb));
 
-        dbus_driver_notify_name_owner_change(NULL, peer, NULL);
+        driver_notify_name_owner_change(NULL, peer, NULL);
 
         c_rbtree_remove_init(&bus->peers, &peer->rb);
 }
