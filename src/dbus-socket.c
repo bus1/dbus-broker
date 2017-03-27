@@ -309,7 +309,7 @@ static int dbus_socket_line_shift(DBusSocket *socket) {
 int dbus_socket_read_line(DBusSocket *socket, char **linep, size_t *np) {
         int r;
 
-        assert(!socket->in.lines_done);
+        assert(!socket->lines_done);
 
         r = dbus_socket_line_pop(socket, linep, np);
         if (r != -EAGAIN)
@@ -403,8 +403,8 @@ int dbus_socket_read_message(DBusSocket *socket, DBusMessage **messagep) {
         DBusMessage *msg;
         int r;
 
-        if (_c_unlikely_(!socket->in.lines_done)) {
-                socket->in.lines_done = true;
+        if (_c_unlikely_(!socket->lines_done)) {
+                socket->lines_done = true;
         }
 
         r = dbus_socket_message_pop(socket, messagep);
@@ -446,7 +446,7 @@ int dbus_socket_reserve_line(DBusSocket *socket,
         DBusSocketLineBuffer *buffer;
         int r;
 
-        assert(!socket->out.lines_done);
+        assert(!socket->lines_done);
 
         buffer = c_list_last_entry(&socket->out.lines,
                                    DBusSocketLineBuffer,
@@ -467,8 +467,8 @@ int dbus_socket_queue_message(DBusSocket *socket, DBusMessage *message) {
         DBusSocketMessageEntry *entry;
         size_t controllen;
 
-        if (_c_unlikely_(!socket->out.lines_done)) {
-                socket->out.lines_done = true;
+        if (_c_unlikely_(!socket->lines_done)) {
+                socket->lines_done = true;
         }
 
         if (_c_unlikely_(message->n_fds > 0))
