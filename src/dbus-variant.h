@@ -17,20 +17,20 @@ typedef struct DBusVariantType DBusVariantType;
  *                      to strip the surrounding brackets (via C_EXPAND or
  *                      similar).
  */
-#define DBUS_VARIANT_TYPE_b (1, 0, 1)
-#define DBUS_VARIANT_TYPE_y (4, 2, 1)
-#define DBUS_VARIANT_TYPE_n (2, 1, 1)
-#define DBUS_VARIANT_TYPE_q (2, 1, 1)
-#define DBUS_VARIANT_TYPE_i (4, 2, 1)
-#define DBUS_VARIANT_TYPE_u (4, 2, 1)
-#define DBUS_VARIANT_TYPE_x (8, 3, 1)
-#define DBUS_VARIANT_TYPE_t (8, 3, 1)
-#define DBUS_VARIANT_TYPE_h (4, 2, 1)
-#define DBUS_VARIANT_TYPE_d (8, 3, 1)
-#define DBUS_VARIANT_TYPE_s (0, 2, 1)
-#define DBUS_VARIANT_TYPE_o (0, 2, 1)
-#define DBUS_VARIANT_TYPE_g (0, 0, 1)
-#define DBUS_VARIANT_TYPE_v (0, 0, 0)
+#define DBUS_VARIANT_TYPE_b (1, 0, 'b', 1)
+#define DBUS_VARIANT_TYPE_y (4, 2, 'y', 1)
+#define DBUS_VARIANT_TYPE_n (2, 1, 'n', 1)
+#define DBUS_VARIANT_TYPE_q (2, 1, 'q', 1)
+#define DBUS_VARIANT_TYPE_i (4, 2, 'i', 1)
+#define DBUS_VARIANT_TYPE_u (4, 2, 'u', 1)
+#define DBUS_VARIANT_TYPE_x (8, 3, 'x', 1)
+#define DBUS_VARIANT_TYPE_t (8, 3, 't', 1)
+#define DBUS_VARIANT_TYPE_h (4, 2, 'h', 1)
+#define DBUS_VARIANT_TYPE_d (8, 3, 'd', 1)
+#define DBUS_VARIANT_TYPE_s (0, 2, 's', 1)
+#define DBUS_VARIANT_TYPE_o (0, 2, 'o', 1)
+#define DBUS_VARIANT_TYPE_g (0, 0, 'g', 1)
+#define DBUS_VARIANT_TYPE_v (0, 0, 'v', 0)
 
 /*
  * DBUS_VARIANT_TYPE_LENGTH_MAX: Maximum length of a DBus Type Signature, given
@@ -50,14 +50,14 @@ typedef struct DBusVariantType DBusVariantType;
  *                      the size of a type is always a multiple of its
  *                      alignment.
  * @alignment:          Alignment of this type, given as a power of 2.
+ * @element:            Element identifier, 0 if invalid.
  * @basic:              Whether or not this is a basic type.
- * @valid:              Must be 1.
  */
 struct DBusVariantType {
         uint16_t size : DBUS_VARIANT_TYPE_SIZE_BITS;
-        uint16_t alignment : 3;
+        uint16_t alignment : 2;
+        uint16_t element : 8;
         uint16_t basic : 1;
-        uint16_t valid : 1;
 };
 
 long dbus_variant_type_new_from_signature(DBusVariantType **infop,

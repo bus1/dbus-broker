@@ -7,25 +7,25 @@
 #include "dbus-variant.h"
 
 _Static_assert(DBUS_VARIANT_TYPE_LENGTH_MAX * 8 < (1 << DBUS_VARIANT_TYPE_SIZE_BITS),
-               "Not enough bits available to fixed-size types");
-_Static_assert(sizeof(DBusVariantType) == 2,
+               "Not enough bits available to store fixed-size types");
+_Static_assert(sizeof(DBusVariantType) == 4,
                "Unexpected padding in DBusVariantType");
 
 const DBusVariantType dbus_variant_type_builtins[256] = {
-        ['b'] = { C_EXPAND(DBUS_VARIANT_TYPE_b), 1 },
-        ['y'] = { C_EXPAND(DBUS_VARIANT_TYPE_y), 1 },
-        ['n'] = { C_EXPAND(DBUS_VARIANT_TYPE_n), 1 },
-        ['q'] = { C_EXPAND(DBUS_VARIANT_TYPE_q), 1 },
-        ['i'] = { C_EXPAND(DBUS_VARIANT_TYPE_i), 1 },
-        ['u'] = { C_EXPAND(DBUS_VARIANT_TYPE_u), 1 },
-        ['x'] = { C_EXPAND(DBUS_VARIANT_TYPE_x), 1 },
-        ['t'] = { C_EXPAND(DBUS_VARIANT_TYPE_t), 1 },
-        ['h'] = { C_EXPAND(DBUS_VARIANT_TYPE_h), 1 },
-        ['d'] = { C_EXPAND(DBUS_VARIANT_TYPE_d), 1 },
-        ['s'] = { C_EXPAND(DBUS_VARIANT_TYPE_s), 1 },
-        ['o'] = { C_EXPAND(DBUS_VARIANT_TYPE_o), 1 },
-        ['g'] = { C_EXPAND(DBUS_VARIANT_TYPE_g), 1 },
-        ['v'] = { C_EXPAND(DBUS_VARIANT_TYPE_v), 1 },
+        ['b'] = { C_EXPAND(DBUS_VARIANT_TYPE_b) },
+        ['y'] = { C_EXPAND(DBUS_VARIANT_TYPE_y) },
+        ['n'] = { C_EXPAND(DBUS_VARIANT_TYPE_n) },
+        ['q'] = { C_EXPAND(DBUS_VARIANT_TYPE_q) },
+        ['i'] = { C_EXPAND(DBUS_VARIANT_TYPE_i) },
+        ['u'] = { C_EXPAND(DBUS_VARIANT_TYPE_u) },
+        ['x'] = { C_EXPAND(DBUS_VARIANT_TYPE_x) },
+        ['t'] = { C_EXPAND(DBUS_VARIANT_TYPE_t) },
+        ['h'] = { C_EXPAND(DBUS_VARIANT_TYPE_h) },
+        ['d'] = { C_EXPAND(DBUS_VARIANT_TYPE_d) },
+        ['s'] = { C_EXPAND(DBUS_VARIANT_TYPE_s) },
+        ['o'] = { C_EXPAND(DBUS_VARIANT_TYPE_o) },
+        ['g'] = { C_EXPAND(DBUS_VARIANT_TYPE_g) },
+        ['v'] = { C_EXPAND(DBUS_VARIANT_TYPE_v) },
 };
 
 /**
@@ -96,7 +96,7 @@ long dbus_variant_type_new_from_signature(DBusVariantType **infop,
                  * sure that the _first_ following type is basic, and there are
                  * exactly 2 types following.
                  */
-                if (container && signature[i_container] == '{') {
+                if (container && container->element == '{') {
                         if (i_container + 2 > i) {
                                 /* first type must be basic */
                                 if (_c_unlikely_(!builtin->basic))
@@ -122,8 +122,8 @@ long dbus_variant_type_new_from_signature(DBusVariantType **infop,
 
                         this->size = (c != 'a');
                         this->alignment = 0;
+                        this->element = c;
                         this->basic = 0;
-                        this->valid = 1;
 
                         /*
                          * We opened a new container type, so continue with the
@@ -135,8 +135,7 @@ long dbus_variant_type_new_from_signature(DBusVariantType **infop,
 
                 case '}':
                 case ')':
-                        if (_c_unlikely_(!container ||
-                                         signature[i_container] != ((c == '}') ? '{' : '(')))
+                        if (_c_unlikely_(!container || container->element != ((c == '}') ? '{' : '(')))
                                 return -EBADRQC;
 
                         *this = (DBusVariantType){ };
@@ -146,13 +145,13 @@ long dbus_variant_type_new_from_signature(DBusVariantType **infop,
 
                 default:
                         /* validate type existence */
-                        if (_c_unlikely_(!builtin->valid))
+                        if (_c_unlikely_(!builtin->element))
                                 return -EBADRQC;
 
                         break;
                 }
 
-                while (depth > 0 && signature[i_container] == 'a') {
+                while (depth > 0 && container->element == 'a') {
                         /* arrays inherit alignment of their child */
                         container->alignment = (container + 1)->alignment;
 
