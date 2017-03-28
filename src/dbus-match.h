@@ -7,6 +7,8 @@
 #include <c-list.h>
 #include <stdlib.h>
 
+#define DBUS_MATCH_RULE_LENGTH_MAX (1024) /* taken from dbus-daemon */
+
 typedef struct DBusMatchEntry DBusMatchEntry;
 typedef struct DBusMatchRegistry DBusMatchRegistry;
 typedef struct Peer Peer;
@@ -17,17 +19,19 @@ struct DBusMatchEntry {
         CList link_registry;
         CList link_peer;
 
-        uint8_t type;
-        char *sender;
-        char *interface;
-        char *member;
-        char *path;
-        char *path_namespace;
-        char *destination;
-        char *arg[64];
-        char *argpath[64];
-        char *arg0namespace;
-        bool eavesdrop : 1;
+        const char *type;
+        const char *sender;
+        const char *interface;
+        const char *member;
+        const char *path;
+        const char *path_namespace;
+        const char *destination;
+        const char *arg[64];
+        const char *argpath[64];
+        const char *arg0namespace;
+        const char *eavesdrop;
+
+        char buffer[];
 };
 
 struct DBusMatchRegistry {
