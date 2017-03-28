@@ -123,6 +123,7 @@ long dbus_variant_type_new_from_signature(DBusVariantType **infop,
                         this->size = (c != 'a');
                         this->alignment = 0;
                         this->element = c;
+                        this->length = 1 + (c != 'a');
                         this->basic = 0;
 
                         /*
@@ -154,6 +155,7 @@ long dbus_variant_type_new_from_signature(DBusVariantType **infop,
                 while (depth > 0 && container->element == 'a') {
                         /* arrays inherit alignment of their child */
                         container->alignment = (container + 1)->alignment;
+                        container->length += this->length;
 
                         this = container;
                         container = --depth ? stack[depth - 1] : NULL;
@@ -170,6 +172,7 @@ long dbus_variant_type_new_from_signature(DBusVariantType **infop,
                         }
 
                         container->alignment = C_MAX(container->alignment, this->alignment);
+                        container->length += this->length;
                 }
 
                 if (!depth) {
