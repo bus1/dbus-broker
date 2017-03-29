@@ -155,6 +155,7 @@ long dbus_variant_type_new_from_signature(DBusVariantType **infop,
                         if (_c_unlikely_(!builtin->element))
                                 return -EBADRQC;
 
+                        *this = *builtin;
                         break;
                 }
 
