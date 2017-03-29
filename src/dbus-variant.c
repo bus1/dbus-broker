@@ -205,6 +205,10 @@ void dbus_variant_deinit(DBusVariant *var) {
         if (!var->ro)
                 c_free(var->buffer);
 
+        for ( ; var->current >= var->levels; --var->current)
+                if (var->current->allocated_type)
+                        c_free((void *)var->current->root_type);
+
         /* invalidate to prevent misuse */
         var->buffer = NULL;
         var->n_buffer = 0;
@@ -212,7 +216,12 @@ void dbus_variant_deinit(DBusVariant *var) {
 }
 
 static void dbus_variant_root(DBusVariant *var) {
+        for ( ; var->current >= var->levels; --var->current)
+                if (var->current->allocated_type)
+                        c_free((void *)var->current->root_type);
+
         var->current = var->levels;
+
         var->current->i_type = var->current->root_type;
         var->current->n_type = var->current->root_type->length;
         var->current->i_buffer = 0;
@@ -299,6 +308,7 @@ static int dbus_variant_prepare_next(DBusVariant *var, char c) {
                 (var->current + 1)->i_type = var->current->i_type + 1;
                 (var->current + 1)->n_type = var->current->n_type - 1 - (real_c == c);
                 (var->current + 1)->container = real_c;
+                (var->current + 1)->allocated_type = false;
                 (var->current + 1)->i_buffer = var->current->i_buffer;
                 (var->current + 1)->n_buffer = var->current->n_buffer;
 

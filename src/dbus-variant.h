@@ -91,7 +91,8 @@ struct DBusVariantLevel {
         const DBusVariantType *root_type;
         const DBusVariantType *i_type;
         uint8_t n_type;
-        uint8_t container;
+        uint8_t container : 7;
+        uint8_t allocated_type : 1;
         size_t i_buffer;
         size_t n_buffer;
 };
