@@ -595,20 +595,20 @@ static int dbus_variant_write_data(DBusVariant *var, int alignment, const void *
         return 0;
 }
 
-static int dbus_variant_write_u64(DBusVariant *var, uint64_t v) {
-        return dbus_variant_write_data(var, 3, &v, sizeof(v));
-}
-
-static int dbus_variant_write_u32(DBusVariant *var, uint32_t v) {
-        return dbus_variant_write_data(var, 2, &v, sizeof(v));
+static int dbus_variant_write_u8(DBusVariant *var, uint8_t v) {
+        return dbus_variant_write_data(var, 0, &v, sizeof(v));
 }
 
 static int dbus_variant_write_u16(DBusVariant *var, uint16_t v) {
         return dbus_variant_write_data(var, 1, &v, sizeof(v));
 }
 
-static int dbus_variant_write_u8(DBusVariant *var, uint8_t v) {
-        return dbus_variant_write_data(var, 0, &v, sizeof(v));
+static int dbus_variant_write_u32(DBusVariant *var, uint32_t v) {
+        return dbus_variant_write_data(var, 2, &v, sizeof(v));
+}
+
+static int dbus_variant_write_u64(DBusVariant *var, uint64_t v) {
+        return dbus_variant_write_data(var, 3, &v, sizeof(v));
 }
 
 static int dbus_variant_try_vwrite(DBusVariant *var, const char *format, va_list args) {
