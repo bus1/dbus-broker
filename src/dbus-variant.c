@@ -197,6 +197,11 @@ static bool dbus_variant_is_signature(const char *str) {
         return true;
 }
 
+static bool dbus_variant_is_type(const char *str) {
+        /* XXX: verify @str is a valid signature with a single complete type */
+        return true;
+}
+
 void dbus_variant_init(DBusVariant *var, const DBusVariantType *type) {
         *var = (DBusVariant)DBUS_VARIANT_INIT(*var, type);
 }
@@ -364,7 +369,8 @@ static int dbus_variant_read_data(DBusVariant *var, int alignment, const void **
                 if (_c_unlikely_(var->buffer[var->current->i_buffer + i]))
                         return -EBADMSG;
 
-        *datap = var->buffer + var->current->i_buffer + align;
+        if (datap)
+                *datap = var->buffer + var->current->i_buffer + align;
         var->current->i_buffer += align + n_data;
         var->current->n_buffer -= align + n_data;
         return 0;
@@ -517,12 +523,15 @@ static int dbus_variant_dummy_vread(DBusVariant *var, const char *format, va_lis
 }
 
 static int dbus_variant_try_vread(DBusVariant *var, const char *format, va_list args) {
+        const DBusVariantType *type;
         const char *str;
         uint64_t u64;
         uint32_t u32;
         uint16_t u16;
         uint8_t u8;
+        size_t i, n;
         void *p;
+        long l;
         char c;
         int r;
 
@@ -532,30 +541,120 @@ static int dbus_variant_try_vread(DBusVariant *var, const char *format, va_list 
                 if (r < 0)
                         return r;
 
-                /* XXX */
                 switch (c) {
                 case '[':
-                        break;
+                        /* read array size */
+                        r = dbus_variant_read_u32(var, &u32);
+                        if (r < 0)
+                                return r;
+
+                        /* align to child-alignment */
+                        r = dbus_variant_read_data(var, 1 << (var->current->i_type + 1)->alignment, NULL, 0);
+                        if (r < 0)
+                                return r;
+
+                        /* check space (alignment and size are not counted) */
+                        if (u32 > var->current->n_buffer)
+                                return -EBADMSG;
+
+                        (var->current + 1)->i_buffer = var->current->i_buffer;
+                        (var->current + 1)->n_buffer = u32;
+                        ++var->current;
+                        continue; /* do not advance type iterator */
 
                 case '<':
-                        break;
+                        r = dbus_variant_read_u8(var, &u8);
+                        if (r < 0)
+                                return r;
+
+                        n = u8;
+                        r = dbus_variant_read_data(var, 0, (const void **)&str, n);
+                        if (r < 0)
+                                return r;
+
+                        r = dbus_variant_read_u8(var, &u8);
+                        if (r < 0)
+                                return r;
+
+                        if (u8 || strlen(str) != n || !dbus_variant_is_type(str))
+                                return -EBADMSG;
+
+                        r = 0;
+                        type = p = (void *)va_arg(args, const DBusVariantType *);
+                        if (!type) {
+                                l = dbus_variant_type_new_from_signature((DBusVariantType **)&type, str, n);
+                                if (l < 0)
+                                        r = l;
+                                else if (l != n)
+                                        r = -EBADMSG;
+                        } else if (type->length != n) {
+                                r = -EBADMSG;
+                        } else {
+                                /* verify @type matches @str */
+                                for (i = 0; i < n; ++i) {
+                                        if (type[i].element != str[i]) {
+                                                r = -EBADMSG;
+                                                break;
+                                        }
+                                }
+                        }
+
+                        if (r < 0) {
+                                if (type != p)
+                                        c_free((void *)type);
+
+                                /*
+                                 * We fetched va_arg() of the current format
+                                 * character. Increment @format, so the
+                                 * error-path does the right thing.
+                                 */
+                                ++format;
+                                goto error;
+                        }
+
+                        (var->current + 1)->root_type = type;
+                        (var->current + 1)->i_type = type;
+                        (var->current + 1)->n_type = type->length;
+                        (var->current + 1)->allocated_type = (type != p);
+                        (var->current + 1)->i_buffer = var->current->i_buffer;
+                        (var->current + 1)->n_buffer = var->current->n_buffer;
+                        ++var->current;
+                        continue; /* do not advance type iterator */
 
                 case '(':
-                        break;
-
                 case '{':
-                        break;
+                        /* align to 8 bytes */
+                        r = dbus_variant_read_data(var, 3, NULL, 0);
+                        if (r < 0)
+                                return r;
+
+                        (var->current + 1)->i_buffer = var->current->i_buffer;
+                        (var->current + 1)->n_buffer = var->current->n_buffer;
+                        ++var->current;
+                        continue; /* do not advance type iterator */
 
                 case ']':
+                        /* trailing padding is not allowed */
+                        if (var->current->n_buffer)
+                                return -EBADMSG;
+
+                        n = var->current->i_buffer - (var->current - 1)->i_buffer;
+                        (var->current - 1)->n_buffer -= n;
+                        (var->current - 1)->i_buffer += n;
+                        --var->current;
                         break;
 
                 case '>':
-                        break;
+                        if (var->current->allocated_type)
+                                c_free((void *)var->current->root_type);
 
+                        /* fallthrough */
                 case ')':
-                        break;
-
                 case '}':
+                        n = var->current->i_buffer - (var->current - 1)->i_buffer;
+                        (var->current - 1)->n_buffer -= n;
+                        (var->current - 1)->i_buffer += n;
+                        --var->current;
                         break;
 
                 case 'y':
@@ -658,6 +757,12 @@ static int dbus_variant_try_vread(DBusVariant *var, const char *format, va_list 
                 default:
                         r = -ENOTRECOVERABLE;
                         goto error;
+                }
+
+                /* advance type iterator, if necessary */
+                if (var->current->container != 'a') {
+                        var->current->i_type += var->current->i_type->length;
+                        var->current->n_type -= var->current->i_type->length;
                 }
         }
 
