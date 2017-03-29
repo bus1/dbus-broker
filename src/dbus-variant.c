@@ -141,7 +141,11 @@ long dbus_variant_type_new_from_signature(DBusVariantType **infop,
                         if (_c_unlikely_(!container || container->element != ((c == '}') ? '{' : '(')))
                                 return -EBADRQC;
 
-                        *this = (DBusVariantType){ };
+                        this->size = 0;
+                        this->alignment = 0;
+                        this->element = c;
+                        this->length = 1;
+                        this->basic = 0;
                         this = container;
                         container = --depth ? stack[depth - 1] : NULL;
                         break;
