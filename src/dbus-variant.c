@@ -170,10 +170,10 @@ long dbus_variant_type_new_from_signature(DBusVariantType **infop,
 
                 if (depth > 0) {
                         if (container->size && this->size) {
-                                container->size = C_ALIGN_TO(container->size, 1 << this->alignment);
-                                container->size += this->size;
                                 /* subtract initializer */
                                 container->size -= (this == container + 1);
+                                container->size = C_ALIGN_TO(container->size, 1 << this->alignment);
+                                container->size += this->size;
                         } else {
                                 container->size = 0;
                         }
