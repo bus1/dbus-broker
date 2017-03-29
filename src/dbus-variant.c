@@ -73,7 +73,7 @@ long dbus_variant_type_new_from_signature(DBusVariantType **infop,
                         break;
         }
 
-        if (n_type >= n_signature)
+        if (n_type++ >= n_signature)
                 return -EBADRQC;
 
         /*
