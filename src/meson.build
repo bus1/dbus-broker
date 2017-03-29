@@ -67,3 +67,6 @@ test('D-Bus Socket Abstraction', test_socket)
 
 test_user = executable('test-user', ['test-user.c'], dependencies: libdbus_broker_dep)
 test('User Accounting', test_user)
+
+test_variant = executable('test-variant', ['test-variant.c'], dependencies: libdbus_broker_dep)
+test('D-Bus Variant Builder and Parser', test_variant)
