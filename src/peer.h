@@ -31,13 +31,9 @@ struct Peer {
         uint64_t id;
 };
 
-int peer_new(Bus *bus,
-             Peer **peerp,
-             int fd,
-             uid_t uid,
-             pid_t pid,
-             char *seclabel,
-             size_t n_seclabel);
+int peer_new(Peer **peerp,
+             Bus *bus,
+             int fd);
 Peer *peer_free(Peer *peer);
 
 int peer_dispatch(DispatchFile *file, uint32_t mask);

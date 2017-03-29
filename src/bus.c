@@ -13,49 +13,10 @@
 #include "name.h"
 #include "user.h"
 
-static int bus_get_peersec(int fd, char **labelp, size_t *lenp) {
-        _c_cleanup_(c_freep) char *label = NULL;
-        char *l;
-        socklen_t len = 1023;
-        int r;
-
-        label = malloc(len + 1);
-        if (!label)
-                return -ENOMEM;
-
-        for (;;) {
-                r = getsockopt(fd, SOL_SOCKET, SO_PEERSEC, &label, &len);
-                if (r >= 0) {
-                        label[len] = '\0';
-                        *lenp = len;
-                        *labelp = label;
-                        label = NULL;
-                        break;
-                } else if (errno == ENOPROTOOPT) {
-                        *lenp = 0;
-                        *labelp = NULL;
-                } else if (errno != ERANGE)
-                        return -errno;
-
-                l = realloc(label, len + 1);
-                if (!l)
-                        return -ENOMEM;
-
-                label = l;
-        }
-
-        return 0;
-}
-
 static int bus_accept(DispatchFile *file, uint32_t events) {
         Bus *bus = c_container_of(file, Bus, accept_file);
         _c_cleanup_(c_closep) int fd = -1;
-        _c_cleanup_(user_entry_unrefp) UserEntry *user = NULL;
         _c_cleanup_(peer_freep) Peer *peer = NULL;
-        _c_cleanup_(c_freep) char *label = NULL;
-        size_t n_label;
-        struct ucred ucred;
-        socklen_t socklen = sizeof(ucred);
         int r;
 
         if (!(events & POLLIN))
@@ -73,19 +34,10 @@ static int bus_accept(DispatchFile *file, uint32_t events) {
                 return -errno;
         }
 
-        r = getsockopt(fd, SOL_SOCKET, SO_PEERCRED, &ucred, &socklen);
-        if (r < 0)
-                return -errno;
-
-        r = bus_get_peersec(fd, &label, &n_label);
-        if (r < 0)
-                return r;
-
-        r = peer_new(bus, &peer, fd, ucred.uid, ucred.pid, label, n_label);
+        r = peer_new(&peer, bus, fd);
         if (r < 0)
                 return r;
         fd = -1;
-        label = NULL;
 
         r = peer_start(peer);
         if (r < 0)

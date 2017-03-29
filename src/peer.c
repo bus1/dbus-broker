@@ -109,26 +109,69 @@ int peer_dispatch(DispatchFile *file, uint32_t mask) {
         return 0;
 }
 
+static int peer_get_peersec(int fd, char **labelp, size_t *lenp) {
+        _c_cleanup_(c_freep) char *label = NULL;
+        char *l;
+        socklen_t len = 1023;
+        int r;
+
+        label = malloc(len + 1);
+        if (!label)
+                return -ENOMEM;
+
+        for (;;) {
+                r = getsockopt(fd, SOL_SOCKET, SO_PEERSEC, &label, &len);
+                if (r >= 0) {
+                        label[len] = '\0';
+                        *lenp = len;
+                        *labelp = label;
+                        label = NULL;
+                        break;
+                } else if (errno == ENOPROTOOPT) {
+                        *lenp = 0;
+                        *labelp = NULL;
+                        break;
+                } else if (errno != ERANGE)
+                        return -errno;
+
+                l = realloc(label, len + 1);
+                if (!l)
+                        return -ENOMEM;
+
+                label = l;
+        }
+
+        return 0;
+}
+
 /**
  * peer_new() - XXX
  */
-int peer_new(Bus *bus,
-             Peer **peerp,
-             int fd,
-             uid_t uid,
-             pid_t pid,
-             char *seclabel,
-             size_t n_seclabel) {
+int peer_new(Peer **peerp,
+             Bus *bus,
+             int fd) {
         _c_cleanup_(peer_freep) Peer *peer = NULL;
         _c_cleanup_(user_entry_unrefp) UserEntry *user = NULL;
+        _c_cleanup_(c_freep) char *seclabel = NULL;
+        size_t n_seclabel;
+        struct ucred ucred;
+        socklen_t socklen = sizeof(ucred);
         int r;
 
-        r = user_entry_ref_by_uid(bus->users, &user, uid);
+        r = getsockopt(fd, SOL_SOCKET, SO_PEERCRED, &ucred, &socklen);
+        if (r < 0)
+                return -errno;
+
+        r = user_entry_ref_by_uid(bus->users, &user, ucred.uid);
         if (r < 0)
                 return r;
 
         if (user->n_peers < 1)
                 return -EDQUOT;
+
+        r = peer_get_peersec(fd, &seclabel, &n_seclabel);
+        if (r < 0)
+                return r;
 
         peer = calloc(1, sizeof(*peer));
         if (!peer)
@@ -139,16 +182,17 @@ int peer_new(Bus *bus,
         c_rbnode_init(&peer->rb);
         peer->matches = (CList)C_LIST_INIT(peer->matches);
         peer->user = user;
-        peer->pid = pid;
+        user = NULL;
+        peer->pid = ucred.pid;
         peer->seclabel = seclabel;
+        seclabel = NULL;
         peer->n_seclabel = n_seclabel;
 
-        user = NULL;
         dispatch_file_init(&peer->dispatch_file,
                            peer_dispatch,
                            bus->dispatcher,
                            &bus->ready_list);
-        dbus_sasl_init(&peer->sasl, uid, bus->guid);
+        dbus_sasl_init(&peer->sasl, ucred.uid, bus->guid);
 
         r = dbus_socket_new(&peer->socket, fd);
         if (r < 0)

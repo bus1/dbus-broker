@@ -4,6 +4,7 @@
 
 #include <c-macro.h>
 #include <stdlib.h>
+#include <sys/socket.h>
 #include "bus.h"
 #include "name.h"
 #include "peer.h"
@@ -14,12 +15,15 @@ static void test_setup(void) {
         _c_cleanup_(peer_freep) Peer *peer = NULL;
         Peer *p;
         uint32_t reply;
-        int r;
+        int r, pair[2];
 
         r = bus_new(&bus, -1, 1024, 1024, 1024, 1024, 1024);
         assert(r >= 0);
 
-        r = peer_new(bus, &peer, -1, 1, 0, NULL, 0);
+        r = socketpair(AF_UNIX, SOCK_STREAM, 0, pair);
+        assert(r >= 0);
+
+        r = peer_new(&peer, bus, pair[0]);
         assert(r >= 0);
 
         bus_register_peer(bus, peer);
@@ -42,20 +46,24 @@ static void test_setup(void) {
         bus_unregister_peer(bus, peer);
         p = bus_find_peer(bus, 0);
         assert(p == NULL);
+        close(pair[1]);
 }
 
 static void test_release(void) {
         _c_cleanup_(bus_freep) Bus *bus = NULL;
         _c_cleanup_(peer_freep) Peer *peer1 = NULL, *peer2 = NULL;
         uint32_t reply;
-        int r;
+        int r, pair[2];
 
         r = bus_new(&bus, -1, 1024, 1024, 1024, 1024, 1024);
         assert(r >= 0);
 
-        r = peer_new(bus, &peer1, -1, 1, 0, NULL, 0);
+        r = socketpair(AF_UNIX, SOCK_STREAM, 0, pair);
         assert(r >= 0);
-        r = peer_new(bus, &peer2, -1, 1, 0, NULL, 0);
+
+        r = peer_new(&peer1, bus, pair[0]);
+        assert(r >= 0);
+        r = peer_new(&peer2, bus, pair[1]);
         assert(r >= 0);
         bus_register_peer(bus, peer1);
         bus_register_peer(bus, peer2);
@@ -81,14 +89,17 @@ static void test_queue(void) {
         _c_cleanup_(peer_freep) Peer *peer1 = NULL, *peer2 = NULL;
         Peer *peer;
         uint32_t reply;
-        int r;
+        int r, pair[2];
 
         r = bus_new(&bus, -1, 1024, 1024, 1024, 1024, 1024);
         assert(r >= 0);
 
-        r = peer_new(bus, &peer1, -1, 1, 0, NULL, 0);
+        r = socketpair(AF_UNIX, SOCK_STREAM, 0, pair);
         assert(r >= 0);
-        r = peer_new(bus, &peer2, -1, 1, 0, NULL, 0);
+
+        r = peer_new(&peer1, bus, pair[0]);
+        assert(r >= 0);
+        r = peer_new(&peer2, bus, pair[1]);
         assert(r >= 0);
         bus_register_peer(bus, peer1);
         bus_register_peer(bus, peer2);
