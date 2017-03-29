@@ -122,8 +122,8 @@ long dbus_variant_type_new_from_signature(DBusVariantType **infop,
                         if (_c_unlikely_(depth >= C_ARRAY_SIZE(stack)))
                                 return -EBADRQC;
 
-                        this->size = (c != 'a');
-                        this->alignment = 0;
+                        this->size = 0;
+                        this->alignment = 2 + !!(c != 'a');
                         this->element = c;
                         this->length = 1 + (c != 'a');
                         this->basic = 0;
@@ -160,8 +160,6 @@ long dbus_variant_type_new_from_signature(DBusVariantType **infop,
                 }
 
                 while (depth > 0 && container->element == 'a') {
-                        /* arrays inherit alignment of their child */
-                        container->alignment = (container + 1)->alignment;
                         container->length += this->length;
 
                         this = container;
@@ -169,16 +167,13 @@ long dbus_variant_type_new_from_signature(DBusVariantType **infop,
                 }
 
                 if (depth > 0) {
-                        if (container->size && this->size) {
-                                /* subtract initializer */
-                                container->size -= (this == container + 1);
+                        if (this->size && (this == container + 1 || container->size)) {
                                 container->size = C_ALIGN_TO(container->size, 1 << this->alignment);
                                 container->size += this->size;
                         } else {
                                 container->size = 0;
                         }
 
-                        container->alignment = C_MAX(container->alignment, this->alignment);
                         container->length += this->length;
                 }
 
