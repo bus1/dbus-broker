@@ -2,33 +2,139 @@
  * D-Bus Match Rules
  */
 
-#include <c-macro.h>
 #include <c-list.h>
+#include <c-macro.h>
+#include <c-string.h>
 #include "dbus-match.h"
 #include "peer.h"
 #include "user.h"
 
-static int dbus_match_entry_assign(DBusMatchEntry *entry,
-                                   const char *key,
-                                   const char *value) {
+/* XXX: move these defines where they belong */
+#define DBUS_MESSAGE_TYPE_INVALID       (0)
+#define DBUS_MESSAGE_TYPE_METHOD_CALL   (1)
+#define DBUS_MESSAGE_TYPE_METHOD_REPLY  (2)
+#define DBUS_MESSAGE_TYPE_ERROR         (3)
+#define DBUS_MESSAGE_TYPE_SIGNAL        (4)
+
+static bool dbus_match_keys_equal(DBusMatchKeys *key1, DBusMatchKeys *key2) {
+        if (key1->type != key2->type)
+                return false;
+
+        if (!c_string_equal(key1->sender, key2->sender))
+                return false;
+
+        if (!c_string_equal(key1->interface, key2->interface))
+                return false;
+
+        if (!c_string_equal(key1->member, key2->member))
+                return false;
+
+        if (!c_string_equal(key1->path, key2->path))
+                return false;
+
+        if (!c_string_equal(key1->path_namespace, key2->path_namespace))
+                return false;
+
+        if (!c_string_equal(key1->destination, key2->destination))
+                return false;
+
+        if (key1->eavesdrop != key2->eavesdrop)
+                return false;
+
+        if (!c_string_equal(key1->arg0namespace, key2->arg0namespace))
+                return false;
+
+        for (unsigned int i = 0; i < C_ARRAY_SIZE(key1->args); i ++) {
+                if (!c_string_equal(key1->args[i], key2->args[i]))
+                        return false;
+
+                if (!c_string_equal(key1->argpaths[i], key2->argpaths[i]))
+                        return false;
+        }
+
+        return true;
+}
+
+static bool dbus_match_keys_subset(DBusMatchKeys *key1, DBusMatchKeys *key2) {
+        if (key1->type != DBUS_MESSAGE_TYPE_INVALID && key1->type != key2->type)
+                return false;
+
+        if (key1->sender && !c_string_equal(key1->sender, key2->sender))
+                return false;
+
+        if (key1->interface && !c_string_equal(key1->interface, key2->interface))
+                return false;
+
+        if (key1->member && !c_string_equal(key1->member, key2->member))
+                return false;
+
+        if (key1->path && !c_string_equal(key1->path, key2->path))
+                return false;
+
+        if (key1->path_namespace &&
+            !c_string_equal(key1->path_namespace, key2->path_namespace))
+                return false;
+
+        if (key1->destination &&
+            !c_string_equal(key1->destination, key2->destination))
+                return false;
+
+        /* XXX: figure this out */
+        if (key1->eavesdrop != key2->eavesdrop)
+                return false;
+
+        if (key1->arg0namespace &&
+            !c_string_equal(key1->arg0namespace, key2->arg0namespace))
+                return false;
+
+        for (unsigned int i = 0; i < C_ARRAY_SIZE(key1->args); i ++) {
+                if (key1->args[i] &&
+                    !c_string_equal(key1->args[i], key2->args[i]))
+                        return false;
+
+                if (key1->argpaths[i] &&
+                    !c_string_equal(key1->argpaths[i], key2->argpaths[i]))
+                        return false;
+        }
+
+        return true;
+}
+
+static int dbus_match_keys_assign(DBusMatchKeys *keys,
+                                  const char *key,
+                                  const char *value) {
         if (strcmp(key, "type") == 0) {
-                entry->type = value;
+                if (strcmp(value, "signal") == 0)
+                        keys->type = DBUS_MESSAGE_TYPE_SIGNAL;
+                else if (strcmp(value, "method_call") == 0)
+                        keys->type = DBUS_MESSAGE_TYPE_METHOD_CALL;
+                else if (strcmp(value, "method_reply") == 0)
+                        keys->type = DBUS_MESSAGE_TYPE_METHOD_REPLY;
+                else if (strcmp(value, "error") == 0)
+                        keys->type = DBUS_MESSAGE_TYPE_ERROR;
+                else
+                        return -EBADMSG;
         } else if (strcmp(key, "sender") == 0) {
-                entry->sender = value;
+                keys->sender = value;
         } else if (strcmp(key, "interface") == 0) {
-                entry->interface = value;
+                keys->interface = value;
         } else if (strcmp(key, "member") == 0) {
-                entry->member = value;
+                keys->member = value;
         } else if (strcmp(key, "path") == 0) {
-                entry->path = value;
+                keys->path = value;
         } else if (strcmp(key, "path_namespace") == 0) {
-                entry->path_namespace = value;
+                keys->path_namespace = value;
         } else if (strcmp(key, "destination") == 0) {
-                entry->destination = value;
+                keys->destination = value;
         } else if (strcmp(key, "eavesdrop") == 0) {
-                entry->eavesdrop = value;
+                if (strcmp(value, "true") ==0)
+                        keys->eavesdrop = true;
+                else if (strcmp(value, "fase") == 0)
+                        keys->eavesdrop = false;
+                else
+                        return -EBADMSG;
         } else if (strcmp(key, "arg0namespace") == 0) {
-                entry->arg0namespace = value;
+                keys->arg0namespace = value;
         } else if (strncmp(key, "arg", strlen("arg")) == 0) {
                 unsigned int i = 0;
 
@@ -42,9 +148,9 @@ static int dbus_match_entry_assign(DBusMatchEntry *entry,
                         key ++;
                 }
                 if (strcmp(key, "")  == 0) {
-                        entry->arg[i] = value;
+                        keys->args[i] = value;
                 } else if (strcmp(key, "path") == 0) {
-                        entry->argpath[i] = value;
+                        keys->argpaths[i] = value;
                 } else
                         return -EBADMSG;
         } else {
@@ -94,9 +200,10 @@ static char dbus_match_string_pop(const char **match, bool *quoted) {
         }
 }
 
-static int dbus_match_entry_parse_match(DBusMatchEntry *entry,
-                                        const char *match,
-                                        size_t n_match) {
+int dbus_match_keys_parse(DBusMatchKeys *keys,
+                          char *buffer,
+                          const char *match,
+                          size_t n_match) {
         const char *key = NULL, *value = NULL;
         bool quoted = false;
         char c;
@@ -108,17 +215,17 @@ static int dbus_match_entry_parse_match(DBusMatchEntry *entry,
                                 /* strip leading space before a key */
                                 c = dbus_match_string_pop(&match, &quoted);
                         } while (c == ' ');
-                        key = entry->buffer + i;
+                        key = buffer + i;
                 } else {
                         c = dbus_match_string_pop(&match, &quoted);
                 }
 
                 /* strip key and value at '=' */
                 if (c == '=' && !value) {
-                        entry->buffer[i] = '\0';
-                        value = entry->buffer + i + 1;
+                        buffer[i] = '\0';
+                        value = buffer + i + 1;
                 } else {
-                        entry->buffer[i] = c;
+                        buffer[i] = c;
                 }
 
                 /* reached end of key/value pair */
@@ -127,7 +234,7 @@ static int dbus_match_entry_parse_match(DBusMatchEntry *entry,
                         if (!value)
                                 return -EBADMSG;
 
-                        r = dbus_match_entry_assign(entry, key, value);
+                        r = dbus_match_keys_assign(keys, key, value);
                         if (r < 0)
                                 return r;
 
@@ -143,16 +250,10 @@ static int dbus_match_entry_parse_match(DBusMatchEntry *entry,
         return -EBADMSG;
 }
 
-int dbus_match_entry_new(DBusMatchEntry **entryp,
-                         DBusMatchRegistry *registry,
-                         Peer *peer,
-                         const char *match) {
+static int dbus_match_entry_new(DBusMatchEntry **entryp, const char *match) {
         _c_cleanup_(dbus_match_entry_freep) DBusMatchEntry *entry = NULL;
         size_t n_match;
         int r;
-
-        if (peer->user->n_matches == 0)
-                return -EDQUOT;
 
         n_match = strlen(match);
 
@@ -160,13 +261,10 @@ int dbus_match_entry_new(DBusMatchEntry **entryp,
         if (!entry)
                 return -EINVAL;
 
-        peer->user->n_matches --;
+        entry->link_registry = (CList)C_LIST_INIT(entry->link_registry);
+        entry->link_peer = (CList)C_LIST_INIT(entry->link_peer);
 
-        entry->peer = peer;
-        c_list_link_tail(&registry->entries, &entry->link_registry);
-        c_list_link_tail(&peer->matches, &entry->link_peer);
-
-        r = dbus_match_entry_parse_match(entry, match, n_match);
+        r = dbus_match_keys_parse(&entry->keys, entry->buffer, match, n_match);
         if (r < 0)
                 return r;
 
@@ -179,12 +277,79 @@ DBusMatchEntry *dbus_match_entry_free(DBusMatchEntry *entry) {
         if (!entry)
                 return NULL;
 
-        entry->peer->user->n_matches ++;
+        if (entry->peer)
+                entry->peer->user->n_matches ++;
 
         c_list_unlink(&entry->link_registry);
         c_list_unlink(&entry->link_peer);
 
         free(entry);
+
+        return NULL;
+}
+
+int dbus_match_add(DBusMatchRegistry *registry,
+                   Peer *peer,
+                   const char *match) {
+        DBusMatchEntry *entry;
+        int r;
+
+        if (peer->user->n_matches == 0)
+                return -EDQUOT;
+
+        r = dbus_match_entry_new(&entry, match);
+        if (r < 0)
+                return r;
+
+        peer->user->n_matches --;
+
+        entry->peer = peer;
+        c_list_link_tail(&registry->entries, &entry->link_registry);
+        c_list_link_tail(&peer->matches, &entry->link_peer);
+
+        return 0;
+}
+
+int dbus_match_remove(DBusMatchRegistry *registry, const char *match) {
+        char buffer[strlen(match)];
+        DBusMatchKeys keys = {};
+        DBusMatchEntry *entry;
+        int r;
+
+        r = dbus_match_keys_parse(&keys, buffer, match, strlen(match));
+        if (r < 0)
+                return r;
+
+        c_list_for_each_entry(entry,
+                              &registry->entries,
+                              link_registry) {
+                if (dbus_match_keys_equal(&keys, &entry->keys)) {
+                        dbus_match_entry_free(entry);
+                        return 0;
+                }
+        }
+
+        return -ENOENT;
+}
+
+DBusMatchEntry *dbus_match_next_entry(DBusMatchRegistry *registry,
+                                      DBusMatchEntry *entry,
+                                      DBusMatchKeys *keys) {
+        CList *link;
+
+        if (!entry)
+                link = c_list_loop_first(&registry->entries);
+        else
+                link = c_list_loop_next(&entry->link_registry);
+
+        while (link != &registry->entries) {
+                entry = c_list_entry(link, DBusMatchEntry, link_registry);
+
+                if (dbus_match_keys_subset(&entry->keys, keys))
+                        return entry;
+
+                link = c_list_loop_next(link);
+        }
 
         return NULL;
 }
