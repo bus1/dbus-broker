@@ -19,8 +19,8 @@ typedef struct DBusVariantType DBusVariantType;
  *                      to strip the surrounding brackets (via C_EXPAND or
  *                      similar).
  */
-#define DBUS_VARIANT_TYPE_b (1, 0, 'b', 1, 1)
-#define DBUS_VARIANT_TYPE_y (4, 2, 'y', 1, 1)
+#define DBUS_VARIANT_TYPE_y (1, 0, 'y', 1, 1)
+#define DBUS_VARIANT_TYPE_b (4, 2, 'b', 1, 1)
 #define DBUS_VARIANT_TYPE_n (2, 1, 'n', 1, 1)
 #define DBUS_VARIANT_TYPE_q (2, 1, 'q', 1, 1)
 #define DBUS_VARIANT_TYPE_i (4, 2, 'i', 1, 1)

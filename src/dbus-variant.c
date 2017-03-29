@@ -761,9 +761,17 @@ static int dbus_variant_try_vwrite(DBusVariant *var, const char *format, va_list
                         --var->current;
                         break;
 
-                case 'b':
+                case 'y':
                         u8 = va_arg(args, int);
                         r = dbus_variant_write_u8(var, u8);
+                        if (r < 0)
+                                return r;
+
+                        break;
+
+                case 'b':
+                        u32 = va_arg(args, int);
+                        r = dbus_variant_write_u32(var, !!u32);
                         if (r < 0)
                                 return r;
 
@@ -778,7 +786,6 @@ static int dbus_variant_try_vwrite(DBusVariant *var, const char *format, va_list
 
                         break;
 
-                case 'y':
                 case 'i':
                 case 'h':
                 case 'u':
