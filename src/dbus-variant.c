@@ -721,76 +721,18 @@ static int dbus_variant_try_vwrite(DBusVariant *var, const char *format, va_list
         uint8_t u8;
         double fp;
         size_t n;
-        char c, real_c;
+        char c;
         int r;
 
         while ((c = *format++)) {
-                real_c = c;
-
                 /*
                  * First, verify the constraints. Meaning, we verify that the
                  * requested code is actually expected, and the operation is
                  * allowed (depth-check, container-check, ...).
                  */
-                switch (c) {
-                case '[':
-                case '<':
-                case '(':
-                case '{':
-                        if (c == '[')
-                                real_c = 'a';
-                        else if (c == '<')
-                                real_c = 'v';
-
-                        if (var->current >= var->levels + C_ARRAY_SIZE(var->levels) - 1 ||
-                            !var->current->n_type ||
-                            var->current->i_type->element != real_c)
-                                return -ENOTRECOVERABLE;
-
-                        /*
-                         * Prepare container to enter with default values. Note
-                         * that for enclosed types we must cut off the closing
-                         * type as well (which is a dummy and has no value).
-                         */
-                        (var->current + 1)->root_type = NULL;
-                        (var->current + 1)->i_type = var->current->i_type + 1;
-                        (var->current + 1)->n_type = var->current->n_type - 1 - (real_c == c);
-                        (var->current + 1)->container = real_c;
-                        (var->current + 1)->i_buffer = var->current->i_buffer;
-                        (var->current + 1)->n_buffer = var->current->n_buffer;
-
-                        break;
-
-                case ']':
-                case '>':
-                case ')':
-                case '}':
-                        if (c == ']')
-                                real_c = 'a';
-                        else if (c == '>')
-                                real_c = 'v';
-                        else if (c == ')')
-                                real_c = '(';
-                        else if (c == '}')
-                                real_c = '{';
-
-                        if ((real_c != 'a' && var->current->n_type) ||
-                            var->current->container != real_c)
-                                return -ENOTRECOVERABLE;
-
-                        break;
-
-                case 'a':
-                case 'v':
-                        return -ENOTRECOVERABLE;
-
-                default:
-                        if (!var->current->n_type ||
-                            var->current->i_type->element != c)
-                                return -ENOTRECOVERABLE;
-
-                        break;
-                }
+                r = dbus_variant_prepare_next(var, c);
+                if (r < 0)
+                        return r;
 
                 /*
                  * Now that the operation has passed validity checks, write the
