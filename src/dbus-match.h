@@ -51,7 +51,7 @@ int dbus_match_keys_parse(DBusMatchKeys *keys,
 DBusMatchEntry *dbus_match_entry_free(DBusMatchEntry *entry);
 
 int dbus_match_add(DBusMatchRegistry *registry, Peer *peer, const char *match);
-int dbus_match_remove(DBusMatchRegistry *registry, const char *match);
+int dbus_match_remove(DBusMatchRegistry *registry, Peer *peer, const char *match);
 
 DBusMatchEntry *dbus_match_next_entry(DBusMatchRegistry *registry,
                                       DBusMatchEntry *entry,

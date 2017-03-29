@@ -310,7 +310,7 @@ int dbus_match_add(DBusMatchRegistry *registry,
         return 0;
 }
 
-int dbus_match_remove(DBusMatchRegistry *registry, const char *match) {
+int dbus_match_remove(Peer *peer, const char *match) {
         char buffer[strlen(match)];
         DBusMatchKeys keys = {};
         DBusMatchEntry *entry;
@@ -321,8 +321,8 @@ int dbus_match_remove(DBusMatchRegistry *registry, const char *match) {
                 return r;
 
         c_list_for_each_entry(entry,
-                              &registry->entries,
-                              link_registry) {
+                              &peer->matches,
+                              link_peer) {
                 if (dbus_match_keys_equal(&keys, &entry->keys)) {
                         dbus_match_entry_free(entry);
                         return 0;
