@@ -360,8 +360,38 @@ static int dbus_variant_read_data(DBusVariant *var, int alignment, const void **
         return 0;
 }
 
+static uint32_t dbus_variant_bswap16(DBusVariant *var, uint16_t v) {
+        return _c_likely_(!!var->big_endian == !!(__BYTE_ORDER == __BIG_ENDIAN)) ? v : bswap_16(v);
+}
+
 static uint32_t dbus_variant_bswap32(DBusVariant *var, uint32_t v) {
         return _c_likely_(!!var->big_endian == !!(__BYTE_ORDER == __BIG_ENDIAN)) ? v : bswap_32(v);
+}
+
+static uint32_t dbus_variant_bswap64(DBusVariant *var, uint64_t v) {
+        return _c_likely_(!!var->big_endian == !!(__BYTE_ORDER == __BIG_ENDIAN)) ? v : bswap_64(v);
+}
+
+static int dbus_variant_read_u8(DBusVariant *var, uint8_t *datap) {
+        const void *p;
+        int r;
+
+        r = dbus_variant_read_data(var, 0, &p, sizeof(*datap));
+        if (_c_likely_(r >= 0))
+                *datap = *(const uint8_t *)p;
+
+        return r;
+}
+
+static int dbus_variant_read_u16(DBusVariant *var, uint16_t *datap) {
+        const void *p;
+        int r;
+
+        r = dbus_variant_read_data(var, 1, &p, sizeof(*datap));
+        if (_c_likely_(r >= 0))
+                *datap = dbus_variant_bswap16(var, *(const uint16_t *)p);
+
+        return r;
 }
 
 static int dbus_variant_read_u32(DBusVariant *var, uint32_t *datap) {
@@ -375,13 +405,13 @@ static int dbus_variant_read_u32(DBusVariant *var, uint32_t *datap) {
         return r;
 }
 
-static int dbus_variant_read_u8(DBusVariant *var, uint8_t *datap) {
+static int dbus_variant_read_u64(DBusVariant *var, uint64_t *datap) {
         const void *p;
         int r;
 
-        r = dbus_variant_read_data(var, 0, &p, sizeof(*datap));
+        r = dbus_variant_read_data(var, 3, &p, sizeof(*datap));
         if (_c_likely_(r >= 0))
-                *datap = *(const uint8_t *)p;
+                *datap = dbus_variant_bswap64(var, *(const uint64_t *)p);
 
         return r;
 }
@@ -478,7 +508,9 @@ static int dbus_variant_dummy_vread(DBusVariant *var, const char *format, va_lis
 
 static int dbus_variant_try_vread(DBusVariant *var, const char *format, va_list args) {
         const char *str;
+        uint64_t u64;
         uint32_t u32;
+        uint16_t u16;
         uint8_t u8;
         void *p;
         char c;
@@ -516,22 +548,66 @@ static int dbus_variant_try_vread(DBusVariant *var, const char *format, va_list 
                 case '}':
                         break;
 
+                case 'y':
+                        r = dbus_variant_read_u8(var, &u8);
+                        if (r < 0)
+                                return r;
+
+                        p = va_arg(args, uint8_t *);
+                        if (p)
+                                *(uint8_t *)p = u8;
+
+                        break;
+
                 case 'b':
+                        r = dbus_variant_read_u32(var, &u32);
+                        if (r < 0)
+                                return r;
+                        if (u32 != 0 && u32 != 1)
+                                return -EBADMSG;
+
+                        p = va_arg(args, bool *);
+                        if (p)
+                                *(bool *)p = u32;
+
                         break;
 
                 case 'n':
                 case 'q':
+                        r = dbus_variant_read_u16(var, &u16);
+                        if (r < 0)
+                                return r;
+
+                        p = va_arg(args, uint16_t *);
+                        if (p)
+                                *(uint16_t *)p = u16;
+
                         break;
 
-                case 'y':
                 case 'i':
                 case 'h':
                 case 'u':
+                        r = dbus_variant_read_u32(var, &u32);
+                        if (r < 0)
+                                return r;
+
+                        p = va_arg(args, uint32_t *);
+                        if (p)
+                                *(uint32_t *)p = u32;
+
                         break;
 
                 case 'x':
                 case 't':
                 case 'd':
+                        r = dbus_variant_read_u64(var, &u64);
+                        if (r < 0)
+                                return r;
+
+                        p = va_arg(args, uint64_t *);
+                        if (p)
+                                *(uint64_t *)p = u64;
+
                         break;
 
                 case 's':
