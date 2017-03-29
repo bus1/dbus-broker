@@ -387,6 +387,7 @@ static int dbus_variant_read_u8(DBusVariant *var, uint8_t *datap) {
 }
 
 static int dbus_variant_dummy_vread(DBusVariant *var, const char *format, va_list args) {
+        void *p;
         char c;
 
         while ((c = *format++)) {
@@ -402,38 +403,62 @@ static int dbus_variant_dummy_vread(DBusVariant *var, const char *format, va_lis
                         break;
 
                 case '<':
-                        *(const char **)va_arg(args, const char **) = "()";
+                        p = va_arg(args, const char **);
+                        if (p)
+                                *(const char **)p = "()";
+                        break;
+
+                case 'y':
+                        p = va_arg(args, uint8_t *);
+                        if (p)
+                                *(uint8_t *)p = 0;
                         break;
 
                 case 'b':
-                        *(uint8_t *)va_arg(args, uint8_t *) = 0;
+                        p = va_arg(args, bool *);
+                        if (p)
+                                *(bool *)p = false;
                         break;
 
                 case 'n':
                 case 'q':
-                        *(uint16_t *)va_arg(args, uint16_t *) = 0;
+                        p = va_arg(args, uint16_t *);
+                        if (p)
+                                *(uint16_t *)p = 0;
                         break;
 
-                case 'y':
                 case 'i':
                 case 'h':
                 case 'u':
-                        *(uint32_t *)va_arg(args, uint32_t *) = 0;
+                        p = va_arg(args, uint32_t *);
+                        if (p)
+                                *(uint32_t *)p = 0;
                         break;
 
                 case 'x':
                 case 't':
-                        *(uint64_t *)va_arg(args, uint64_t *) = 0;
+                        p = va_arg(args, uint64_t *);
+                        if (p)
+                                *(uint64_t *)p = 0;
                         break;
 
                 case 'd':
-                        *(double *)va_arg(args, double *) = 0;
+                        p = va_arg(args, double *);
+                        if (p)
+                                *(double *)p = 0;
                         break;
 
                 case 's':
-                case 'o':
                 case 'g':
-                        *(const char **)va_arg(args, const char **) = "";
+                        p = va_arg(args, const char **);
+                        if (p)
+                                *(const char **)p = "";
+                        break;
+
+                case 'o':
+                        p = va_arg(args, const char **);
+                        if (p)
+                                *(const char **)p = "/";
                         break;
 
                 case 'a':
