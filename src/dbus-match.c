@@ -310,7 +310,7 @@ int dbus_match_add(DBusMatchRegistry *registry,
         return 0;
 }
 
-int dbus_match_remove(Peer *peer, const char *match) {
+int dbus_match_remove(DBusMatchRegistry *reg, Peer *peer, const char *match) {
         char buffer[strlen(match)];
         DBusMatchKeys keys = {};
         DBusMatchEntry *entry;
