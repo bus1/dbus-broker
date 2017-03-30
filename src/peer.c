@@ -11,6 +11,7 @@
 #include "dbus-message.h"
 #include "dbus-socket.h"
 #include "dispatch.h"
+#include "driver.h"
 #include "peer.h"
 #include "user.h"
 
@@ -19,6 +20,10 @@ static int peer_dispatch_read_message(Peer *peer) {
         int r;
 
         r = dbus_socket_read_message(peer->socket, &message);
+        if (r < 0)
+                return r;
+
+        r = driver_handle_message(peer, message);
         if (r < 0)
                 return r;
 

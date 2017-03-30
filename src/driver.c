@@ -83,8 +83,11 @@ int driver_method_become_monitor(Bus *bus, Peer *peer, DBusMessage *message) {
         return 0;
 }
 
-/* use gperf */
-int driver_dispatch_method(Bus *bus, Peer *peer, const char *method, DBusMessage *message) {
+/* XXX: use gperf */
+static int driver_dispatch_method(Bus *bus,
+                              Peer *peer,
+                              const char *method,
+                              DBusMessage *message) {
         static const DriverMethod methods[] = {
                 { "Hello", driver_method_hello },
                 { "ListNames", driver_method_list_names },
@@ -109,6 +112,11 @@ int driver_dispatch_method(Bus *bus, Peer *peer, const char *method, DBusMessage
                         return methods[i].fn(bus, peer, message);
         }
 
+        return 0;
+}
+
+/* XXX: this needs access to the bus object */
+int driver_handle_message(Peer *peer, DBusMessage *message) {
         return 0;
 }
 

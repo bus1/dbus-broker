@@ -27,6 +27,6 @@ int driver_method_remove_match(Bus *bus, Peer *peer, DBusMessage *message);
 int driver_method_get_id(Bus *bus, Peer *peer, DBusMessage *message);
 int driver_method_become_monitor(Bus *bus, Peer *peer, DBusMessage *message);
 
-int driver_dispatch_method(Bus *bus, Peer *peer, const char *method, DBusMessage *message);
+int driver_handle_message(Peer *peer, DBusMessage *message);
 
 void driver_notify_name_owner_change(const char *name, Peer *old_peer, Peer *new_peer);
