@@ -184,6 +184,7 @@ int peer_new(Peer **peerp,
 
         user->n_peers --;
 
+        peer->bus = bus;
         c_rbnode_init(&peer->rb);
         peer->matches = (CList)C_LIST_INIT(peer->matches);
         peer->user = user;

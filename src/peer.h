@@ -17,6 +17,7 @@ typedef struct Peer Peer;
 typedef struct UserEntry UserEntry;
 
 struct Peer {
+        Bus *bus;
         DBusSASL sasl;
         bool authenticated : 1;
         DispatchFile dispatch_file;
