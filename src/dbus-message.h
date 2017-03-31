@@ -20,7 +20,7 @@ struct DBusMessageHeader {
         uint8_t version;
         uint32_t n_body;
         uint32_t serial;
-        uint32_t n_args;
+        uint32_t n_fields;
 } _c_packed_;
 
 struct DBusMessage {
@@ -31,10 +31,15 @@ struct DBusMessage {
         size_t n_fds;
         int *fds;
 
+        size_t n_args;
+        size_t n_body;
         size_t n_data;
         size_t n_copied;
 
-        DBusMessageHeader header;
+        DBusMessageHeader *header;
+        void *fields;
+        void *body;
+
         char data[];
 };
 

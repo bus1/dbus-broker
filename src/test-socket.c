@@ -100,7 +100,7 @@ static void test_message(void) {
         r = dbus_socket_read_message(socket2, &message2);
         assert(r >= 0);
 
-        assert(memcmp(&message1->header, &message2->header, sizeof(header)) == 0);
+        assert(memcmp(message1->header, message2->header, sizeof(header)) == 0);
 }
 
 int main(int argc, char **argv) {

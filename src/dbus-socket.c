@@ -524,10 +524,9 @@ int dbus_socket_write(DBusSocket *socket) {
 
                 assert(entry->message->n_data >= entry->data_written);
 
-                entry->iov.iov_base = (void*)&entry->message->header +
+                entry->iov.iov_base = entry->message->data +
                                       entry->data_written;
-                entry->iov.iov_len = sizeof(DBusMessageHeader) +
-                                     entry->message->n_data -
+                entry->iov.iov_len = entry->message->n_data -
                                      entry->data_written;
                 msg->msg_iov = &entry->iov;
                 msg->msg_iovlen = 1;

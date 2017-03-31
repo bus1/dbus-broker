@@ -48,13 +48,13 @@ static void test_size(void) {
         r = dbus_message_new(&m, hdr);
         assert(r < 0);
 
-        hdr.n_args = 8;
+        hdr.n_fields = 8;
         hdr.n_body = 128UL * 1024UL * 1024UL - sizeof(DBusMessageHeader) - 8;
         r = dbus_message_new(&m, hdr);
         assert(r >= 0);
         dbus_message_unref(m);
 
-        hdr.n_args = 8 + 1;
+        hdr.n_fields = 8 + 1;
         hdr.n_body = 128UL * 1024UL * 1024UL - sizeof(DBusMessageHeader) - 8;
         r = dbus_message_new(&m, hdr);
         assert(r < 0);
