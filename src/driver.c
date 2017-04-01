@@ -26,6 +26,9 @@ struct DriverMethod {
 };
 
 int driver_method_hello(Peer *peer, DBusMessage *message) {
+        if (_c_unlikely_(peer_is_registered(peer)))
+                return -EBADMSG;
+
         bus_register_peer(peer->bus, peer);
 
         return 0;
@@ -114,6 +117,10 @@ static int driver_dispatch_method(Peer *peer,
                 { "BecomeMonitor", driver_method_become_monitor },
         };
 
+        if (_c_unlikely_(!peer_is_registered(peer)) &&
+            strcmp(method, "Hello") != 0)
+                return -EBADMSG;
+
         for (unsigned int i = 0; i < C_ARRAY_SIZE(methods); i++) {
                 if (strcmp(methods[i].name, method) == 0)
                         return methods[i].fn(peer, message);
@@ -128,10 +135,13 @@ static int driver_handle_method_call_internal(Peer *peer,
                                               const char *path,
                                               const char *signature,
                                               DBusMessage *message) {
-        if (interface && strcmp(interface, "org.freedesktop.DBus") != 0)
+        if (interface &&
+            _c_unlikely_(strcmp(interface, "org.freedesktop.DBus") != 0))
+                return -EBADMSG;
+        if (_c_unlikely_(strcmp(path, "/") != 0))
                 return -EBADMSG;
 
-        /* XXX: path/signature */
+        /* XXX: signature */
 
         return driver_dispatch_method(peer, member, message);
 }
@@ -143,16 +153,18 @@ static int driver_handle_method_call(Peer *peer,
                                      const char *path,
                                      const char *signature,
                                      DBusMessage *message) {
-        if (!destination)
+        if (_c_unlikely_(!destination || !member || !path))
                 return -EBADMSG;
 
-        if (strcmp(destination, "org.freedesktop.DBus") == 0)
+        if (_c_unlikely_(strcmp(destination, "org.freedesktop.DBus") == 0))
                 return driver_handle_method_call_internal(peer,
                                                           interface,
                                                           member,
                                                           path,
                                                           signature,
                                                           message);
+        else if (_c_unlikely_(!peer_is_registered(peer)))
+                return -EBADMSG;
 
         return 0;
 }
@@ -162,6 +174,9 @@ static int driver_handle_method_reply(Peer *peer,
                                       uint32_t reply_serial,
                                       const char *signature,
                                       DBusMessage *message) {
+        if (_c_unlikely_(!peer_is_registered(peer)))
+                return -EBADMSG;
+
         return 0;
 }
 
@@ -171,6 +186,9 @@ static int driver_handle_error(Peer *peer,
                                const char *error_name,
                                const char *signature,
                                DBusMessage *message) {
+        if (_c_unlikely_(!peer_is_registered(peer)))
+                return -EBADMSG;
+
         return 0;
 }
 
@@ -181,6 +199,9 @@ static int driver_handle_signal(Peer *peer,
                                 const char *path,
                                 const char *signature,
                                 DBusMessage *message) {
+        if (_c_unlikely_(!peer_is_registered(peer)))
+                return -EBADMSG;
+
         return 0;
 }
 
@@ -194,9 +215,9 @@ int driver_handle_message(Peer *peer, DBusMessage *message) {
                    *signature = NULL;
         uint32_t reply_serial = 0, n_fds = 0;
 
-        if (n_fds > message->n_fds)
+        if (_c_unlikely_(n_fds > message->n_fds))
                 return -EBADMSG;
-        while (n_fds < message->n_fds)
+        while (_c_unlikely_(n_fds < message->n_fds))
                 close(message->fds[-- message->n_fds]);
 
         switch (message->header->type) {
