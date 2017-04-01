@@ -132,7 +132,7 @@ int bus_run(Bus *bus) {
                 if (r < 0)
                         return r;
 
-                r = dispatch_context_poll(bus->dispatcher, -1, NULL);
+                r = dispatch_context_poll(bus->dispatcher, -1);
                 if (r < 0)
                         return r;
         }

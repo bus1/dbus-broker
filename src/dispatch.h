@@ -46,6 +46,6 @@ struct DispatchContext {
 int dispatch_context_new(DispatchContext **ctxp);
 DispatchContext *dispatch_context_free(DispatchContext *ctx);
 
-int dispatch_context_poll(DispatchContext *ctx, int timeout, const sigset_t *sigset);
+int dispatch_context_poll(DispatchContext *ctx, int timeout);
 
 C_DEFINE_CLEANUP(DispatchContext *, dispatch_context_free);

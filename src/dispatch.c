@@ -146,7 +146,7 @@ DispatchContext *dispatch_context_free(DispatchContext *ctx) {
 /**
  * dispatch_context_poll() - XXX
  */
-int dispatch_context_poll(DispatchContext *ctx, int timeout, const sigset_t *sigset) {
+int dispatch_context_poll(DispatchContext *ctx, int timeout) {
         _c_cleanup_(c_freep) void *buffer = NULL;
         struct epoll_event *events, *e;
         DispatchFile *f;
@@ -164,7 +164,7 @@ int dispatch_context_poll(DispatchContext *ctx, int timeout, const sigset_t *sig
                 events = alloca(n);
         }
 
-        r = epoll_pwait(ctx->epoll_fd, events, ctx->n_files, timeout, sigset);
+        r = epoll_wait(ctx->epoll_fd, events, ctx->n_files, timeout);
         if (r < 0)
                 return -errno;
 
