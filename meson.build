@@ -10,7 +10,7 @@ dep_cdvar = dependency('libcdvar', version: '>=1', fallback: [ 'c-dvar', 'libcdv
 dep_clist = dependency('libclist', version: '>=1', fallback: [ 'c-list', 'libclist_dep' ])
 dep_crbtree = dependency('libcrbtree', version: '>=2', fallback: [ 'c-rbtree', 'libcrbtree_dep' ])
 dep_csundry = dependency('libcsundry', version: '>=1', fallback: [ 'c-sundry', 'libcsundry_dep' ])
-dep_systemd = dependency('libsystemd', version: '>=230')
+dep_systemd = dependency('libsystemd', version: '>=230', required: false)
 dep_thread = dependency('threads')
 
 subdir('src')

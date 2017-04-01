@@ -45,7 +45,9 @@ libdbus_broker_dep = declare_dependency(include_directories: include_directories
 # library so they get access to all internal functions and state.
 #
 
-test_broker = executable('test-broker', ['test-broker.c'], dependencies: [ libdbus_broker_dep, dep_thread, dep_systemd ])
+if dep_systemd.found()
+        test_broker = executable('test-broker', ['test-broker.c'], dependencies: [ libdbus_broker_dep, dep_thread, dep_systemd ])
+endif
 
 test_bus = executable('test-bus', ['test-bus.c'], dependencies: libdbus_broker_dep)
 test('Bus Management', test_bus)
