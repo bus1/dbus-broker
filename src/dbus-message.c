@@ -40,7 +40,7 @@ int dbus_message_new(DBusMessage **messagep, DBusMessageHeader header) {
         message->fds = NULL;
         message->n_data = n_data;
         message->n_copied = sizeof(header);
-        message->header = message->data;
+        message->header = (DBusMessageHeader*)message->data;
         message->fields = message->data + offsetof(DBusMessageHeader, n_fields);
         message->body = message->data +
                         offsetof(DBusMessageHeader, n_fields) +
