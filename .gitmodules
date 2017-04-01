@@ -7,3 +7,6 @@
 [submodule "subprojects/c-list"]
 	path = subprojects/c-list
 	url = https://github.com/c-util/c-list.git
+[submodule "subprojects/c-dvar"]
+	path = subprojects/c-dvar
+	url = https://github.com/c-util/c-dvar.git

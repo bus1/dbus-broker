@@ -12,7 +12,6 @@ libdbus_broker_private = static_library('dbus-broker-private',
                                                 'dbus-message.c',
                                                 'dbus-sasl.c',
                                                 'dbus-socket.c',
-                                                'dbus-variant.c',
                                                 'dispatch.c',
                                                 'driver.c',
                                                 'name.c',
@@ -24,6 +23,7 @@ libdbus_broker_private = static_library('dbus-broker-private',
                                                 '-fno-common',
                                         ],
                                         dependencies: [
+                                                dep_cdvar,
                                                 dep_clist,
                                                 dep_crbtree,
                                                 dep_csundry,
@@ -32,6 +32,7 @@ libdbus_broker_private = static_library('dbus-broker-private',
 libdbus_broker_dep = declare_dependency(include_directories: include_directories('.'),
                                         link_with: libdbus_broker_private,
                                         dependencies: [
+                                                dep_cdvar,
                                                 dep_clist,
                                                 dep_crbtree,
                                                 dep_csundry,
@@ -69,6 +70,3 @@ test('D-Bus Socket Abstraction', test_socket)
 
 test_user = executable('test-user', ['test-user.c'], dependencies: libdbus_broker_dep)
 test('User Accounting', test_user)
-
-test_variant = executable('test-variant', ['test-variant.c'], dependencies: libdbus_broker_dep)
-test('D-Bus Variant Builder and Parser', test_variant)
