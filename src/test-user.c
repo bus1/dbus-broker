@@ -15,15 +15,15 @@ static void test_setup(void) {
         assert(r >= 0);
         assert(registry);
 
-        r = user_entry_ref_by_uid(registry, &entry1, 1);
+        r = user_registry_ref_entry(registry, &entry1, 1);
         assert(r >= 0);
         assert(entry1);
 
-        r = user_entry_ref_by_uid(registry, &entry2, 1);
+        r = user_registry_ref_entry(registry, &entry2, 1);
         assert(r >= 0);
         assert(entry2 == entry1);
 
-        r = user_entry_ref_by_uid(registry, &entry3, 2);
+        r = user_registry_ref_entry(registry, &entry3, 2);
         assert(r >= 0);
         assert(entry3 != entry1);
 
@@ -42,13 +42,13 @@ static void test_quota(void) {
         r = user_registry_new(&registry, 1024, 1024, 1024, 1024, 1024);
         assert(r >= 0);
 
-        r = user_entry_ref_by_uid(registry, &entry1, 1);
+        r = user_registry_ref_entry(registry, &entry1, 1);
         assert(r >= 0);
 
-        r = user_entry_ref_by_uid(registry, &entry2, 2);
+        r = user_registry_ref_entry(registry, &entry2, 2);
         assert(r >= 0);
 
-        r = user_entry_ref_by_uid(registry, &entry3, 3);
+        r = user_registry_ref_entry(registry, &entry3, 3);
         assert(r >= 0);
 
         user_charge_init(&charge1);

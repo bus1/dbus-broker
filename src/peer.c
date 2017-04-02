@@ -167,7 +167,7 @@ int peer_new(Peer **peerp,
         if (r < 0)
                 return -errno;
 
-        r = user_entry_ref_by_uid(bus->users, &user, ucred.uid);
+        r = user_registry_ref_entry(bus->users, &user, ucred.uid);
         if (r < 0)
                 return r;
 

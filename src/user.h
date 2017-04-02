@@ -78,9 +78,6 @@ void user_charge_release(UserCharge *charge);
 
 /* user */
 
-int user_entry_ref_by_uid(UserRegistry *registry,
-                          UserEntry **userp,
-                          uid_t uid);
 void user_entry_free(_Atomic unsigned long *n_refs, void *userdata);
 
 /* registry */
@@ -92,6 +89,8 @@ int user_registry_new(UserRegistry **registryp,
                       unsigned int max_names,
                       unsigned int max_matches);
 void user_registry_free(UserRegistry *registry);
+
+int user_registry_ref_entry(UserRegistry *registry, UserEntry **userp, uid_t uid);
 
 /**
  * user_entry_ref() - acquire reference

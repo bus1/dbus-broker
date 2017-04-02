@@ -336,50 +336,6 @@ static int user_entry_compare(CRBTree *tree, void *k, CRBNode *rb) {
 }
 
 /**
- * user_entry_ref_by_uid() - lookup entry in registry
- * @registry:           registry to query
- * @entryp:             pointer to entry
- * @uid:                uid of entry to lookup
- *
- * This looks up a user entry with UID @uid in @registry, if it exists, and
- * acquires a new refernce to it. If the entry does not exist in the registry,
- * it is created and added to the registry before being returned.
- *
- * Return: 0 on success, or a negative error code on failure.
- */
-int user_entry_ref_by_uid(UserRegistry *registry,
-                          UserEntry **entryp,
-                          uid_t uid) {
-        UserEntry *entry;
-        CRBNode **slot, *parent;
-        int r;
-
-        slot = c_rbtree_find_slot(&registry->users,
-                                  user_entry_compare,
-                                  &uid,
-                                  &parent);
-        if (slot) {
-                r = user_entry_new(&entry, uid,
-                                   registry->max_bytes,
-                                   registry->max_fds,
-                                   registry->max_peers,
-                                   registry->max_names,
-                                   registry->max_matches);
-                if (r < 0)
-                        return r;
-
-                user_entry_link(entry, registry, parent, slot);
-        } else {
-                entry = c_container_of(parent, UserEntry, rb);
-                user_entry_ref(entry);
-        }
-
-        *entryp = entry;
-
-        return 0;
-}
-
-/**
  * user_registry_new() - allocate a new user registry
  * @registryp:          pointer to the new registry
  * @max_bytes:          max bytes allocated to each user
@@ -434,4 +390,42 @@ void user_registry_free(UserRegistry *registry) {
         assert(!registry->users.root);
 
         free(registry);
+}
+
+/**
+ * user_registry_ref_entry() - search entry in registry
+ * @registry:           registry to query
+ * @entryp:             output argument for user entry
+ * @uid:                uid of entry to search for
+ *
+ * This searches for a user entry with UID @uid in @registry, takes a reference
+ * and returns it in @entryp.
+ *
+ * Return: 0 on success, error code on failure.
+ */
+int user_registry_ref_entry(UserRegistry *registry, UserEntry **entryp, uid_t uid) {
+        UserEntry *entry;
+        CRBNode **slot, *parent;
+        int r;
+
+        slot = c_rbtree_find_slot(&registry->users, user_entry_compare, &uid, &parent);
+        if (slot) {
+                r = user_entry_new(&entry, uid,
+                                   registry->max_bytes,
+                                   registry->max_fds,
+                                   registry->max_peers,
+                                   registry->max_names,
+                                   registry->max_matches);
+                if (r)
+                        return r;
+
+                user_entry_link(entry, registry, parent, slot);
+        } else {
+                entry = c_container_of(parent, UserEntry, rb);
+                user_entry_ref(entry);
+        }
+
+        *entryp = entry;
+
+        return 0;
 }
