@@ -88,7 +88,7 @@ int user_registry_new(UserRegistry **registryp,
                       unsigned int max_peers,
                       unsigned int max_names,
                       unsigned int max_matches);
-void user_registry_free(UserRegistry *registry);
+UserRegistry *user_registry_free(UserRegistry *registry);
 
 int user_registry_ref_entry(UserRegistry *registry, UserEntry **userp, uid_t uid);
 
@@ -126,3 +126,4 @@ static inline UserEntry *user_entry_unref(UserEntry *entry) {
 }
 
 C_DEFINE_CLEANUP(UserEntry *, user_entry_unref);
+C_DEFINE_CLEANUP(UserRegistry *, user_registry_free);

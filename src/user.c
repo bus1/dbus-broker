@@ -380,14 +380,17 @@ int user_registry_new(UserRegistry **registryp,
  * before the registry is freed.
  *
  * If @registry is NULL, this is a no-op.
+ *
+ * Return: NULL is returned.
  */
-void user_registry_free(UserRegistry *registry) {
+UserRegistry *user_registry_free(UserRegistry *registry) {
         if (!registry)
-                return;
+                return NULL;
 
         assert(!registry->users.root);
-
         free(registry);
+
+        return NULL;
 }
 
 /**
