@@ -110,37 +110,26 @@ void dispatch_file_drop(DispatchFile *file) {
 }
 
 /**
- * dispatch_context_new() - XXX
+ * dispatch_context_init() - XXX
  */
-int dispatch_context_new(DispatchContext **ctxp) {
-        _c_cleanup_(dispatch_context_freep) DispatchContext *ctx = NULL;
+int dispatch_context_init(DispatchContext *ctxp) {
+        DispatchContext ctx = {};
 
-        ctx = calloc(1, sizeof(*ctx));
-        if (!ctx)
-                return -ENOMEM;
-
-        ctx->epoll_fd = epoll_create1(EPOLL_CLOEXEC);
-        if (ctx->epoll_fd < 0)
+        ctx.epoll_fd = epoll_create1(EPOLL_CLOEXEC);
+        if (ctx.epoll_fd < 0)
                 return -errno;
 
         *ctxp = ctx;
-        ctx = NULL;
         return 0;
 }
 
 /**
- * dispatch_context_free() - XXX
+ * dispatch_context_deinit() - XXX
  */
-DispatchContext *dispatch_context_free(DispatchContext *ctx) {
-        if (!ctx)
-                return NULL;
-
+void dispatch_context_deinit(DispatchContext *ctx) {
         assert(!ctx->n_files);
 
-        c_close(ctx->epoll_fd);
-        free(ctx);
-
-        return NULL;
+        ctx->epoll_fd = c_close(ctx->epoll_fd);
 }
 
 /**

@@ -43,9 +43,9 @@ struct DispatchContext {
         size_t n_files;
 };
 
-int dispatch_context_new(DispatchContext **ctxp);
-DispatchContext *dispatch_context_free(DispatchContext *ctx);
+#define DISPATCH_CONTEXT_NULL   { .epoll_fd = -1 }
+
+int dispatch_context_init(DispatchContext *ctxp);
+void dispatch_context_deinit(DispatchContext *ctx);
 
 int dispatch_context_poll(DispatchContext *ctx, int timeout);
-
-C_DEFINE_CLEANUP(DispatchContext *, dispatch_context_free);

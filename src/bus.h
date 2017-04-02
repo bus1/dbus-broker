@@ -15,11 +15,10 @@
 
 typedef struct Bus Bus;
 typedef struct Peer Peer;
-typedef struct DispatchContext DispatchContext;
 
 struct Bus {
         char guid[16];
-        DispatchContext *dispatcher;
+        DispatchContext dispatcher;
         DispatchFile accept_file;
         int fd;
         CList ready_list;

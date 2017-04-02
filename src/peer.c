@@ -197,7 +197,7 @@ int peer_new(Peer **peerp,
 
         dispatch_file_init(&peer->dispatch_file,
                            peer_dispatch,
-                           bus->dispatcher,
+                           &bus->dispatcher,
                            &bus->ready_list);
         dbus_sasl_init(&peer->sasl, ucred.uid, bus->guid);
 

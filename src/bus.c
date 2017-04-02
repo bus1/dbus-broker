@@ -72,14 +72,15 @@ int bus_new(Bus **busp,
                            max_peers,
                            max_names,
                            max_matches);
+        bus->dispatcher = (DispatchContext)DISPATCH_CONTEXT_NULL;
 
-        r = dispatch_context_new(&bus->dispatcher);
+        r = dispatch_context_init(&bus->dispatcher);
         if (r < 0)
                 return r;
 
         dispatch_file_init(&bus->accept_file,
                            bus_accept,
-                           bus->dispatcher,
+                           &bus->dispatcher,
                            &bus->ready_list);
 
         *busp = bus;
@@ -95,7 +96,7 @@ Bus *bus_free(Bus *bus) {
         assert(c_list_is_empty(&bus->ready_list));
 
         dispatch_file_deinit(&bus->accept_file);
-        dispatch_context_free(bus->dispatcher);
+        dispatch_context_deinit(&bus->dispatcher);
         user_registry_deinit(&bus->users);
         name_registry_deinit(&bus->names);
         dbus_match_registry_deinit(&bus->matches);
@@ -126,7 +127,7 @@ int bus_run(Bus *bus) {
                 if (r < 0)
                         return r;
 
-                r = dispatch_context_poll(bus->dispatcher, -1);
+                r = dispatch_context_poll(&bus->dispatcher, -1);
                 if (r < 0)
                         return r;
         }
