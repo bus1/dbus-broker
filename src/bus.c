@@ -3,8 +3,8 @@
  */
 
 #include <c-macro.h>
-#include <poll.h>
 #include <stdlib.h>
+#include <sys/epoll.h>
 #include <sys/socket.h>
 #include "bus.h"
 #include "dbus-match.h"
@@ -19,13 +19,13 @@ static int bus_accept(DispatchFile *file, uint32_t events) {
         _c_cleanup_(peer_freep) Peer *peer = NULL;
         int r;
 
-        if (!(events & POLLIN))
+        if (!(events & EPOLLIN))
                 return 0;
 
         fd = accept4(bus->fd, NULL, NULL, SOCK_NONBLOCK | SOCK_CLOEXEC);
         if (fd < 0) {
                 if (errno == EAGAIN) {
-                        dispatch_file_clear(file, POLLIN);
+                        dispatch_file_clear(file, EPOLLIN);
                         return 0;
                 } else if (errno == ECONNRESET || errno == EPERM) {
                         /* ignore pending errors on the new socket */

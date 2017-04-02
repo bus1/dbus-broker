@@ -3,8 +3,8 @@
  */
 
 #include <c-macro.h>
-#include <poll.h>
 #include <stdlib.h>
+#include <sys/epoll.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include "bus.h"
@@ -68,7 +68,7 @@ static int peer_dispatch_read(Peer *peer) {
                 }
                 if (r == -EAGAIN) {
                         /* nothing to be done */
-                        dispatch_file_clear(&peer->dispatch_file, POLLIN);
+                        dispatch_file_clear(&peer->dispatch_file, EPOLLIN);
                         return 0;
                 } else if (r < 0) {
                         /* XXX: swallow error code and tear down this peer */
@@ -85,7 +85,7 @@ static int peer_dispatch_write(Peer *peer) {
         r = dbus_socket_write(peer->socket);
         if (r == -EAGAIN) {
                 /* not able to write more */
-                dispatch_file_clear(&peer->dispatch_file, POLLOUT);
+                dispatch_file_clear(&peer->dispatch_file, EPOLLOUT);
                 return 0;
         } if (r < 0) {
                 /* XXX: swallow error code and tear down this peer */
@@ -99,13 +99,13 @@ int peer_dispatch(DispatchFile *file, uint32_t mask) {
         Peer *peer = c_container_of(file, Peer, dispatch_file);
         int r;
 
-        if (mask & POLLIN) {
+        if (mask & EPOLLIN) {
                 r = peer_dispatch_read(peer);
                 if (r < 0)
                         return r;
         }
 
-        if (mask & POLLOUT) {
+        if (mask & EPOLLOUT) {
                 r = peer_dispatch_write(peer);
                 if (r < 0)
                         return r;
@@ -243,7 +243,7 @@ Peer *peer_free(Peer *peer) {
 int peer_start(Peer *peer) {
         return dispatch_file_select(&peer->dispatch_file,
                                     peer->socket->fd,
-                                    POLLIN | POLLOUT);
+                                    EPOLLIN | EPOLLOUT);
 }
 
 void peer_stop(Peer *peer) {
