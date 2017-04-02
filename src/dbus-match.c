@@ -52,9 +52,63 @@ static int dbus_match_rules_compare(CRBTree *tree, void *k, CRBNode *rb) {
         return 0;
 }
 
+static bool dbus_match_string_prefix(const char *string, const char *prefix, char delimiter) {
+        char *tail;
+
+        tail = c_string_prefix(string, prefix);
+        if (!tail)
+                return false;
+
+        if (*tail != '\0' && *tail != delimiter)
+                return false;
+
+        return true;
+}
+
 static bool dbus_match_rule_keys_match_filter(DBusMatchRuleKeys *keys, DBusMatchFilter *filter) {
-        /* XXX */
-        return false;
+        if (keys->filter.type && keys->filter.type != filter->type)
+                return false;
+
+        if (!keys->eavesdrop && filter->destination)
+                return false;
+
+        if (keys->filter.sender && !c_string_equal(keys->filter.sender, filter->sender))
+                return false;
+
+        if (keys->filter.destination && !c_string_equal(keys->filter.destination, filter->destination))
+                return false;
+
+        if (keys->filter.interface && !c_string_equal(keys->filter.interface, filter->interface))
+                return false;
+
+        if (keys->filter.member && !c_string_equal(keys->filter.member, filter->member))
+                return false;
+
+        if (keys->filter.path && !c_string_equal(keys->filter.path, filter->path))
+                return false;
+
+        if (keys->path_namespace && !dbus_match_string_prefix(filter->path, keys->path_namespace, '/'))
+                return false;
+
+        if (keys->filter.sender && !c_string_equal(keys->filter.sender, filter->sender))
+                return false;
+
+        /* XXX: verify that arg0 is a (potentially single-label) bus name */
+        if (keys->arg0namespace && !dbus_match_string_prefix(filter->args[0], keys->arg0namespace, '.'))
+                return false;
+
+        for (unsigned int i = 0; i < C_ARRAY_SIZE(filter->args); i ++) {
+                if (keys->filter.args[i] && !c_string_equal(keys->filter.args[i], filter->args[i]))
+                        return false;
+
+                if (keys->argpaths[i]) {
+                        if (!dbus_match_string_prefix(filter->args[i], keys->argpaths[i], '/') &&
+                            !dbus_match_string_prefix(keys->argpaths[i], filter->args[i], '/'))
+                                return false;
+                }
+        }
+
+        return true;
 }
 
 static int dbus_match_rule_keys_assign(DBusMatchRuleKeys *keys, const char *key, const char *value) {
@@ -195,6 +249,8 @@ int dbus_match_rule_keys_parse(DBusMatchRuleKeys *keys, char *buffer, const char
                                 return 0;
                 }
         }
+
+        /* XXX: verify that no invalid combinations such as path/path_namespace occur */
 
         return -EBADMSG;
 }
