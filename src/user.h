@@ -3,7 +3,7 @@
 /*
  * User Accounting
  *
- * Different users can communicate via the dbus broker, and some resources are
+ * Different users can communicate via the broker, and some resources are
  * shared between multiple users. The UserEntry object represents the UID of a
  * user, like "struct user_struct" does in the kernel. It is used to account
  * global resources, apply limits, and calculate quotas if different UIDs
@@ -14,8 +14,8 @@
  * peer that is created is always owned by the user that initialized it. All
  * resources allocated on that peer are accounted on that pinned user.
  *
- * Since the dbus broker allows communication across UID boundaries, any such
- * transmission of resources must be properly accounted. The dbus broker employs
+ * Since the broker allows communication across UID boundaries, any such
+ * transmission of resources must be properly accounted. The broker employs
  * dynamic quotas to fairly distribute available resources. Those quotas make
  * sure that available resources of a peer cannot be exhausted by remote UIDs,
  * but are fairly divided among all communicating peers. The share granted to
@@ -64,7 +64,8 @@ struct UserEntry {
         CRBNode rb;
 };
 
-/* charges */
+/* charge */
+
 void user_charge_init(UserCharge *charge);
 void user_charge_deinit(UserCharge *charge);
 
@@ -75,13 +76,15 @@ int user_charge_apply(UserCharge *charge,
                       unsigned int n_fds);
 void user_charge_release(UserCharge *charge);
 
-/* users */
+/* user */
+
 int user_entry_ref_by_uid(UserRegistry *registry,
                           UserEntry **userp,
                           uid_t uid);
 void user_entry_free(_Atomic unsigned long *n_refs, void *userdata);
 
 /* registry */
+
 int user_registry_new(UserRegistry **registryp,
                       unsigned int max_bytes,
                       unsigned int max_fds,
@@ -92,7 +95,7 @@ void user_registry_free(UserRegistry *registry);
 
 /**
  * user_entry_ref() - acquire reference
- * @entry:        user entry to acquire, or NULL
+ * @entry:              user entry to acquire, or NULL
  *
  * Acquire an additional reference to a user-object. The caller must already
  * own a reference.
@@ -109,7 +112,7 @@ static inline UserEntry *user_entry_ref(UserEntry *entry) {
 
 /**
  * user_entry_unref() - release reference
- * @entry:        user entry to release, or NULL
+ * @entry:              user entry to release, or NULL
  *
  * Release a reference to a user-object.
  *
