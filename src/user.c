@@ -93,32 +93,6 @@ static UserUsage *user_usage_unref(UserUsage *usage) {
 
 C_DEFINE_CLEANUP(UserUsage *, user_usage_unref);
 
-static int user_entry_ref_usage(UserEntry *entry,
-                                UserUsage **usagep,
-                                UserEntry *actor) {
-        UserUsage *usage;
-        CRBNode **slot, *parent;
-        int r;
-
-        slot = c_rbtree_find_slot(&entry->usages,
-                                  user_usage_compare,
-                                  &actor->uid,
-                                  &parent);
-        if (slot) {
-                r = user_usage_new(&usage, entry, actor->uid);
-                if (r)
-                        return r;
-
-                user_usage_link(usage, parent, slot);
-        } else {
-                usage = c_container_of(parent, UserUsage, rb);
-                user_usage_ref(usage);
-        }
-
-        *usagep = usage;
-        return 0;
-}
-
 /**
  * user_charge_init() - initialize charge object
  * @charge:     charge object to initialize
@@ -136,15 +110,23 @@ void user_charge_init(UserCharge *charge) {
  * @charge:     charge object to destroy
  *
  * This destroys a charge object that was previously initialized via
- * user_charge_init(). The caller must make sure the object is not currently in
- * use before calling this.
- *
- * This function is a no-op and only does safety checks on the charge object.
+ * user_charge_init(). If the object was never charged, this is a no-op.
+ * Otherwise, the charge is released and the object is re-initialized.
  */
 void user_charge_deinit(UserCharge *charge) {
-        assert(!charge->usage);
-        assert(charge->n_bytes == 0);
-        assert(charge->n_fds == 0);
+        if (charge->usage) {
+                charge->usage->entry->n_bytes += charge->n_bytes;
+                charge->usage->entry->n_fds += charge->n_fds;
+                charge->usage->n_bytes -= charge->n_bytes;
+                charge->usage->n_fds -= charge->n_fds;
+
+                charge->usage = user_usage_unref(charge->usage);
+                charge->n_bytes = 0;
+                charge->n_fds = 0;
+        } else {
+                assert(charge->n_bytes == 0);
+                assert(charge->n_fds == 0);
+        }
 }
 
 static int user_charge_check(unsigned int remaining,
@@ -155,88 +137,6 @@ static int user_charge_check(unsigned int remaining,
                 return -EDQUOT;
 
         return 0;
-}
-
-/**
- * user_charge_apply() - apply a charge
- * @charge:     charge object used to record the charge
- * @entry:      user entry to charge on
- * @actor:      user entry charged on behalf of
- * @n_bytes:    number of bytes to charge
- * @n_fds:      number of fds to charge
- *
- * Charge @entry @n_bytes and @n_fds on behalf of @actor. Record the charge in
- * @charge so it can later be undone.
- *
- * @charge must be initialized and not currently be in use.
- *
- * @actor is at most allowed to consume an n'th of @entry's resources that have
- * not been consumed by any other user, where n is one more than the total
- * number of actors currently pinning any of @entry's resources. If this quota
- * is exceeded the charge fails to apply and this is a no-op.
- *
- * Return: 0 on success, error code on failure.
- */
-int user_charge_apply(UserCharge *charge,
-                      UserEntry *entry,
-                      UserEntry *actor,
-                      unsigned int n_bytes,
-                      unsigned int n_fds) {
-        _c_cleanup_(user_usage_unrefp) UserUsage *usage = NULL;
-        int r;
-
-        assert(!charge->usage);
-
-        r = user_entry_ref_usage(entry, &usage, actor);
-        if (r)
-                return r;
-
-        r = user_charge_check(entry->n_bytes,
-                              entry->n_usages,
-                              usage->n_bytes,
-                              n_bytes);
-        if (r)
-                return r;
-
-        r = user_charge_check(entry->n_fds,
-                              entry->n_usages,
-                              usage->n_fds,
-                              n_fds);
-        if (r)
-                return r;
-
-        entry->n_bytes -= n_bytes;
-        entry->n_fds -= n_fds;
-        usage->n_bytes += n_bytes;
-        usage->n_fds += n_fds;
-
-        charge->n_bytes = n_bytes;
-        charge->n_fds = n_fds;
-        charge->usage = usage;
-        usage = NULL;
-
-        return 0;
-}
-
-/**
- * user_charge_release() - undo a charge
- * @charge:     object to operate on
- *
- * This reverses the effect of user_charge_apply(), and releases the pinned
- * resources, allowing the charge object to be reused.
- */
-void user_charge_release(UserCharge *charge) {
-        UserUsage *usage = charge->usage;
-        UserEntry *entry = usage->entry;
-
-        entry->n_bytes += charge->n_bytes;
-        entry->n_fds += charge->n_fds;
-        usage->n_bytes -= charge->n_bytes;
-        usage->n_fds -= charge->n_fds;
-        charge->n_bytes = 0;
-        charge->n_fds = 0;
-
-        charge->usage = user_usage_unref(charge->usage);
 }
 
 static void user_entry_link(UserEntry *entry,
@@ -296,6 +196,93 @@ void user_entry_free(_Atomic unsigned long *n_refs, void *userdata) {
 
         user_entry_unlink(entry);
         free(entry);
+}
+
+static int user_entry_ref_usage(UserEntry *entry,
+                                UserUsage **usagep,
+                                UserEntry *actor) {
+        UserUsage *usage;
+        CRBNode **slot, *parent;
+        int r;
+
+        slot = c_rbtree_find_slot(&entry->usages,
+                                  user_usage_compare,
+                                  &actor->uid,
+                                  &parent);
+        if (slot) {
+                r = user_usage_new(&usage, entry, actor->uid);
+                if (r)
+                        return r;
+
+                user_usage_link(usage, parent, slot);
+        } else {
+                usage = c_container_of(parent, UserUsage, rb);
+                user_usage_ref(usage);
+        }
+
+        *usagep = usage;
+        return 0;
+}
+
+/**
+ * user_entry_charge() - charge a user entry
+ * @entry:      user entry to charge
+ * @charge:     charge object used to record the charge
+ * @actor:      user entry charged on behalf of
+ * @n_bytes:    number of bytes to charge
+ * @n_fds:      number of fds to charge
+ *
+ * Charge @entry @n_bytes and @n_fds on behalf of @actor. Record the charge in
+ * @charge so it can later be undone.
+ *
+ * @charge must be initialized and not currently be in use.
+ *
+ * @actor is at most allowed to consume an n'th of @entry's resources that have
+ * not been consumed by any other user, where n is one more than the total
+ * number of actors currently pinning any of @entry's resources. If this quota
+ * is exceeded the charge fails to apply and this is a no-op.
+ *
+ * Return: 0 on success, error code on failure.
+ */
+int user_entry_charge(UserEntry *entry,
+                      UserCharge *charge,
+                      UserEntry *actor,
+                      unsigned int n_bytes,
+                      unsigned int n_fds) {
+        _c_cleanup_(user_usage_unrefp) UserUsage *usage = NULL;
+        int r;
+
+        assert(!charge->usage);
+
+        r = user_entry_ref_usage(entry, &usage, actor);
+        if (r)
+                return r;
+
+        r = user_charge_check(entry->n_bytes,
+                              entry->n_usages,
+                              usage->n_bytes,
+                              n_bytes);
+        if (r)
+                return r;
+
+        r = user_charge_check(entry->n_fds,
+                              entry->n_usages,
+                              usage->n_fds,
+                              n_fds);
+        if (r)
+                return r;
+
+        entry->n_bytes -= n_bytes;
+        entry->n_fds -= n_fds;
+        usage->n_bytes += n_bytes;
+        usage->n_fds += n_fds;
+
+        charge->n_bytes = n_bytes;
+        charge->n_fds = n_fds;
+        charge->usage = usage;
+        usage = NULL;
+
+        return 0;
 }
 
 static int user_entry_compare(CRBTree *tree, void *k, CRBNode *rb) {

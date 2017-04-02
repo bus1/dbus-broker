@@ -69,16 +69,15 @@ struct UserEntry {
 void user_charge_init(UserCharge *charge);
 void user_charge_deinit(UserCharge *charge);
 
-int user_charge_apply(UserCharge *charge,
-                      UserEntry *entry,
-                      UserEntry *actor,
-                      unsigned int n_bytes,
-                      unsigned int n_fds);
-void user_charge_release(UserCharge *charge);
-
 /* user */
 
 void user_entry_free(_Atomic unsigned long *n_refs, void *userdata);
+
+int user_entry_charge(UserEntry *entry,
+                      UserCharge *charge,
+                      UserEntry *actor,
+                      unsigned int n_bytes,
+                      unsigned int n_fds);
 
 /* registry */
 
