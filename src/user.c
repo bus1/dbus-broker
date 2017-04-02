@@ -291,15 +291,6 @@ static int user_entry_new(UserEntry **entryp,
         return 0;
 }
 
-/**
- * user_entry_free() - destroy a user entry
- * @n_refs:             the reference count
- * @userdata:           unused userdata
- *
- * This is the callback called when the last reference to the user entry has
- * been released. It verifies that the object is infact unused, unregisteres it
- * from the user registry and frees the resources.
- */
 void user_entry_free(_Atomic unsigned long *n_refs, void *userdata) {
         UserEntry *entry = c_container_of(n_refs, UserEntry, n_refs);
 
