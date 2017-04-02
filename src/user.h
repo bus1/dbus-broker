@@ -46,6 +46,9 @@ struct UserEntry {
         _Atomic unsigned long n_refs;
         UserRegistry *registry;
 
+        uid_t uid;
+        CRBNode rb;
+
         unsigned int n_bytes;
         unsigned int n_fds;
         unsigned int n_names;
@@ -59,9 +62,6 @@ struct UserEntry {
 
         CRBTree usages;
         unsigned int n_usages;
-
-        uid_t uid;
-        CRBNode rb;
 };
 
 /* charge */

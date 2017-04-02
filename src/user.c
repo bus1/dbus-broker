@@ -249,21 +249,17 @@ void user_charge_release(UserCharge *charge) {
 }
 
 static void user_entry_link(UserEntry *entry,
-                            UserRegistry *registry,
                             CRBNode *parent,
                             CRBNode **slot) {
-        c_rbtree_add(&registry->users, parent, slot, &entry->rb);
-        entry->registry = registry;
+        c_rbtree_add(&entry->registry->users, parent, slot, &entry->rb);
 }
 
 static void user_entry_unlink(UserEntry *entry) {
-        UserRegistry *registry = entry->registry;
-
-        c_rbtree_remove_init(&registry->users, &entry->rb);
-        entry->registry = NULL;
+        c_rbtree_remove_init(&entry->registry->users, &entry->rb);
 }
 
 static int user_entry_new(UserEntry **entryp,
+                          UserRegistry *registry,
                           uid_t uid,
                           unsigned int max_bytes,
                           unsigned int max_fds,
@@ -272,12 +268,14 @@ static int user_entry_new(UserEntry **entryp,
                           unsigned int max_matches) {
         UserEntry *entry;
 
-        entry = malloc(sizeof(*entry));
+        entry = calloc(1, sizeof(*entry));
         if (!entry)
                 return -ENOMEM;
 
         entry->n_refs = C_REF_INIT;
+        entry->registry = registry;
         entry->uid = uid;
+        entry->rb = (CRBNode)C_RBNODE_INIT(entry->rb);
         entry->max_bytes = max_bytes;
         entry->max_fds = max_fds;
         entry->max_peers = max_peers;
@@ -288,12 +286,8 @@ static int user_entry_new(UserEntry **entryp,
         entry->n_peers = entry->max_peers;
         entry->n_names = entry->max_names;
         entry->n_matches = entry->max_matches;
-        entry->usages = (CRBTree){};
-        entry->n_usages = 0;
-        entry->registry = NULL;
 
         *entryp = entry;
-
         return 0;
 }
 
@@ -411,7 +405,9 @@ int user_registry_ref_entry(UserRegistry *registry, UserEntry **entryp, uid_t ui
 
         slot = c_rbtree_find_slot(&registry->users, user_entry_compare, &uid, &parent);
         if (slot) {
-                r = user_entry_new(&entry, uid,
+                r = user_entry_new(&entry,
+                                   registry,
+                                   uid,
                                    registry->max_bytes,
                                    registry->max_fds,
                                    registry->max_peers,
@@ -420,7 +416,7 @@ int user_registry_ref_entry(UserRegistry *registry, UserEntry **entryp, uid_t ui
                 if (r)
                         return r;
 
-                user_entry_link(entry, registry, parent, slot);
+                user_entry_link(entry, parent, slot);
         } else {
                 entry = c_container_of(parent, UserEntry, rb);
                 user_entry_ref(entry);
