@@ -28,11 +28,6 @@ struct NameEntry {
         const char name[];
 };
 
-struct NameRegistry {
-        /* XXX: use a trie instead? */
-        CRBTree entries;
-};
-
 static void name_entry_free(NameEntry *entry);
 
 /* new owner object linked into the owning peer */
@@ -236,27 +231,12 @@ static int name_entry_add_owner(NameEntry *entry,
         return 0;
 }
 
-int name_registry_new(NameRegistry **registryp) {
-        _c_cleanup_(name_registry_freep) NameRegistry *registry = NULL;
-
-        registry = calloc(1, sizeof(*registry));
-        if (!registry)
-                return -ENOMEM;
-
-        *registryp = registry;
-        registry = NULL;
-        return 0;
+void name_registry_init(NameRegistry *registry) {
+        *registry = (NameRegistry) {};
 }
 
-NameRegistry *name_registry_free(NameRegistry *registry) {
-        if (!registry)
-                return NULL;
-
+void name_registry_deinit(NameRegistry *registry) {
         assert(!registry->entries.root);
-
-        free(registry);
-
-        return NULL;
 }
 
 /* add new name entry with its first owner to the registry */

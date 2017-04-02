@@ -10,10 +10,10 @@
 #include <stdlib.h>
 #include "dbus-match.h"
 #include "dispatch.h"
+#include "name.h"
 
 typedef struct Bus Bus;
 typedef struct Peer Peer;
-typedef struct NameRegistry NameRegistry;
 typedef struct UserRegistry UserRegistry;
 typedef struct DispatchContext DispatchContext;
 
@@ -23,7 +23,7 @@ struct Bus {
         DispatchFile accept_file;
         int fd;
         CList ready_list;
-        NameRegistry *names;
+        NameRegistry names;
         UserRegistry *users;
         DBusMatchRegistry matches;
         CRBTree peers;

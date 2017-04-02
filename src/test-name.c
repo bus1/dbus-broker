@@ -30,17 +30,17 @@ static void test_setup(void) {
         p = bus_find_peer(bus, 0);
         assert(p == peer);
 
-        r = name_registry_request_name(bus->names, peer, "foobar", 0, &reply);
+        r = name_registry_request_name(&bus->names, peer, "foobar", 0, &reply);
         assert(r >= 0);
-        p = name_registry_resolve_name(bus->names, "foobar");
+        p = name_registry_resolve_name(&bus->names, "foobar");
         assert(p == peer);
         assert(reply == DBUS_REQUEST_NAME_REPLY_PRIMARY_OWNER);
-        name_registry_release_name(bus->names, peer, "foobar", &reply);
+        name_registry_release_name(&bus->names, peer, "foobar", &reply);
         assert(reply == DBUS_RELEASE_NAME_REPLY_RELEASED);
-        p = name_registry_resolve_name(bus->names, "foobar");
+        p = name_registry_resolve_name(&bus->names, "foobar");
         assert(p == NULL);
 
-        name_registry_release_all_names(bus->names, peer);
+        name_registry_release_all_names(&bus->names, peer);
         p = bus_find_peer(bus, 0);
         assert(p == peer);
         bus_unregister_peer(bus, peer);
@@ -68,19 +68,19 @@ static void test_release(void) {
         bus_register_peer(bus, peer1);
         bus_register_peer(bus, peer2);
 
-        r = name_registry_request_name(bus->names, peer1, "foobar", 0, &reply);
+        r = name_registry_request_name(&bus->names, peer1, "foobar", 0, &reply);
         assert(r >= 0);
 
-        name_registry_release_name(bus->names, peer1, "baz", &reply);
+        name_registry_release_name(&bus->names, peer1, "baz", &reply);
         assert(reply == DBUS_RELEASE_NAME_REPLY_NON_EXISTENT);
-        name_registry_release_name(bus->names, peer2, "foobar", &reply);
+        name_registry_release_name(&bus->names, peer2, "foobar", &reply);
         assert(reply == DBUS_RELEASE_NAME_REPLY_NOT_OWNER);
-        name_registry_release_name(bus->names, peer1, "foobar", &reply);
+        name_registry_release_name(&bus->names, peer1, "foobar", &reply);
         assert(reply == DBUS_RELEASE_NAME_REPLY_RELEASED);
 
-        name_registry_release_all_names(bus->names, peer2);
+        name_registry_release_all_names(&bus->names, peer2);
         bus_unregister_peer(bus, peer2);
-        name_registry_release_all_names(bus->names, peer1);
+        name_registry_release_all_names(&bus->names, peer1);
         bus_unregister_peer(bus, peer1);
 }
 
@@ -105,66 +105,66 @@ static void test_queue(void) {
         bus_register_peer(bus, peer2);
 
         /* first to request */
-        r = name_registry_request_name(bus->names, peer1, "foobar", 0, &reply);
+        r = name_registry_request_name(&bus->names, peer1, "foobar", 0, &reply);
         assert(r >= 0);
         assert(reply == DBUS_REQUEST_NAME_REPLY_PRIMARY_OWNER);
         /* verify the primary owner */
-        peer = name_registry_resolve_name(bus->names, "foobar");
+        peer = name_registry_resolve_name(&bus->names, "foobar");
         assert(peer == peer1);
         /* already the owner */
-        r = name_registry_request_name(bus->names, peer1, "foobar", 0, &reply);
+        r = name_registry_request_name(&bus->names, peer1, "foobar", 0, &reply);
         assert(r >= 0);
         assert(reply == DBUS_REQUEST_NAME_REPLY_ALREADY_OWNER);
         /* refuse to queue */
-        r = name_registry_request_name(bus->names, peer2, "foobar",
+        r = name_registry_request_name(&bus->names, peer2, "foobar",
                                        DBUS_NAME_FLAG_DO_NOT_QUEUE, &reply);
         assert(r >= 0);
         assert(reply == DBUS_REQUEST_NAME_REPLY_EXISTS);
         /* try to overtake, but owner won't allow it */
-        r = name_registry_request_name(bus->names, peer2, "foobar",
+        r = name_registry_request_name(&bus->names, peer2, "foobar",
                                        DBUS_NAME_FLAG_DO_NOT_QUEUE |
                                        DBUS_NAME_FLAG_REPLACE_EXISTING, &reply);
         assert(r >= 0);
         assert(reply == DBUS_REQUEST_NAME_REPLY_EXISTS);
         /* queue */
-        r = name_registry_request_name(bus->names, peer2, "foobar", 0, &reply);
+        r = name_registry_request_name(&bus->names, peer2, "foobar", 0, &reply);
         assert(r >= 0);
         assert(reply == DBUS_REQUEST_NAME_REPLY_IN_QUEUE);
         /* verify that the primary owner was untouched */
-        peer = name_registry_resolve_name(bus->names, "foobar");
+        peer = name_registry_resolve_name(&bus->names, "foobar");
         assert(peer == peer1);
         /* dequeu again */
-        name_registry_release_name(bus->names, peer2, "foobar", &reply);
+        name_registry_release_name(&bus->names, peer2, "foobar", &reply);
         assert(reply == DBUS_RELEASE_NAME_REPLY_RELEASED);
         /* verify that the primary owner was untouched */
-        peer = name_registry_resolve_name(bus->names, "foobar");
+        peer = name_registry_resolve_name(&bus->names, "foobar");
         assert(peer == peer1);
         /* try to overtake, but wait in queue if it fails */
-        r = name_registry_request_name(bus->names, peer2, "foobar",
+        r = name_registry_request_name(&bus->names, peer2, "foobar",
                                        DBUS_NAME_FLAG_REPLACE_EXISTING, &reply);
         assert(r >= 0);
         assert(reply == DBUS_REQUEST_NAME_REPLY_IN_QUEUE);
         /* again */
-        r = name_registry_request_name(bus->names, peer2, "foobar",
+        r = name_registry_request_name(&bus->names, peer2, "foobar",
                                        DBUS_NAME_FLAG_REPLACE_EXISTING, &reply);
         assert(r >= 0);
         assert(reply == DBUS_REQUEST_NAME_REPLY_IN_QUEUE);
         /* update primary owner to allow replacement */
-        r = name_registry_request_name(bus->names, peer1, "foobar",
+        r = name_registry_request_name(&bus->names, peer1, "foobar",
                                        DBUS_NAME_FLAG_ALLOW_REPLACEMENT,
                                        &reply);
         assert(r >= 0);
         assert(reply == DBUS_REQUEST_NAME_REPLY_ALREADY_OWNER);
         /* queue again, but do not attempt to overtake */
-        r = name_registry_request_name(bus->names, peer2, "foobar", 0, &reply);
+        r = name_registry_request_name(&bus->names, peer2, "foobar", 0, &reply);
         assert(r >= 0);
         assert(reply == DBUS_REQUEST_NAME_REPLY_IN_QUEUE);
         /* verify that the primary owner was untouched */
-        peer = name_registry_resolve_name(bus->names, "foobar");
+        peer = name_registry_resolve_name(&bus->names, "foobar");
         assert(peer == peer1);
         /* overtake primary owner, allow to be replaced ourselves and refuse to
          * queue */
-        r = name_registry_request_name(bus->names, peer2, "foobar",
+        r = name_registry_request_name(&bus->names, peer2, "foobar",
                                        DBUS_NAME_FLAG_REPLACE_EXISTING |
                                        DBUS_NAME_FLAG_ALLOW_REPLACEMENT |
                                        DBUS_NAME_FLAG_DO_NOT_QUEUE,
@@ -172,25 +172,25 @@ static void test_queue(void) {
         assert(r >= 0);
         assert(reply == DBUS_REQUEST_NAME_REPLY_PRIMARY_OWNER);
         /* verify that the primary owner was changed */
-        peer = name_registry_resolve_name(bus->names, "foobar");
+        peer = name_registry_resolve_name(&bus->names, "foobar");
         assert(peer == peer2);
         /* overtake again */
-        r = name_registry_request_name(bus->names, peer1, "foobar",
+        r = name_registry_request_name(&bus->names, peer1, "foobar",
                                        DBUS_NAME_FLAG_REPLACE_EXISTING, &reply);
         assert(r >= 0);
         assert(reply == DBUS_REQUEST_NAME_REPLY_PRIMARY_OWNER);
         /* verify that the primary owner was reverted to the original */
-        peer = name_registry_resolve_name(bus->names, "foobar");
+        peer = name_registry_resolve_name(&bus->names, "foobar");
         assert(peer == peer1);
         /* verify that the old primary owner is no longer on queue */
-        name_registry_release_name(bus->names, peer2, "foobar", &reply);
+        name_registry_release_name(&bus->names, peer2, "foobar", &reply);
         assert(reply == DBUS_RELEASE_NAME_REPLY_NOT_OWNER);
 
-        name_registry_release_name(bus->names, peer1, "foobar", &reply);
+        name_registry_release_name(&bus->names, peer1, "foobar", &reply);
         assert(reply == DBUS_RELEASE_NAME_REPLY_RELEASED);
-        name_registry_release_all_names(bus->names, peer2);
+        name_registry_release_all_names(&bus->names, peer2);
         bus_unregister_peer(bus, peer2);
-        name_registry_release_all_names(bus->names, peer1);
+        name_registry_release_all_names(&bus->names, peer1);
         bus_unregister_peer(bus, peer1);
 }
 
