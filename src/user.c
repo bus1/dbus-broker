@@ -12,11 +12,11 @@ struct UserUsage {
         _Atomic unsigned long n_refs;
         UserEntry *entry;
 
-        unsigned int n_bytes;
-        unsigned int n_fds;
-
         uid_t uid;
         CRBNode rb;
+
+        unsigned int n_bytes;
+        unsigned int n_fds;
 };
 
 struct UserRegistry {
@@ -41,24 +41,17 @@ static int user_usage_compare(CRBTree *tree, void *k, CRBNode *rb) {
         return 0;
 }
 
-static void user_usage_link(UserUsage *usage,
-                            UserEntry *entry,
-                            CRBNode *parent,
-                            CRBNode **slot) {
-        entry->n_usages ++;
-        usage->entry = entry;
-        c_rbtree_add(&entry->usages, parent, slot, &usage->rb);
+static void user_usage_link(UserUsage *usage, CRBNode *parent, CRBNode **slot) {
+        ++usage->entry->n_usages;
+        c_rbtree_add(&usage->entry->usages, parent, slot, &usage->rb);
 }
 
 static void user_usage_unlink(UserUsage *usage) {
-        UserEntry *entry = usage->entry;
-
-        c_rbtree_remove_init(&entry->usages, &usage->rb);
-        usage->entry = NULL;
-        entry->n_usages --;
+        c_rbtree_remove_init(&usage->entry->usages, &usage->rb);
+        --usage->entry->n_usages;
 }
 
-static int user_usage_new(UserUsage **usagep, uid_t uid) {
+static int user_usage_new(UserUsage **usagep, UserEntry *entry, uid_t uid) {
         UserUsage *usage;
 
         usage = malloc(sizeof(*usage));
@@ -66,10 +59,11 @@ static int user_usage_new(UserUsage **usagep, uid_t uid) {
                 return -ENOMEM;
 
         usage->n_refs = C_REF_INIT;
+        usage->entry = entry;
         usage->uid = uid;
+        usage->rb = (CRBNode)C_RBNODE_INIT(usage->rb);
         usage->n_bytes = 0;
         usage->n_fds = 0;
-        usage->entry = NULL;
 
         *usagep = usage;
         return 0;
@@ -82,29 +76,26 @@ static void user_usage_free(_Atomic unsigned long *n_refs, void *userdata) {
         assert(usage->n_fds == 0);
 
         user_usage_unlink(usage);
-
         free(usage);
 }
 
 static UserUsage *user_usage_ref(UserUsage *usage) {
         if (usage)
                 c_ref_inc(&usage->n_refs);
-
         return usage;
 }
 
 static UserUsage *user_usage_unref(UserUsage *usage) {
         if (usage)
                 c_ref_dec(&usage->n_refs, user_usage_free, NULL);
-
         return NULL;
 }
 
 C_DEFINE_CLEANUP(UserUsage *, user_usage_unref);
 
-static int user_usage_ref_by_actor(UserEntry *entry,
-                                   UserUsage **usagep,
-                                   UserEntry *actor) {
+static int user_entry_ref_usage(UserEntry *entry,
+                                UserUsage **usagep,
+                                UserEntry *actor) {
         UserUsage *usage;
         CRBNode **slot, *parent;
         int r;
@@ -114,11 +105,11 @@ static int user_usage_ref_by_actor(UserEntry *entry,
                                   &actor->uid,
                                   &parent);
         if (slot) {
-                r = user_usage_new(&usage, actor->uid);
-                if (r < 0)
+                r = user_usage_new(&usage, entry, actor->uid);
+                if (r)
                         return r;
 
-                user_usage_link(usage, entry, parent, slot);
+                user_usage_link(usage, parent, slot);
         } else {
                 usage = c_container_of(parent, UserUsage, rb);
                 user_usage_ref(usage);
@@ -184,7 +175,7 @@ static int user_charge_check(unsigned int remaining,
  * number of actors currently pinning any of @entry's resources. If this quota
  * is exceeded the charge fails to apply and this is a no-op.
  *
- * Return: 0 on success, or a negative error code on failure.
+ * Return: 0 on success, error code on failure.
  */
 int user_charge_apply(UserCharge *charge,
                       UserEntry *entry,
@@ -196,22 +187,22 @@ int user_charge_apply(UserCharge *charge,
 
         assert(!charge->usage);
 
-        r = user_usage_ref_by_actor(entry, &usage, actor);
-        if (r < 0)
+        r = user_entry_ref_usage(entry, &usage, actor);
+        if (r)
                 return r;
 
         r = user_charge_check(entry->n_bytes,
                               entry->n_usages,
                               usage->n_bytes,
                               n_bytes);
-        if (r < 0)
+        if (r)
                 return r;
 
         r = user_charge_check(entry->n_fds,
                               entry->n_usages,
                               usage->n_fds,
                               n_fds);
-        if (r < 0)
+        if (r)
                 return r;
 
         entry->n_bytes -= n_bytes;
@@ -304,7 +295,6 @@ void user_entry_free(_Atomic unsigned long *n_refs, void *userdata) {
         assert(entry->n_matches == entry->max_matches);
 
         user_entry_unlink(entry);
-
         free(entry);
 }
 
@@ -414,6 +404,5 @@ int user_registry_ref_entry(UserRegistry *registry, UserEntry **entryp, uid_t ui
         }
 
         *entryp = entry;
-
         return 0;
 }
