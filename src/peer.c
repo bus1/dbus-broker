@@ -3,11 +3,13 @@
  */
 
 #include <c-macro.h>
+#include <c-rbtree.h>
 #include <stdlib.h>
 #include <sys/epoll.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include "bus.h"
+#include "dbus-match.h"
 #include "dbus-message.h"
 #include "dbus-socket.h"
 #include "dispatch.h"
@@ -186,7 +188,6 @@ int peer_new(Peer **peerp,
 
         peer->bus = bus;
         c_rbnode_init(&peer->rb);
-        peer->matches = (CList)C_LIST_INIT(peer->matches);
         peer->user = user;
         user = NULL;
         peer->pid = ucred.pid;
@@ -215,7 +216,7 @@ int peer_new(Peer **peerp,
  * peer_free() - XXX
  */
 Peer *peer_free(Peer *peer) {
-        DBusMatchEntry *match;
+        CRBNode *node, *next;
 
         if (!peer)
                 return NULL;
@@ -225,10 +226,16 @@ Peer *peer_free(Peer *peer) {
 
         peer->user->n_peers ++;
 
-        while ((match = c_list_first_entry(&peer->matches,
-                                           DBusMatchEntry,
-                                           link_peer)))
-                dbus_match_entry_free(match);
+        for (node = c_rbtree_first_postorder(&peer->match_rules),
+             next = c_rbnode_next_postorder(node);
+             node;
+             node = next, next = c_rbnode_next_postorder(node)) {
+                DBusMatchRule *rule = c_container_of(node,
+                                                     DBusMatchRule,
+                                                     rb_peer);
+
+                dbus_match_rule_free(&rule->n_refs, NULL);
+        }
 
         dispatch_file_deinit(&peer->dispatch_file);
         dbus_sasl_deinit(&peer->sasl);

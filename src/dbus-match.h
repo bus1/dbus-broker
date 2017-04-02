@@ -5,59 +5,72 @@
  */
 
 #include <c-list.h>
+#include <c-rbtree.h>
+#include <c-ref.h>
 #include <stdlib.h>
 
-#define DBUS_MATCH_RULE_LENGTH_MAX (1024) /* taken from dbus-daemon */
-
-typedef struct DBusMatchEntry DBusMatchEntry;
-typedef struct DBusMatchKeys DBusMatchKeys;
+typedef struct DBusMatchFilter DBusMatchFilter;
+typedef struct DBusMatchRuleKeys DBusMatchRuleKeys;
+typedef struct DBusMatchRule DBusMatchRule;
 typedef struct DBusMatchRegistry DBusMatchRegistry;
 typedef struct Peer Peer;
 
-struct DBusMatchKeys {
+struct DBusMatchFilter {
         uint8_t type;
-        bool eavesdrop : 1;
-        const char *sender;
+        const char *sender; /* XXX: make implicit */
+        const char *destination; /* XXX: make uint64_t */
         const char *interface;
         const char *member;
         const char *path;
-        const char *path_namespace;
-        const char *destination;
         const char *args[64];
+};
+
+struct DBusMatchRuleKeys {
+        DBusMatchFilter filter;
+        bool eavesdrop : 1;
+        const char *path_namespace;
         const char *argpaths[64];
         const char *arg0namespace;
 };
 
-struct DBusMatchEntry {
+struct DBusMatchRule {
+        _Atomic unsigned long n_refs;
+
         Peer *peer;
 
         CList link_registry;
-        CList link_peer;
+        CRBNode rb_peer;
 
-        DBusMatchKeys keys;
+        DBusMatchRuleKeys keys;
 
         char buffer[];
 };
 
 struct DBusMatchRegistry {
-        CList entries;
+        CList rules;
 };
 
-int dbus_match_keys_parse(DBusMatchKeys *keys,
-                          char *buffer,
-                          const char *match,
-                          size_t n_match);
+int dbus_match_rule_new(DBusMatchRule **rulep, Peer *peer, const char *rule_string);
+void dbus_match_rule_free(_Atomic unsigned long *n_refs, void *userdata);
 
-DBusMatchEntry *dbus_match_entry_free(DBusMatchEntry *entry);
+void dbus_match_rule_link(DBusMatchRule *rule, DBusMatchRegistry *registry);
+int dbus_match_rule_get(DBusMatchRule **rulep, Peer *peer, const char *rule_string);
 
-int dbus_match_add(DBusMatchRegistry *registry, Peer *peer, const char *match);
-int dbus_match_remove(DBusMatchRegistry *registry, Peer *peer, const char *match);
-
-DBusMatchEntry *dbus_match_next_entry(DBusMatchRegistry *registry,
-                                      DBusMatchEntry *entry,
-                                      DBusMatchKeys *keys);
+DBusMatchRule *dbus_match_rule_next(DBusMatchRegistry *registry, DBusMatchRule *rule, DBusMatchFilter *filter);
 
 void dbus_match_registry_init(DBusMatchRegistry *registry);
 void dbus_match_registry_deinit(DBusMatchRegistry *registry);
 
-C_DEFINE_CLEANUP(DBusMatchEntry *, dbus_match_entry_free);
+static inline DBusMatchRule *dbus_match_rule_ref(DBusMatchRule *rule) {
+        if (rule)
+                c_ref_inc(&rule->n_refs);
+        return rule;
+}
+
+static inline DBusMatchRule *dbus_match_rule_unref(DBusMatchRule *rule) {
+        if (rule)
+                c_ref_dec(&rule->n_refs, dbus_match_rule_free, NULL);
+        return NULL;
+}
+
+C_DEFINE_CLEANUP(DBusMatchRule *, dbus_match_rule_unref);

@@ -4,6 +4,7 @@
 
 #include <c-list.h>
 #include <c-macro.h>
+#include <c-rbtree.h>
 #include <c-string.h>
 #include "dbus-match.h"
 #include "peer.h"
@@ -16,116 +17,70 @@
 #define DBUS_MESSAGE_TYPE_ERROR         (3)
 #define DBUS_MESSAGE_TYPE_SIGNAL        (4)
 
-static bool dbus_match_keys_equal(DBusMatchKeys *key1, DBusMatchKeys *key2) {
-        if (key1->type != key2->type)
-                return false;
+static int dbus_match_rules_compare(CRBTree *tree, void *k, CRBNode *rb) {
+        DBusMatchRule *rule = c_container_of(rb, DBusMatchRule, rb_peer);
+        DBusMatchRuleKeys *key1 = k, *key2 = &rule->keys;
+        int r;
 
-        if (!c_string_equal(key1->sender, key2->sender))
-                return false;
+        if ((r = c_string_compare(key1->filter.sender, key2->filter.sender)) ||
+            (r = c_string_compare(key1->filter.destination, key2->filter.destination)) ||
+            (r = c_string_compare(key1->filter.interface, key2->filter.interface)) ||
+            (r = c_string_compare(key1->filter.member, key2->filter.member)) ||
+            (r = c_string_compare(key1->filter.path, key2->filter.path)) ||
+            (r = c_string_compare(key1->path_namespace, key2->path_namespace)) ||
+            (r = c_string_compare(key1->arg0namespace, key2->arg0namespace)))
+                return r;
 
-        if (!c_string_equal(key1->interface, key2->interface))
-                return false;
+        if (key1->filter.type > key2->filter.type)
+                return 1;
+        if (key1->filter.type < key2->filter.type)
+                return -1;
 
-        if (!c_string_equal(key1->member, key2->member))
-                return false;
+        if (key1->eavesdrop > key2->eavesdrop)
+                return 1;
+        if (key1->eavesdrop < key2->eavesdrop)
+                return -1;
 
-        if (!c_string_equal(key1->path, key2->path))
-                return false;
+        for (unsigned int i = 0; i < C_ARRAY_SIZE(key1->filter.args); i ++) {
+                if ((r = c_string_compare(key1->filter.args[i], key2->filter.args[i])))
+                        return r;
 
-        if (!c_string_equal(key1->path_namespace, key2->path_namespace))
-                return false;
-
-        if (!c_string_equal(key1->destination, key2->destination))
-                return false;
-
-        if (key1->eavesdrop != key2->eavesdrop)
-                return false;
-
-        if (!c_string_equal(key1->arg0namespace, key2->arg0namespace))
-                return false;
-
-        for (unsigned int i = 0; i < C_ARRAY_SIZE(key1->args); i ++) {
-                if (!c_string_equal(key1->args[i], key2->args[i]))
-                        return false;
-
-                if (!c_string_equal(key1->argpaths[i], key2->argpaths[i]))
-                        return false;
+                if ((r = c_string_compare(key1->argpaths[i], key2->argpaths[i])))
+                        return r;
         }
 
-        return true;
+        return 0;
 }
 
-static bool dbus_match_keys_subset(DBusMatchKeys *key1, DBusMatchKeys *key2) {
-        if (key1->type != DBUS_MESSAGE_TYPE_INVALID && key1->type != key2->type)
-                return false;
-
-        if (key1->sender && !c_string_equal(key1->sender, key2->sender))
-                return false;
-
-        if (key1->interface && !c_string_equal(key1->interface, key2->interface))
-                return false;
-
-        if (key1->member && !c_string_equal(key1->member, key2->member))
-                return false;
-
-        if (key1->path && !c_string_equal(key1->path, key2->path))
-                return false;
-
-        if (key1->path_namespace &&
-            !c_string_equal(key1->path_namespace, key2->path_namespace))
-                return false;
-
-        if (key1->destination &&
-            !c_string_equal(key1->destination, key2->destination))
-                return false;
-
-        /* XXX: figure this out */
-        if (key1->eavesdrop != key2->eavesdrop)
-                return false;
-
-        if (key1->arg0namespace &&
-            !c_string_equal(key1->arg0namespace, key2->arg0namespace))
-                return false;
-
-        for (unsigned int i = 0; i < C_ARRAY_SIZE(key1->args); i ++) {
-                if (key1->args[i] &&
-                    !c_string_equal(key1->args[i], key2->args[i]))
-                        return false;
-
-                if (key1->argpaths[i] &&
-                    !c_string_equal(key1->argpaths[i], key2->argpaths[i]))
-                        return false;
-        }
-
-        return true;
+static bool dbus_match_rule_keys_match_filter(DBusMatchRuleKeys *keys, DBusMatchFilter *filter) {
+        /* XXX */
+        return false;
 }
 
-static int dbus_match_keys_assign(DBusMatchKeys *keys,
-                                  const char *key,
-                                  const char *value) {
+static int dbus_match_rule_keys_assign(DBusMatchRuleKeys *keys, const char *key, const char *value) {
         if (strcmp(key, "type") == 0) {
                 if (strcmp(value, "signal") == 0)
-                        keys->type = DBUS_MESSAGE_TYPE_SIGNAL;
+                        keys->filter.type = DBUS_MESSAGE_TYPE_SIGNAL;
                 else if (strcmp(value, "method_call") == 0)
-                        keys->type = DBUS_MESSAGE_TYPE_METHOD_CALL;
+                        keys->filter.type = DBUS_MESSAGE_TYPE_METHOD_CALL;
                 else if (strcmp(value, "method_reply") == 0)
-                        keys->type = DBUS_MESSAGE_TYPE_METHOD_REPLY;
+                        keys->filter.type = DBUS_MESSAGE_TYPE_METHOD_REPLY;
                 else if (strcmp(value, "error") == 0)
-                        keys->type = DBUS_MESSAGE_TYPE_ERROR;
+                        keys->filter.type = DBUS_MESSAGE_TYPE_ERROR;
                 else
                         return -EBADMSG;
         } else if (strcmp(key, "sender") == 0) {
-                keys->sender = value;
+                keys->filter.sender = value;
+        } else if (strcmp(key, "destination") == 0) {
+                keys->filter.destination = value;
         } else if (strcmp(key, "interface") == 0) {
-                keys->interface = value;
+                keys->filter.interface = value;
         } else if (strcmp(key, "member") == 0) {
-                keys->member = value;
+                keys->filter.member = value;
         } else if (strcmp(key, "path") == 0) {
-                keys->path = value;
+                keys->filter.path = value;
         } else if (strcmp(key, "path_namespace") == 0) {
                 keys->path_namespace = value;
-        } else if (strcmp(key, "destination") == 0) {
-                keys->destination = value;
         } else if (strcmp(key, "eavesdrop") == 0) {
                 if (strcmp(value, "true") ==0)
                         keys->eavesdrop = true;
@@ -148,7 +103,7 @@ static int dbus_match_keys_assign(DBusMatchKeys *keys,
                         key ++;
                 }
                 if (strcmp(key, "")  == 0) {
-                        keys->args[i] = value;
+                        keys->filter.args[i] = value;
                 } else if (strcmp(key, "path") == 0) {
                         keys->argpaths[i] = value;
                 } else
@@ -161,15 +116,12 @@ static int dbus_match_keys_assign(DBusMatchKeys *keys,
 }
 
 /*
- * Takes a null-termianted stream of characters, removes any quoting, breaks
- * them up at commas and returns them one character at a time.
+ * Takes a null-termianted stream of characters, removes any quoting, breaks them up at commas and returns them one character at a time.
  */
 static char dbus_match_string_pop(const char **match, bool *quoted) {
         /*
-         * Within single quotes (apostrophe), a backslash represents itself, and
-         * an apostrophe ends the quoted section. Outside single quotes, \'
-         * (backslash, apostrophe) represents an apostrophe, and any backslash
-         * not followed by an apostrophe represents itself.
+         * Within single quotes (apostrophe), a backslash represents itself, and an apostrophe ends the quoted section. Outside single quotes, \'
+         * (backslash, apostrophe) represents an apostrophe, and any backslash not followed by an apostrophe represents itself.
          */
         while (**match == '\'') {
                 (*match) ++;
@@ -200,24 +152,21 @@ static char dbus_match_string_pop(const char **match, bool *quoted) {
         }
 }
 
-int dbus_match_keys_parse(DBusMatchKeys *keys,
-                          char *buffer,
-                          const char *match,
-                          size_t n_match) {
+int dbus_match_rule_keys_parse(DBusMatchRuleKeys *keys, char *buffer, const char *rule_string, size_t n_rule_string) {
         const char *key = NULL, *value = NULL;
         bool quoted = false;
         char c;
         int r;
 
-        for (unsigned int i = 0; i < n_match; i ++) {
+        for (unsigned int i = 0; i < n_rule_string; i ++) {
                 if (!key) {
                         do {
                                 /* strip leading space before a key */
-                                c = dbus_match_string_pop(&match, &quoted);
+                                c = dbus_match_string_pop(&rule_string, &quoted);
                         } while (c == ' ');
                         key = buffer + i;
                 } else {
-                        c = dbus_match_string_pop(&match, &quoted);
+                        c = dbus_match_string_pop(&rule_string, &quoted);
                 }
 
                 /* strip key and value at '=' */
@@ -234,7 +183,7 @@ int dbus_match_keys_parse(DBusMatchKeys *keys,
                         if (!value)
                                 return -EBADMSG;
 
-                        r = dbus_match_keys_assign(keys, key, value);
+                        r = dbus_match_rule_keys_assign(keys, key, value);
                         if (r < 0)
                                 return r;
 
@@ -242,7 +191,7 @@ int dbus_match_keys_parse(DBusMatchKeys *keys,
                         value = NULL;
 
                         /* reached the end of the input string */
-                        if (*match == '\0')
+                        if (*rule_string == '\0')
                                 return 0;
                 }
         }
@@ -250,103 +199,91 @@ int dbus_match_keys_parse(DBusMatchKeys *keys,
         return -EBADMSG;
 }
 
-static int dbus_match_entry_new(DBusMatchEntry **entryp, const char *match) {
-        _c_cleanup_(dbus_match_entry_freep) DBusMatchEntry *entry = NULL;
-        size_t n_match;
-        int r;
-
-        n_match = strlen(match);
-
-        entry = calloc(1, sizeof(*entry) + n_match);
-        if (!entry)
-                return -EINVAL;
-
-        entry->link_registry = (CList)C_LIST_INIT(entry->link_registry);
-        entry->link_peer = (CList)C_LIST_INIT(entry->link_peer);
-
-        r = dbus_match_keys_parse(&entry->keys, entry->buffer, match, n_match);
-        if (r < 0)
-                return r;
-
-        *entryp = entry;
-        entry = NULL;
-        return 0;
-}
-
-DBusMatchEntry *dbus_match_entry_free(DBusMatchEntry *entry) {
-        if (!entry)
-                return NULL;
-
-        if (entry->peer)
-                entry->peer->user->n_matches ++;
-
-        c_list_unlink(&entry->link_registry);
-        c_list_unlink(&entry->link_peer);
-
-        free(entry);
-
-        return NULL;
-}
-
-int dbus_match_add(DBusMatchRegistry *registry,
-                   Peer *peer,
-                   const char *match) {
-        DBusMatchEntry *entry;
+int dbus_match_rule_new(DBusMatchRule **rulep, Peer *peer, const char *rule_string) {
+        _c_cleanup_(dbus_match_rule_unrefp) DBusMatchRule *rule = NULL;
+        CRBNode **slot, *parent;
+        size_t n_rule_string;
         int r;
 
         if (peer->user->n_matches == 0)
                 return -EDQUOT;
 
-        r = dbus_match_entry_new(&entry, match);
-        if (r < 0)
-                return r;
+        n_rule_string = strlen(rule_string);
+
+        rule = calloc(1, sizeof(*rule) + n_rule_string);
+        if (!rule)
+                return -EINVAL;
+
+        rule->n_refs = C_REF_INIT;
+        rule->peer = peer;
+        rule->link_registry = (CList)C_LIST_INIT(rule->link_registry);
 
         peer->user->n_matches --;
 
-        entry->peer = peer;
-        c_list_link_tail(&registry->entries, &entry->link_registry);
-        c_list_link_tail(&peer->matches, &entry->link_peer);
+        r = dbus_match_rule_keys_parse(&rule->keys, rule->buffer, rule_string, n_rule_string);
+        if (r < 0)
+                return r;
+
+        slot = c_rbtree_find_slot(&peer->match_rules, dbus_match_rules_compare, &rule->keys, &parent);
+        if (!slot) {
+                /* one already exists, take a ref on that instead and drop the one we created */
+                *rulep = dbus_match_rule_ref(c_container_of(parent, DBusMatchRule, rb_peer));
+        } else {
+                /* link the new rule into the rbtree */
+                c_rbtree_add(&peer->match_rules, parent, slot, &rule->rb_peer);
+                *rulep = rule;
+                rule = NULL;
+        }
 
         return 0;
 }
 
-int dbus_match_remove(DBusMatchRegistry *reg, Peer *peer, const char *match) {
-        char buffer[strlen(match)];
-        DBusMatchKeys keys = {};
-        DBusMatchEntry *entry;
+void dbus_match_rule_free(_Atomic unsigned long *n_refs, void *userpointer) {
+        DBusMatchRule *rule = c_container_of(n_refs, DBusMatchRule, n_refs);
+
+        rule->peer->user->n_matches ++;
+
+        c_list_unlink(&rule->link_registry);
+        c_rbtree_remove(&rule->peer->match_rules, &rule->rb_peer);
+
+        free(rule);
+}
+
+void dbus_match_rule_link(DBusMatchRule *rule, DBusMatchRegistry *registry) {
+        c_list_link_tail(&registry->rules, &rule->link_registry);
+}
+
+int dbus_match_rule_get(DBusMatchRule **rulep, Peer *peer, const char *rule_string) {
+        char buffer[strlen(rule_string)];
+        DBusMatchRuleKeys keys = {};
+        DBusMatchRule *rule;
         int r;
 
-        r = dbus_match_keys_parse(&keys, buffer, match, strlen(match));
+        r = dbus_match_rule_keys_parse(&keys, buffer, rule_string, strlen(rule_string));
         if (r < 0)
                 return r;
 
-        c_list_for_each_entry(entry,
-                              &peer->matches,
-                              link_peer) {
-                if (dbus_match_keys_equal(&keys, &entry->keys)) {
-                        dbus_match_entry_free(entry);
-                        return 0;
-                }
-        }
+        rule = c_rbtree_find_entry(&peer->match_rules, dbus_match_rules_compare, &keys, DBusMatchRule, rb_peer);
+        if (!rule)
+                return -ENOENT;
 
-        return -ENOENT;
+        *rulep = rule;
+        return 0;
 }
 
-DBusMatchEntry *dbus_match_next_entry(DBusMatchRegistry *registry,
-                                      DBusMatchEntry *entry,
-                                      DBusMatchKeys *keys) {
+DBusMatchRule *dbus_match_next_entry(DBusMatchRegistry *registry, DBusMatchRule *rule, DBusMatchFilter *filter) {
         CList *link;
 
-        if (!entry)
-                link = c_list_loop_first(&registry->entries);
+        if (!rule)
+                link = c_list_loop_first(&registry->rules);
         else
-                link = c_list_loop_next(&entry->link_registry);
+                link = c_list_loop_next(&rule->link_registry);
 
-        while (link != &registry->entries) {
-                entry = c_list_entry(link, DBusMatchEntry, link_registry);
+        while (link != &registry->rules) {
+                rule = c_list_entry(link, DBusMatchRule, link_registry);
 
-                if (dbus_match_keys_subset(&entry->keys, keys))
-                        return entry;
+                if (dbus_match_rule_keys_match_filter(&rule->keys, filter))
+                        return rule;
 
                 link = c_list_loop_next(link);
         }
@@ -355,9 +292,9 @@ DBusMatchEntry *dbus_match_next_entry(DBusMatchRegistry *registry,
 }
 
 void dbus_match_registry_init(DBusMatchRegistry *registry) {
-        registry->entries = (CList)C_LIST_INIT(registry->entries);
+        registry->rules = (CList)C_LIST_INIT(registry->rules);
 }
 
 void dbus_match_registry_deinit(DBusMatchRegistry *registry) {
-        assert(c_list_is_empty(&registry->entries));
+        assert(c_list_is_empty(&registry->rules));
 }

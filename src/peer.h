@@ -26,7 +26,7 @@ struct Peer {
         pid_t pid;
         char *seclabel;
         size_t n_seclabel;
-        CList matches;
+        CRBTree match_rules;
         CRBTree names;
         CRBNode rb;
         uint64_t id;
