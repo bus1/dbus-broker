@@ -66,15 +66,12 @@ int bus_new(Bus **busp,
         dbus_match_registry_init(&bus->matches);
         /* XXX: initialize guid with random data */
         name_registry_init(&bus->names);
-
-        r = user_registry_new(&bus->users,
-                              max_bytes,
-                              max_fds,
-                              max_peers,
-                              max_names,
-                              max_matches);
-        if (r < 0)
-                return r;
+        user_registry_init(&bus->users,
+                           max_bytes,
+                           max_fds,
+                           max_peers,
+                           max_names,
+                           max_matches);
 
         r = dispatch_context_new(&bus->dispatcher);
         if (r < 0)
@@ -99,7 +96,7 @@ Bus *bus_free(Bus *bus) {
 
         dispatch_file_deinit(&bus->accept_file);
         dispatch_context_free(bus->dispatcher);
-        user_registry_free(bus->users);
+        user_registry_deinit(&bus->users);
         name_registry_deinit(&bus->names);
         dbus_match_registry_deinit(&bus->matches);
 

@@ -64,6 +64,16 @@ struct UserEntry {
         unsigned int n_usages;
 };
 
+struct UserRegistry {
+        unsigned int max_bytes;
+        unsigned int max_fds;
+        unsigned int max_peers;
+        unsigned int max_names;
+        unsigned int max_matches;
+
+        CRBTree users;
+};
+
 /* charge */
 
 void user_charge_init(UserCharge *charge);
@@ -81,13 +91,13 @@ int user_entry_charge(UserEntry *entry,
 
 /* registry */
 
-int user_registry_new(UserRegistry **registryp,
-                      unsigned int max_bytes,
-                      unsigned int max_fds,
-                      unsigned int max_peers,
-                      unsigned int max_names,
-                      unsigned int max_matches);
-UserRegistry *user_registry_free(UserRegistry *registry);
+void user_registry_init(UserRegistry *registry,
+                        unsigned int max_bytes,
+                        unsigned int max_fds,
+                        unsigned int max_peers,
+                        unsigned int max_names,
+                        unsigned int max_matches);
+void user_registry_deinit(UserRegistry *registry);
 
 int user_registry_ref_entry(UserRegistry *registry, UserEntry **userp, uid_t uid);
 
@@ -125,4 +135,3 @@ static inline UserEntry *user_entry_unref(UserEntry *entry) {
 }
 
 C_DEFINE_CLEANUP(UserEntry *, user_entry_unref);
-C_DEFINE_CLEANUP(UserRegistry *, user_registry_free);

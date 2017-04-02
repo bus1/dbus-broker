@@ -7,48 +7,45 @@
 #include "user.h"
 
 static void test_setup(void) {
-        UserRegistry *registry = NULL;
+        UserRegistry registry;
         UserEntry *entry1, *entry2, *entry3;
         int r;
 
-        r = user_registry_new(&registry, 1024, 1024, 1024, 1024, 1024);
-        assert(r >= 0);
-        assert(registry);
+        user_registry_init(&registry, 1024, 1024, 1024, 1024, 1024);
 
-        r = user_registry_ref_entry(registry, &entry1, 1);
+        r = user_registry_ref_entry(&registry, &entry1, 1);
         assert(r >= 0);
         assert(entry1);
 
-        r = user_registry_ref_entry(registry, &entry2, 1);
+        r = user_registry_ref_entry(&registry, &entry2, 1);
         assert(r >= 0);
         assert(entry2 == entry1);
 
-        r = user_registry_ref_entry(registry, &entry3, 2);
+        r = user_registry_ref_entry(&registry, &entry3, 2);
         assert(r >= 0);
         assert(entry3 != entry1);
 
         user_entry_unref(entry1);
         user_entry_unref(entry2);
         user_entry_unref(entry3);
-        user_registry_free(registry);
+        user_registry_deinit(&registry);
 }
 
 static void test_quota(void) {
-        UserRegistry *registry;
+        UserRegistry registry;
         UserEntry *entry1, *entry2, *entry3;
         UserCharge charge1, charge2;
         int r;
 
-        r = user_registry_new(&registry, 1024, 1024, 1024, 1024, 1024);
+        user_registry_init(&registry, 1024, 1024, 1024, 1024, 1024);
+
+        r = user_registry_ref_entry(&registry, &entry1, 1);
         assert(r >= 0);
 
-        r = user_registry_ref_entry(registry, &entry1, 1);
+        r = user_registry_ref_entry(&registry, &entry2, 2);
         assert(r >= 0);
 
-        r = user_registry_ref_entry(registry, &entry2, 2);
-        assert(r >= 0);
-
-        r = user_registry_ref_entry(registry, &entry3, 3);
+        r = user_registry_ref_entry(&registry, &entry3, 3);
         assert(r >= 0);
 
         user_charge_init(&charge1);
@@ -81,7 +78,7 @@ static void test_quota(void) {
         user_entry_unref(entry1);
         user_entry_unref(entry2);
         user_entry_unref(entry3);
-        user_registry_free(registry);
+        user_registry_deinit(&registry);
 }
 
 int main(int argc, char **argv) {

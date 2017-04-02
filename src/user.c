@@ -19,16 +19,6 @@ struct UserUsage {
         unsigned int n_fds;
 };
 
-struct UserRegistry {
-        unsigned int max_bytes;
-        unsigned int max_fds;
-        unsigned int max_peers;
-        unsigned int max_names;
-        unsigned int max_matches;
-
-        CRBTree users;
-};
-
 static int user_usage_compare(CRBTree *tree, void *k, CRBNode *rb) {
         UserUsage *usage = c_container_of(rb, UserUsage, rb);
         uid_t uid = *(uid_t*)k;
@@ -298,61 +288,46 @@ static int user_entry_compare(CRBTree *tree, void *k, CRBNode *rb) {
 }
 
 /**
- * user_registry_new() - allocate a new user registry
- * @registryp:          pointer to the new registry
+ * user_registry_init() - initialize a user registry
+ * @registry:           the registry to operate on
  * @max_bytes:          max bytes allocated to each user
  * @max_fds:            max fds allocated to each user
  * @max_names:          max names owned by each user
  * @max_peers:          max peers owned by each user
  *
- * Allocate a new user registry. New user entries can be instantiated from the
- * registry, in which case they are assigned the maximum number of resources as
- * given in @max_bytes, @max_fds, @max_names and @max_peers.
- *
- * Return: 0 on success, or a negative error code on failure.
+ * Initialized a passed-in user registry. New user entries can be instantiated
+ * from the registry, in which case they are assigned the maximum number of
+ * resources as given in @max_bytes, @max_fds, @max_names and @max_peers.
  */
-int user_registry_new(UserRegistry **registryp,
-                      unsigned int max_bytes,
-                      unsigned int max_fds,
-                      unsigned int max_peers,
-                      unsigned int max_names,
-                      unsigned int max_matches) {
-        UserRegistry *registry;
-
-        registry = calloc(1, sizeof(*registry));
-        if (!registry)
-                return -ENOMEM;
-
+void user_registry_init(UserRegistry *registry,
+                        unsigned int max_bytes,
+                        unsigned int max_fds,
+                        unsigned int max_peers,
+                        unsigned int max_names,
+                        unsigned int max_matches) {
+        *registry = (UserRegistry) {};
         registry->max_bytes = max_bytes;
         registry->max_fds = max_fds;
         registry->max_peers = max_peers;
         registry->max_names = max_names;
         registry->max_matches = max_matches;
-
-        *registryp = registry;
-        return 0;
 }
 
 /**
- * user_registry_free() - destroy user registry
+ * user_registry_deinit() - destroy user registry
  * @registry:           user registry to operate on, or NULL
  *
- * This destroys the user registry, previously created via user_registry_new().
+ * This destroys the user registry, previously initialized via user_registry_init().
  * All user elements instantiated from the registry must have been destroyed
- * before the registry is freed.
+ * before the registry is deinitialized.
  *
  * If @registry is NULL, this is a no-op.
- *
- * Return: NULL is returned.
  */
-UserRegistry *user_registry_free(UserRegistry *registry) {
+void user_registry_deinit(UserRegistry *registry) {
         if (!registry)
-                return NULL;
+                return;
 
         assert(!registry->users.root);
-        free(registry);
-
-        return NULL;
 }
 
 /**
