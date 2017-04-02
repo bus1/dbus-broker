@@ -357,7 +357,7 @@ int user_registry_new(UserRegistry **registryp,
                       unsigned int max_matches) {
         UserRegistry *registry;
 
-        registry = malloc(sizeof(*registry));
+        registry = calloc(1, sizeof(*registry));
         if (!registry)
                 return -ENOMEM;
 
@@ -366,10 +366,8 @@ int user_registry_new(UserRegistry **registryp,
         registry->max_peers = max_peers;
         registry->max_names = max_names;
         registry->max_matches = max_matches;
-        registry->users = (CRBTree) {};
 
         *registryp = registry;
-
         return 0;
 }
 
