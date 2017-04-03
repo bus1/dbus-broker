@@ -13,19 +13,19 @@
  */
 int dbus_message_new(DBusMessage **messagep, DBusMessageHeader header) {
         _c_cleanup_(dbus_message_unrefp) DBusMessage *message = NULL;
-        uint64_t n_fields, n_data = sizeof(header);
+        uint64_t n_header, n_body, n_data;
 
         if (_c_likely_(header.endian == 'l')) {
-                n_fields = c_align8((uint64_t)le32toh(header.n_fields));
-                n_data += n_fields;
-                n_data += (uint64_t)le32toh(header.n_body);
+                n_header = sizeof(header) + (uint64_t)le32toh(header.n_fields);
+                n_body = (uint64_t)le32toh(header.n_body);
         } else if (header.endian == 'B') {
-                n_fields = c_align8((uint64_t)be32toh(header.n_fields));
-                n_data += n_fields;
-                n_data += (uint64_t)be32toh(header.n_body);
+                n_header = sizeof(header) + (uint64_t)be32toh(header.n_fields);
+                n_body = (uint64_t)be32toh(header.n_body);
         } else {
                 return -EBADMSG;
         }
+
+        n_data = c_align8(n_header) + n_body;
 
         if (n_data > DBUS_MESSAGE_SIZE_MAX)
                 return -EMSGSIZE;
@@ -38,13 +38,12 @@ int dbus_message_new(DBusMessage **messagep, DBusMessageHeader header) {
         message->big_endian = (header.endian == 'B');
         message->n_fds = 0;
         message->fds = NULL;
+        message->n_header = n_header;
+        message->n_body = n_body;
         message->n_data = n_data;
         message->n_copied = sizeof(header);
-        message->header = (DBusMessageHeader*)message->data;
-        message->fields = message->data + offsetof(DBusMessageHeader, n_fields);
-        message->body = message->data +
-                        offsetof(DBusMessageHeader, n_fields) +
-                        n_fields;
+        message->header = (void *)message->data;
+        message->body = message->data + c_align8(n_header);
         memcpy(message->data, &header, sizeof(header));
 
         *messagep = message;

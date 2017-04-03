@@ -31,12 +31,12 @@ struct DBusMessage {
         size_t n_fds;
         int *fds;
 
+        size_t n_header;
         size_t n_body;
         size_t n_data;
         size_t n_copied;
 
         DBusMessageHeader *header;
-        void *fields;
         void *body;
 
         char data[];

@@ -237,7 +237,7 @@ int driver_handle_message(Peer *peer, DBusMessage *message) {
          *      their pre-allocated respective types.
          */
 
-        r = c_dvar_type_new_from_string(&type, "a(yv)");
+        r = c_dvar_type_new_from_string(&type, "(yyyyuua(yv))");
         if (r)
                 return (r > 0) ? -ENOTRECOVERABLE : r;
 
@@ -245,51 +245,55 @@ int driver_handle_message(Peer *peer, DBusMessage *message) {
         if (r)
                 return (r > 0) ? -ENOTRECOVERABLE : r;
 
-        c_dvar_begin_read(v, message->big_endian, type, message->fields, message->body - message->fields);
+        c_dvar_begin_read(v, message->big_endian, type, message->header, message->n_header);
+
+        c_dvar_skip(v, "(yyyyuu[");
 
         while (c_dvar_more(v)) {
                 /*
                  * XXX: What should we do on duplicates?
                  */
 
-                c_dvar_read(v, "[(y", &field);
+                c_dvar_read(v, "(y", &field);
 
                 switch (field) {
                 case DBUS_MESSAGE_FIELD_INVALID:
                         return -EBADMSG;
                 case DBUS_MESSAGE_FIELD_PATH:
-                        c_dvar_read(v, "<o>)]", NULL, &path);
+                        c_dvar_read(v, "<o>)", NULL, &path);
                         break;
                 case DBUS_MESSAGE_FIELD_INTERFACE:
-                        c_dvar_read(v, "<s>)]", NULL, &interface);
+                        c_dvar_read(v, "<s>)", NULL, &interface);
                         break;
                 case DBUS_MESSAGE_FIELD_MEMBER:
-                        c_dvar_read(v, "<s>)]", NULL, &member);
+                        c_dvar_read(v, "<s>)", NULL, &member);
                         break;
                 case DBUS_MESSAGE_FIELD_ERROR_NAME:
-                        c_dvar_read(v, "<s>)]", NULL, &error_name);
+                        c_dvar_read(v, "<s>)", NULL, &error_name);
                         break;
                 case DBUS_MESSAGE_FIELD_REPLY_SERIAL:
-                        c_dvar_read(v, "<u>)]", NULL, &reply_serial);
+                        c_dvar_read(v, "<u>)", NULL, &reply_serial);
                         break;
                 case DBUS_MESSAGE_FIELD_DESTINATION:
-                        c_dvar_read(v, "<s>)]", NULL, &destination);
+                        c_dvar_read(v, "<s>)", NULL, &destination);
                         break;
                 case DBUS_MESSAGE_FIELD_SENDER:
                         /* XXX: check with dbus-daemon(1) on what to do */
-                        c_dvar_read(v, "<s>)]", NULL, &sender);
+                        c_dvar_read(v, "<s>)", NULL, &sender);
                         break;
                 case DBUS_MESSAGE_FIELD_SIGNATURE:
-                        c_dvar_read(v, "<g>)]", NULL, &signature);
+                        c_dvar_read(v, "<g>)", NULL, &signature);
                         break;
                 case DBUS_MESSAGE_FIELD_UNIX_FDS:
-                        c_dvar_read(v, "<u>)]", NULL, &n_fds);
+                        c_dvar_read(v, "<u>)", NULL, &n_fds);
                         break;
                 default:
-                        c_dvar_skip(v, "v)]");
+                        c_dvar_skip(v, "v)");
                         break;
                 }
         }
+
+        c_dvar_skip(v, "])");
 
         r = c_dvar_end_read(v);
         if (r)
