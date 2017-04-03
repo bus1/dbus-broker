@@ -30,6 +30,9 @@ static void test_setup(void) {
         r = sd_bus_set_fd(bus, fd, fd);
         assert(r >= 0);
 
+        r = sd_bus_set_bus_client(bus, true);
+        assert(r >= 0);
+
         r = sd_bus_start(bus);
         assert(r >= 0);
 
