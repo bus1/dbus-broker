@@ -120,7 +120,7 @@ int bus_dispatch(Bus *bus) {
                 c_list_unlink(&file->ready_link);
                 c_list_link_tail(&list, &file->ready_link);
 
-                r = file->fn(file, file->events);
+                r = file->fn(file, file->user_mask & file->events);
                 if (r < 0)
                         return r;
         }
