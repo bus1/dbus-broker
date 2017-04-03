@@ -31,7 +31,6 @@ struct DBusMessage {
         size_t n_fds;
         int *fds;
 
-        size_t n_args;
         size_t n_body;
         size_t n_data;
         size_t n_copied;

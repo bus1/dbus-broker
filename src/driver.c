@@ -245,7 +245,7 @@ int driver_handle_message(Peer *peer, DBusMessage *message) {
         if (r)
                 return (r > 0) ? -ENOTRECOVERABLE : r;
 
-        c_dvar_begin_read(v, message->big_endian, type, message->fields, message->header->n_fields);
+        c_dvar_begin_read(v, message->big_endian, type, message->fields, message->body - message->fields);
 
         while (c_dvar_more(v)) {
                 /*
