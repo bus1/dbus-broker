@@ -22,19 +22,24 @@ struct DispatchFile {
         CList ready_link;
 
         int fd;
-        uint32_t mask;
+        uint32_t user_mask;
+        uint32_t kernel_mask;
         uint32_t events;
 };
 
-void dispatch_file_init(DispatchFile *file,
-                        DispatchFn fn,
-                        DispatchContext *ctx,
-                        CList *ready_list);
+#define DISPATCH_FILE_NULL      { .fd = -1 }
+
+int dispatch_file_init(DispatchFile *file,
+                       DispatchContext *ctx,
+                       CList *ready_list,
+                       DispatchFn fn,
+                       int fd,
+                       uint32_t mask);
 void dispatch_file_deinit(DispatchFile *file);
 
-int dispatch_file_select(DispatchFile *file, int fd, uint32_t mask);
+void dispatch_file_select(DispatchFile *file, uint32_t mask);
+void dispatch_file_deselect(DispatchFile *file, uint32_t mask);
 void dispatch_file_clear(DispatchFile *file, uint32_t mask);
-void dispatch_file_drop(DispatchFile *file);
 
 /* contexts */
 

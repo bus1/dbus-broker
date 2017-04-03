@@ -17,7 +17,7 @@ static void test_setup(void) {
         uint32_t reply;
         int r, pair[2];
 
-        r = bus_new(&bus, -1, 1024, 1024, 1024, 1024, 1024);
+        r = bus_new(&bus, 0, 1024, 1024, 1024, 1024, 1024);
         assert(r >= 0);
 
         r = socketpair(AF_UNIX, SOCK_STREAM, 0, pair);
@@ -55,7 +55,7 @@ static void test_release(void) {
         uint32_t reply;
         int r, pair[2];
 
-        r = bus_new(&bus, -1, 1024, 1024, 1024, 1024, 1024);
+        r = bus_new(&bus, 0, 1024, 1024, 1024, 1024, 1024);
         assert(r >= 0);
 
         r = socketpair(AF_UNIX, SOCK_STREAM, 0, pair);
@@ -91,7 +91,7 @@ static void test_queue(void) {
         uint32_t reply;
         int r, pair[2];
 
-        r = bus_new(&bus, -1, 1024, 1024, 1024, 1024, 1024);
+        r = bus_new(&bus, 0, 1024, 1024, 1024, 1024, 1024);
         assert(r >= 0);
 
         r = socketpair(AF_UNIX, SOCK_STREAM, 0, pair);

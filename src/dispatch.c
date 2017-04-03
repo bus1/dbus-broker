@@ -12,31 +12,53 @@
 /**
  * dispatch_file_init() - XXX
  */
-void dispatch_file_init(DispatchFile *file,
-                        DispatchFn fn,
-                        DispatchContext *ctx,
-                        CList *ready_list) {
+int dispatch_file_init(DispatchFile *file,
+                       DispatchContext *ctx,
+                       CList *ready_list,
+                       DispatchFn fn,
+                       int fd,
+                       uint32_t mask) {
+        int r;
+
+        r = epoll_ctl(ctx->epoll_fd,
+                      EPOLL_CTL_ADD,
+                      fd,
+                      &(struct epoll_event) {
+                                .events = mask,
+                                .data.ptr = file,
+                      });
+        if (r < 0)
+                return r;
+
         file->context = ctx;
         file->fn = fn;
         file->ready_list = ready_list;
         file->ready_link = (CList)C_LIST_INIT(file->ready_link);
-        file->fd = -1;
-        file->mask = 0;
+        file->fd = fd;
+        file->user_mask = 0;
+        file->kernel_mask = mask;
         file->events = 0;
 
         ++file->context->n_files;
+
+        return 0;
 }
 
 /**
  * dispatch_file_deinit() - XXX
  */
 void dispatch_file_deinit(DispatchFile *file) {
-        dispatch_file_drop(file);
+        int r;
 
-        if (file->context)
+        if (file->context) {
+                r = epoll_ctl(file->context->epoll_fd, EPOLL_CTL_DEL, file->fd, NULL);
+                assert(r >= 0);
+
                 --file->context->n_files;
+                c_list_unlink_init(&file->ready_link);
+        }
 
-        c_list_unlink_init(&file->ready_link);
+        file->fd = -1;
         file->ready_list = NULL;
         file->fn = NULL;
         file->context = NULL;
@@ -45,68 +67,35 @@ void dispatch_file_deinit(DispatchFile *file) {
 /**
  * dispatch_file_select() - XXX
  */
-int dispatch_file_select(DispatchFile *file, int fd, uint32_t mask) {
-        int r;
+void dispatch_file_select(DispatchFile *file, uint32_t mask) {
+        assert(!(mask & ~file->kernel_mask));
 
-        if (fd != file->fd) {
-                r = epoll_ctl(file->context->epoll_fd,
-                              EPOLL_CTL_ADD,
-                              fd,
-                              &(struct epoll_event){
-                                      .events = mask,
-                                      .data.ptr = file,
-                              });
-                if (r < 0)
-                        return -errno;
+        file->user_mask |= mask;
+        if ((file->user_mask & file->events) &&
+            !c_list_is_linked(&file->ready_link))
+                c_list_link_tail(file->ready_list, &file->ready_link);
+}
 
-                dispatch_file_drop(file);
-                file->fd = fd;
-                file->mask = mask;
-        } else if (mask != file->mask) {
-                r = epoll_ctl(file->context->epoll_fd,
-                              EPOLL_CTL_MOD,
-                              file->fd,
-                              &(struct epoll_event){
-                                      .events = mask,
-                                      .data.ptr = file,
-                              });
-                if (r < 0)
-                        return -errno;
+/**
+ * dispatch_file_deselect() - XXX
+ */
+void dispatch_file_deselect(DispatchFile *file, uint32_t mask) {
+        assert(!(mask & ~file->user_mask));
 
-                file->mask = mask;
-                file->events &= ~mask;
-                if (!file->events)
-                        c_list_unlink_init(&file->ready_link);
-        }
-
-        return 0;
+        file->user_mask &= ~mask;
+        if (!(file->events & file->user_mask))
+                c_list_unlink_init(&file->ready_link);
 }
 
 /**
  * dispatch_file_clear() - XXX
  */
 void dispatch_file_clear(DispatchFile *file, uint32_t mask) {
+        assert(!(mask & ~file->kernel_mask));
+
         file->events &= ~mask;
-        if (!file->events)
+        if (!(file->events & file->user_mask))
                 c_list_unlink_init(&file->ready_link);
-}
-
-/**
- * dispatch_file_drop() - XXX
- */
-void dispatch_file_drop(DispatchFile *file) {
-        int r;
-
-        if (file->fd < 0)
-                return;
-
-        r = epoll_ctl(file->context->epoll_fd, EPOLL_CTL_DEL, file->fd, NULL);
-        assert(r >= 0);
-
-        c_list_unlink_init(&file->ready_link);
-        file->fd = -1;
-        file->events = 0;
-        file->mask = 0;
 }
 
 /**
@@ -162,7 +151,7 @@ int dispatch_context_poll(DispatchContext *ctx, int timeout) {
                 f = e->data.ptr;
 
                 f->events |= e->events;
-                if ((f->events & f->mask) &&
+                if ((f->events & f->user_mask) &&
                     !c_list_is_linked(&f->ready_link))
                         c_list_link_tail(f->ready_list, &f->ready_link);
         }

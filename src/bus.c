@@ -39,9 +39,7 @@ static int bus_accept(DispatchFile *file, uint32_t events) {
                 return r;
         fd = -1;
 
-        r = peer_start(peer);
-        if (r < 0)
-                return r;
+        peer_start(peer);
 
         peer = NULL;
         return 0;
@@ -73,15 +71,22 @@ int bus_new(Bus **busp,
                            max_names,
                            max_matches);
         bus->dispatcher = (DispatchContext)DISPATCH_CONTEXT_NULL;
+        bus->accept_file = (DispatchFile)DISPATCH_FILE_NULL;
 
         r = dispatch_context_init(&bus->dispatcher);
         if (r < 0)
                 return r;
 
-        dispatch_file_init(&bus->accept_file,
-                           bus_accept,
-                           &bus->dispatcher,
-                           &bus->ready_list);
+        r = dispatch_file_init(&bus->accept_file,
+                               &bus->dispatcher,
+                               &bus->ready_list,
+                               bus_accept,
+                               fd,
+                               EPOLLIN);
+        if (r < 0)
+                return r;
+
+        dispatch_file_select(&bus->accept_file, EPOLLIN);
 
         *busp = bus;
         bus = NULL;

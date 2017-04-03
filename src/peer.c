@@ -49,12 +49,12 @@ static int peer_dispatch_read_line(Peer *peer) {
                 return r;
 
         r = dbus_sasl_dispatch(&peer->sasl, line_in, line_out, pos);
-        if (r < 0) {
+        if (r < 0)
                 return r;
-        } else if (r == 1) {
+        else if (r == 0)
+                dispatch_file_select(&peer->dispatch_file, EPOLLOUT);
+        else
                 peer->authenticated = true;
-                return 0;
-        }
 
         return 0;
 }
@@ -89,6 +89,9 @@ static int peer_dispatch_write(Peer *peer) {
                 /* not able to write more */
                 dispatch_file_clear(&peer->dispatch_file, EPOLLOUT);
                 return 0;
+        } else if (r == 0) {
+                /* nothing more to write */
+                dispatch_file_deselect(&peer->dispatch_file, EPOLLOUT);
         } if (r < 0) {
                 /* XXX: swallow error code and tear down this peer */
                 return 0;
@@ -194,14 +197,19 @@ int peer_new(Peer **peerp,
         peer->seclabel = seclabel;
         seclabel = NULL;
         peer->n_seclabel = n_seclabel;
-
-        dispatch_file_init(&peer->dispatch_file,
-                           peer_dispatch,
-                           &bus->dispatcher,
-                           &bus->ready_list);
+        peer->dispatch_file = (DispatchFile)DISPATCH_FILE_NULL;
         dbus_sasl_init(&peer->sasl, ucred.uid, bus->guid);
 
         r = dbus_socket_new(&peer->socket, fd);
+        if (r < 0)
+                return r;
+
+        r = dispatch_file_init(&peer->dispatch_file,
+                               &bus->dispatcher,
+                               &bus->ready_list,
+                               peer_dispatch,
+                               fd,
+                               EPOLLIN | EPOLLOUT);
         if (r < 0)
                 return r;
 
@@ -247,12 +255,10 @@ Peer *peer_free(Peer *peer) {
         return NULL;
 }
 
-int peer_start(Peer *peer) {
-        return dispatch_file_select(&peer->dispatch_file,
-                                    peer->socket->fd,
-                                    EPOLLIN | EPOLLOUT);
+void peer_start(Peer *peer) {
+        return dispatch_file_select(&peer->dispatch_file, EPOLLIN);
 }
 
 void peer_stop(Peer *peer) {
-        dispatch_file_drop(&peer->dispatch_file);
+        return dispatch_file_deselect(&peer->dispatch_file, EPOLLIN);
 }
