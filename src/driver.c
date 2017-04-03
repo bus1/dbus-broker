@@ -261,7 +261,7 @@ int driver_handle_message(Peer *peer, DBusMessage *message) {
                         c_dvar_read(v, "<o>)]", NULL, &path);
                         break;
                 case DBUS_MESSAGE_FIELD_INTERFACE:
-                        c_dvar_read(v, "<o>)]", NULL, &interface);
+                        c_dvar_read(v, "<s>)]", NULL, &interface);
                         break;
                 case DBUS_MESSAGE_FIELD_MEMBER:
                         c_dvar_read(v, "<s>)]", NULL, &member);
