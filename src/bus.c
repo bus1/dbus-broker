@@ -107,14 +107,20 @@ Bus *bus_free(Bus *bus) {
 }
 
 int bus_dispatch(Bus *bus) {
-        DispatchFile *file, *safe;
+        DispatchFile *file;
+        CList list = C_LIST_INIT(list);
         int r;
 
-        c_list_for_each_entry_safe(file, safe, &bus->ready_list, ready_link) {
+        while ((file = c_list_first_entry(&bus->ready_list, DispatchFile, ready_link))) {
+                c_list_unlink(&file->ready_link);
+                c_list_link_tail(&list, &file->ready_link);
+
                 r = file->fn(file, file->events);
                 if (r < 0)
                         return r;
         }
+
+        c_list_swap(&bus->ready_list, &list);
 
         return 0;
 }
