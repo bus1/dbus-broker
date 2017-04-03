@@ -29,14 +29,14 @@
 #define DBUS_MESSAGE_FIELD_UNIX_FDS     (9)
 
 typedef struct DriverMethod DriverMethod;
-typedef int (*DriverMethodFn) (Peer *peer, DBusMessage *message);
+typedef int (*DriverMethodFn) (Peer *peer, const char *signature, DBusMessage *message);
 
 struct DriverMethod {
         const char *name;
         DriverMethodFn fn;
 };
 
-int driver_method_hello(Peer *peer, DBusMessage *message) {
+int driver_method_hello(Peer *peer, const char *signature, DBusMessage *message) {
         if (_c_unlikely_(peer_is_registered(peer)))
                 return -EBADMSG;
 
@@ -45,70 +45,68 @@ int driver_method_hello(Peer *peer, DBusMessage *message) {
         return 0;
 }
 
-int driver_method_list_names(Peer *peer, DBusMessage *message) {
+int driver_method_list_names(Peer *peer, const char *signature, DBusMessage *message) {
         return 0;
 }
 
-int driver_method_list_activatable_names(Peer *peer, DBusMessage *message) {
+int driver_method_list_activatable_names(Peer *peer, const char *signature, DBusMessage *message) {
         return 0;
 }
 
-int driver_method_name_has_owner(Peer *peer, DBusMessage *message) {
+int driver_method_name_has_owner(Peer *peer, const char *signature, DBusMessage *message) {
         return 0;
 }
 
-int driver_method_start_service_by_name(Peer *peer, DBusMessage *message) {
+int driver_method_start_service_by_name(Peer *peer, const char *signature, DBusMessage *message) {
         return 0;
 }
 
-int driver_method_update_activation_environment(Peer *peer, DBusMessage *message) {
+int driver_method_update_activation_environment(Peer *peer, const char *signature, DBusMessage *message) {
         return 0;
 }
 
-int driver_method_get_name_owner(Peer *peer, DBusMessage *message) {
+int driver_method_get_name_owner(Peer *peer, const char *signature, DBusMessage *message) {
         return 0;
 }
 
-int driver_method_get_connection_unix_user(Peer *peer, DBusMessage *message) {
+int driver_method_get_connection_unix_user(Peer *peer, const char *signature, DBusMessage *message) {
         return 0;
 }
 
-int driver_method_get_connection_unix_process_id(Peer *peer, DBusMessage *message) {
+int driver_method_get_connection_unix_process_id(Peer *peer, const char *signature, DBusMessage *message) {
         return 0;
 }
 
-int driver_method_get_connection_credentials(Peer *peer, DBusMessage *message) {
+int driver_method_get_connection_credentials(Peer *peer, const char *signature, DBusMessage *message) {
         return 0;
 }
 
-int driver_method_get_adt_audit_session_data(Peer *peer, DBusMessage *message) {
+int driver_method_get_adt_audit_session_data(Peer *peer, const char *signature, DBusMessage *message) {
         return 0;
 }
 
-int driver_method_get_connection_selinux_security_context(Peer *peer, DBusMessage *message) {
+int driver_method_get_connection_selinux_security_context(Peer *peer, const char *signature, DBusMessage *message) {
         return 0;
 }
 
-int driver_method_add_match(Peer *peer, DBusMessage *message) {
+int driver_method_add_match(Peer *peer, const char *signature, DBusMessage *message) {
         return 0;
 }
 
-int driver_method_remove_match(Peer *peer, DBusMessage *message) {
+int driver_method_remove_match(Peer *peer, const char *signature, DBusMessage *message) {
         return 0;
 }
 
-int driver_method_get_id(Peer *peer, DBusMessage *message) {
+int driver_method_get_id(Peer *peer, const char *signature, DBusMessage *message) {
         return 0;
 }
 
-int driver_method_become_monitor(Peer *peer, DBusMessage *message) {
+int driver_method_become_monitor(Peer *peer, const char *signature, DBusMessage *message) {
         return 0;
 }
 
 /* XXX: use gperf */
-static int driver_dispatch_method(Peer *peer,
-                                  const char *method,
-                                  DBusMessage *message) {
+static int driver_dispatch_method(Peer *peer, const char *method, const char *signature, DBusMessage *message) {
         static const DriverMethod methods[] = {
                 { "Hello", driver_method_hello },
                 { "ListNames", driver_method_list_names },
@@ -134,7 +132,7 @@ static int driver_dispatch_method(Peer *peer,
 
         for (unsigned int i = 0; i < C_ARRAY_SIZE(methods); i++) {
                 if (strcmp(methods[i].name, method) == 0)
-                        return methods[i].fn(peer, message);
+                        return methods[i].fn(peer, signature, message);
         }
 
         return -ENOENT;
@@ -149,12 +147,8 @@ static int driver_handle_method_call_internal(Peer *peer,
         if (interface &&
             _c_unlikely_(strcmp(interface, "org.freedesktop.DBus") != 0))
                 return -EBADMSG;
-        if (_c_unlikely_(strcmp(path, "/") != 0))
-                return -EBADMSG;
 
-        /* XXX: signature */
-
-        return driver_dispatch_method(peer, member, message);
+        return driver_dispatch_method(peer, member, signature, message);
 }
 
 static int driver_handle_method_call(Peer *peer,
