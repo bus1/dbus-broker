@@ -92,7 +92,7 @@ static int peer_dispatch_write(Peer *peer) {
         } else if (r == 0) {
                 /* nothing more to write */
                 dispatch_file_deselect(&peer->dispatch_file, EPOLLOUT);
-        } if (r < 0) {
+        } else if (r < 0) {
                 /* XXX: swallow error code and tear down this peer */
                 return 0;
         }

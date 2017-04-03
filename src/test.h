@@ -13,7 +13,7 @@
 
 static void *run_bus(void *userdata) {
         _c_cleanup_(bus_freep) Bus *bus = NULL;
-        int fd = *(int*)userdata, r;
+        int fd = (intptr_t)userdata, r;
 
         r = bus_new(&bus, fd, 1024, 1024, 1024, 1024, 1024);
         assert(r >= 0);
@@ -48,7 +48,7 @@ static inline void spawn_bus(struct sockaddr_un *addressp, socklen_t *addrlenp) 
         r = listen(fd, 256);
         assert(r >= 0);
 
-        r = pthread_create(&thread, NULL, run_bus, &fd);
+        r = pthread_create(&thread, NULL, run_bus, (void*)(intptr_t)fd);
         assert(r >= 0);
 
         fd = -1;
