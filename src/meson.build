@@ -52,6 +52,9 @@ endif
 test_bus = executable('test-bus', ['test-bus.c'], dependencies: libdbus_broker_dep)
 test('Bus Management', test_bus)
 
+test_dispatch = executable('test-dispatch', ['test-dispatch.c'], dependencies: libdbus_broker_dep)
+test('Event Dispatcher', test_dispatch)
+
 test_match = executable('test-match', ['test-match.c'], dependencies: libdbus_broker_dep)
 test('D-Bus Match Handling', test_match)
 
