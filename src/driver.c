@@ -5,10 +5,12 @@
 #include <c-dvar.h>
 #include <c-macro.h>
 #include <stdlib.h>
+#include <sys/epoll.h>
 #include "bus.h"
 #include "driver.h"
 #include "message.h"
 #include "peer.h"
+#include "socket.h"
 
 /* XXX: move to where it belongs */
 #define DBUS_MESSAGE_TYPE_INVALID       (0)
@@ -29,116 +31,259 @@
 #define DBUS_MESSAGE_FIELD_UNIX_FDS     (9)
 
 typedef struct DriverMethod DriverMethod;
-typedef int (*DriverMethodFn) (Peer *peer, const char *signature, Message *message);
+typedef int (*DriverMethodFn) (Peer *peer, CDVar *var_in, CDVar *var_out);
 
 struct DriverMethod {
         const char *name;
         DriverMethodFn fn;
+        const char *in;
+        const char *out;
 };
 
-int driver_method_hello(Peer *peer, const char *signature, Message *message) {
+static void driver_dvar_write_unique_name(CDVar *var, Peer *peer) {
+        char unique_name[strlen(":1.") + C_DECIMAL_MAX(uint64_t) + 1];
+        int r;
+
+        r = snprintf(unique_name, sizeof(unique_name), ":1.%"PRIu64, peer->id);
+        assert(r >= 0 && r < sizeof(unique_name));
+
+        c_dvar_write(var, "s", unique_name);
+}
+
+static void driver_dvar_write_signature(CDVar *var, CDVarType *type) {
+        char signature[C_DVAR_TYPE_LENGTH_MAX + 1];
+
+        assert(type->length < sizeof(signature));
+        assert(type[0].element == '(');
+        assert(type[type->length - 1].element == ')');
+
+        for (unsigned int i = 1; i < type->length - 1; i++)
+                signature[i - 1] = type[i].element;
+
+        signature[type->length - 2] = '\0';
+
+        c_dvar_write(var, "g", signature);
+}
+
+static int driver_dvar_verify_signature(CDVarType *type, const char *signature) {
+        if (type->length - 2 != strlen(signature))
+                return -EBADMSG;
+
+        assert(type[0].element == '(');
+        assert(type[type->length - 1].element == ')');
+
+        for (unsigned int i = 1; i < type->length - 1; i++)
+                if (signature[i - 1] != type[i].element)
+                        return -EBADMSG;
+
+        return 0;
+}
+
+static void driver_write_reply_header(CDVar *var,
+                                      Peer *peer,
+                                      uint32_t serial,
+                                      CDVarType *type) {
+        c_dvar_write(var, "yyyyuu[(y<u>)(y<s>)",
+                     c_dvar_is_big_endian(var) ? 'B' : 'l', DBUS_MESSAGE_TYPE_METHOD_REPLY, 0, 1, 0, 1,
+                     DBUS_MESSAGE_FIELD_REPLY_SERIAL, c_dvar_type_u, serial,
+                     DBUS_MESSAGE_FIELD_SENDER, c_dvar_type_s, "org.freedesktop.DBus");
+
+        c_dvar_write(var, "(y<", DBUS_MESSAGE_FIELD_DESTINATION, c_dvar_type_s);
+        driver_dvar_write_unique_name(var, peer);
+        c_dvar_write(var, ">)");
+
+        c_dvar_write(var, "(y<", DBUS_MESSAGE_FIELD_SIGNATURE, c_dvar_type_g);
+        driver_dvar_write_signature(var, type);
+        c_dvar_write(var, ">)]");
+}
+
+static int driver_method_hello(Peer *peer, CDVar *in_v, CDVar *out_v) {
+        int r;
+
         if (_c_unlikely_(peer_is_registered(peer)))
                 return -EBADMSG;
 
+        /* verify the input argument */
+        c_dvar_read(in_v, "()");
+
+        r = c_dvar_end_read(in_v);
+        if (r)
+                return (r > 0) ? -ENOTRECOVERABLE : r;
+
+        /* write the output message */
+        c_dvar_write(out_v, "(");
+        driver_dvar_write_unique_name(out_v, peer);
+        c_dvar_write(out_v, ")");
+
+        /* register on the bus */
         bus_register_peer(peer->bus, peer);
 
         return 0;
 }
 
-int driver_method_list_names(Peer *peer, const char *signature, Message *message) {
+static int driver_method_list_names(Peer *peer, CDVar *in_v, CDVar *out_v) {
         return 0;
 }
 
-int driver_method_list_activatable_names(Peer *peer, const char *signature, Message *message) {
+static int driver_method_list_activatable_names(Peer *peer, CDVar *in_v, CDVar *out_v) {
         return 0;
 }
 
-int driver_method_name_has_owner(Peer *peer, const char *signature, Message *message) {
+static int driver_method_name_has_owner(Peer *peer, CDVar *in_v, CDVar *out_v) {
         return 0;
 }
 
-int driver_method_start_service_by_name(Peer *peer, const char *signature, Message *message) {
+static int driver_method_start_service_by_name(Peer *peer, CDVar *in_v, CDVar *out_v) {
         return 0;
 }
 
-int driver_method_update_activation_environment(Peer *peer, const char *signature, Message *message) {
+static int driver_method_update_activation_environment(Peer *peer, CDVar *in_v, CDVar *out_v) {
         return 0;
 }
 
-int driver_method_get_name_owner(Peer *peer, const char *signature, Message *message) {
+static int driver_method_get_name_owner(Peer *peer, CDVar *in_v, CDVar *out_v) {
         return 0;
 }
 
-int driver_method_get_connection_unix_user(Peer *peer, const char *signature, Message *message) {
+static int driver_method_get_connection_unix_user(Peer *peer, CDVar *in_v, CDVar *out_v) {
         return 0;
 }
 
-int driver_method_get_connection_unix_process_id(Peer *peer, const char *signature, Message *message) {
+static int driver_method_get_connection_unix_process_id(Peer *peer, CDVar *in_v, CDVar *out_v) {
         return 0;
 }
 
-int driver_method_get_connection_credentials(Peer *peer, const char *signature, Message *message) {
+static int driver_method_get_connection_credentials(Peer *peer, CDVar *in_v, CDVar *out_v) {
         return 0;
 }
 
-int driver_method_get_adt_audit_session_data(Peer *peer, const char *signature, Message *message) {
+static int driver_method_get_adt_audit_session_data(Peer *peer, CDVar *in_v, CDVar *out_v) {
         return 0;
 }
 
-int driver_method_get_connection_selinux_security_context(Peer *peer, const char *signature, Message *message) {
+static int driver_method_get_connection_selinux_security_context(Peer *peer, CDVar *in_v, CDVar *out_v) {
         return 0;
 }
 
-int driver_method_add_match(Peer *peer, const char *signature, Message *message) {
+static int driver_method_add_match(Peer *peer, CDVar *in_v, CDVar *out_v) {
         return 0;
 }
 
-int driver_method_remove_match(Peer *peer, const char *signature, Message *message) {
+static int driver_method_remove_match(Peer *peer, CDVar *in_v, CDVar *out_v) {
         return 0;
 }
 
-int driver_method_get_id(Peer *peer, const char *signature, Message *message) {
+static int driver_method_get_id(Peer *peer, CDVar *in_v, CDVar *out_v) {
         return 0;
 }
 
-int driver_method_become_monitor(Peer *peer, const char *signature, Message *message) {
+static int driver_method_become_monitor(Peer *peer, CDVar *in_v, CDVar *out_v) {
         return 0;
 }
 
-/* XXX: use gperf */
-static int driver_dispatch_method(Peer *peer, const char *method, const char *signature, Message *message) {
+static int driver_handle_method(const DriverMethod *method, Peer *peer, uint32_t serial, const char *signature_in, Message *message_in) {
+        _c_cleanup_(c_dvar_type_freep) CDVarType *type_in = NULL, *type_out;
+        _c_cleanup_(c_dvar_freep) CDVar *var_in = NULL, *var_out = NULL;
+        _c_cleanup_(message_unrefp) Message *message_out = NULL;
+        char signature_out[strlen("(yyyyuua(yv)())") + 256];
+        void *data;
+        size_t n_data;
+        int r;
+
+        /* prepare the input variant */
+        r = c_dvar_type_new_from_string(&type_in, method->in);
+        if (r)
+                return (r > 0) ? -ENOTRECOVERABLE : r;
+
+        r = driver_dvar_verify_signature(type_in, signature_in);
+        if (r)
+                return (r > 0) ? -ENOTRECOVERABLE : r;
+
+        r = c_dvar_new(&var_in);
+        if (r)
+                return (r > 0) ? -ENOTRECOVERABLE : r;
+
+        c_dvar_begin_read(var_in, message_in->big_endian, type_in, message_in->body, message_in->n_body);
+
+        /* prepare the output variant */
+        r = snprintf(signature_out, sizeof(signature_out), "(yyyyuua(yv)%s)", method->out);
+        assert(r > 0 && r < sizeof(signature_out));
+
+        r = c_dvar_type_new_from_string(&type_out, signature_out);
+        if (r)
+                return (r > 0) ? -ENOTRECOVERABLE : r;
+
+        r = c_dvar_new(&var_out);
+        if (r)
+                return (r > 0) ? -ENOTRECOVERABLE : r;
+
+        /* call the handler and write the output */
+        c_dvar_begin_write(var_out, type_out);
+
+        c_dvar_write(var_out, "(");
+
+        driver_write_reply_header(var_out, peer, serial, type_out);
+
+        r = method->fn(peer, var_in, var_out);
+        if (r)
+                return (r > 0) ? -ENOTRECOVERABLE : r;
+
+        c_dvar_write(var_out, ")");
+
+        r = c_dvar_end_write(var_out, &data, &n_data);
+        if (r)
+                return (r > 0) ? -ENOTRECOVERABLE : r;
+
+        /* XXX: make Message and queue on Socket
+
+        r = socket_queue_message(peer->socket, message_out);
+        if (r)
+                return (r > 0) ? -ENOTRECOVERABLE : r;
+        */
+
+        dispatch_file_select(&peer->dispatch_file, EPOLLOUT);
+
+        return 0;
+}
+
+static int driver_dispatch_method(Peer *peer, uint32_t serial, const char *method, const char *signature, Message *message) {
         static const DriverMethod methods[] = {
-                { "Hello", driver_method_hello },
-                { "ListNames", driver_method_list_names },
-                { "ListActivatableNames", driver_method_list_activatable_names },
-                { "NameHasOwner", driver_method_name_has_owner },
-                { "StartServiceByName", driver_method_start_service_by_name },
-                { "UpdateActivationEnvironment", driver_method_update_activation_environment },
-                { "GetNameOwner", driver_method_get_name_owner },
-                { "GetConnectionUnixUser", driver_method_get_connection_unix_user },
-                { "GetConnectionUnixProcessID", driver_method_get_connection_unix_process_id },
-                { "GetConnecitonCredentials", driver_method_get_connection_credentials },
-                { "GetAdtAuditSessionData", driver_method_get_adt_audit_session_data },
-                { "GetConnectionSELinuxSecurityContext", driver_method_get_connection_selinux_security_context },
-                { "AddMatch", driver_method_add_match },
-                { "RemoveMatch", driver_method_remove_match },
-                { "GetId", driver_method_get_id },
-                { "BecomeMonitor", driver_method_become_monitor },
+                { "Hello", driver_method_hello, "()", "(s)" },
+                { "ListNames", driver_method_list_names, "()", "(as)" },
+                { "ListActivatableNames", driver_method_list_activatable_names, "()", "(as)" },
+                { "NameHasOwner", driver_method_name_has_owner, "(s)", "(b)" },
+                { "StartServiceByName", driver_method_start_service_by_name, "(su)", "(u)" },
+                { "UpdateActivationEnvironment", driver_method_update_activation_environment, "(a{ss})", "()" },
+                { "GetNameOwner", driver_method_get_name_owner, "(s)", "(s)" },
+                { "GetConnectionUnixUser", driver_method_get_connection_unix_user, "(s)", "(u)" },
+                { "GetConnectionUnixProcessID", driver_method_get_connection_unix_process_id, "(s)", "(u)" },
+                { "GetConnecitonCredentials", driver_method_get_connection_credentials, "(s)", "(a{sv})" },
+                { "GetAdtAuditSessionData", driver_method_get_adt_audit_session_data, "(s)", "(ab)" },
+                { "GetConnectionSELinuxSecurityContext", driver_method_get_connection_selinux_security_context, "(s)", "(ab)" },
+                { "AddMatch", driver_method_add_match, "(s)", "()" },
+                { "RemoveMatch", driver_method_remove_match, "(s)", "()" },
+                { "GetId", driver_method_get_id, "()", "(s)" },
+                { "BecomeMonitor", driver_method_become_monitor, "(asu)", "()" },
         };
+        int r;
 
-        if (_c_unlikely_(!peer_is_registered(peer)) &&
-            strcmp(method, "Hello") != 0)
+        if (_c_unlikely_(!peer_is_registered(peer)) && strcmp(method, "Hello") != 0)
                 return -EBADMSG;
 
-        for (unsigned int i = 0; i < C_ARRAY_SIZE(methods); i++) {
-                if (strcmp(methods[i].name, method) == 0)
-                        return methods[i].fn(peer, signature, message);
+        for (size_t i = 0; i < C_ARRAY_SIZE(methods); i++) {
+                if (strcmp(methods[i].name, method) != 0)
+                        continue;
+
+                r = driver_handle_method(&methods[i], peer, serial, signature, message);
+                if (r < 0)
+                        return r;
         }
 
         return -ENOENT;
 }
 
 static int driver_handle_method_call_internal(Peer *peer,
+                                              uint32_t serial,
                                               const char *interface,
                                               const char *member,
                                               const char *path,
@@ -148,10 +293,11 @@ static int driver_handle_method_call_internal(Peer *peer,
             _c_unlikely_(strcmp(interface, "org.freedesktop.DBus") != 0))
                 return -EBADMSG;
 
-        return driver_dispatch_method(peer, member, signature, message);
+        return driver_dispatch_method(peer, serial, member, signature, message);
 }
 
 static int driver_handle_method_call(Peer *peer,
+                                     uint32_t serial,
                                      const char *destination,
                                      const char *interface,
                                      const char *member,
@@ -163,6 +309,7 @@ static int driver_handle_method_call(Peer *peer,
 
         if (_c_unlikely_(strcmp(destination, "org.freedesktop.DBus") == 0))
                 return driver_handle_method_call_internal(peer,
+                                                          serial,
                                                           interface,
                                                           member,
                                                           path,
@@ -220,7 +367,7 @@ int driver_handle_message(Peer *peer, Message *message) {
                    *destination = NULL,
                    *sender = NULL,
                    *signature = NULL;
-        uint32_t reply_serial = 0, n_fds = 0;
+        uint32_t serial = 0, reply_serial = 0, n_fds = 0;
         uint8_t field;
         int r;
 
@@ -241,7 +388,7 @@ int driver_handle_message(Peer *peer, Message *message) {
 
         c_dvar_begin_read(v, message->big_endian, type, message->header, message->n_header);
 
-        c_dvar_skip(v, "(yyyyuu[");
+        c_dvar_read(v, "(yyyyuu[", NULL, NULL, NULL, NULL, NULL, &serial);
 
         while (c_dvar_more(v)) {
                 /*
@@ -298,11 +445,15 @@ int driver_handle_message(Peer *peer, Message *message) {
         while (_c_unlikely_(n_fds < message->n_fds))
                 close(message->fds[-- message->n_fds]);
 
+        if (!signature)
+                signature = "";
+
         switch (message->header->type) {
         case DBUS_MESSAGE_TYPE_INVALID:
                 return -EBADMSG;
         case DBUS_MESSAGE_TYPE_METHOD_CALL:
                 return driver_handle_method_call(peer,
+                                                 serial,
                                                  destination,
                                                  interface,
                                                  member,
