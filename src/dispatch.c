@@ -80,7 +80,7 @@ void dispatch_file_select(DispatchFile *file, uint32_t mask) {
  * dispatch_file_deselect() - XXX
  */
 void dispatch_file_deselect(DispatchFile *file, uint32_t mask) {
-        assert(!(mask & ~file->user_mask));
+        assert(!(mask & ~file->kernel_mask));
 
         file->user_mask &= ~mask;
         if (!(file->events & file->user_mask))
