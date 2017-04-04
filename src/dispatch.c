@@ -31,9 +31,9 @@ int dispatch_file_init(DispatchFile *file,
                 return r;
 
         file->context = ctx;
-        file->fn = fn;
         file->ready_list = ready_list;
         file->ready_link = (CList)C_LIST_INIT(file->ready_link);
+        file->fn = fn;
         file->fd = fd;
         file->user_mask = 0;
         file->kernel_mask = mask;

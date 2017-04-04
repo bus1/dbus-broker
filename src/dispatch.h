@@ -17,9 +17,9 @@ typedef int (*DispatchFn) (DispatchFile *file, uint32_t events);
 
 struct DispatchFile {
         DispatchContext *context;
-        DispatchFn fn;
         CList *ready_list;
         CList ready_link;
+        DispatchFn fn;
 
         int fd;
         uint32_t user_mask;
