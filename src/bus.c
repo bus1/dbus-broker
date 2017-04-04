@@ -71,7 +71,7 @@ int bus_new(Bus **busp,
                            max_names,
                            max_matches);
         bus->dispatcher = (DispatchContext)DISPATCH_CONTEXT_NULL;
-        bus->accept_file = (DispatchFile)DISPATCH_FILE_NULL;
+        bus->accept_file = (DispatchFile)DISPATCH_FILE_NULL(bus->accept_file);
 
         r = dispatch_context_init(&bus->dispatcher);
         if (r < 0)

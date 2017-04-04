@@ -197,7 +197,7 @@ int peer_new(Peer **peerp,
         peer->seclabel = seclabel;
         seclabel = NULL;
         peer->n_seclabel = n_seclabel;
-        peer->dispatch_file = (DispatchFile)DISPATCH_FILE_NULL;
+        peer->dispatch_file = (DispatchFile)DISPATCH_FILE_NULL(peer->dispatch_file);
         dbus_sasl_init(&peer->sasl, ucred.uid, bus->guid);
 
         r = dbus_socket_new(&peer->socket, fd);

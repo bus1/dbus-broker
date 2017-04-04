@@ -35,7 +35,7 @@ static void q_assert(int s, bool has_in, bool has_out) {
  */
 static void test_uds_edge(void) {
         _c_cleanup_(dispatch_context_deinit) DispatchContext c = DISPATCH_CONTEXT_NULL;
-        DispatchFile f = DISPATCH_FILE_NULL;
+        DispatchFile f = DISPATCH_FILE_NULL(f);
         CList l = C_LIST_INIT(l);
         char b;
         int r, s[2];

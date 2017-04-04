@@ -27,7 +27,10 @@ struct DispatchFile {
         uint32_t events;
 };
 
-#define DISPATCH_FILE_NULL      { .fd = -1 }
+#define DISPATCH_FILE_NULL(_x) {                                \
+                .ready_link = C_LIST_INIT((_x).ready_link),     \
+                .fd = -1,                                       \
+        }
 
 int dispatch_file_init(DispatchFile *file,
                        DispatchContext *ctx,
@@ -48,7 +51,7 @@ struct DispatchContext {
         size_t n_files;
 };
 
-#define DISPATCH_CONTEXT_NULL   { .epoll_fd = -1 }
+#define DISPATCH_CONTEXT_NULL { .epoll_fd = -1 }
 
 int dispatch_context_init(DispatchContext *ctxp);
 void dispatch_context_deinit(DispatchContext *ctx);
