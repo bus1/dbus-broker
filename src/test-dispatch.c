@@ -37,7 +37,7 @@ static void test_uds_edge(void) {
         _c_cleanup_(dispatch_context_deinit) DispatchContext c = DISPATCH_CONTEXT_NULL;
         DispatchFile f = DISPATCH_FILE_NULL(f);
         CList l = C_LIST_INIT(l);
-        char b;
+        char b[] = { "foobar" };
         int r, s[2];
 
         /* setup */
@@ -64,8 +64,8 @@ static void test_uds_edge(void) {
 
         /* send message and verify sockets signal data */
 
-        r = send(s[0], "foobar", 6, MSG_DONTWAIT | MSG_NOSIGNAL);
-        assert(r == 6);
+        r = send(s[0], b, sizeof(b), MSG_DONTWAIT | MSG_NOSIGNAL);
+        assert(r == sizeof(b));
 
         q_assert(s[0], false, true);
         q_assert(s[1], true, false);
@@ -84,8 +84,8 @@ static void test_uds_edge(void) {
 
         /* receive data and verify socket becomes pollable */
 
-        r = recv(s[1], &b, 6, MSG_DONTWAIT);
-        assert(r == 6);
+        r = recv(s[1], b, sizeof(b), MSG_DONTWAIT);
+        assert(r == sizeof(b));
 
         q_assert(s[0], false, false);
         q_assert(s[1], false, false);
