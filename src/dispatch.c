@@ -24,7 +24,7 @@ int dispatch_file_init(DispatchFile *file,
                       EPOLL_CTL_ADD,
                       fd,
                       &(struct epoll_event) {
-                                .events = mask,
+                                .events = mask | EPOLLET,
                                 .data.ptr = file,
                       });
         if (r < 0)
