@@ -20,6 +20,7 @@ static void test_setup(void) {
         assert(r >= 0);
 
         m3 = dbus_message_unref(m3);
+        m1 = dbus_message_unref(m1);
 }
 
 static void test_size(void) {
