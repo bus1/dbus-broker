@@ -3,6 +3,7 @@
  */
 
 #include <c-dvar.h>
+#include <c-dvar-type.h>
 #include <c-macro.h>
 #include <stdlib.h>
 #include <sys/epoll.h>
@@ -361,7 +362,24 @@ static int driver_handle_signal(Peer *peer,
 }
 
 int driver_handle_message(Peer *peer, Message *message) {
-        _c_cleanup_(c_dvar_type_freep) CDVarType *type = NULL;
+        static const CDVarType type[] = {
+                C_DVAR_T_INIT(
+                        C_DVAR_T_TUPLE7(
+                                C_DVAR_T_y,
+                                C_DVAR_T_y,
+                                C_DVAR_T_y,
+                                C_DVAR_T_y,
+                                C_DVAR_T_u,
+                                C_DVAR_T_u,
+                                C_DVAR_T_ARRAY(
+                                        C_DVAR_T_TUPLE2(
+                                                C_DVAR_T_y,
+                                                C_DVAR_T_v
+                                        )
+                                )
+                        )
+                ), /* (yyyyuua(yv)) */
+        };
         _c_cleanup_(c_dvar_freep) CDVar *v = NULL;
         const char *path = NULL,
                    *interface = NULL,
@@ -375,15 +393,9 @@ int driver_handle_message(Peer *peer, Message *message) {
         int r;
 
         /*
-         * XXX: Rather than allocating @type and @v, we should use their static
-         *      versions on the stack, once provided by c-dvar.
-         *      Also replace the NULL types in the dynamic readers below with
-         *      their pre-allocated respective types.
+         * XXX: Rather than allocating @v, we should use its static versions on the stack,
+         *      once provided by c-dvar.
          */
-
-        r = c_dvar_type_new_from_string(&type, "(yyyyuua(yv))");
-        if (r)
-                return (r > 0) ? -ENOTRECOVERABLE : r;
 
         r = c_dvar_new(&v);
         if (r)
@@ -404,32 +416,32 @@ int driver_handle_message(Peer *peer, Message *message) {
                 case DBUS_MESSAGE_FIELD_INVALID:
                         return -EBADMSG;
                 case DBUS_MESSAGE_FIELD_PATH:
-                        c_dvar_read(v, "<o>)", NULL, &path);
+                        c_dvar_read(v, "<o>)", c_dvar_type_o, &path);
                         break;
                 case DBUS_MESSAGE_FIELD_INTERFACE:
-                        c_dvar_read(v, "<s>)", NULL, &interface);
+                        c_dvar_read(v, "<s>)", c_dvar_type_s, &interface);
                         break;
                 case DBUS_MESSAGE_FIELD_MEMBER:
-                        c_dvar_read(v, "<s>)", NULL, &member);
+                        c_dvar_read(v, "<s>)", c_dvar_type_s, &member);
                         break;
                 case DBUS_MESSAGE_FIELD_ERROR_NAME:
-                        c_dvar_read(v, "<s>)", NULL, &error_name);
+                        c_dvar_read(v, "<s>)", c_dvar_type_s, &error_name);
                         break;
                 case DBUS_MESSAGE_FIELD_REPLY_SERIAL:
-                        c_dvar_read(v, "<u>)", NULL, &reply_serial);
+                        c_dvar_read(v, "<u>)", c_dvar_type_u, &reply_serial);
                         break;
                 case DBUS_MESSAGE_FIELD_DESTINATION:
-                        c_dvar_read(v, "<s>)", NULL, &destination);
+                        c_dvar_read(v, "<s>)", c_dvar_type_s, &destination);
                         break;
                 case DBUS_MESSAGE_FIELD_SENDER:
                         /* XXX: check with dbus-daemon(1) on what to do */
-                        c_dvar_read(v, "<s>)", NULL, &sender);
+                        c_dvar_read(v, "<s>)", c_dvar_type_s, &sender);
                         break;
                 case DBUS_MESSAGE_FIELD_SIGNATURE:
-                        c_dvar_read(v, "<g>)", NULL, &signature);
+                        c_dvar_read(v, "<g>)", c_dvar_type_g, &signature);
                         break;
                 case DBUS_MESSAGE_FIELD_UNIX_FDS:
-                        c_dvar_read(v, "<u>)", NULL, &n_fds);
+                        c_dvar_read(v, "<u>)", c_dvar_type_u, &n_fds);
                         break;
                 default:
                         c_dvar_skip(v, "v)");
