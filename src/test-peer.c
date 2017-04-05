@@ -7,8 +7,8 @@
 #include <sys/epoll.h>
 #include <sys/socket.h>
 #include "bus.h"
-#include "dbus-socket.h"
 #include "peer.h"
+#include "socket.h"
 
 static void test_setup(void) {
         _c_cleanup_(bus_freep) Bus *bus = NULL;

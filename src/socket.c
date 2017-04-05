@@ -17,8 +17,8 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <sys/un.h>
-#include "dbus-socket.h"
 #include "message.h"
+#include "socket.h"
 
 #define DBUS_SOCKET_MMSG_MAX (16)
 
