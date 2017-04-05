@@ -47,6 +47,7 @@ libdbus_broker_dep = declare_dependency(include_directories: include_directories
 
 if dep_systemd.found()
         test_broker = executable('test-broker', ['test-broker.c'], dependencies: [ libdbus_broker_dep, dep_thread, dep_systemd ])
+        test('In-process broker', test_broker)
 endif
 
 test_bus = executable('test-bus', ['test-bus.c'], dependencies: libdbus_broker_dep)

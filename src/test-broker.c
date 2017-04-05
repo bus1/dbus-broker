@@ -3,6 +3,7 @@
  */
 
 #include <c-macro.h>
+#include <pthread.h>
 #include <stdlib.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -10,18 +11,14 @@
 #include <systemd/sd-bus.h>
 #include "test.h"
 
-static void test_setup(void) {
-        _c_cleanup_(sd_bus_unrefp) sd_bus *bus = NULL;
-        struct sockaddr_un address;
-        socklen_t addrlen;
-        int r, fd;
-
-        spawn_bus(&address, &addrlen);
+static sd_bus *connect_bus(struct sockaddr_un *address, socklen_t addrlen) {
+        sd_bus *bus;
+        int fd, r;
 
         fd = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
         assert(fd >= 0);
 
-        r = connect(fd, (struct sockaddr*)&address, addrlen);
+        r = connect(fd, (struct sockaddr*)address, addrlen);
         assert(r >= 0);
 
         r = sd_bus_new(&bus);
@@ -36,15 +33,36 @@ static void test_setup(void) {
         r = sd_bus_start(bus);
         assert(r >= 0);
 
-        for (;;) {
-                r = sd_bus_process(bus, NULL);
-                if (r > 0)
-                        continue;
-                assert(r == 0);
+        return bus;
+}
 
-                r = sd_bus_wait(bus, -1);
-                assert(r >= 0);
-        }
+static void test_setup(void) {
+        _c_cleanup_(sd_bus_unrefp) sd_bus *bus1 = NULL, *bus2 = NULL;
+        const char *unique_name1, *unique_name2;
+        struct sockaddr_un address;
+        socklen_t addrlen;
+        pthread_t thread;
+        void *retval;
+        int r;
+
+        thread = test_spawn_bus(&address, &addrlen);
+
+        bus1 = connect_bus(&address, addrlen);
+        bus2 = connect_bus(&address, addrlen);
+
+        r = sd_bus_get_unique_name(bus1, &unique_name1);
+        assert(r >= 0);
+        assert(strcmp(unique_name1, ":1.0") == 0);
+
+        r = sd_bus_get_unique_name(bus2, &unique_name2);
+        assert(r >= 0);
+        assert(strcmp(unique_name2, ":1.1") == 0);
+
+        r = pthread_cancel(thread);
+        assert(r == 0);
+
+        r = pthread_join(thread, &retval);
+        assert(r == 0 && retval == PTHREAD_CANCELED);
 }
 
 int main(int argc, char **argv) {
