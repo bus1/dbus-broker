@@ -127,18 +127,18 @@ int bus_dispatch(Bus *bus) {
 
         c_list_swap(&bus->ready_list, &list);
 
-        return !c_list_is_empty(&bus->ready_list);
+        return 0;
 }
 
 int bus_run(Bus *bus) {
         int r;
 
         for (;;) {
-                r = bus_dispatch(bus);
+                r = dispatch_context_poll(&bus->dispatcher, c_list_is_empty(&bus->ready_list) ? 0 : 1);
                 if (r < 0)
                         return r;
 
-                r = dispatch_context_poll(&bus->dispatcher, (r > 0) ? 0 : -1);
+                r = bus_dispatch(bus);
                 if (r < 0)
                         return r;
         }
