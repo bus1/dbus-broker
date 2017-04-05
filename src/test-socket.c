@@ -6,8 +6,8 @@
 #include <stdlib.h>
 #include <sys/types.h>
 #include <sys/socket.h>
-#include "dbus-message.h"
 #include "dbus-socket.h"
+#include "message.h"
 
 static void test_setup(void) {
         _c_cleanup_(dbus_socket_freep) DBusSocket *socket = NULL;

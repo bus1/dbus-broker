@@ -6,8 +6,8 @@
 #include <c-macro.h>
 #include <stdlib.h>
 #include "bus.h"
-#include "dbus-message.h"
 #include "driver.h"
+#include "message.h"
 #include "peer.h"
 
 /* XXX: move to where it belongs */

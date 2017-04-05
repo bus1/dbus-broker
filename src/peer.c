@@ -10,10 +10,10 @@
 #include <sys/types.h>
 #include "bus.h"
 #include "dbus-match.h"
-#include "dbus-message.h"
 #include "dbus-socket.h"
 #include "dispatch.h"
 #include "driver.h"
+#include "message.h"
 #include "peer.h"
 #include "user.h"
 

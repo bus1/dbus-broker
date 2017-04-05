@@ -6,7 +6,7 @@
 #include <c-ref.h>
 #include <endian.h>
 #include <stdlib.h>
-#include "dbus-message.h"
+#include "message.h"
 
 /**
  * dbus_message_new() - XXX

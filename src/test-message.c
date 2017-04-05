@@ -4,7 +4,7 @@
 
 #include <c-macro.h>
 #include <stdlib.h>
-#include "dbus-message.h"
+#include "message.h"
 
 static void test_setup(void) {
         _c_cleanup_(dbus_message_unrefp) DBusMessage *m1 = NULL, *m2, *m3;
