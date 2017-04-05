@@ -26,7 +26,6 @@ int message_new(Message **messagep, MessageHeader header) {
         }
 
         n_data = c_align8(n_header) + n_body;
-
         if (n_data > MESSAGE_SIZE_MAX)
                 return -EMSGSIZE;
 
@@ -38,12 +37,15 @@ int message_new(Message **messagep, MessageHeader header) {
         message->big_endian = (header.endian == 'B');
         message->n_fds = 0;
         message->fds = NULL;
+        message->n_data = n_data;
+        message->n_copied = 0;
         message->n_header = n_header;
         message->n_body = n_body;
-        message->n_data = n_data;
-        message->n_copied = sizeof(header);
+        message->data = message + 1;
         message->header = (void *)message->data;
         message->body = message->data + c_align8(n_header);
+
+        message->n_copied += sizeof(header);
         memcpy(message->data, &header, sizeof(header));
 
         *messagep = message;

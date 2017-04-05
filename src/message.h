@@ -31,15 +31,14 @@ struct Message {
         size_t n_fds;
         int *fds;
 
-        size_t n_header;
-        size_t n_body;
         size_t n_data;
         size_t n_copied;
+        size_t n_header;
+        size_t n_body;
 
+        void *data;
         MessageHeader *header;
         void *body;
-
-        char data[];
 };
 
 int message_new(Message **messagep, MessageHeader header);
