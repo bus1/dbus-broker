@@ -8,7 +8,7 @@
 #include <stdlib.h>
 #include <c-list.h>
 
-typedef struct DBusMessage DBusMessage;
+typedef struct Message Message;
 typedef struct Socket Socket;
 
 #define SOCKET_LINE_MAX (16UL * 1024UL) /* taken from dbus-daemon(1) */
@@ -31,7 +31,7 @@ struct Socket {
                 size_t data_end;
                 size_t data_pos;
 
-                DBusMessage *pending_message;
+                Message *pending_message;
         } in;
 
         struct SocketOut {
@@ -44,10 +44,10 @@ int socket_new(Socket **socketp, int fd);
 Socket *socket_free(Socket *socket);
 
 int socket_read_line(Socket *socket, char **linep, size_t *np);
-int socket_read_message(Socket *socket, DBusMessage **messagep);
+int socket_read_message(Socket *socket, Message **messagep);
 
 int socket_reserve_line(Socket *socket, size_t n_bytes, char **linep, size_t **posp);
-int socket_queue_message(Socket *socket, DBusMessage *message);
+int socket_queue_message(Socket *socket, Message *message);
 
 int socket_write(Socket *socket);
 

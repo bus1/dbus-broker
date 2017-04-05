@@ -8,12 +8,12 @@
 #include <c-ref.h>
 #include <stdlib.h>
 
-typedef struct DBusMessage DBusMessage;
-typedef struct DBusMessageHeader DBusMessageHeader;
+typedef struct Message Message;
+typedef struct MessageHeader MessageHeader;
 
-#define DBUS_MESSAGE_SIZE_MAX (128UL * 1024UL * 1024UL) /* taken from spec */
+#define MESSAGE_SIZE_MAX (128UL * 1024UL * 1024UL) /* taken from spec */
 
-struct DBusMessageHeader {
+struct MessageHeader {
         uint8_t endian;
         uint8_t type;
         uint8_t flags;
@@ -23,7 +23,7 @@ struct DBusMessageHeader {
         uint32_t n_fields;
 } _c_packed_;
 
-struct DBusMessage {
+struct Message {
         _Atomic unsigned long n_refs;
 
         bool big_endian : 1;
@@ -36,31 +36,31 @@ struct DBusMessage {
         size_t n_data;
         size_t n_copied;
 
-        DBusMessageHeader *header;
+        MessageHeader *header;
         void *body;
 
         char data[];
 };
 
-int dbus_message_new(DBusMessage **messagep, DBusMessageHeader header);
-void dbus_message_free(_Atomic unsigned long *n_refs, void *userdata);
+int message_new(Message **messagep, MessageHeader header);
+void message_free(_Atomic unsigned long *n_refs, void *userdata);
 
 /**
- * dbus_message_ref() - XXX
+ * message_ref() - XXX
  */
-static inline DBusMessage *dbus_message_ref(DBusMessage *message) {
+static inline Message *message_ref(Message *message) {
         if (message)
                 c_ref_inc(&message->n_refs);
         return message;
 }
 
 /**
- * dbus_message_unref() - XXX
+ * message_unref() - XXX
  */
-static inline DBusMessage *dbus_message_unref(DBusMessage *message) {
+static inline Message *message_unref(Message *message) {
         if (message)
-                c_ref_dec(&message->n_refs, dbus_message_free, NULL);
+                c_ref_dec(&message->n_refs, message_free, NULL);
         return NULL;
 }
 
-C_DEFINE_CLEANUP(DBusMessage *, dbus_message_unref);
+C_DEFINE_CLEANUP(Message *, message_unref);

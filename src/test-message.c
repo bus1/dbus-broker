@@ -7,57 +7,57 @@
 #include "message.h"
 
 static void test_setup(void) {
-        _c_cleanup_(dbus_message_unrefp) DBusMessage *m1 = NULL, *m2, *m3;
-        DBusMessageHeader hdr = { .endian = 'l' };
+        _c_cleanup_(message_unrefp) Message *m1 = NULL, *m2, *m3;
+        MessageHeader hdr = { .endian = 'l' };
         int r;
 
         /* verify constructors / destructors */
 
-        r = dbus_message_new(&m2, hdr);
+        r = message_new(&m2, hdr);
         assert(r >= 0);
 
-        r = dbus_message_new(&m3, hdr);
+        r = message_new(&m3, hdr);
         assert(r >= 0);
 
-        m3 = dbus_message_unref(m3);
-        m1 = dbus_message_unref(m1);
+        m3 = message_unref(m3);
+        m1 = message_unref(m1);
 }
 
 static void test_size(void) {
-        DBusMessageHeader hdr = { .endian = 'l' };
-        DBusMessage *m;
+        MessageHeader hdr = { .endian = 'l' };
+        Message *m;
         int r;
 
         /* verify total message size cannot exceed 128MB */
 
         hdr.n_body = 0;
-        r = dbus_message_new(&m, hdr);
+        r = message_new(&m, hdr);
         assert(r >= 0);
-        dbus_message_unref(m);
+        message_unref(m);
 
         hdr.n_body = 128;
-        r = dbus_message_new(&m, hdr);
+        r = message_new(&m, hdr);
         assert(r >= 0);
-        dbus_message_unref(m);
+        message_unref(m);
 
-        hdr.n_body = 128UL * 1024UL * 1024UL - sizeof(DBusMessageHeader);
-        r = dbus_message_new(&m, hdr);
+        hdr.n_body = 128UL * 1024UL * 1024UL - sizeof(MessageHeader);
+        r = message_new(&m, hdr);
         assert(r >= 0);
-        dbus_message_unref(m);
+        message_unref(m);
 
-        hdr.n_body = 128UL * 1024UL * 1024UL - sizeof(DBusMessageHeader) + 1UL;
-        r = dbus_message_new(&m, hdr);
+        hdr.n_body = 128UL * 1024UL * 1024UL - sizeof(MessageHeader) + 1UL;
+        r = message_new(&m, hdr);
         assert(r < 0);
 
         hdr.n_fields = 8;
-        hdr.n_body = 128UL * 1024UL * 1024UL - sizeof(DBusMessageHeader) - 8;
-        r = dbus_message_new(&m, hdr);
+        hdr.n_body = 128UL * 1024UL * 1024UL - sizeof(MessageHeader) - 8;
+        r = message_new(&m, hdr);
         assert(r >= 0);
-        dbus_message_unref(m);
+        message_unref(m);
 
         hdr.n_fields = 8 + 1;
-        hdr.n_body = 128UL * 1024UL * 1024UL - sizeof(DBusMessageHeader) - 8;
-        r = dbus_message_new(&m, hdr);
+        hdr.n_body = 128UL * 1024UL * 1024UL - sizeof(MessageHeader) - 8;
+        r = message_new(&m, hdr);
         assert(r < 0);
 }
 

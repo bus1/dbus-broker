@@ -69,9 +69,9 @@ static void test_line(void) {
 static void test_message(void) {
         _c_cleanup_(socket_freep) Socket *socket1 = NULL,
                                                   *socket2 = NULL;
-        _c_cleanup_(dbus_message_unrefp) DBusMessage *message1 = NULL,
+        _c_cleanup_(message_unrefp) Message *message1 = NULL,
                                                      *message2 = NULL;
-        DBusMessageHeader header = {
+        MessageHeader header = {
                 .endian = 'l',
         };
         int pair[2], r;
@@ -88,7 +88,7 @@ static void test_message(void) {
         r = socket_read_message(socket2, &message2);
         assert(r == -EAGAIN);
 
-        r = dbus_message_new(&message1, header);
+        r = message_new(&message1, header);
         assert(r >= 0);
 
         r = socket_queue_message(socket1, message1);

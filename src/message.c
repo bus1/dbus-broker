@@ -9,10 +9,10 @@
 #include "message.h"
 
 /**
- * dbus_message_new() - XXX
+ * message_new() - XXX
  */
-int dbus_message_new(DBusMessage **messagep, DBusMessageHeader header) {
-        _c_cleanup_(dbus_message_unrefp) DBusMessage *message = NULL;
+int message_new(Message **messagep, MessageHeader header) {
+        _c_cleanup_(message_unrefp) Message *message = NULL;
         uint64_t n_header, n_body, n_data;
 
         if (_c_likely_(header.endian == 'l')) {
@@ -27,7 +27,7 @@ int dbus_message_new(DBusMessage **messagep, DBusMessageHeader header) {
 
         n_data = c_align8(n_header) + n_body;
 
-        if (n_data > DBUS_MESSAGE_SIZE_MAX)
+        if (n_data > MESSAGE_SIZE_MAX)
                 return -EMSGSIZE;
 
         message = malloc(sizeof(*message) + c_align8(n_data));
@@ -51,9 +51,9 @@ int dbus_message_new(DBusMessage **messagep, DBusMessageHeader header) {
         return 0;
 }
 
-/* internal callback for dbus_message_unref() */
-void dbus_message_free(_Atomic unsigned long *n_refs, void *userdata) {
-        DBusMessage *message = c_container_of(n_refs, DBusMessage, n_refs);
+/* internal callback for message_unref() */
+void message_free(_Atomic unsigned long *n_refs, void *userdata) {
+        Message *message = c_container_of(n_refs, Message, n_refs);
 
         while (message->n_fds > 0)
                 close(message->fds[--message->n_fds]);

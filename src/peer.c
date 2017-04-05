@@ -18,7 +18,7 @@
 #include "user.h"
 
 static int peer_dispatch_read_message(Peer *peer) {
-        _c_cleanup_(dbus_message_unrefp) DBusMessage *message = NULL;
+        _c_cleanup_(message_unrefp) Message *message = NULL;
         int r;
 
         r = socket_read_message(peer->socket, &message);

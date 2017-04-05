@@ -36,7 +36,7 @@ struct SocketLineBuffer {
 
 struct SocketMessageEntry {
         CList link;
-        DBusMessage *message;
+        Message *message;
         size_t data_written;
         struct iovec iov;
         struct cmsghdr control[];
@@ -66,7 +66,7 @@ static SocketLineBuffer *socket_line_buffer_free(SocketLineBuffer *buffer) {
 
 
 static SocketMessageEntry *socket_message_entry_free(SocketMessageEntry *entry) {
-        dbus_message_unref(entry->message);
+        message_unref(entry->message);
         c_list_unlink(&entry->link);
         free(entry);
         return NULL;
@@ -112,7 +112,7 @@ Socket *socket_free(Socket *socket) {
         while ((entry = c_list_first_entry(&socket->out.messages, SocketMessageEntry, link)))
                 socket_message_entry_free(entry);
 
-        dbus_message_unref(socket->in.pending_message);
+        message_unref(socket->in.pending_message);
         free(socket->in.data);
         free(socket->in.fds);
         free(socket);
@@ -319,9 +319,9 @@ int socket_read_line(Socket *socket, char **linep, size_t *np) {
         return socket_line_pop(socket, linep, np);
 }
 
-static int socket_message_pop(Socket *socket, DBusMessage **messagep) {
-        DBusMessageHeader header;
-        DBusMessage *msg;
+static int socket_message_pop(Socket *socket, Message **messagep) {
+        MessageHeader header;
+        Message *msg;
         size_t n, n_data;
         int r;
 
@@ -329,13 +329,13 @@ static int socket_message_pop(Socket *socket, DBusMessage **messagep) {
         n_data = socket->in.data_end - socket->in.data_start;
 
         if (!msg) {
-                n = sizeof(DBusMessageHeader);
+                n = sizeof(MessageHeader);
                 if (n_data < n)
                         return -EAGAIN;
 
                 memcpy(&header, socket->in.data + socket->in.data_start, n);
 
-                r = dbus_message_new(&msg, header);
+                r = message_new(&msg, header);
                 if (r < 0)
                         return r;
 
@@ -386,8 +386,8 @@ static int socket_message_shift(Socket *socket) {
 /**
  * socket_read_message() - XXX
  */
-int socket_read_message(Socket *socket, DBusMessage **messagep) {
-        DBusMessage *msg;
+int socket_read_message(Socket *socket, Message **messagep) {
+        Message *msg;
         int r;
 
         if (_c_unlikely_(!socket->lines_done)) {
@@ -448,7 +448,7 @@ int socket_reserve_line(Socket *socket,
         return 0;
 }
 
-int socket_queue_message(Socket *socket, DBusMessage *message) {
+int socket_queue_message(Socket *socket, Message *message) {
         SocketMessageEntry *entry;
         size_t controllen;
 
@@ -474,7 +474,7 @@ int socket_queue_message(Socket *socket, DBusMessage *message) {
                        sizeof(int) * message->n_fds);
         }
 
-        entry->message = dbus_message_ref(message);
+        entry->message = message_ref(message);
         c_list_link_tail(&socket->out.messages, &entry->link);
 
         return 0;
@@ -547,8 +547,8 @@ int socket_write(Socket *socket) {
 
                 entry->data_written += msgs[vlen].msg_len;
 
-                if (entry->data_written >= sizeof(DBusMessageHeader) + entry->message->n_data) {
-                        assert(entry->data_written == sizeof(DBusMessageHeader) + entry->message->n_data);
+                if (entry->data_written >= sizeof(MessageHeader) + entry->message->n_data) {
+                        assert(entry->data_written == sizeof(MessageHeader) + entry->message->n_data);
                         socket_message_entry_free(entry);
                 }
         }
