@@ -39,6 +39,7 @@ struct Message {
         void *data;
         MessageHeader *header;
         void *body;
+        struct iovec vecs[3];
 };
 
 int message_new(Message **messagep, MessageHeader header);

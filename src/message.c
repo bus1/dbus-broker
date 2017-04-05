@@ -44,6 +44,9 @@ int message_new(Message **messagep, MessageHeader header) {
         message->data = message + 1;
         message->header = (void *)message->data;
         message->body = message->data + c_align8(n_header);
+        message->vecs[0] = (struct iovec){ message->header, c_align8(n_header) };
+        message->vecs[1] = (struct iovec){ NULL, 0 };
+        message->vecs[2] = (struct iovec){ message->body, n_body };
 
         message->n_copied += sizeof(header);
         memcpy(message->data, &header, sizeof(header));
