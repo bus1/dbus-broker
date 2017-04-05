@@ -13,10 +13,10 @@ static void test_setup(void) {
 
         /* verify constructors / destructors */
 
-        r = message_new(&m2, hdr);
+        r = message_new_incoming(&m2, hdr);
         assert(r >= 0);
 
-        r = message_new(&m3, hdr);
+        r = message_new_incoming(&m3, hdr);
         assert(r >= 0);
 
         m3 = message_unref(m3);
@@ -31,33 +31,33 @@ static void test_size(void) {
         /* verify total message size cannot exceed 128MB */
 
         hdr.n_body = 0;
-        r = message_new(&m, hdr);
+        r = message_new_incoming(&m, hdr);
         assert(r >= 0);
         message_unref(m);
 
         hdr.n_body = 128;
-        r = message_new(&m, hdr);
+        r = message_new_incoming(&m, hdr);
         assert(r >= 0);
         message_unref(m);
 
         hdr.n_body = 128UL * 1024UL * 1024UL - sizeof(MessageHeader);
-        r = message_new(&m, hdr);
+        r = message_new_incoming(&m, hdr);
         assert(r >= 0);
         message_unref(m);
 
         hdr.n_body = 128UL * 1024UL * 1024UL - sizeof(MessageHeader) + 1UL;
-        r = message_new(&m, hdr);
+        r = message_new_incoming(&m, hdr);
         assert(r < 0);
 
         hdr.n_fields = 8;
         hdr.n_body = 128UL * 1024UL * 1024UL - sizeof(MessageHeader) - 8;
-        r = message_new(&m, hdr);
+        r = message_new_incoming(&m, hdr);
         assert(r >= 0);
         message_unref(m);
 
         hdr.n_fields = 8 + 1;
         hdr.n_body = 128UL * 1024UL * 1024UL - sizeof(MessageHeader) - 8;
-        r = message_new(&m, hdr);
+        r = message_new_incoming(&m, hdr);
         assert(r < 0);
 }
 

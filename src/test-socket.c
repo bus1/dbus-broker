@@ -88,7 +88,7 @@ static void test_message(void) {
         r = socket_read_message(socket2, &message2);
         assert(r == -EAGAIN);
 
-        r = message_new(&message1, header);
+        r = message_new_incoming(&message1, header);
         assert(r >= 0);
 
         r = socket_queue_message(socket1, message1);

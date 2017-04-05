@@ -27,6 +27,7 @@ struct Message {
         _Atomic unsigned long n_refs;
 
         bool big_endian : 1;
+        bool allocated_data : 1;
 
         size_t n_fds;
         int *fds;
@@ -42,7 +43,8 @@ struct Message {
         struct iovec vecs[3];
 };
 
-int message_new(Message **messagep, MessageHeader header);
+int message_new_incoming(Message **messagep, MessageHeader header);
+int message_new_outgoing(Message **messagep, void *data, size_t n_data);
 void message_free(_Atomic unsigned long *n_refs, void *userdata);
 
 /**

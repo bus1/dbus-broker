@@ -335,7 +335,7 @@ static int socket_message_pop(Socket *socket, Message **messagep) {
 
                 memcpy(&header, socket->in.data + socket->in.data_start, n);
 
-                r = message_new(&msg, header);
+                r = message_new_incoming(&msg, header);
                 if (r < 0)
                         return r;
 
