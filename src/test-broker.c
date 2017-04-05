@@ -9,6 +9,7 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <systemd/sd-bus.h>
+#include <systemd/sd-id128.h>
 #include "test.h"
 
 static sd_bus *connect_bus(struct sockaddr_un *address, socklen_t addrlen) {
@@ -39,6 +40,7 @@ static sd_bus *connect_bus(struct sockaddr_un *address, socklen_t addrlen) {
 static void test_setup(void) {
         _c_cleanup_(sd_bus_unrefp) sd_bus *bus1 = NULL, *bus2 = NULL;
         const char *unique_name1, *unique_name2;
+        sd_id128_t bus_id1, bus_id2;
         struct sockaddr_un address;
         socklen_t addrlen;
         pthread_t thread;
@@ -53,10 +55,15 @@ static void test_setup(void) {
         r = sd_bus_get_unique_name(bus1, &unique_name1);
         assert(r >= 0);
         assert(strcmp(unique_name1, ":1.0") == 0);
+        r = sd_bus_get_bus_id(bus1, &bus_id1);
+        assert(r >= 0);
 
         r = sd_bus_get_unique_name(bus2, &unique_name2);
         assert(r >= 0);
         assert(strcmp(unique_name2, ":1.1") == 0);
+        r = sd_bus_get_bus_id(bus2, &bus_id2);
+        assert(r >= 0);
+        assert(sd_id128_equal(bus_id1, bus_id2));
 
         r = pthread_cancel(thread);
         assert(r == 0);

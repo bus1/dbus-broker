@@ -5,6 +5,7 @@
 #include <c-dvar.h>
 #include <c-dvar-type.h>
 #include <c-macro.h>
+#include <c-string.h>
 #include <stdlib.h>
 #include <sys/epoll.h>
 #include "bus.h"
@@ -177,6 +178,20 @@ static int driver_method_remove_match(Peer *peer, CDVar *in_v, CDVar *out_v) {
 }
 
 static int driver_method_get_id(Peer *peer, CDVar *in_v, CDVar *out_v) {
+        char buffer[sizeof(peer->bus->guid) * 2];
+        int r;
+
+        /* verify the input argument */
+        c_dvar_read(in_v, "()");
+
+        r = c_dvar_end_read(in_v);
+        if (r)
+                return (r > 0) ? -ENOTRECOVERABLE : r;
+
+        /* write the output message */
+        c_string_to_hex(peer->bus->guid, sizeof(peer->bus->guid), buffer);
+        c_dvar_write(out_v, "(s)", buffer);
+
         return 0;
 }
 
