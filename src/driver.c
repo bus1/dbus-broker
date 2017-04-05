@@ -30,6 +30,10 @@
 #define DBUS_MESSAGE_FIELD_SIGNATURE    (8)
 #define DBUS_MESSAGE_FIELD_UNIX_FDS     (9)
 
+#define DBUS_HEADER_FLAG_NO_REPLY_EXPECTED                      (1UL << 0)
+#define DBUS_HEADER_FLAG_NO_AUTO_START                          (1UL << 1)
+#define DBUS_HEADER_FLAG_ALLOW_INTERACTIVE_AUTHORIZATION        (1UL << 2)
+
 typedef struct DriverMethod DriverMethod;
 typedef int (*DriverMethodFn) (Peer *peer, CDVar *var_in, CDVar *var_out);
 
@@ -83,16 +87,14 @@ static void driver_write_reply_header(CDVar *var,
                                       Peer *peer,
                                       uint32_t serial,
                                       CDVarType *type) {
-        c_dvar_write(var, "yyyyuu[(y<u>)(y<s>)",
-                     c_dvar_is_big_endian(var) ? 'B' : 'l', DBUS_MESSAGE_TYPE_METHOD_REPLY, 0, 1, 0, 1,
+        c_dvar_write(var, "yyyyuu[(y<u>)(y<s>)(y<",
+                     c_dvar_is_big_endian(var) ? 'B' : 'l', DBUS_MESSAGE_TYPE_METHOD_REPLY, DBUS_HEADER_FLAG_NO_REPLY_EXPECTED, 1, 0, 1,
                      DBUS_MESSAGE_FIELD_REPLY_SERIAL, c_dvar_type_u, serial,
-                     DBUS_MESSAGE_FIELD_SENDER, c_dvar_type_s, "org.freedesktop.DBus");
-
-        c_dvar_write(var, "(y<", DBUS_MESSAGE_FIELD_DESTINATION, c_dvar_type_s);
+                     DBUS_MESSAGE_FIELD_SENDER, c_dvar_type_s, "org.freedesktop.DBus",
+                     DBUS_MESSAGE_FIELD_DESTINATION, c_dvar_type_s);
         driver_dvar_write_unique_name(var, peer);
-        c_dvar_write(var, ">)");
-
-        c_dvar_write(var, "(y<", DBUS_MESSAGE_FIELD_SIGNATURE, c_dvar_type_g);
+        c_dvar_write(var, ">)(y<",
+                     DBUS_MESSAGE_FIELD_SIGNATURE, c_dvar_type_g);
         driver_dvar_write_signature(var, type + strlen("(yyyyuua(yv)"));
         c_dvar_write(var, ">)]");
 }
