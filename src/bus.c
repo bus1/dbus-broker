@@ -134,7 +134,7 @@ int bus_run(Bus *bus) {
         int r;
 
         for (;;) {
-                r = dispatch_context_poll(&bus->dispatcher, c_list_is_empty(&bus->ready_list) ? 0 : 1);
+                r = dispatch_context_poll(&bus->dispatcher, c_list_is_empty(&bus->ready_list) ? 0 : -1);
                 if (r < 0)
                         return r;
 
