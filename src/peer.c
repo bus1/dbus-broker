@@ -21,7 +21,7 @@ static int peer_dispatch_read_message(Peer *peer) {
         _c_cleanup_(dbus_message_unrefp) DBusMessage *message = NULL;
         int r;
 
-        r = dbus_socket_read_message(peer->socket, &message);
+        r = socket_read_message(peer->socket, &message);
         if (r < 0)
                 return r;
 
@@ -37,14 +37,14 @@ static int peer_dispatch_read_line(Peer *peer) {
         size_t *pos, n_line;
         int r;
 
-        r = dbus_socket_read_line(peer->socket, &line_in, &n_line);
+        r = socket_read_line(peer->socket, &line_in, &n_line);
         if (r < 0)
                 return r;
 
-        r = dbus_socket_reserve_line(peer->socket,
-                                     DBUS_SASL_MAX_OUT_LINE_LENGTH,
-                                     &line_out,
-                                     &pos);
+        r = socket_reserve_line(peer->socket,
+                                DBUS_SASL_MAX_OUT_LINE_LENGTH,
+                                &line_out,
+                                &pos);
         if (r < 0)
                 return r;
 
@@ -84,7 +84,7 @@ static int peer_dispatch_read(Peer *peer) {
 static int peer_dispatch_write(Peer *peer) {
         int r;
 
-        r = dbus_socket_write(peer->socket);
+        r = socket_write(peer->socket);
         if (r == -EAGAIN) {
                 /* not able to write more */
                 dispatch_file_clear(&peer->dispatch_file, EPOLLOUT);
@@ -200,7 +200,7 @@ int peer_new(Peer **peerp,
         peer->dispatch_file = (DispatchFile)DISPATCH_FILE_NULL(peer->dispatch_file);
         dbus_sasl_init(&peer->sasl, ucred.uid, bus->guid);
 
-        r = dbus_socket_new(&peer->socket, fd);
+        r = socket_new(&peer->socket, fd);
         if (r < 0)
                 return r;
 
@@ -247,7 +247,7 @@ Peer *peer_free(Peer *peer) {
 
         dispatch_file_deinit(&peer->dispatch_file);
         dbus_sasl_deinit(&peer->sasl);
-        dbus_socket_free(peer->socket);
+        socket_free(peer->socket);
         user_entry_unref(peer->user);
         free(peer->seclabel);
         free(peer);

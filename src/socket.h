@@ -9,17 +9,17 @@
 #include <c-list.h>
 
 typedef struct DBusMessage DBusMessage;
-typedef struct DBusSocket DBusSocket;
+typedef struct Socket Socket;
 
-#define DBUS_SOCKET_LINE_MAX (16UL * 1024UL) /* taken from dbus-daemon(1) */
-#define DBUS_SOCKET_FD_MAX (253UL) /* taken from kernel SCM_MAX_FD */
+#define SOCKET_LINE_MAX (16UL * 1024UL) /* taken from dbus-daemon(1) */
+#define SOCKET_FD_MAX (253UL) /* taken from kernel SCM_MAX_FD */
 
-struct DBusSocket {
+struct Socket {
         int fd;
 
         bool lines_done : 1;
 
-        struct DBusSocketIn {
+        struct SocketIn {
                 bool null_byte_done : 1;
 
                 int *fds;
@@ -34,24 +34,21 @@ struct DBusSocket {
                 DBusMessage *pending_message;
         } in;
 
-        struct DBusSocketOut {
+        struct SocketOut {
                 CList lines;
                 CList messages;
         } out;
 };
 
-int dbus_socket_new(DBusSocket **socketp, int fd);
-DBusSocket *dbus_socket_free(DBusSocket *socket);
+int socket_new(Socket **socketp, int fd);
+Socket *socket_free(Socket *socket);
 
-int dbus_socket_read_line(DBusSocket *socket, char **linep, size_t *np);
-int dbus_socket_read_message(DBusSocket *socket, DBusMessage **messagep);
+int socket_read_line(Socket *socket, char **linep, size_t *np);
+int socket_read_message(Socket *socket, DBusMessage **messagep);
 
-int dbus_socket_reserve_line(DBusSocket *socket,
-                             size_t n_bytes,
-                             char **linep,
-                             size_t **posp);
-int dbus_socket_queue_message(DBusSocket *socket, DBusMessage *message);
+int socket_reserve_line(Socket *socket, size_t n_bytes, char **linep, size_t **posp);
+int socket_queue_message(Socket *socket, DBusMessage *message);
 
-int dbus_socket_write(DBusSocket *socket);
+int socket_write(Socket *socket);
 
-C_DEFINE_CLEANUP(DBusSocket *, dbus_socket_free);
+C_DEFINE_CLEANUP(Socket *, socket_free);

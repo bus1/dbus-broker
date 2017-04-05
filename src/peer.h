@@ -12,8 +12,8 @@
 #include "dispatch.h"
 
 typedef struct Bus Bus;
-typedef struct DBusSocket DBusSocket;
 typedef struct Peer Peer;
+typedef struct Socket Socket;
 typedef struct UserEntry UserEntry;
 
 struct Peer {
@@ -21,7 +21,7 @@ struct Peer {
         DBusSASL sasl;
         bool authenticated : 1;
         DispatchFile dispatch_file;
-        DBusSocket *socket;
+        Socket *socket;
         UserEntry *user;
         pid_t pid;
         char *seclabel;
