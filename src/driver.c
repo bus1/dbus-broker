@@ -93,7 +93,7 @@ static void driver_write_reply_header(CDVar *var,
         c_dvar_write(var, ">)");
 
         c_dvar_write(var, "(y<", DBUS_MESSAGE_FIELD_SIGNATURE, c_dvar_type_g);
-        driver_dvar_write_signature(var, type);
+        driver_dvar_write_signature(var, type + strlen("(yyyyuua(yv)"));
         c_dvar_write(var, ">)]");
 }
 
