@@ -41,10 +41,10 @@ static int peer_dispatch_read_line(Peer *peer) {
         if (r < 0)
                 return r;
 
-        r = socket_reserve_line(peer->socket,
-                                DBUS_SASL_MAX_OUT_LINE_LENGTH,
-                                &line_out,
-                                &pos);
+        r = socket_queue_line(peer->socket,
+                              DBUS_SASL_MAX_OUT_LINE_LENGTH,
+                              &line_out,
+                              &pos);
         if (r < 0)
                 return r;
 

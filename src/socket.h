@@ -46,7 +46,7 @@ Socket *socket_free(Socket *socket);
 int socket_read_line(Socket *socket, char **linep, size_t *np);
 int socket_read_message(Socket *socket, Message **messagep);
 
-int socket_reserve_line(Socket *socket, size_t n_bytes, char **linep, size_t **posp);
+int socket_queue_line(Socket *socket, size_t n_bytes, char **linep, size_t **posp);
 int socket_queue_message(Socket *socket, Message *message);
 
 int socket_write(Socket *socket);

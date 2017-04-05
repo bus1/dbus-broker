@@ -37,13 +37,13 @@ static void test_line(void) {
         r = socket_read_line(socket2, &line, &n_bytes);
         assert(r == -EAGAIN);
 
-        r = socket_reserve_line(socket1, 16, &line, &pos);
+        r = socket_queue_line(socket1, 16, &line, &pos);
         assert(r >= 0);
 
         memcpy(line, test, 1 + strlen(test + 1));
         *pos += 1 + strlen(test + 1);
 
-        r = socket_reserve_line(socket1, 16, &line, &pos);
+        r = socket_queue_line(socket1, 16, &line, &pos);
         assert(r >= 0);
 
         memcpy(line, test + 1, strlen(test + 1));

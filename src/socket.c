@@ -426,10 +426,7 @@ int socket_read_message(Socket *socket, Message **messagep) {
         return socket_message_pop(socket, messagep);
 }
 
-int socket_reserve_line(Socket *socket,
-                             size_t n_bytes,
-                             char **linep,
-                             size_t **posp) {
+int socket_queue_line(Socket *socket, size_t n_bytes, char **linep, size_t **posp) {
         SocketLineBuffer *buffer;
         int r;
 
