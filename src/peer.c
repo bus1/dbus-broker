@@ -130,7 +130,7 @@ static int peer_get_peersec(int fd, char **labelp, size_t *lenp) {
                 return -ENOMEM;
 
         for (;;) {
-                r = getsockopt(fd, SOL_SOCKET, SO_PEERSEC, &label, &len);
+                r = getsockopt(fd, SOL_SOCKET, SO_PEERSEC, label, &len);
                 if (r >= 0) {
                         label[len] = '\0';
                         *lenp = len;
