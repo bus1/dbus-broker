@@ -263,6 +263,7 @@ static int driver_method_update_activation_environment(Peer *peer, CDVar *in_v, 
 static int driver_method_get_name_owner(Peer *peer, CDVar *in_v, CDVar *out_v) {
         Peer *owner;
         const char *name;
+        int r;
 
         c_dvar_read(in_v, "(s)", &name);
 
