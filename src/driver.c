@@ -301,78 +301,67 @@ static int driver_dispatch_method(Peer *peer, uint32_t serial, const char *metho
         return -ENOENT;
 }
 
-static int driver_handle_method_call_internal(Peer *peer,
-                                              uint32_t serial,
-                                              const char *interface,
-                                              const char *member,
-                                              const char *path,
-                                              const char *signature,
-                                              Message *message) {
-        if (interface &&
-            _c_unlikely_(strcmp(interface, "org.freedesktop.DBus") != 0))
-                return -EBADMSG;
-
-        return driver_dispatch_method(peer, serial, member, signature, message);
-}
-
-static int driver_handle_method_call(Peer *peer,
+static int driver_dispatch_interface(Peer *peer,
                                      uint32_t serial,
-                                     const char *destination,
                                      const char *interface,
                                      const char *member,
                                      const char *path,
                                      const char *signature,
                                      Message *message) {
-        if (_c_unlikely_(!destination || !member || !path))
+        if (message->header->type != DBUS_MESSAGE_TYPE_METHOD_CALL)
                 return -EBADMSG;
 
-        if (_c_unlikely_(strcmp(destination, "org.freedesktop.DBus") == 0))
-                return driver_handle_method_call_internal(peer,
-                                                          serial,
-                                                          interface,
-                                                          member,
-                                                          path,
-                                                          signature,
-                                                          message);
-        else if (_c_unlikely_(!peer_is_registered(peer)))
+        if (interface && _c_unlikely_(strcmp(interface, "org.freedesktop.DBus") != 0))
                 return -EBADMSG;
+
+        /* XXX: path ? */
+
+        return driver_dispatch_method(peer, serial, member, signature, message);
+}
+
+static Peer *driver_find_peer_by_name(Bus *bus, const char *destination) {
+        if (*destination != ':') {
+                return name_registry_resolve_name(&bus->names, destination);
+        } else {
+                char *end;
+                uint64_t id;
+
+                if (strlen(destination) < strlen(":1."))
+                        return NULL;
+
+                destination += strlen(":1.");
+
+                errno = 0;
+                id = strtoull(destination, &end, 10);
+                if (errno != 0)
+                        return NULL;
+                if (*end || destination == end)
+                        return NULL;
+
+                return bus_find_peer(bus, id);
+        }
+}
+
+static int driver_forward_unicast(Peer *sender, const char *destination, const char *signature, Message *message) {
+        Peer *receiver;
+        int r;
+
+        receiver = driver_find_peer_by_name(sender->bus, destination);
+        if (!receiver)
+                return -EBADMSG;
+
+        /* XXX: verify message contents, append sender */
+
+        r = socket_queue_message(receiver->socket, message);
+        if (r)
+                return (r > 0) ? -ENOTRECOVERABLE : r;
+
+        dispatch_file_select(&receiver->dispatch_file, EPOLLOUT);
 
         return 0;
 }
 
-static int driver_handle_method_reply(Peer *peer,
-                                      const char *destination,
-                                      uint32_t reply_serial,
-                                      const char *signature,
-                                      Message *message) {
-        if (_c_unlikely_(!peer_is_registered(peer)))
-                return -EBADMSG;
-
-        return 0;
-}
-
-static int driver_handle_error(Peer *peer,
-                               const char *destination,
-                               uint32_t reply_serial,
-                               const char *error_name,
-                               const char *signature,
-                               Message *message) {
-        if (_c_unlikely_(!peer_is_registered(peer)))
-                return -EBADMSG;
-
-        return 0;
-}
-
-static int driver_handle_signal(Peer *peer,
-                                const char *destination,
-                                const char *interface,
-                                const char *member,
-                                const char *path,
-                                const char *signature,
-                                Message *message) {
-        if (_c_unlikely_(!peer_is_registered(peer)))
-                return -EBADMSG;
-
+static int driver_forward_broadcast(Peer *peer, const char *signature, Message *message) {
         return 0;
 }
 
@@ -402,7 +391,7 @@ int driver_handle_message(Peer *peer, Message *message) {
                    *error_name = NULL,
                    *destination = NULL,
                    *sender = NULL,
-                   *signature = NULL;
+                   *signature = "";
         uint32_t serial = 0, reply_serial = 0, n_fds = 0;
         uint8_t field;
         int r;
@@ -464,7 +453,7 @@ int driver_handle_message(Peer *peer, Message *message) {
                 }
         }
 
-        c_dvar_skip(v, "])");
+        c_dvar_read(v, "])");
 
         r = c_dvar_end_read(v);
         if (r)
@@ -475,44 +464,13 @@ int driver_handle_message(Peer *peer, Message *message) {
         while (_c_unlikely_(n_fds < message->n_fds))
                 close(message->fds[-- message->n_fds]);
 
-        if (!signature)
-                signature = "";
-
-        switch (message->header->type) {
-        case DBUS_MESSAGE_TYPE_INVALID:
-                return -EBADMSG;
-        case DBUS_MESSAGE_TYPE_METHOD_CALL:
-                return driver_handle_method_call(peer,
-                                                 serial,
-                                                 destination,
-                                                 interface,
-                                                 member,
-                                                 path,
-                                                 signature,
-                                                 message);
-        case DBUS_MESSAGE_TYPE_METHOD_REPLY:
-                return driver_handle_method_reply(peer,
-                                                  destination,
-                                                  reply_serial,
-                                                  signature,
-                                                  message);
-        case DBUS_MESSAGE_TYPE_ERROR:
-                return driver_handle_error(peer,
-                                           destination,
-                                           reply_serial,
-                                           error_name,
-                                           signature,
-                                           message);
-        case DBUS_MESSAGE_TYPE_SIGNAL:
-                return driver_handle_signal(peer,
-                                            destination,
-                                            interface,
-                                            member,
-                                            path,
-                                            signature,
-                                            message);
-        default:
-                break;
+        if (destination) {
+                if (_c_unlikely_(c_string_equal(destination, "org.freedesktop.DBus")))
+                        return driver_dispatch_interface(peer, serial, interface, member, path, signature, message);
+                else
+                        return driver_forward_unicast(peer, destination, signature, message);
+        } else {
+                return driver_forward_broadcast(peer, signature, message);
         }
 
         return 0;

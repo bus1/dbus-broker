@@ -39,8 +39,11 @@ static sd_bus *connect_bus(struct sockaddr_un *address, socklen_t addrlen) {
 
 static void test_setup(void) {
         _c_cleanup_(sd_bus_unrefp) sd_bus *bus1 = NULL, *bus2 = NULL;
+        _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *message1 = NULL, *message2 = NULL;
         const char *unique_name1, *unique_name2;
         sd_id128_t bus_id1, bus_id2;
+        uint64_t cookie1, cookie2;
+        uint8_t type;
         struct sockaddr_un address;
         socklen_t addrlen;
         pthread_t thread;
@@ -64,6 +67,26 @@ static void test_setup(void) {
         r = sd_bus_get_bus_id(bus2, &bus_id2);
         assert(r >= 0);
         assert(sd_id128_equal(bus_id1, bus_id2));
+
+        r = sd_bus_message_new_method_call(bus1, &message1, unique_name2, "/", "org.freedesktop.DBus", "Ping");
+        assert(r >= 0);
+
+        r = sd_bus_send(bus1, message1, &cookie1);
+        assert(r >= 0);
+
+        r = sd_bus_wait(bus2, -1);
+        assert(r == 1);
+
+        r = sd_bus_process(bus2, &message2);
+        assert(r > 0);
+
+        r = sd_bus_message_get_type(message2, &type);
+        assert(r >= 0);
+        assert(type = SD_BUS_MESSAGE_METHOD_CALL);
+
+        r = sd_bus_message_get_cookie(message2, &cookie2);
+        assert(r >= 0);
+        assert(cookie1 == cookie2);
 
         r = pthread_cancel(thread);
         assert(r == 0);
