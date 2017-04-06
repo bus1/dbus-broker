@@ -261,6 +261,21 @@ static int driver_method_update_activation_environment(Peer *peer, CDVar *in_v, 
 }
 
 static int driver_method_get_name_owner(Peer *peer, CDVar *in_v, CDVar *out_v) {
+        Peer *owner;
+        const char *name;
+
+        c_dvar_read(in_v, "(s)", &name);
+
+        r = c_dvar_end_read(in_v);
+        if (r)
+                return (r > 0) ? -ENOTRECOVERABLE : r;
+
+        owner = name_registry_resolve_name(&peer->bus->names, name);
+        if (!owner)
+                return -ENOTRECOVERABLE;
+
+        driver_dvar_write_unique_name(out_v, owner);
+
         return 0;
 }
 
