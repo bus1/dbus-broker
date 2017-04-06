@@ -544,8 +544,8 @@ int socket_write(Socket *socket) {
 
                 entry->data_written += msgs[vlen].msg_len;
 
-                if (entry->data_written >= sizeof(MessageHeader) + entry->message->n_data) {
-                        assert(entry->data_written == sizeof(MessageHeader) + entry->message->n_data);
+                if (entry->data_written >= entry->message->n_data) {
+                        assert(entry->data_written == entry->message->n_data);
                         socket_message_entry_free(entry);
                 }
         }
