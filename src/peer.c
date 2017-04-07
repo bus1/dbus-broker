@@ -2,13 +2,17 @@
  * Peers
  */
 
+#include <c-dvar.h>
+#include <c-dvar-type.h>
 #include <c-macro.h>
 #include <c-rbtree.h>
+#include <c-string.h>
 #include <stdlib.h>
 #include <sys/epoll.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include "bus.h"
+#include "dbus-protocol.h"
 #include "driver.h"
 #include "match.h"
 #include "message.h"
@@ -17,17 +21,141 @@
 #include "user.h"
 #include "util/dispatch.h"
 
+static int peer_forward_unicast(Peer *sender, const char *destination, const char *signature, Message *message) {
+        Peer *receiver;
+        int r;
+
+        receiver = bus_find_peer_by_name(sender->bus, destination);
+        if (!receiver)
+                return -EBADMSG;
+
+        /* XXX: verify message contents, append sender */
+
+        r = socket_queue_message(receiver->socket, message);
+        if (r)
+                return (r > 0) ? -ENOTRECOVERABLE : r;
+
+        dispatch_file_select(&receiver->dispatch_file, EPOLLOUT);
+
+        return 0;
+}
+
+static int peer_forward_broadcast(Peer *sender, const char *signature, Message *message) {
+        return 0;
+}
+
 static int peer_dispatch_read_message(Peer *peer) {
+        static const CDVarType type[] = {
+                C_DVAR_T_INIT(
+                        C_DVAR_T_TUPLE7(
+                                C_DVAR_T_y,
+                                C_DVAR_T_y,
+                                C_DVAR_T_y,
+                                C_DVAR_T_y,
+                                C_DVAR_T_u,
+                                C_DVAR_T_u,
+                                C_DVAR_T_ARRAY(
+                                        C_DVAR_T_TUPLE2(
+                                                C_DVAR_T_y,
+                                                C_DVAR_T_v
+                                        )
+                                )
+                        )
+                ), /* (yyyyuua(yv)) */
+        };
         _c_cleanup_(message_unrefp) Message *message = NULL;
+        _c_cleanup_(c_dvar_freep) CDVar *v = NULL;
+        const char *path = NULL,
+                   *interface = NULL,
+                   *member = NULL,
+                   *error_name = NULL,
+                   *destination = NULL,
+                   *sender = NULL,
+                   *signature = "";
+        uint32_t serial = 0, reply_serial = 0, n_fds = 0;
+        uint8_t field;
         int r;
 
         r = socket_read_message(peer->socket, &message);
         if (r < 0)
                 return r;
 
-        r = driver_handle_message(peer, message);
-        if (r < 0)
-                return r;
+        /*
+         * XXX: Rather than allocating @v, we should use its static versions on the stack,
+         *      once provided by c-dvar.
+         */
+
+        r = c_dvar_new(&v);
+        if (r)
+                return (r > 0) ? -ENOTRECOVERABLE : r;
+
+        c_dvar_begin_read(v, message->big_endian, type, message->header, message->n_header);
+
+        c_dvar_read(v, "(yyyyuu[", NULL, NULL, NULL, NULL, NULL, &serial);
+
+        while (c_dvar_more(v)) {
+                /*
+                 * XXX: What should we do on duplicates?
+                 */
+
+                c_dvar_read(v, "(y", &field);
+
+                switch (field) {
+                case DBUS_MESSAGE_FIELD_INVALID:
+                        return -EBADMSG;
+                case DBUS_MESSAGE_FIELD_PATH:
+                        c_dvar_read(v, "<o>)", c_dvar_type_o, &path);
+                        break;
+                case DBUS_MESSAGE_FIELD_INTERFACE:
+                        c_dvar_read(v, "<s>)", c_dvar_type_s, &interface);
+                        break;
+                case DBUS_MESSAGE_FIELD_MEMBER:
+                        c_dvar_read(v, "<s>)", c_dvar_type_s, &member);
+                        break;
+                case DBUS_MESSAGE_FIELD_ERROR_NAME:
+                        c_dvar_read(v, "<s>)", c_dvar_type_s, &error_name);
+                        break;
+                case DBUS_MESSAGE_FIELD_REPLY_SERIAL:
+                        c_dvar_read(v, "<u>)", c_dvar_type_u, &reply_serial);
+                        break;
+                case DBUS_MESSAGE_FIELD_DESTINATION:
+                        c_dvar_read(v, "<s>)", c_dvar_type_s, &destination);
+                        break;
+                case DBUS_MESSAGE_FIELD_SENDER:
+                        /* XXX: check with dbus-daemon(1) on what to do */
+                        c_dvar_read(v, "<s>)", c_dvar_type_s, &sender);
+                        break;
+                case DBUS_MESSAGE_FIELD_SIGNATURE:
+                        c_dvar_read(v, "<g>)", c_dvar_type_g, &signature);
+                        break;
+                case DBUS_MESSAGE_FIELD_UNIX_FDS:
+                        c_dvar_read(v, "<u>)", c_dvar_type_u, &n_fds);
+                        break;
+                default:
+                        c_dvar_skip(v, "v)");
+                        break;
+                }
+        }
+
+        c_dvar_read(v, "])");
+
+        r = c_dvar_end_read(v);
+        if (r)
+                return (r > 0) ? -EBADMSG : r;
+
+        if (_c_unlikely_(n_fds > message->n_fds))
+                return -EBADMSG;
+        while (_c_unlikely_(n_fds < message->n_fds))
+                close(message->fds[-- message->n_fds]);
+
+        if (destination) {
+                if (_c_unlikely_(c_string_equal(destination, "org.freedesktop.DBus")))
+                        return driver_dispatch_interface(peer, serial, interface, member, path, signature, message);
+                else
+                        return peer_forward_unicast(peer, destination, signature, message);
+        } else {
+                return peer_forward_broadcast(peer, signature, message);
+        }
 
         return 0;
 }

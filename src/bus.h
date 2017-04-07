@@ -43,5 +43,6 @@ int bus_run(Bus *bus);
 void bus_register_peer(Bus *bus, Peer *peer);
 void bus_unregister_peer(Bus *bus, Peer *peer);
 Peer *bus_find_peer(Bus *bus, uint64_t id);
+Peer *bus_find_peer_by_name(Bus *bus, const char *name);
 
 C_DEFINE_CLEANUP(Bus *, bus_free);

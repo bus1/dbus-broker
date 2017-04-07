@@ -182,3 +182,26 @@ void bus_unregister_peer(Bus *bus, Peer *peer) {
 Peer *bus_find_peer(Bus *bus, uint64_t id) {
         return c_rbtree_find_entry(&bus->peers, peer_compare, &id, Peer, rb);
 }
+
+Peer *bus_find_peer_by_name(Bus *bus, const char *name) {
+        if (*name != ':') {
+                return name_registry_resolve_name(&bus->names, name);
+        } else {
+                char *end;
+                uint64_t id;
+
+                if (strlen(name) < strlen(":1."))
+                        return NULL;
+
+                name += strlen(":1.");
+
+                errno = 0;
+                id = strtoull(name, &end, 10);
+                if (errno != 0)
+                        return NULL;
+                if (*end || name == end)
+                        return NULL;
+
+                return bus_find_peer(bus, id);
+        }
+}
