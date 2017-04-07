@@ -1,15 +1,10 @@
 /*
  * DBus SASL Parser
  *
- * This wraps the SASL state machine. Only two mechanisms are supported;
- * EXTERNAL and ANONYMOUS. Either way, the bus always knows the UID of a peer
- * from the peer credentials obtained from its socket, which is used for
- * accounting. However, if the ANONYMOUS mechanism is used, the identity of the
- * peer will not be used for anything other than accounting.
- *
- * The peer creds are authorotative, so appart from selecting between anonymous
- * or non-anonymous operation, and whether or not FD passing should be enabled,
- * SASL has no effect.
+ * This wraps the SASL state machine. Only the EXTERNAL mechanism is supported.
+ * The broker knows the UID of a peer from the peer credentials obtained from its
+ * socket, which is used for authenticating. For the purposes of the broker SASL
+ * is a no-op needed only for compatibility.
  *
  * The SASL exchange does not need to be synchronous, so a client can typically
  * implement SASL by simply prepending the string
@@ -29,7 +24,6 @@
 void dbus_sasl_init(DBusSASL *sasl, uid_t uid, char *guid) {
         *sasl = (DBusSASL){};
         sasl->uid = uid;
-        sasl->mechanism = _DBUS_SASL_MECHANISM_INVALID;
         sasl->ok_response[0] = 'O';
         sasl->ok_response[1] = 'K';
         sasl->ok_response[2] = ' ';
@@ -45,7 +39,7 @@ void dbus_sasl_deinit(DBusSASL *sasl) {
 static void dbus_sasl_send_rejected(DBusSASL *sasl,
                                     char *buffer,
                                     size_t *posp) {
-        const char *rejected = "REJECTED EXTERNAL ANONYMOUS\r\n";
+        const char *rejected = "REJECTED EXTERNAL\r\n";
 
         sasl->state = DBUS_SASL_STATE_INIT;
 
@@ -162,14 +156,20 @@ static int uid_from_hexstring(char *hex, uid_t *uidp) {
         return 0;
 }
 
-/* only called if data was provided, in which case it must be valid and match */
-static int dbus_sasl_handle_data_external(DBusSASL *sasl,
-                                          char *input,
-                                          char *buffer,
-                                          size_t *posp) {
+static int dbus_sasl_handle_data(DBusSASL *sasl,
+                                 char *input,
+                                 char *buffer,
+                                 size_t *posp) {
         uid_t uid;
         int r;
 
+        if (!input) {
+                /* for the EXTERNAL mechanism data is optional */
+                dbus_sasl_send_ok(sasl, buffer, posp);
+                return 0;
+        }
+
+        /* if data was provided it must be valid and match what we expect */
         r = uid_from_hexstring(input, &uid);
         if (r < 0) {
                 dbus_sasl_send_error(sasl, buffer, posp);
@@ -184,42 +184,6 @@ static int dbus_sasl_handle_data_external(DBusSASL *sasl,
         return 0;
 }
 
-static int dbus_sasl_handle_data_anonymous(DBusSASL *sasl,
-                                           char *input,
-                                           char *buffer,
-                                           size_t *posp) {
-        /* we ignore the trace string, and do not verify it */
-        dbus_sasl_send_ok(sasl, buffer, posp);
-
-        return 0;
-}
-
-static int dbus_sasl_handle_data(DBusSASL *sasl,
-                                 char *input,
-                                 char *buffer,
-                                 size_t *posp) {
-        if (!input) {
-                /* for both EXTERNAL and ANONYMOUS the data is optional */
-                dbus_sasl_send_ok(sasl, buffer, posp);
-                return 0;
-        }
-
-        switch (sasl->mechanism) {
-        case DBUS_SASL_MECHANISM_EXTERNAL:
-                return dbus_sasl_handle_data_external(sasl,
-                                                      input,
-                                                      buffer,
-                                                      posp);
-        case DBUS_SASL_MECHANISM_ANONYMOUS:
-                return dbus_sasl_handle_data_anonymous(sasl,
-                                                       input,
-                                                       buffer,
-                                                       posp);
-        default:
-                assert(0);
-        }
-}
-
 static int dbus_sasl_handle_auth(DBusSASL *sasl,
                                  char *input,
                                  char *buffer,
@@ -232,27 +196,16 @@ static int dbus_sasl_handle_auth(DBusSASL *sasl,
         }
 
         if (dbus_sasl_command_match("EXTERNAL", input, &data)) {
-                sasl->mechanism = DBUS_SASL_MECHANISM_EXTERNAL;
                 if (data)
-                        return dbus_sasl_handle_data_external(sasl,
-                                                              data,
-                                                              buffer,
-                                                              posp);
-        } else if (dbus_sasl_command_match("ANONYMOUS", input, &data)) {
-                sasl->mechanism = DBUS_SASL_MECHANISM_ANONYMOUS;
-                if (data)
-                        return dbus_sasl_handle_data_anonymous(sasl,
-                                                               data,
-                                                               buffer,
-                                                               posp);
+                        return dbus_sasl_handle_data(sasl, data, buffer, posp);
+                else {
+                        dbus_sasl_send_data(sasl, buffer, posp);
+                        return 0;
+                }
         } else {
                 dbus_sasl_send_rejected(sasl, buffer, posp);
                 return 0;
         }
-
-        dbus_sasl_send_data(sasl, buffer, posp);
-
-        return 0;
 }
 
 int dbus_sasl_dispatch_init(DBusSASL *sasl,

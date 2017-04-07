@@ -34,48 +34,7 @@ static void test_discover(void) {
 
         dbus_sasl_init(&sasl, 1, "0123456789abcdef");
 
-        assert_dispatch(&sasl, "AUTH", "REJECTED EXTERNAL ANONYMOUS\r\n", 0);
-
-        dbus_sasl_deinit(&sasl);
-}
-
-/* use anonymous authentication */
-static void test_anonymous(void) {
-        DBusSASL sasl;
-
-        dbus_sasl_init(&sasl, 1, "0123456789abcdef");
-
-        assert_dispatch(&sasl, "AUTH ANONYMOUS trace",
-                       "OK 30313233343536373839616263646566\r\n", 0);
-        assert_dispatch(&sasl, "BEGIN", "", 1);
-
-        dbus_sasl_deinit(&sasl);
-}
-
-/* anonymous and negotiate fds */
-static void test_anonymous_fds(void) {
-        DBusSASL sasl;
-
-        dbus_sasl_init(&sasl, 1, "0123456789abcdef");
-
-        assert_dispatch(&sasl, "AUTH ANONYMOUS trace",
-                       "OK 30313233343536373839616263646566\r\n", 0);
-        assert_dispatch(&sasl, "NEGOTIATE_UNIX_FD", "AGREE_UNIX_FD\r\n", 0);
-        assert_dispatch(&sasl, "BEGIN", "", 1);
-
-        dbus_sasl_deinit(&sasl);
-}
-
-/* use anonymous without providing a trace, this requires another roundtrip */
-static void test_anonymous_no_data(void) {
-        DBusSASL sasl;
-
-        dbus_sasl_init(&sasl, 1, "0123456789abcdef");
-
-        assert_dispatch(&sasl, "AUTH ANONYMOUS", "DATA\r\n", 0);
-        assert_dispatch(&sasl, "DATA",
-                                "OK 30313233343536373839616263646566\r\n", 0);
-        assert_dispatch(&sasl, "BEGIN", "", 1);
+        assert_dispatch(&sasl, "AUTH", "REJECTED EXTERNAL\r\n", 0);
 
         dbus_sasl_deinit(&sasl);
 }
@@ -100,7 +59,7 @@ static void test_external_invalid(void) {
         dbus_sasl_init(&sasl, 1, "0123456789abcdef");
 
         assert_dispatch(&sasl, "AUTH EXTERNAL 30",
-                                        "REJECTED EXTERNAL ANONYMOUS\r\n", 0);
+                                        "REJECTED EXTERNAL\r\n", 0);
         assert_dispatch(&sasl, "AUTH EXTERNAL 31",
                        "OK 30313233343536373839616263646566\r\n", 0);
         assert_dispatch(&sasl, "BEGIN", "", 1);
@@ -139,9 +98,6 @@ static void test_external_fds(void) {
 int main(int argc, char **argv) {
         test_setup();
         test_discover();
-        test_anonymous();
-        test_anonymous_fds();
-        test_anonymous_no_data();
         test_external();
         test_external_invalid();
         test_external_no_data();

@@ -78,21 +78,6 @@ static void test_sasl(void) {
             "AUTH EXTERNAL 31\r\nNEGOTIATE_UNIX_FD\r\nBEGIN\r\n",
             "OK 00000000000000000000000000000000\r\nAGREE_UNIX_FD\r\n");
 */
-        test_sasl_exchange(bus,
-                           "AUTH ANONYMOUS\r\nDATA\r\nBEGIN\r\n",
-                           "DATA\r\nOK 00000000000000000000000000000000\r\n");
-
-        test_sasl_exchange(bus,
-            "AUTH ANONYMOUS\r\nDATA\r\nNEGOTIATE_UNIX_FD\r\nBEGIN\r\n",
-            "DATA\r\nOK 00000000000000000000000000000000\r\nAGREE_UNIX_FD\r\n");
-
-        test_sasl_exchange(bus,
-                           "AUTH ANONYMOUS trace\r\nBEGIN\r\n",
-                           "OK 00000000000000000000000000000000\r\n");
-
-        test_sasl_exchange(bus,
-            "AUTH ANONYMOUS trace\r\nNEGOTIATE_UNIX_FD\r\nBEGIN\r\n",
-            "OK 00000000000000000000000000000000\r\nAGREE_UNIX_FD\r\n");
 }
 
 int main(int argc, char **argv) {
