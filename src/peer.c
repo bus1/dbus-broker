@@ -41,14 +41,11 @@ static int peer_dispatch_read_line(Peer *peer) {
         if (r < 0)
                 return r;
 
-        r = socket_queue_line(peer->socket,
-                              DBUS_SASL_MAX_OUT_LINE_LENGTH,
-                              &line_out,
-                              &pos);
+        r = socket_queue_line(peer->socket, SASL_MAX_OUT_LINE_LENGTH, &line_out, &pos);
         if (r < 0)
                 return r;
 
-        r = dbus_sasl_dispatch(&peer->sasl, line_in, line_out, pos);
+        r = sasl_dispatch(&peer->sasl, line_in, line_out, pos);
         if (r < 0)
                 return r;
         else if (r == 0)
@@ -198,7 +195,7 @@ int peer_new(Peer **peerp,
         seclabel = NULL;
         peer->n_seclabel = n_seclabel;
         peer->dispatch_file = (DispatchFile)DISPATCH_FILE_NULL(peer->dispatch_file);
-        dbus_sasl_init(&peer->sasl, ucred.uid, bus->guid);
+        sasl_init(&peer->sasl, ucred.uid, bus->guid);
 
         r = socket_new(&peer->socket, fd);
         if (r < 0)
@@ -246,7 +243,7 @@ Peer *peer_free(Peer *peer) {
         }
 
         dispatch_file_deinit(&peer->dispatch_file);
-        dbus_sasl_deinit(&peer->sasl);
+        sasl_deinit(&peer->sasl);
         socket_free(peer->socket);
         user_entry_unref(peer->user);
         free(peer->seclabel);

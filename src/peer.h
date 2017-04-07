@@ -8,8 +8,8 @@
 #include <c-rbtree.h>
 #include <stdlib.h>
 #include <sys/types.h>
-#include "dbus-sasl.h"
 #include "dispatch.h"
+#include "sasl.h"
 
 typedef struct Bus Bus;
 typedef struct Peer Peer;
@@ -18,7 +18,7 @@ typedef struct UserEntry UserEntry;
 
 struct Peer {
         Bus *bus;
-        DBusSASL sasl;
+        SASL sasl;
         bool authenticated : 1;
         DispatchFile dispatch_file;
         Socket *socket;
