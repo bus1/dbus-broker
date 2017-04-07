@@ -6,7 +6,7 @@
 #include <c-macro.h>
 #include <c-rbtree.h>
 #include <c-string.h>
-#include "dbus-match.h"
+#include "match.h"
 #include "peer.h"
 #include "user.h"
 
@@ -17,9 +17,9 @@
 #define DBUS_MESSAGE_TYPE_ERROR         (3)
 #define DBUS_MESSAGE_TYPE_SIGNAL        (4)
 
-static int dbus_match_rules_compare(CRBTree *tree, void *k, CRBNode *rb) {
-        DBusMatchRule *rule = c_container_of(rb, DBusMatchRule, rb_peer);
-        DBusMatchRuleKeys *key1 = k, *key2 = &rule->keys;
+static int match_rules_compare(CRBTree *tree, void *k, CRBNode *rb) {
+        MatchRule *rule = c_container_of(rb, MatchRule, rb_peer);
+        MatchRuleKeys *key1 = k, *key2 = &rule->keys;
         int r;
 
         if ((r = c_string_compare(key1->filter.sender, key2->filter.sender)) ||
@@ -52,7 +52,7 @@ static int dbus_match_rules_compare(CRBTree *tree, void *k, CRBNode *rb) {
         return 0;
 }
 
-static bool dbus_match_string_prefix(const char *string, const char *prefix, char delimiter) {
+static bool match_string_prefix(const char *string, const char *prefix, char delimiter) {
         char *tail;
 
         tail = c_string_prefix(string, prefix);
@@ -65,7 +65,7 @@ static bool dbus_match_string_prefix(const char *string, const char *prefix, cha
         return true;
 }
 
-static bool dbus_match_rule_keys_match_filter(DBusMatchRuleKeys *keys, DBusMatchFilter *filter) {
+static bool match_rule_keys_match_filter(MatchRuleKeys *keys, MatchFilter *filter) {
         if (keys->filter.type && keys->filter.type != filter->type)
                 return false;
 
@@ -87,14 +87,14 @@ static bool dbus_match_rule_keys_match_filter(DBusMatchRuleKeys *keys, DBusMatch
         if (keys->filter.path && !c_string_equal(keys->filter.path, filter->path))
                 return false;
 
-        if (keys->path_namespace && !dbus_match_string_prefix(filter->path, keys->path_namespace, '/'))
+        if (keys->path_namespace && !match_string_prefix(filter->path, keys->path_namespace, '/'))
                 return false;
 
         if (keys->filter.sender && !c_string_equal(keys->filter.sender, filter->sender))
                 return false;
 
         /* XXX: verify that arg0 is a (potentially single-label) bus name */
-        if (keys->arg0namespace && !dbus_match_string_prefix(filter->args[0], keys->arg0namespace, '.'))
+        if (keys->arg0namespace && !match_string_prefix(filter->args[0], keys->arg0namespace, '.'))
                 return false;
 
         for (unsigned int i = 0; i < C_ARRAY_SIZE(filter->args); i ++) {
@@ -102,8 +102,8 @@ static bool dbus_match_rule_keys_match_filter(DBusMatchRuleKeys *keys, DBusMatch
                         return false;
 
                 if (keys->argpaths[i]) {
-                        if (!dbus_match_string_prefix(filter->args[i], keys->argpaths[i], '/') &&
-                            !dbus_match_string_prefix(keys->argpaths[i], filter->args[i], '/'))
+                        if (!match_string_prefix(filter->args[i], keys->argpaths[i], '/') &&
+                            !match_string_prefix(keys->argpaths[i], filter->args[i], '/'))
                                 return false;
                 }
         }
@@ -111,7 +111,7 @@ static bool dbus_match_rule_keys_match_filter(DBusMatchRuleKeys *keys, DBusMatch
         return true;
 }
 
-static int dbus_match_rule_keys_assign(DBusMatchRuleKeys *keys, const char *key, const char *value) {
+static int match_rule_keys_assign(MatchRuleKeys *keys, const char *key, const char *value) {
         if (strcmp(key, "type") == 0) {
                 if (strcmp(value, "signal") == 0)
                         keys->filter.type = DBUS_MESSAGE_TYPE_SIGNAL;
@@ -172,7 +172,7 @@ static int dbus_match_rule_keys_assign(DBusMatchRuleKeys *keys, const char *key,
 /*
  * Takes a null-termianted stream of characters, removes any quoting, breaks them up at commas and returns them one character at a time.
  */
-static char dbus_match_string_pop(const char **match, bool *quoted) {
+static char match_string_pop(const char **match, bool *quoted) {
         /*
          * Within single quotes (apostrophe), a backslash represents itself, and an apostrophe ends the quoted section. Outside single quotes, \'
          * (backslash, apostrophe) represents an apostrophe, and any backslash not followed by an apostrophe represents itself.
@@ -206,7 +206,7 @@ static char dbus_match_string_pop(const char **match, bool *quoted) {
         }
 }
 
-int dbus_match_rule_keys_parse(DBusMatchRuleKeys *keys, char *buffer, const char *rule_string, size_t n_rule_string) {
+int match_rule_keys_parse(MatchRuleKeys *keys, char *buffer, const char *rule_string, size_t n_rule_string) {
         const char *key = NULL, *value = NULL;
         bool quoted = false;
         char c;
@@ -216,11 +216,11 @@ int dbus_match_rule_keys_parse(DBusMatchRuleKeys *keys, char *buffer, const char
                 if (!key) {
                         do {
                                 /* strip leading space before a key */
-                                c = dbus_match_string_pop(&rule_string, &quoted);
+                                c = match_string_pop(&rule_string, &quoted);
                         } while (c == ' ');
                         key = buffer + i;
                 } else {
-                        c = dbus_match_string_pop(&rule_string, &quoted);
+                        c = match_string_pop(&rule_string, &quoted);
                 }
 
                 /* strip key and value at '=' */
@@ -237,7 +237,7 @@ int dbus_match_rule_keys_parse(DBusMatchRuleKeys *keys, char *buffer, const char
                         if (!value)
                                 return -EBADMSG;
 
-                        r = dbus_match_rule_keys_assign(keys, key, value);
+                        r = match_rule_keys_assign(keys, key, value);
                         if (r < 0)
                                 return r;
 
@@ -255,8 +255,8 @@ int dbus_match_rule_keys_parse(DBusMatchRuleKeys *keys, char *buffer, const char
         return -EBADMSG;
 }
 
-int dbus_match_rule_new(DBusMatchRule **rulep, Peer *peer, const char *rule_string) {
-        _c_cleanup_(dbus_match_rule_unrefp) DBusMatchRule *rule = NULL;
+int match_rule_new(MatchRule **rulep, Peer *peer, const char *rule_string) {
+        _c_cleanup_(match_rule_unrefp) MatchRule *rule = NULL;
         CRBNode **slot, *parent;
         size_t n_rule_string;
         int r;
@@ -276,14 +276,14 @@ int dbus_match_rule_new(DBusMatchRule **rulep, Peer *peer, const char *rule_stri
 
         peer->user->n_matches --;
 
-        r = dbus_match_rule_keys_parse(&rule->keys, rule->buffer, rule_string, n_rule_string);
+        r = match_rule_keys_parse(&rule->keys, rule->buffer, rule_string, n_rule_string);
         if (r < 0)
                 return r;
 
-        slot = c_rbtree_find_slot(&peer->match_rules, dbus_match_rules_compare, &rule->keys, &parent);
+        slot = c_rbtree_find_slot(&peer->match_rules, match_rules_compare, &rule->keys, &parent);
         if (!slot) {
                 /* one already exists, take a ref on that instead and drop the one we created */
-                *rulep = dbus_match_rule_ref(c_container_of(parent, DBusMatchRule, rb_peer));
+                *rulep = match_rule_ref(c_container_of(parent, MatchRule, rb_peer));
         } else {
                 /* link the new rule into the rbtree */
                 c_rbtree_add(&peer->match_rules, parent, slot, &rule->rb_peer);
@@ -294,8 +294,8 @@ int dbus_match_rule_new(DBusMatchRule **rulep, Peer *peer, const char *rule_stri
         return 0;
 }
 
-void dbus_match_rule_free(_Atomic unsigned long *n_refs, void *userpointer) {
-        DBusMatchRule *rule = c_container_of(n_refs, DBusMatchRule, n_refs);
+void match_rule_free(_Atomic unsigned long *n_refs, void *userpointer) {
+        MatchRule *rule = c_container_of(n_refs, MatchRule, n_refs);
 
         rule->peer->user->n_matches ++;
 
@@ -305,21 +305,21 @@ void dbus_match_rule_free(_Atomic unsigned long *n_refs, void *userpointer) {
         free(rule);
 }
 
-void dbus_match_rule_link(DBusMatchRule *rule, DBusMatchRegistry *registry) {
+void match_rule_link(MatchRule *rule, MatchRegistry *registry) {
         c_list_link_tail(&registry->rules, &rule->link_registry);
 }
 
-int dbus_match_rule_get(DBusMatchRule **rulep, Peer *peer, const char *rule_string) {
+int match_rule_get(MatchRule **rulep, Peer *peer, const char *rule_string) {
         char buffer[strlen(rule_string)];
-        DBusMatchRuleKeys keys = {};
-        DBusMatchRule *rule;
+        MatchRuleKeys keys = {};
+        MatchRule *rule;
         int r;
 
-        r = dbus_match_rule_keys_parse(&keys, buffer, rule_string, strlen(rule_string));
+        r = match_rule_keys_parse(&keys, buffer, rule_string, strlen(rule_string));
         if (r < 0)
                 return r;
 
-        rule = c_rbtree_find_entry(&peer->match_rules, dbus_match_rules_compare, &keys, DBusMatchRule, rb_peer);
+        rule = c_rbtree_find_entry(&peer->match_rules, match_rules_compare, &keys, MatchRule, rb_peer);
         if (!rule)
                 return -ENOENT;
 
@@ -327,7 +327,7 @@ int dbus_match_rule_get(DBusMatchRule **rulep, Peer *peer, const char *rule_stri
         return 0;
 }
 
-DBusMatchRule *dbus_match_next_entry(DBusMatchRegistry *registry, DBusMatchRule *rule, DBusMatchFilter *filter) {
+MatchRule *match_next_entry(MatchRegistry *registry, MatchRule *rule, MatchFilter *filter) {
         CList *link;
 
         if (!rule)
@@ -336,9 +336,9 @@ DBusMatchRule *dbus_match_next_entry(DBusMatchRegistry *registry, DBusMatchRule 
                 link = c_list_loop_next(&rule->link_registry);
 
         while (link != &registry->rules) {
-                rule = c_list_entry(link, DBusMatchRule, link_registry);
+                rule = c_list_entry(link, MatchRule, link_registry);
 
-                if (dbus_match_rule_keys_match_filter(&rule->keys, filter))
+                if (match_rule_keys_match_filter(&rule->keys, filter))
                         return rule;
 
                 link = c_list_loop_next(link);
@@ -347,10 +347,10 @@ DBusMatchRule *dbus_match_next_entry(DBusMatchRegistry *registry, DBusMatchRule 
         return NULL;
 }
 
-void dbus_match_registry_init(DBusMatchRegistry *registry) {
+void match_registry_init(MatchRegistry *registry) {
         registry->rules = (CList)C_LIST_INIT(registry->rules);
 }
 
-void dbus_match_registry_deinit(DBusMatchRegistry *registry) {
+void match_registry_deinit(MatchRegistry *registry) {
         assert(c_list_is_empty(&registry->rules));
 }

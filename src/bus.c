@@ -7,9 +7,9 @@
 #include <sys/epoll.h>
 #include <sys/socket.h>
 #include "bus.h"
-#include "dbus-match.h"
 #include "dispatch.h"
 #include "driver.h"
+#include "match.h"
 #include "name.h"
 #include "user.h"
 
@@ -61,7 +61,7 @@ int bus_new(Bus **busp,
 
         bus->ready_list = (CList)C_LIST_INIT(bus->ready_list);
         bus->fd = fd;
-        dbus_match_registry_init(&bus->matches);
+        match_registry_init(&bus->matches);
         /* XXX: initialize guid with random data */
         name_registry_init(&bus->names);
         user_registry_init(&bus->users,
@@ -104,7 +104,7 @@ Bus *bus_free(Bus *bus) {
         dispatch_context_deinit(&bus->dispatcher);
         user_registry_deinit(&bus->users);
         name_registry_deinit(&bus->names);
-        dbus_match_registry_deinit(&bus->matches);
+        match_registry_deinit(&bus->matches);
 
         free(bus);
 

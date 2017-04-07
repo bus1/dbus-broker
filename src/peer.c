@@ -9,9 +9,9 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include "bus.h"
-#include "dbus-match.h"
 #include "dispatch.h"
 #include "driver.h"
+#include "match.h"
 #include "message.h"
 #include "peer.h"
 #include "socket.h"
@@ -235,11 +235,9 @@ Peer *peer_free(Peer *peer) {
              next = c_rbnode_next_postorder(node);
              node;
              node = next, next = c_rbnode_next_postorder(node)) {
-                DBusMatchRule *rule = c_container_of(node,
-                                                     DBusMatchRule,
-                                                     rb_peer);
+                MatchRule *rule = c_container_of(node, MatchRule, rb_peer);
 
-                dbus_match_rule_free(&rule->n_refs, NULL);
+                match_rule_free(&rule->n_refs, NULL);
         }
 
         dispatch_file_deinit(&peer->dispatch_file);

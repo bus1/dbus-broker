@@ -377,7 +377,7 @@ static int driver_method_get_connection_selinux_security_context(Peer *peer, CDV
 }
 
 static int driver_method_add_match(Peer *peer, CDVar *in_v, CDVar *out_v) {
-        DBusMatchRule *rule;
+        MatchRule *rule;
         const char *rule_string;
         int r;
 
@@ -387,11 +387,11 @@ static int driver_method_add_match(Peer *peer, CDVar *in_v, CDVar *out_v) {
         if (r)
                 return (r > 0) ? -ENOTRECOVERABLE : r;
 
-        r = dbus_match_rule_new(&rule, peer, rule_string);
+        r = match_rule_new(&rule, peer, rule_string);
         if (r)
                 return (r > 0) ? -ENOTRECOVERABLE : r;
 
-        dbus_match_rule_link(rule, &peer->bus->matches);
+        match_rule_link(rule, &peer->bus->matches);
 
         c_dvar_write(out_v, "()");
 
@@ -399,7 +399,7 @@ static int driver_method_add_match(Peer *peer, CDVar *in_v, CDVar *out_v) {
 }
 
 static int driver_method_remove_match(Peer *peer, CDVar *in_v, CDVar *out_v) {
-        DBusMatchRule *rule;
+        MatchRule *rule;
         const char *rule_string;
         int r;
 
@@ -409,11 +409,11 @@ static int driver_method_remove_match(Peer *peer, CDVar *in_v, CDVar *out_v) {
         if (r)
                 return (r > 0) ? -ENOTRECOVERABLE : r;
 
-        r = dbus_match_rule_get(&rule, peer, rule_string);
+        r = match_rule_get(&rule, peer, rule_string);
         if (r)
                 return (r > 0) ? -ENOTRECOVERABLE : r;
 
-        dbus_match_rule_unref(rule);
+        match_rule_unref(rule);
 
         c_dvar_write(out_v, "()");
 

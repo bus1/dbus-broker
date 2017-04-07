@@ -7,7 +7,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include "bus.h"
-#include "dbus-match.h"
+#include "match.h"
 #include "peer.h"
 
 static void test_args(Peer *peer,
@@ -16,10 +16,10 @@ static void test_args(Peer *peer,
                       const char *arg1,
                       const char *arg2,
                       const char *arg3) {
-        _c_cleanup_(dbus_match_rule_unrefp) DBusMatchRule *rule = NULL;
+        _c_cleanup_(match_rule_unrefp) MatchRule *rule = NULL;
         int r;
 
-        r = dbus_match_rule_new(&rule, peer, match);
+        r = match_rule_new(&rule, peer, match);
         assert(r >= 0);
         assert(strcmp(rule->keys.filter.args[0], arg0) == 0);
         assert(strcmp(rule->keys.filter.args[1], arg1) == 0);

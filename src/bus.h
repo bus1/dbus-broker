@@ -8,8 +8,8 @@
 #include <c-macro.h>
 #include <c-rbtree.h>
 #include <stdlib.h>
-#include "dbus-match.h"
 #include "dispatch.h"
+#include "match.h"
 #include "name.h"
 #include "user.h"
 
@@ -24,7 +24,7 @@ struct Bus {
         CList ready_list;
         NameRegistry names;
         UserRegistry users;
-        DBusMatchRegistry matches;
+        MatchRegistry matches;
         CRBTree peers;
         uint64_t ids;
 };
