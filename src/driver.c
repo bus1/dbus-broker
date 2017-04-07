@@ -65,6 +65,13 @@ static const CDVarType * const driver_type_in_s = (const CDVarType[]){
                                                                 C_DVAR_T_s
                                                         )
                                                 ) };
+static const CDVarType * const driver_type_in_su = (const CDVarType[]){
+                                                C_DVAR_T_INIT(
+                                                        C_DVAR_T_TUPLE2(
+                                                                C_DVAR_T_s,
+                                                                C_DVAR_T_u
+                                                        )
+                                                ) };
 static const CDVarType * const driver_type_in_apss = (const CDVarType[]){
                                                 C_DVAR_T_INIT(
                                                         C_DVAR_T_TUPLE1(
@@ -435,6 +442,48 @@ static int driver_method_become_monitor(Peer *peer, CDVar *in_v, CDVar *out_v) {
         return 0;
 }
 
+static int driver_method_request_name(Peer *peer, CDVar *in_v, CDVar *out_v) {
+        const char *name;
+        uint32_t flags, reply;
+        int r;
+
+        c_dvar_read(in_v, "(su)", &name, &flags);
+
+        r = c_dvar_end_read(in_v);
+        if (r)
+                return (r > 0) ? -ENOTRECOVERABLE : r;
+
+        r = name_registry_request_name(&peer->bus->names, peer, name, flags, &reply);
+        if (r)
+                return (r > 0) ? -ENOTRECOVERABLE : r;
+
+        c_dvar_write(out_v, "u", reply);
+
+        return 0;
+}
+
+static int driver_method_release_name(Peer *peer, CDVar *in_v, CDVar *out_v) {
+        const char *name;
+        uint32_t reply;
+        int r;
+
+        c_dvar_read(in_v, "(s)", &name);
+
+        r = c_dvar_end_read(in_v);
+        if (r)
+                return (r > 0) ? -ENOTRECOVERABLE : r;
+
+        name_registry_release_name(&peer->bus->names, peer, name, &reply);
+
+        c_dvar_write(out_v, "u", reply);
+
+        return 0;
+}
+
+static int driver_method_list_queued_owners(Peer *peer, CDVar *in_v, CDVar *out_v) {
+        return 0;
+}
+
 static int driver_handle_method(const DriverMethod *method, Peer *peer, uint32_t serial, const char *signature_in, Message *message_in) {
         _c_cleanup_(c_dvar_freep) CDVar *var_in = NULL, *var_out = NULL;
         _c_cleanup_(message_unrefp) Message *message_out = NULL;
@@ -506,6 +555,9 @@ static int driver_dispatch_method(Peer *peer, uint32_t serial, const char *metho
                 { "RemoveMatch", driver_method_remove_match, &driver_type_in_s, &driver_type_out_unit },
                 { "GetId", driver_method_get_id, &driver_type_in_unit, &driver_type_out_s },
                 { "BecomeMonitor", driver_method_become_monitor, &driver_type_in_asu, &driver_type_out_unit },
+                { "RequestName", driver_method_request_name, &driver_type_in_su, &driver_type_out_u },
+                { "ReleaseName", driver_method_release_name, &driver_type_in_s, &driver_type_out_u },
+                { "ListQueuedOwners", driver_method_list_queued_owners, &driver_type_in_s, &driver_type_out_as },
         };
         int r;
 
