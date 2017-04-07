@@ -8,10 +8,10 @@
 #include <c-macro.h>
 #include <c-rbtree.h>
 #include <stdlib.h>
-#include "dispatch.h"
 #include "match.h"
 #include "name.h"
 #include "user.h"
+#include "util/dispatch.h"
 
 typedef struct Bus Bus;
 typedef struct Peer Peer;

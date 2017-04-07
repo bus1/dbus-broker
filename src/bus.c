@@ -7,11 +7,11 @@
 #include <sys/epoll.h>
 #include <sys/socket.h>
 #include "bus.h"
-#include "dispatch.h"
 #include "driver.h"
 #include "match.h"
 #include "name.h"
 #include "user.h"
+#include "util/dispatch.h"
 
 static int bus_accept(DispatchFile *file, uint32_t events) {
         Bus *bus = c_container_of(file, Bus, accept_file);

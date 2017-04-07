@@ -8,7 +8,6 @@
 libdbus_broker_private = static_library('dbus-broker-private',
                                         [
                                                 'bus.c',
-                                                'dispatch.c',
                                                 'driver.c',
                                                 'match.c',
                                                 'message.c',
@@ -17,6 +16,7 @@ libdbus_broker_private = static_library('dbus-broker-private',
                                                 'sasl.c',
                                                 'socket.c',
                                                 'user.c',
+                                                'util/dispatch.c',
                                         ],
                                         c_args: [
                                                 '-fvisibility=hidden',
@@ -53,7 +53,7 @@ endif
 test_bus = executable('test-bus', ['test-bus.c'], dependencies: libdbus_broker_dep)
 test('Bus Management', test_bus)
 
-test_dispatch = executable('test-dispatch', ['test-dispatch.c'], dependencies: libdbus_broker_dep)
+test_dispatch = executable('test-dispatch', ['util/test-dispatch.c'], dependencies: libdbus_broker_dep)
 test('Event Dispatcher', test_dispatch)
 
 test_match = executable('test-match', ['test-match.c'], dependencies: libdbus_broker_dep)

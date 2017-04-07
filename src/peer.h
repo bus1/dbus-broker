@@ -8,8 +8,8 @@
 #include <c-rbtree.h>
 #include <stdlib.h>
 #include <sys/types.h>
-#include "dispatch.h"
 #include "sasl.h"
+#include "util/dispatch.h"
 
 typedef struct Bus Bus;
 typedef struct Peer Peer;

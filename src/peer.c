@@ -9,13 +9,13 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include "bus.h"
-#include "dispatch.h"
 #include "driver.h"
 #include "match.h"
 #include "message.h"
 #include "peer.h"
 #include "socket.h"
 #include "user.h"
+#include "util/dispatch.h"
 
 static int peer_dispatch_read_message(Peer *peer) {
         _c_cleanup_(message_unrefp) Message *message = NULL;
