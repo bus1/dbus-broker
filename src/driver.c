@@ -9,32 +9,11 @@
 #include <stdlib.h>
 #include <sys/epoll.h>
 #include "bus.h"
+#include "dbus-protocol.h"
 #include "driver.h"
 #include "message.h"
 #include "peer.h"
 #include "socket.h"
-
-/* XXX: move to where it belongs */
-#define DBUS_MESSAGE_TYPE_INVALID       (0)
-#define DBUS_MESSAGE_TYPE_METHOD_CALL   (1)
-#define DBUS_MESSAGE_TYPE_METHOD_REPLY  (2)
-#define DBUS_MESSAGE_TYPE_ERROR         (3)
-#define DBUS_MESSAGE_TYPE_SIGNAL        (4)
-
-#define DBUS_MESSAGE_FIELD_INVALID      (0)
-#define DBUS_MESSAGE_FIELD_PATH         (1)
-#define DBUS_MESSAGE_FIELD_INTERFACE    (2)
-#define DBUS_MESSAGE_FIELD_MEMBER       (3)
-#define DBUS_MESSAGE_FIELD_ERROR_NAME   (4)
-#define DBUS_MESSAGE_FIELD_REPLY_SERIAL (5)
-#define DBUS_MESSAGE_FIELD_DESTINATION  (6)
-#define DBUS_MESSAGE_FIELD_SENDER       (7)
-#define DBUS_MESSAGE_FIELD_SIGNATURE    (8)
-#define DBUS_MESSAGE_FIELD_UNIX_FDS     (9)
-
-#define DBUS_HEADER_FLAG_NO_REPLY_EXPECTED                      (1UL << 0)
-#define DBUS_HEADER_FLAG_NO_AUTO_START                          (1UL << 1)
-#define DBUS_HEADER_FLAG_ALLOW_INTERACTIVE_AUTHORIZATION        (1UL << 2)
 
 #define DRIVER_T_OUT_INIT(type)         C_DVAR_T_INIT(                                          \
                                                 C_DVAR_T_TUPLE2(                                \

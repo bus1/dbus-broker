@@ -6,16 +6,10 @@
 #include <c-macro.h>
 #include <c-rbtree.h>
 #include <c-string.h>
+#include "dbus-protocol.h"
 #include "match.h"
 #include "peer.h"
 #include "user.h"
-
-/* XXX: move these defines where they belong */
-#define DBUS_MESSAGE_TYPE_INVALID       (0)
-#define DBUS_MESSAGE_TYPE_METHOD_CALL   (1)
-#define DBUS_MESSAGE_TYPE_METHOD_REPLY  (2)
-#define DBUS_MESSAGE_TYPE_ERROR         (3)
-#define DBUS_MESSAGE_TYPE_SIGNAL        (4)
 
 static int match_rules_compare(CRBTree *tree, void *k, CRBNode *rb) {
         MatchRule *rule = c_container_of(rb, MatchRule, rb_peer);

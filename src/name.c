@@ -6,6 +6,7 @@
 #include <c-rbtree.h>
 #include <c-list.h>
 #include <stdlib.h>
+#include "dbus-protocol.h"
 #include "driver.h"
 #include "name.h"
 #include "user.h"
