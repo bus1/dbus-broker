@@ -146,6 +146,29 @@ struct DriverMethod {
         const CDVarType * const *out;
 };
 
+static Peer *driver_find_peer_by_name(Bus *bus, const char *destination) {
+        if (*destination != ':') {
+                return name_registry_resolve_name(&bus->names, destination);
+        } else {
+                char *end;
+                uint64_t id;
+
+                if (strlen(destination) < strlen(":1."))
+                        return NULL;
+
+                destination += strlen(":1.");
+
+                errno = 0;
+                id = strtoull(destination, &end, 10);
+                if (errno != 0)
+                        return NULL;
+                if (*end || destination == end)
+                        return NULL;
+
+                return bus_find_peer(bus, id);
+        }
+}
+
 static void driver_dvar_write_unique_name(CDVar *var, Peer *peer) {
         char unique_name[strlen(":1.") + C_DECIMAL_MAX(uint64_t) + 1];
         int r;
@@ -249,6 +272,20 @@ static int driver_method_list_activatable_names(Peer *peer, CDVar *in_v, CDVar *
 }
 
 static int driver_method_name_has_owner(Peer *peer, CDVar *in_v, CDVar *out_v) {
+        Peer *connection;
+        const char *name;
+        int r;
+
+        c_dvar_read(in_v, "(s)", &name);
+
+        r = c_dvar_end_read(in_v);
+        if (r)
+                return (r > 0) ? -ENOTRECOVERABLE : r;
+
+        connection = driver_find_peer_by_name(peer->bus, name);
+
+        c_dvar_write(out_v, "b", !!connection);
+
         return 0;
 }
 
@@ -281,10 +318,42 @@ static int driver_method_get_name_owner(Peer *peer, CDVar *in_v, CDVar *out_v) {
 }
 
 static int driver_method_get_connection_unix_user(Peer *peer, CDVar *in_v, CDVar *out_v) {
+        Peer *connection;
+        const char *name;
+        int r;
+
+        c_dvar_read(in_v, "(s)", &name);
+
+        r = c_dvar_end_read(in_v);
+        if (r)
+                return (r > 0) ? -ENOTRECOVERABLE : r;
+
+        connection = driver_find_peer_by_name(peer->bus, name);
+        if (!connection)
+                return -ENOTRECOVERABLE;
+
+        c_dvar_write(out_v, "u", connection->user->uid);
+
         return 0;
 }
 
 static int driver_method_get_connection_unix_process_id(Peer *peer, CDVar *in_v, CDVar *out_v) {
+        Peer *connection;
+        const char *name;
+        int r;
+
+        c_dvar_read(in_v, "(s)", &name);
+
+        r = c_dvar_end_read(in_v);
+        if (r)
+                return (r > 0) ? -ENOTRECOVERABLE : r;
+
+        connection = driver_find_peer_by_name(peer->bus, name);
+        if (!connection)
+                return -ENOTRECOVERABLE;
+
+        c_dvar_write(out_v, "u", connection->pid);
+
         return 0;
 }
 
@@ -471,29 +540,6 @@ static int driver_dispatch_interface(Peer *peer,
         /* XXX: path ? */
 
         return driver_dispatch_method(peer, serial, member, signature, message);
-}
-
-static Peer *driver_find_peer_by_name(Bus *bus, const char *destination) {
-        if (*destination != ':') {
-                return name_registry_resolve_name(&bus->names, destination);
-        } else {
-                char *end;
-                uint64_t id;
-
-                if (strlen(destination) < strlen(":1."))
-                        return NULL;
-
-                destination += strlen(":1.");
-
-                errno = 0;
-                id = strtoull(destination, &end, 10);
-                if (errno != 0)
-                        return NULL;
-                if (*end || destination == end)
-                        return NULL;
-
-                return bus_find_peer(bus, id);
-        }
 }
 
 static int driver_forward_unicast(Peer *sender, const char *destination, const char *signature, Message *message) {
