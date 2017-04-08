@@ -133,6 +133,8 @@ struct DriverMethod {
 };
 
 static void driver_write_bytes(CDVar *var, char *bytes, size_t n_bytes) {
+        /* XXX: check how the dbus daemon deals with this potentially including a zero byte */
+
         c_dvar_write(var, "[");
 
         for (size_t i = 0; i < n_bytes; i ++) {
@@ -331,6 +333,40 @@ static int driver_method_get_connection_unix_process_id(Peer *peer, CDVar *in_v,
 }
 
 static int driver_method_get_connection_credentials(Peer *peer, CDVar *in_v, CDVar *out_v) {
+        Peer *connection;
+        const char *name;
+        int r;
+
+        c_dvar_read(in_v, "(s)", &name);
+
+        r = c_dvar_end_read(in_v);
+        if (r)
+                return (r > 0) ? -ENOTRECOVERABLE : r;
+
+        connection = bus_find_peer_by_name(peer->bus, name);
+        if (!connection)
+                return -ENOTRECOVERABLE;
+
+        c_dvar_write(out_v, "[{s<u>}{s<u>}",
+                     "UnixUserID", c_dvar_type_u, connection->user->uid,
+                     "ProcessID", c_dvar_type_u, connection->pid);
+
+        if (connection->seclabel) {
+                static const CDVarType type[] = {
+                        C_DVAR_T_INIT(
+                                C_DVAR_T_ARRAY(
+                                        C_DVAR_T_y
+                                )
+                        )
+                };
+
+                c_dvar_write(out_v, "{s<", "LinuxSecurityLabel", type);
+                driver_write_bytes(out_v, connection->seclabel, connection->n_seclabel + 1);
+                c_dvar_write(out_v, ">}");
+        }
+
+        c_dvar_write(out_v, "]");
+
         return 0;
 }
 
@@ -533,7 +569,7 @@ static int driver_dispatch_method(Peer *peer, uint32_t serial, const char *metho
                 { "GetNameOwner", driver_method_get_name_owner, &driver_type_in_s, &driver_type_out_s },
                 { "GetConnectionUnixUser", driver_method_get_connection_unix_user, &driver_type_in_s, &driver_type_out_u },
                 { "GetConnectionUnixProcessID", driver_method_get_connection_unix_process_id, &driver_type_in_s, &driver_type_out_u },
-                { "GetConnecitonCredentials", driver_method_get_connection_credentials, &driver_type_in_s, &driver_type_out_apsv },
+                { "GetConnectionCredentials", driver_method_get_connection_credentials, &driver_type_in_s, &driver_type_out_apsv },
                 { "GetAdtAuditSessionData", driver_method_get_adt_audit_session_data, &driver_type_in_s, &driver_type_out_ab },
                 { "GetConnectionSELinuxSecurityContext", driver_method_get_connection_selinux_security_context, &driver_type_in_s, &driver_type_out_ab },
                 { "AddMatch", driver_method_add_match, &driver_type_in_s, &driver_type_out_unit },
