@@ -8,6 +8,7 @@
 #include <c-rbtree.h>
 #include <stdlib.h>
 #include <sys/types.h>
+#include "reply.h"
 #include "sasl.h"
 #include "util/dispatch.h"
 
@@ -18,16 +19,24 @@ typedef struct UserEntry UserEntry;
 
 struct Peer {
         Bus *bus;
+
         SASL sasl;
         bool authenticated : 1;
+
         DispatchFile dispatch_file;
         Socket *socket;
+
         UserEntry *user;
         pid_t pid;
         char *seclabel;
         size_t n_seclabel;
+
+        ReplyRegistry replies_outgoing;
+
+        CList replies_incoming;
         CRBTree match_rules;
         CRBTree names;
+
         CRBNode rb;
         uint64_t id;
 };

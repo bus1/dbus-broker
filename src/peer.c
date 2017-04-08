@@ -17,6 +17,7 @@
 #include "match.h"
 #include "message.h"
 #include "peer.h"
+#include "reply.h"
 #include "socket.h"
 #include "user.h"
 #include "util/dispatch.h"
@@ -324,6 +325,8 @@ int peer_new(Peer **peerp,
         peer->n_seclabel = n_seclabel;
         peer->dispatch_file = (DispatchFile)DISPATCH_FILE_NULL(peer->dispatch_file);
         sasl_init(&peer->sasl, ucred.uid, bus->guid);
+        reply_registry_init(&peer->replies_outgoing);
+        peer->replies_incoming = (CList)C_LIST_INIT(peer->replies_incoming);
 
         r = socket_new(&peer->socket, fd);
         if (r < 0)
@@ -369,6 +372,7 @@ Peer *peer_free(Peer *peer) {
         }
 
         dispatch_file_deinit(&peer->dispatch_file);
+        reply_registry_deinit(&peer->replies_outgoing);
         sasl_deinit(&peer->sasl);
         socket_free(peer->socket);
         user_entry_unref(peer->user);
