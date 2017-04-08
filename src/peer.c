@@ -22,7 +22,8 @@
 #include "user.h"
 #include "util/dispatch.h"
 
-static int peer_forward_unicast(Peer *sender, const char *destination, const char *signature, Message *message) {
+static int peer_forward_method_call(Peer *sender, const char *destination, uint32_t serial, Message *message) {
+        _c_cleanup_(reply_slot_freep) ReplySlot *slot = NULL;
         Peer *receiver;
         int r;
 
@@ -30,7 +31,11 @@ static int peer_forward_unicast(Peer *sender, const char *destination, const cha
         if (!receiver)
                 return -EBADMSG;
 
-        /* XXX: verify message contents, append sender */
+        if (!(message->header->flags & DBUS_HEADER_FLAG_NO_REPLY_EXPECTED)) {
+                r = reply_slot_new(&slot, &receiver->replies_outgoing, sender, serial);
+                if (r < 0)
+                        return r;
+        }
 
         r = socket_queue_message(receiver->socket, message);
         if (r)
@@ -38,10 +43,36 @@ static int peer_forward_unicast(Peer *sender, const char *destination, const cha
 
         dispatch_file_select(&receiver->dispatch_file, EPOLLOUT);
 
+        slot = NULL;
+
         return 0;
 }
 
-static int peer_forward_broadcast(Peer *sender, const char *signature, Message *message) {
+static int peer_forward_reply(Peer *sender, const char *destination, uint32_t reply_serial, Message *message) {
+        ReplySlot *slot;
+        uint64_t id;
+        int r;
+
+        r = peer_id_from_unique_name(destination, &id);
+        if (r < 0)
+                return r;
+
+        slot = reply_slot_get_by_id(&sender->replies_outgoing, id, reply_serial);
+        if (!slot)
+                return -EBADMSG;
+
+        r = socket_queue_message(slot->sender->socket, message);
+        if (r)
+                return (r > 0) ? -ENOTRECOVERABLE : r;
+
+        dispatch_file_select(&slot->sender->dispatch_file, EPOLLOUT);
+
+        reply_slot_free(slot);
+
+        return 0;
+}
+
+static int peer_forward_broadcast(Peer *sender, const char *interface, const char *member, const char *path, Message *message) {
         return 0;
 }
 
@@ -149,13 +180,28 @@ static int peer_dispatch_read_message(Peer *peer) {
         while (_c_unlikely_(n_fds < message->n_fds))
                 close(message->fds[-- message->n_fds]);
 
-        if (destination) {
-                if (_c_unlikely_(c_string_equal(destination, "org.freedesktop.DBus")))
-                        return driver_dispatch_interface(peer, serial, interface, member, path, signature, message);
-                else
-                        return peer_forward_unicast(peer, destination, signature, message);
-        } else {
-                return peer_forward_broadcast(peer, signature, message);
+        if (_c_unlikely_(c_string_equal(destination, "org.freedesktop.DBus")))
+                return driver_dispatch_interface(peer, serial, interface, member, path, signature, message);
+
+        /* XXX: verify message contents, append sender */
+
+        if (message->header->type != DBUS_MESSAGE_TYPE_METHOD_CALL)
+                message->header->flags |= DBUS_HEADER_FLAG_NO_REPLY_EXPECTED;
+
+        if (!destination) {
+                if (message->header->type != DBUS_MESSAGE_TYPE_SIGNAL)
+                        return -EBADMSG;
+
+                return peer_forward_broadcast(peer, interface, member, path, message);
+        }
+
+        switch (message->header->type) {
+        case DBUS_MESSAGE_TYPE_SIGNAL:
+        case DBUS_MESSAGE_TYPE_METHOD_CALL:
+                return peer_forward_method_call(peer, destination, serial, message);
+        case DBUS_MESSAGE_TYPE_METHOD_REPLY:
+        case DBUS_MESSAGE_TYPE_ERROR:
+                return peer_forward_reply(peer, destination, reply_serial, message);
         }
 
         return 0;
