@@ -20,6 +20,8 @@ int dispatch_file_init(DispatchFile *file,
                        uint32_t mask) {
         int r;
 
+        assert(!(mask & EPOLLET));
+
         r = epoll_ctl(ctx->epoll_fd,
                       EPOLL_CTL_ADD,
                       fd,
