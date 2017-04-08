@@ -51,6 +51,8 @@ int peer_dispatch(DispatchFile *file, uint32_t mask);
 void peer_start(Peer *peer);
 void peer_stop(Peer *peer);
 
+int peer_id_from_unique_name(const char *name, uint64_t *idp);
+
 static inline bool peer_is_registered(Peer *peer) {
         return c_rbnode_is_linked(&peer->rb);
 }

@@ -389,3 +389,23 @@ void peer_start(Peer *peer) {
 void peer_stop(Peer *peer) {
         return dispatch_file_deselect(&peer->dispatch_file, EPOLLIN);
 }
+
+int peer_id_from_unique_name(const char *name, uint64_t *idp) {
+        uint64_t id;
+        char *end;
+
+        if (strlen(name) < strlen(":1."))
+                return -EINVAL;
+
+        name += strlen(":1.");
+
+        errno = 0;
+        id = strtoull(name, &end, 10);
+        if (errno != 0)
+                return -errno;
+        if (*end || name == end)
+                return -EINVAL;
+
+        *idp = id;
+        return 0;
+}
