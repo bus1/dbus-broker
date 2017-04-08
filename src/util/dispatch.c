@@ -20,7 +20,10 @@ int dispatch_file_init(DispatchFile *file,
                        uint32_t mask) {
         int r;
 
-        assert(!(mask & EPOLLET));
+        assert(!(mask & (EPOLLET | EPOLLRDHUP)));
+
+        if (mask & EPOLLIN)
+                mask |= EPOLLRDHUP;
 
         r = epoll_ctl(ctx->epoll_fd,
                       EPOLL_CTL_ADD,
@@ -94,6 +97,11 @@ void dispatch_file_deselect(DispatchFile *file, uint32_t mask) {
  */
 void dispatch_file_clear(DispatchFile *file, uint32_t mask) {
         assert(!(mask & ~file->kernel_mask));
+
+        if (_c_unlikely_((file->events & EPOLLRDHUP) && (mask & EPOLLIN) && (file->events & EPOLLIN))) {
+                mask &= ~EPOLLIN;
+                mask |= EPOLLRDHUP;
+        }
 
         file->events &= ~mask;
         if (!(file->events & file->user_mask))
