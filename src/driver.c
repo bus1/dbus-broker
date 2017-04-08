@@ -132,6 +132,16 @@ struct DriverMethod {
         const CDVarType * const *out;
 };
 
+static void driver_write_bytes(CDVar *var, char *bytes, size_t n_bytes) {
+        c_dvar_write(var, "[");
+
+        for (size_t i = 0; i < n_bytes; i ++) {
+                c_dvar_write(var, "y", bytes[i]);
+        }
+
+        c_dvar_write(var, "]");
+}
+
 static void driver_dvar_write_unique_name(CDVar *var, Peer *peer) {
         char unique_name[strlen(":1.") + C_DECIMAL_MAX(uint64_t) + 1];
         int r;
@@ -329,6 +339,25 @@ static int driver_method_get_adt_audit_session_data(Peer *peer, CDVar *in_v, CDV
 }
 
 static int driver_method_get_connection_selinux_security_context(Peer *peer, CDVar *in_v, CDVar *out_v) {
+        Peer *connection;
+        const char *name;
+        int r;
+
+        c_dvar_read(in_v, "(s)", &name);
+
+        r = c_dvar_end_read(in_v);
+        if (r)
+                return (r > 0) ? -ENOTRECOVERABLE : r;
+
+        connection = bus_find_peer_by_name(peer->bus, name);
+        if (!connection)
+                return -ENOTRECOVERABLE;
+
+        if (!connection->seclabel)
+                return -ENOTRECOVERABLE;
+
+        driver_write_bytes(out_v, connection->seclabel, connection->n_seclabel);
+
         return 0;
 }
 
