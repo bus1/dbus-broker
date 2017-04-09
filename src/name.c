@@ -11,24 +11,6 @@
 #include "name.h"
 #include "user.h"
 
-typedef struct NameEntry NameEntry;
-typedef struct NameOwner NameOwner;
-
-struct NameOwner {
-        Peer *peer;
-        NameEntry *entry;
-        CRBNode rb;
-        CList entry_link;
-        uint64_t flags;
-};
-
-struct NameEntry {
-        NameRegistry *registry;
-        CList owners;
-        CRBNode rb;
-        const char name[];
-};
-
 static void name_entry_free(NameEntry *entry);
 
 /* new owner object linked into the owning peer */
@@ -328,18 +310,15 @@ int name_registry_request_name(NameRegistry *registry,
         return 0;
 }
 
-void name_registry_release_name(NameRegistry *registry,
-                               Peer *peer,
-                               const char *name,
-                               uint32_t *replyp) {
+NameEntry *name_registry_find_entry(NameRegistry *registry, const char *name) {
+        return c_rbtree_find_entry(&registry->entries, name_entry_compare, name, NameEntry, rb);
+}
+
+void name_registry_release_name(NameRegistry *registry, Peer *peer, const char *name, uint32_t *replyp) {
         NameEntry *entry;
         NameOwner *owner;
 
-        entry = c_rbtree_find_entry(&registry->entries,
-                                    name_entry_compare,
-                                    name,
-                                    NameEntry,
-                                    rb);
+        entry = name_registry_find_entry(registry, name);
         if (!entry) {
                 *replyp = DBUS_RELEASE_NAME_REPLY_NON_EXISTENT;
                 return;

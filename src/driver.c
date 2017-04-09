@@ -277,13 +277,46 @@ static int driver_method_release_name(Peer *peer, CDVar *in_v, CDVar *out_v) {
 }
 
 static int driver_method_list_queued_owners(Peer *peer, CDVar *in_v, CDVar *out_v) {
-        /* XXX */
+        NameEntry *entry;
+        NameOwner *owner;
+        const char *name;
+        int r;
+
+        c_dvar_read(in_v, "(s)", &name);
+
+        r = c_dvar_end_read(in_v);
+        if (r)
+                return (r > 0) ? -ENOTRECOVERABLE : r;
+
+        entry = name_registry_find_entry(&peer->bus->names, name);
+        if (!entry)
+                return -ENOTRECOVERABLE;
+
+        /* XXX: verify if the actual owner should be included */
+        c_dvar_write(out_v, "(");
+        c_list_for_each_entry(owner, &entry->owners, entry_link)
+                driver_dvar_write_unique_name(out_v, owner->peer);
+        c_dvar_write(out_v, ")");
 
         return 0;
 }
 
 static int driver_method_list_names(Peer *peer, CDVar *in_v, CDVar *out_v) {
-        /* XXX */
+        int r;
+
+        c_dvar_read(in_v, "()");
+
+        r = c_dvar_end_read(in_v);
+        if (r)
+                return (r > 0) ? -ENOTRECOVERABLE : r;
+
+        c_dvar_write(out_v, "(");
+        for (CRBNode *n = c_rbtree_first(&peer->bus->names.entries); n; n = c_rbnode_next(n)) {
+                NameEntry *entry = c_container_of(n, NameEntry, rb);
+
+                c_dvar_write(out_v, "s", entry->name);
+        }
+        c_dvar_write(out_v, ")");
 
         return 0;
 }
