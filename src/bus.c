@@ -3,8 +3,10 @@
  */
 
 #include <c-macro.h>
+#include <signal.h>
 #include <stdlib.h>
 #include <sys/epoll.h>
+#include <sys/signalfd.h>
 #include <sys/socket.h>
 #include "bus.h"
 #include "driver.h"
@@ -12,6 +14,24 @@
 #include "name.h"
 #include "user.h"
 #include "util/dispatch.h"
+
+static int bus_signal(DispatchFile *file, uint32_t events) {
+        Bus *bus = c_container_of(file, Bus, signal_file);
+        struct signalfd_siginfo fdsi;
+        ssize_t size;
+
+        if (!(events & EPOLLIN))
+                return 0;
+
+        size = read(bus->signal_fd, &fdsi, sizeof(fdsi));
+        if (size < 0)
+                return -errno;
+
+        assert(size == sizeof(fdsi));
+        assert(fdsi.ssi_signo == SIGTERM);
+
+        return DISPATCH_E_EXIT;
+}
 
 static int bus_accept(DispatchFile *file, uint32_t events) {
         Bus *bus = c_container_of(file, Bus, accept_file);
@@ -22,7 +42,7 @@ static int bus_accept(DispatchFile *file, uint32_t events) {
         if (!(events & EPOLLIN))
                 return 0;
 
-        fd = accept4(bus->fd, NULL, NULL, SOCK_NONBLOCK | SOCK_CLOEXEC);
+        fd = accept4(bus->accept_fd, NULL, NULL, SOCK_NONBLOCK | SOCK_CLOEXEC);
         if (fd < 0) {
                 if (errno == EAGAIN) {
                         dispatch_file_clear(file, EPOLLIN);
@@ -46,21 +66,32 @@ static int bus_accept(DispatchFile *file, uint32_t events) {
 }
 
 int bus_new(Bus **busp,
-            int fd,
+            int accept_fd,
             unsigned int max_bytes,
             unsigned int max_fds,
             unsigned int max_peers,
             unsigned int max_names,
             unsigned int max_matches) {
         _c_cleanup_(bus_freep) Bus *bus = NULL;
+        _c_cleanup_(c_closep) int signal_fd = -1;
+        sigset_t mask;
         int r;
+
+        sigemptyset(&mask);
+        sigaddset(&mask, SIGTERM);
+        sigprocmask(SIG_BLOCK, &mask, NULL);
+        signal_fd = signalfd(-1, &mask, SFD_NONBLOCK|SFD_CLOEXEC);
+        if (signal_fd < 0)
+                return -errno;
 
         bus = calloc(1, sizeof(*bus));
         if (!bus)
                 return -ENOMEM;
 
         bus->ready_list = (CList)C_LIST_INIT(bus->ready_list);
-        bus->fd = fd;
+        bus->accept_fd = accept_fd;
+        bus->signal_fd = signal_fd;
+        signal_fd = -1;
         match_registry_init(&bus->matches);
         /* XXX: initialize guid with random data */
         name_registry_init(&bus->names);
@@ -81,7 +112,16 @@ int bus_new(Bus **busp,
                                &bus->dispatcher,
                                &bus->ready_list,
                                bus_accept,
-                               fd,
+                               bus->accept_fd,
+                               EPOLLIN);
+        if (r < 0)
+                return r;
+
+        r = dispatch_file_init(&bus->signal_file,
+                               &bus->dispatcher,
+                               &bus->ready_list,
+                               bus_signal,
+                               bus->signal_fd,
                                EPOLLIN);
         if (r < 0)
                 return r;
@@ -98,9 +138,12 @@ Bus *bus_free(Bus *bus) {
                 return NULL;
 
         assert(!bus->peers.root);
+
+        dispatch_file_deinit(&bus->signal_file);
+        dispatch_file_deinit(&bus->accept_file);
+
         assert(c_list_is_empty(&bus->ready_list));
 
-        dispatch_file_deinit(&bus->accept_file);
         dispatch_context_deinit(&bus->dispatcher);
         user_registry_deinit(&bus->users);
         name_registry_deinit(&bus->names);
@@ -111,23 +154,23 @@ Bus *bus_free(Bus *bus) {
         return NULL;
 }
 
-int bus_dispatch(Bus *bus) {
+static int bus_dispatch(Bus *bus) {
         DispatchFile *file;
         CList list = C_LIST_INIT(list);
-        int r;
+        int r = 0;
 
         while ((file = c_list_first_entry(&bus->ready_list, DispatchFile, ready_link))) {
                 c_list_unlink(&file->ready_link);
                 c_list_link_tail(&list, &file->ready_link);
 
                 r = file->fn(file, file->user_mask & file->events);
-                if (r < 0)
-                        return r;
+                if (r)
+                        break;
         }
 
-        c_list_swap(&bus->ready_list, &list);
+        c_list_splice(&bus->ready_list, &list);
 
-        return 0;
+        return r;
 }
 
 int bus_run(Bus *bus) {
@@ -139,9 +182,14 @@ int bus_run(Bus *bus) {
                         return r;
 
                 r = bus_dispatch(bus);
-                if (r < 0)
-                        return r;
+                if (r)
+                        break;
         }
+
+        if (r != DISPATCH_E_EXIT)
+                return BUS_E_FAILURE;
+
+        return 0;
 }
 
 static int peer_compare(CRBTree *tree, void *k, CRBNode *rb) {

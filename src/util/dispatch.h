@@ -9,6 +9,13 @@
 #include <c-ref.h>
 #include <stdlib.h>
 
+enum {
+        _DISPATCH_E_SUCCESS,
+
+        DISPATCH_E_EXIT,
+        DISPATCH_E_FAILURE,
+};
+
 typedef struct DispatchContext DispatchContext;
 typedef struct DispatchFile DispatchFile;
 typedef int (*DispatchFn) (DispatchFile *file, uint32_t events);

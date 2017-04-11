@@ -13,7 +13,7 @@
 
 static void test_cleanup_bus(void *userdata) {
         Bus *bus = userdata;
-        int fd = bus->fd;
+        int fd = bus->accept_fd;
 
         /* XXX: handle cleanup properly */
 //        bus_free(bus);

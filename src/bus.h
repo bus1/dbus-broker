@@ -13,6 +13,12 @@
 #include "user.h"
 #include "util/dispatch.h"
 
+enum {
+        _BUS_E_SUCCESS,
+
+        BUS_E_FAILURE,
+};
+
 typedef struct Bus Bus;
 typedef struct Peer Peer;
 
@@ -20,7 +26,9 @@ struct Bus {
         char guid[16];
         DispatchContext dispatcher;
         DispatchFile accept_file;
-        int fd;
+        DispatchFile signal_file;
+        int accept_fd;
+        int signal_fd;
         CList ready_list;
         NameRegistry names;
         UserRegistry users;
@@ -30,7 +38,7 @@ struct Bus {
 };
 
 int bus_new(Bus **busp,
-            int fd,
+            int accept_fd,
             unsigned int max_bytes,
             unsigned int max_fds,
             unsigned int max_peers,
