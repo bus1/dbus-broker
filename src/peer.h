@@ -12,6 +12,8 @@
 #include "sasl.h"
 #include "util/dispatch.h"
 
+#define PEER_ID_INVALID ((uint64_t) -1)
+
 typedef struct Bus Bus;
 typedef struct Peer Peer;
 typedef struct Socket Socket;

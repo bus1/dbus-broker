@@ -12,6 +12,7 @@
 
 static void test_args(Peer *peer,
                       const char *match,
+                      uint64_t destination,
                       const char *arg0,
                       const char *arg1,
                       const char *arg2,
@@ -21,6 +22,7 @@ static void test_args(Peer *peer,
 
         r = match_rule_new(&rule, peer, match);
         assert(r >= 0);
+        assert(rule->keys.filter.destination == destination);
         assert(strcmp(rule->keys.filter.args[0], arg0) == 0);
         assert(strcmp(rule->keys.filter.args[1], arg1) == 0);
         assert(strcmp(rule->keys.filter.args[2], arg2) == 0);
@@ -42,10 +44,10 @@ static void test_setup(void) {
         assert(r >= 0);
 
         /* examples taken from the spec */
-        test_args(peer, "arg0=''\\''',arg1='\\',arg2=',',arg3='\\\\'",
-                  "\'", "\\", ",", "\\\\");
-        test_args(peer, "arg0=\\',arg1=\\,arg2=',',arg3=\\\\",
-                  "\'", "\\", ",", "\\\\");
+        test_args(peer, "destination=:1.42,arg0=''\\''',arg1='\\',arg2=',',arg3='\\\\'",
+                  42, "\'", "\\", ",", "\\\\");
+        test_args(peer, "destination=:1.64,arg0=\\',arg1=\\,arg2=',',arg3=\\\\",
+                  64, "\'", "\\", ",", "\\\\");
 
         close(pair[1]);
 }

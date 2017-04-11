@@ -18,7 +18,7 @@ typedef struct Peer Peer;
 struct MatchFilter {
         uint8_t type;
         const char *sender; /* XXX: make implicit */
-        const char *destination; /* XXX: make uint64_t */
+        uint64_t destination;
         const char *interface;
         const char *member;
         const char *path;
