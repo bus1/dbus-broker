@@ -7,6 +7,7 @@
 #include <endian.h>
 #include <stdlib.h>
 #include "message.h"
+#include "util/fdlist.h"
 
 static int message_new(Message **messagep, bool big_endian, size_t n_extra) {
         _c_cleanup_(message_unrefp) Message *message = NULL;
@@ -18,7 +19,6 @@ static int message_new(Message **messagep, bool big_endian, size_t n_extra) {
         message->n_refs = C_REF_INIT;
         message->big_endian = big_endian;
         message->allocated_data = false;
-        message->n_fds = 0;
         message->fds = NULL;
         message->n_data = 0;
         message->n_copied = 0;
@@ -121,11 +121,8 @@ int message_new_outgoing(Message **messagep, void *data, size_t n_data) {
 void message_free(_Atomic unsigned long *n_refs, void *userdata) {
         Message *message = c_container_of(n_refs, Message, n_refs);
 
-        while (message->n_fds > 0)
-                close(message->fds[--message->n_fds]);
-
         if (message->allocated_data)
                 free(message->data);
-        free(message->fds);
+        fdlist_free(message->fds);
         free(message);
 }

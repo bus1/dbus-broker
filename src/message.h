@@ -8,6 +8,7 @@
 #include <c-ref.h>
 #include <stdlib.h>
 
+typedef struct FDList FDList;
 typedef struct Message Message;
 typedef struct MessageHeader MessageHeader;
 
@@ -29,8 +30,7 @@ struct Message {
         bool big_endian : 1;
         bool allocated_data : 1;
 
-        size_t n_fds;
-        int *fds;
+        FDList *fds;
 
         size_t n_data;
         size_t n_copied;

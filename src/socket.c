@@ -19,6 +19,7 @@
 #include <sys/un.h>
 #include "message.h"
 #include "socket.h"
+#include "util/fdlist.h"
 
 #define SOCKET_MMSG_MAX (16)
 
@@ -39,7 +40,6 @@ struct SocketMessageEntry {
         Message *message;
         size_t data_written;
         struct iovec iov;
-        struct cmsghdr control[];
 };
 
 static int socket_line_buffer_new(SocketLineBuffer **bufferp, Socket *socket, size_t n_bytes) {
@@ -101,9 +101,6 @@ Socket *socket_free(Socket *socket) {
         if (!socket)
                 return NULL;
 
-        while (socket->in.n_fds)
-                close(socket->in.fds[--socket->in.n_fds]);
-
         socket->fd = c_close(socket->fd);
 
         while ((line = c_list_first_entry(&socket->out.lines, SocketLineBuffer, link)))
@@ -113,14 +110,14 @@ Socket *socket_free(Socket *socket) {
                 socket_message_entry_free(entry);
 
         message_unref(socket->in.pending_message);
+        fdlist_free(socket->in.fds);
         free(socket->in.data);
-        free(socket->in.fds);
         free(socket);
 
         return NULL;
 }
 
-static int socket_recvmsg(int fd, void *buffer, size_t *from, size_t *to, int **fdsp, size_t *n_fdsp) {
+static int socket_recvmsg(int fd, void *buffer, size_t *from, size_t *to, FDList **fdsp) {
         union {
                 struct cmsghdr cmsg;
                 char buffer[CMSG_SPACE(sizeof(int) * SOCKET_FD_MAX)];
@@ -164,19 +161,14 @@ static int socket_recvmsg(int fd, void *buffer, size_t *from, size_t *to, int **
         }
 
         if (_c_unlikely_(n_fds)) {
-                if (*n_fdsp) {
+                if (_c_unlikely_(*fdsp)) {
                         r = -EBADMSG;
                         goto error;
                 }
 
-                *fdsp = malloc(n_fds * sizeof(int));
-                if (!*fdsp) {
-                        r = -ENOMEM;
+                r = fdlist_new_consume_fds(fdsp, fds, n_fds);
+                if (r)
                         goto error;
-                }
-
-                memcpy(*fdsp, fds, n_fds * sizeof(int));
-                *n_fdsp = n_fds;
         }
 
         *from += l;
@@ -218,13 +210,8 @@ static int socket_line_pop(Socket *socket, char **linep, size_t *np) {
                  * and the DBus spec clearly states that no extension shall
                  * pass FDs during authentication.
                  */
-                if (socket->in.data_pos + 1 == socket->in.data_end &&
-                    _c_unlikely_(socket->in.n_fds)) {
-                        while (socket->in.n_fds)
-                                close(socket->in.fds[--socket->in.n_fds]);
-
-                        socket->in.fds = c_free(socket->in.fds);
-                }
+                if (_c_unlikely_(socket->in.data_pos + 1 == socket->in.data_end && socket->in.fds))
+                        socket->in.fds = fdlist_free(socket->in.fds);
 
                 /*
                  * If we find an \r\n, advance the start indicator and return
@@ -306,13 +293,12 @@ int socket_read_line(Socket *socket, char **linep, size_t *np) {
         if (r < 0)
                 return r;
 
-        assert(!socket->in.n_fds);
+        assert(!socket->in.fds);
         r = socket_recvmsg(socket->fd,
                            socket->in.data,
                            &socket->in.data_end,
                            &socket->in.data_size,
-                           &socket->in.fds,
-                           &socket->in.n_fds);
+                           &socket->in.fds);
         if (r < 0)
                 return r;
 
@@ -355,14 +341,12 @@ static int socket_message_pop(Socket *socket, Message **messagep) {
                 msg->n_copied += n;
         }
 
-        if (!n_data && _c_unlikely_(socket->in.n_fds)) {
-                if (msg->n_fds)
+        if (_c_unlikely_(!n_data && socket->in.fds)) {
+                if (msg->fds)
                         return -EBADMSG;
 
                 msg->fds = socket->in.fds;
-                msg->n_fds = socket->in.n_fds;
                 socket->in.fds = NULL;
-                socket->in.n_fds = 0;
         }
 
         if (msg->n_copied < msg->n_data)
@@ -408,8 +392,7 @@ int socket_read_message(Socket *socket, Message **messagep) {
                                    msg->data,
                                    &msg->n_copied,
                                    &msg->n_data,
-                                   &msg->fds,
-                                   &msg->n_fds);
+                                   &msg->fds);
                 if (r < 0)
                         return r;
         } else {
@@ -417,8 +400,7 @@ int socket_read_message(Socket *socket, Message **messagep) {
                                    socket->in.data,
                                    &socket->in.data_end,
                                    &socket->in.data_size,
-                                   &socket->in.fds,
-                                   &socket->in.n_fds);
+                                   &socket->in.fds);
                 if (r < 0)
                         return r;
         }
@@ -447,29 +429,14 @@ int socket_queue_line(Socket *socket, size_t n_bytes, char **linep, size_t **pos
 
 int socket_queue_message(Socket *socket, Message *message) {
         SocketMessageEntry *entry;
-        size_t controllen;
 
         if (_c_unlikely_(!socket->lines_done)) {
                 socket->lines_done = true;
         }
 
-        if (_c_unlikely_(message->n_fds > 0))
-                controllen = CMSG_SPACE(sizeof(int) * message->n_fds);
-        else
-                controllen = 0;
-
-        entry = calloc(1, sizeof(*entry) + controllen);
+        entry = calloc(1, sizeof(*entry));
         if (!entry)
                 return 0;
-
-        if (_c_unlikely_(message->n_fds > 0)) {
-                entry->control[0].cmsg_len = CMSG_LEN(sizeof(int) * message->n_fds);
-                entry->control[0].cmsg_level = SOL_SOCKET;
-                entry->control[0].cmsg_type = SCM_RIGHTS;
-                memcpy(CMSG_DATA(&entry->control[0]),
-                       message->fds,
-                       sizeof(int) * message->n_fds);
-        }
 
         entry->message = message_ref(message);
         c_list_link_tail(&socket->out.messages, &entry->link);
@@ -512,10 +479,9 @@ int socket_write(Socket *socket) {
                 msg->msg_iov = &entry->iov;
                 msg->msg_iovlen = 1;
 
-                if (_c_unlikely_(entry->message->n_fds > 0 &&
-                                 entry->data_written == 0)) {
-                        msg->msg_control = &entry->control[0];
-                        msg->msg_controllen = entry->control[0].cmsg_len;
+                if (_c_unlikely_(entry->message->fds && entry->data_written == 0)) {
+                        msg->msg_control = &entry->message->fds->cmsg;
+                        msg->msg_controllen = entry->message->fds->cmsg->cmsg_len;
                 }
         }
 

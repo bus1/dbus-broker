@@ -21,6 +21,7 @@
 #include "socket.h"
 #include "user.h"
 #include "util/dispatch.h"
+#include "util/fdlist.h"
 
 static int peer_forward_method_call(Peer *sender, const char *destination, uint32_t serial, Message *message) {
         _c_cleanup_(reply_slot_freep) ReplySlot *slot = NULL;
@@ -175,10 +176,12 @@ static int peer_dispatch_read_message(Peer *peer) {
         if (r)
                 return (r > 0) ? -EBADMSG : r;
 
-        if (_c_unlikely_(n_fds > message->n_fds))
-                return -EBADMSG;
-        while (_c_unlikely_(n_fds < message->n_fds))
-                close(message->fds[-- message->n_fds]);
+        if (message->fds) {
+                if (_c_unlikely_(n_fds > fdlist_count(message->fds)))
+                        return -EBADMSG;
+
+                fdlist_truncate(message->fds, n_fds);
+        }
 
         if (_c_unlikely_(c_string_equal(destination, "org.freedesktop.DBus")))
                 return driver_dispatch_interface(peer, serial, interface, member, path, signature, message);
