@@ -18,6 +18,7 @@ libdbus_broker_private = static_library('dbus-broker-private',
                                                 'socket.c',
                                                 'user.c',
                                                 'util/dispatch.c',
+                                                'util/fdlist.c',
                                         ],
                                         c_args: [
                                                 '-fvisibility=hidden',
@@ -56,6 +57,9 @@ test('Bus Management', test_bus)
 
 test_dispatch = executable('test-dispatch', ['util/test-dispatch.c'], dependencies: libdbus_broker_dep)
 test('Event Dispatcher', test_dispatch)
+
+test_fdlist = executable('test-fdlist', ['test-fdlist.c'], dependencies: libdbus_broker_dep)
+test('Utility File-Desciptor Lists', test_fdlist)
 
 test_match = executable('test-match', ['test-match.c'], dependencies: libdbus_broker_dep)
 test('D-Bus Match Handling', test_match)
