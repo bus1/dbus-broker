@@ -21,55 +21,112 @@
 #include "socket.h"
 #include "util/fdlist.h"
 
-#define SOCKET_MMSG_MAX (16)
+static char *socket_buffer_get_base(SocketBuffer *buffer) {
+        return (char *)(buffer->vecs + buffer->n_vecs);
+}
 
-typedef struct SocketLineBuffer SocketLineBuffer;
-typedef struct SocketMessageEntry SocketMessageEntry;
+static int socket_buffer_new(SocketBuffer **bufferp, size_t n_vecs, size_t n_line) {
+        SocketBuffer *buffer;
 
-struct SocketLineBuffer {
-        CList link;
-        size_t data_size;
-        size_t data_pos;
-        size_t data_written;
-        struct iovec iov;
-        char data[];
-};
-
-struct SocketMessageEntry {
-        CList link;
-        Message *message;
-        size_t data_written;
-        struct iovec iov;
-};
-
-static int socket_line_buffer_new(SocketLineBuffer **bufferp, Socket *socket, size_t n_bytes) {
-        SocketLineBuffer *buffer;
-
-        n_bytes = C_MAX(n_bytes, 2048);
-
-        buffer = calloc(1, sizeof(*buffer) + n_bytes);
+        buffer = malloc(sizeof(*buffer) + n_vecs * sizeof(*buffer->vecs) + n_line);
         if (!buffer)
                 return -ENOMEM;
 
-        buffer->data_size = n_bytes;
-        c_list_link_tail(&socket->out.lines, &buffer->link);
+        buffer->link = (CList)C_LIST_INIT(buffer->link);
+        buffer->n_total = n_line;
+        buffer->message = NULL;
+        buffer->n_vecs = n_vecs;
+        buffer->writer = NULL;
 
         *bufferp = buffer;
         return 0;
 }
 
-static SocketLineBuffer *socket_line_buffer_free(SocketLineBuffer *buffer) {
-        c_list_unlink(&buffer->link);
+static int socket_buffer_new_line(SocketBuffer **bufferp, size_t n) {
+        SocketBuffer *buffer;
+        int r;
+
+        r = socket_buffer_new(&buffer, 1, c_max(n, SOCKET_LINE_PREALLOC));
+        if (r)
+                return r;
+
+        buffer->vecs[0] = (struct iovec){ socket_buffer_get_base(buffer), 0 };
+
+        *bufferp = buffer;
+        return 0;
+}
+
+static int socket_buffer_new_message(SocketBuffer **bufferp, Message *message) {
+        SocketBuffer *buffer;
+        int r;
+
+        r = socket_buffer_new(&buffer, C_ARRAY_SIZE(message->vecs), 0);
+        if (r)
+                return r;
+
+        buffer->message = message_ref(message);
+        memcpy(buffer->vecs, message->vecs, sizeof(message->vecs));
+
+        *bufferp = buffer;
+        return 0;
+}
+
+static SocketBuffer *socket_buffer_free(SocketBuffer *buffer) {
+        if (!buffer)
+                return NULL;
+
+        c_list_unlink_init(&buffer->link);
+        message_unref(buffer->message);
         free(buffer);
+
         return NULL;
 }
 
+static size_t socket_buffer_get_line_space(SocketBuffer *buffer) {
+        size_t n_remaining;
 
-static SocketMessageEntry *socket_message_entry_free(SocketMessageEntry *entry) {
-        message_unref(entry->message);
-        c_list_unlink(&entry->link);
-        free(entry);
-        return NULL;
+        assert(!buffer->message);
+
+        n_remaining = buffer->n_total;
+        n_remaining -= (char *)buffer->vecs[0].iov_base - socket_buffer_get_base(buffer);
+        n_remaining -= buffer->vecs[0].iov_len;
+
+        return n_remaining;
+}
+
+static void socket_buffer_get_line_cursor(SocketBuffer *buffer, char **datap, size_t **posp) {
+        assert(!buffer->message);
+
+        *datap = buffer->vecs[0].iov_base + buffer->vecs[0].iov_len;
+        *posp = &buffer->vecs[0].iov_len;
+}
+
+static bool socket_buffer_is_uncomsumed(SocketBuffer *buffer) {
+        return !buffer->writer;
+}
+
+static bool socket_buffer_is_consumed(SocketBuffer *buffer) {
+        return buffer->writer >= buffer->vecs + buffer->n_vecs;
+}
+
+static bool socket_buffer_consume(SocketBuffer *buffer, size_t n) {
+        size_t t;
+
+        if (!buffer->writer)
+                buffer->writer = buffer->vecs;
+
+        for ( ; !socket_buffer_is_consumed(buffer); ++buffer->writer) {
+                t = c_min(buffer->writer->iov_len, n);
+                buffer->writer->iov_len -= t;
+                buffer->writer->iov_base += t;
+                n -= t;
+                if (buffer->writer->iov_len)
+                        break;
+        }
+
+        assert(!n);
+
+        return socket_buffer_is_consumed(buffer);
 }
 
 int socket_new(Socket **socketp, int fd) {
@@ -81,8 +138,7 @@ int socket_new(Socket **socketp, int fd) {
 
         socket->fd = fd;
 
-        socket->out.lines = (CList)C_LIST_INIT(socket->out.lines);
-        socket->out.messages = (CList)C_LIST_INIT(socket->out.messages);
+        socket->out.queue = (CList)C_LIST_INIT(socket->out.queue);
 
         socket->in.data_size = 2048;
         socket->in.data = malloc(socket->in.data_size);
@@ -95,19 +151,15 @@ int socket_new(Socket **socketp, int fd) {
 }
 
 Socket *socket_free(Socket *socket) {
-        SocketLineBuffer *line;
-        SocketMessageEntry *entry;
+        SocketBuffer *buffer;
 
         if (!socket)
                 return NULL;
 
         socket->fd = c_close(socket->fd);
 
-        while ((line = c_list_first_entry(&socket->out.lines, SocketLineBuffer, link)))
-                socket_line_buffer_free(line);
-
-        while ((entry = c_list_first_entry(&socket->out.messages, SocketMessageEntry, link)))
-                socket_message_entry_free(entry);
+        while ((buffer = c_list_first_entry(&socket->out.queue, SocketBuffer, link)))
+                socket_buffer_free(buffer);
 
         message_unref(socket->in.pending_message);
         fdlist_free(socket->in.fds);
@@ -408,113 +460,95 @@ int socket_read_message(Socket *socket, Message **messagep) {
         return socket_message_pop(socket, messagep);
 }
 
+/**
+ * socket_queue_line() - XXX
+ */
 int socket_queue_line(Socket *socket, size_t n_bytes, char **linep, size_t **posp) {
-        SocketLineBuffer *buffer;
+        SocketBuffer *buffer;
         int r;
 
         assert(!socket->lines_done);
 
-        buffer = c_list_last_entry(&socket->out.lines, SocketLineBuffer, link);
-
-        if (!buffer || buffer->data_size - buffer->data_pos < n_bytes) {
-                r = socket_line_buffer_new(&buffer, socket, n_bytes);
-                if (r < 0)
+        buffer = c_list_last_entry(&socket->out.queue, SocketBuffer, link);
+        if (!buffer || n_bytes > socket_buffer_get_line_space(buffer)) {
+                r = socket_buffer_new_line(&buffer, n_bytes);
+                if (r)
                         return r;
+
+                c_list_link_tail(&socket->out.queue, &buffer->link);
         }
 
-        *linep = buffer->data + buffer->data_pos;
-        *posp = &buffer->data_pos;
+        socket_buffer_get_line_cursor(buffer, linep, posp);
         return 0;
 }
 
+/**
+ * socket_queue_message() - XXX
+ */
 int socket_queue_message(Socket *socket, Message *message) {
-        SocketMessageEntry *entry;
+        SocketBuffer *buffer;
+        int r;
 
-        if (_c_unlikely_(!socket->lines_done)) {
+        if (_c_unlikely_(!socket->lines_done))
                 socket->lines_done = true;
-        }
 
-        entry = calloc(1, sizeof(*entry));
-        if (!entry)
-                return 0;
+        r = socket_buffer_new_message(&buffer, message);
+        if (!r)
+                c_list_link_tail(&socket->out.queue, &buffer->link);
 
-        entry->message = message_ref(message);
-        c_list_link_tail(&socket->out.messages, &entry->link);
-
-        return 0;
+        return r;
 }
 
+/**
+ * socket_write() - XXX
+ */
 int socket_write(Socket *socket) {
-        SocketLineBuffer *line, *safe_line;
-        SocketMessageEntry *entry, *safe_entry;
-        struct mmsghdr msgs[SOCKET_MMSG_MAX] = {};
-        int vlen = 0;
+        SocketBuffer *buffer, *safe;
+        struct mmsghdr msgs[SOCKET_MMSG_MAX];
+        struct msghdr *msg;
+        int i, n_msgs;
 
-        c_list_for_each_entry(line, &socket->out.lines, link) {
-                struct msghdr *msg = &msgs[vlen].msg_hdr;
+        n_msgs = 0;
+        c_list_for_each_entry(buffer, &socket->out.queue, link) {
+                msg = &msgs[n_msgs].msg_hdr;
 
-                if (vlen ++ >= SOCKET_MMSG_MAX)
-                        break;
-
-                assert(line->data_pos >= line->data_written);
-
-                line->iov.iov_base = line->data + line->data_written;
-                line->iov.iov_len = line->data_pos - line->data_written;
-                msg->msg_iov = &line->iov;
-                msg->msg_iovlen = 1;
-        }
-
-        c_list_for_each_entry(entry, &socket->out.messages, link) {
-                struct msghdr *msg = &msgs[vlen].msg_hdr;
-
-                if (vlen ++ >= SOCKET_MMSG_MAX)
-                        break;
-
-                assert(entry->message->n_data >= entry->data_written);
-
-                entry->iov.iov_base = entry->message->data +
-                                      entry->data_written;
-                entry->iov.iov_len = entry->message->n_data -
-                                     entry->data_written;
-                msg->msg_iov = &entry->iov;
-                msg->msg_iovlen = 1;
-
-                if (_c_unlikely_(entry->message->fds && entry->data_written == 0)) {
-                        msg->msg_control = &entry->message->fds->cmsg;
-                        msg->msg_controllen = entry->message->fds->cmsg->cmsg_len;
+                msg->msg_name = NULL;
+                msg->msg_namelen = 0;
+                msg->msg_iov = buffer->vecs;
+                msg->msg_iovlen = buffer->n_vecs;
+                if (buffer->message &&
+                    buffer->message->fds &&
+                    socket_buffer_is_uncomsumed(buffer)) {
+                        msg->msg_control = buffer->message->fds->cmsg;
+                        msg->msg_controllen = buffer->message->fds->cmsg->cmsg_len;
+                } else {
+                        msg->msg_control = NULL;
+                        msg->msg_controllen = 0;
                 }
+                msg->msg_flags = 0;
+
+                if (++n_msgs >= C_ARRAY_SIZE(msgs))
+                        break;
         }
 
-        if (vlen == 0)
+        if (!n_msgs)
                 return 0;
 
-        vlen = sendmmsg(socket->fd, msgs, vlen, MSG_DONTWAIT);
-        if (vlen < 0)
+        n_msgs = sendmmsg(socket->fd, msgs, n_msgs, MSG_DONTWAIT | MSG_NOSIGNAL);
+        if (n_msgs < 0)
                 return -errno;
 
-        c_list_for_each_entry_safe(line, safe_line, &socket->out.lines, link) {
-                if (!vlen--)
+        i = 0;
+        c_list_for_each_entry_safe(buffer, safe, &socket->out.queue, link) {
+                if (i >= n_msgs)
                         break;
 
-                line->data_written += msgs[vlen].msg_len;
+                if (socket_buffer_consume(buffer, msgs[i].msg_len))
+                        socket_buffer_free(buffer);
 
-                if (line->data_written >= line->data_pos) {
-                        assert(line->data_written == line->data_pos);
-                        socket_line_buffer_free(line);
-                }
+                ++i;
         }
+        assert(i == n_msgs);
 
-        c_list_for_each_entry_safe(entry, safe_entry, &socket->out.messages, link) {
-                if (!vlen--)
-                        break;
-
-                entry->data_written += msgs[vlen].msg_len;
-
-                if (entry->data_written >= entry->message->n_data) {
-                        assert(entry->data_written == entry->message->n_data);
-                        socket_message_entry_free(entry);
-                }
-        }
-
-        return 1;
+        return !c_list_is_empty(&socket->out.queue);
 }

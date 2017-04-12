@@ -50,7 +50,7 @@ static void test_line(void) {
         *pos += strlen(test + 1);
 
         r = socket_write(socket1);
-        assert(r == 1);
+        assert(r >= 0);
 
         r = socket_read_line(socket2, &line, &n_bytes);
         assert(r >= 0);
@@ -95,7 +95,7 @@ static void test_message(void) {
         assert(r >= 0);
 
         r = socket_write(socket1);
-        assert(r == 1);
+        assert(r >= 0);
 
         r = socket_read_message(socket2, &message2);
         assert(r >= 0);

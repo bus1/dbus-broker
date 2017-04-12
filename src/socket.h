@@ -11,9 +11,23 @@
 typedef struct FDList FDList;
 typedef struct Message Message;
 typedef struct Socket Socket;
+typedef struct SocketBuffer SocketBuffer;
 
+#define SOCKET_LINE_PREALLOC (2UL * 1024UL) /* XXX */
 #define SOCKET_LINE_MAX (16UL * 1024UL) /* taken from dbus-daemon(1) */
 #define SOCKET_FD_MAX (253UL) /* taken from kernel SCM_MAX_FD */
+#define SOCKET_MMSG_MAX (16) /* XXX */
+
+struct SocketBuffer {
+        CList link;
+
+        size_t n_total;
+        Message *message;
+
+        size_t n_vecs;
+        struct iovec *writer;
+        struct iovec vecs[];
+};
 
 struct Socket {
         int fd;
@@ -34,8 +48,7 @@ struct Socket {
         } in;
 
         struct SocketOut {
-                CList lines;
-                CList messages;
+                CList queue;
         } out;
 };
 
