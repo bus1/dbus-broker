@@ -35,11 +35,6 @@
                                                 )                                               \
                                         )
 
-static const CDVarType driver_type_in_unit[] = {
-        C_DVAR_T_INIT(
-                C_DVAR_T_TUPLE0
-        )
-};
 static const CDVarType driver_type_in_s[] = {
         C_DVAR_T_INIT(
                 C_DVAR_T_TUPLE1(
@@ -620,12 +615,12 @@ static int driver_handle_method(const DriverMethod *method, Peer *peer, uint32_t
 
 static int driver_dispatch_method(Peer *peer, uint32_t serial, const char *method, const char *signature, Message *message) {
         static const DriverMethod methods[] = {
-                { "Hello",                                      driver_method_hello,                                            driver_type_in_unit,    driver_type_out_s },
+                { "Hello",                                      driver_method_hello,                                            c_dvar_type_unit,       driver_type_out_s },
                 { "RequestName",                                driver_method_request_name,                                     driver_type_in_su,      driver_type_out_u },
                 { "ReleaseName",                                driver_method_release_name,                                     driver_type_in_s,       driver_type_out_u },
                 { "ListQueuedOwners",                           driver_method_list_queued_owners,                               driver_type_in_s,       driver_type_out_as },
-                { "ListNames",                                  driver_method_list_names,                                       driver_type_in_unit,    driver_type_out_as },
-                { "ListActivatableNames",                       driver_method_list_activatable_names,                           driver_type_in_unit,    driver_type_out_as },
+                { "ListNames",                                  driver_method_list_names,                                       c_dvar_type_unit,       driver_type_out_as },
+                { "ListActivatableNames",                       driver_method_list_activatable_names,                           c_dvar_type_unit,       driver_type_out_as },
                 { "NameHasOwner",                               driver_method_name_has_owner,                                   driver_type_in_s,       driver_type_out_b },
                 { "StartServiceByName",                         driver_method_start_service_by_name,                            driver_type_in_s,       driver_type_out_u },
                 { "UpdateActivationEnvironment",                driver_method_update_activation_environment,                    driver_type_in_apss,    driver_type_out_unit },
@@ -637,7 +632,7 @@ static int driver_dispatch_method(Peer *peer, uint32_t serial, const char *metho
                 { "GetConnectionSELinuxSecurityContext",        driver_method_get_connection_selinux_security_context,          driver_type_in_s,       driver_type_out_ab },
                 { "AddMatch",                                   driver_method_add_match,                                        driver_type_in_s,       driver_type_out_unit },
                 { "RemoveMatch",                                driver_method_remove_match,                                     driver_type_in_s,       driver_type_out_unit },
-                { "GetId",                                      driver_method_get_id,                                           driver_type_in_unit,    driver_type_out_s },
+                { "GetId",                                      driver_method_get_id,                                           c_dvar_type_unit,       driver_type_out_s },
                 { "BecomeMonitor",                              driver_method_become_monitor,                                   driver_type_in_asu,     driver_type_out_unit },
         };
         int r;
