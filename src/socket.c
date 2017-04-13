@@ -461,6 +461,29 @@ int socket_read_message(Socket *socket, Message **messagep) {
 }
 
 /**
+ * socket_queue() - XXX
+ */
+void socket_queue(Socket *socket, SocketBuffer *buffer) {
+        if (_c_unlikely_(!socket->lines_done))
+                socket->lines_done = true;
+
+        assert(buffer->message);
+        assert(!c_list_is_linked(&buffer->link));
+
+        c_list_link_tail(&socket->out.queue, &buffer->link);
+}
+
+/**
+ * socket_queue_many() - XXX
+ */
+void socket_queue_many(Socket *socket, CList *list) {
+        if (_c_unlikely_(!socket->lines_done))
+                socket->lines_done = true;
+
+        c_list_splice(&socket->out.queue, list);
+}
+
+/**
  * socket_queue_line() - XXX
  */
 int socket_queue_line(Socket *socket, size_t n_bytes, char **linep, size_t **posp) {
@@ -489,12 +512,9 @@ int socket_queue_message(Socket *socket, Message *message) {
         SocketBuffer *buffer;
         int r;
 
-        if (_c_unlikely_(!socket->lines_done))
-                socket->lines_done = true;
-
         r = socket_buffer_new_message(&buffer, message);
         if (!r)
-                c_list_link_tail(&socket->out.queue, &buffer->link);
+                socket_queue(socket, buffer);
 
         return r;
 }
