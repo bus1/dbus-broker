@@ -161,14 +161,9 @@ static const CDVarType driver_type_out_apsv[] = {
 };
 
 static void driver_write_bytes(CDVar *var, char *bytes, size_t n_bytes) {
-        /* XXX: check how the dbus daemon deals with this potentially including a zero byte */
-
         c_dvar_write(var, "[");
-
-        for (size_t i = 0; i < n_bytes; i ++) {
+        for (size_t i = 0; i < n_bytes; ++i)
                 c_dvar_write(var, "y", bytes[i]);
-        }
-
         c_dvar_write(var, "]");
 }
 
@@ -465,15 +460,17 @@ static int driver_method_get_connection_credentials(Peer *peer, CDVar *in_v, CDV
                      "ProcessID", c_dvar_type_u, connection->pid);
 
         if (connection->seclabel) {
-                static const CDVarType type[] = {
-                        C_DVAR_T_INIT(
-                                C_DVAR_T_ARRAY(
-                                        C_DVAR_T_y
-                                )
-                        )
-                };
-
-                c_dvar_write(out_v, "{s<", "LinuxSecurityLabel", type);
+                /*
+                 * The DBus specification says that the security-label is a
+                 * byte array of non-0 values. The kernel disagrees.
+                 * Unfortunately, the spec does not provide any transformation
+                 * rules. Hence, we simply ignore that part of the spec and
+                 * insert the label unmodified, followed by a zero byte, which
+                 * is mandated by the spec.
+                 * The @peer->seclabel field always has a trailing zero-byte,
+                 * so we can safely copy from it.
+                 */
+                c_dvar_write(out_v, "{s<", "LinuxSecurityLabel", (const CDVarType[]){ C_DVAR_T_INIT(C_DVAR_T_ARRAY(C_DVAR_T_y)) });
                 driver_write_bytes(out_v, connection->seclabel, connection->n_seclabel + 1);
                 c_dvar_write(out_v, ">}");
         }
@@ -494,6 +491,12 @@ static int driver_method_get_connection_selinux_security_context(Peer *peer, CDV
         const char *name;
         int r;
 
+        /*
+         * XXX: Unlike "LinuxSecurityLabel" in GetConnectionCredentials(), this
+         *      call is specific to SELinux. Hence, we better only return the
+         *      label if we are running on SELinux.
+         */
+
         c_dvar_read(in_v, "(s)", &name);
 
         r = c_dvar_end_read(in_v);
@@ -507,6 +510,10 @@ static int driver_method_get_connection_selinux_security_context(Peer *peer, CDV
         if (!connection->seclabel)
                 return -ENOTRECOVERABLE;
 
+        /*
+         * Unlike the "LinuxSecurityLabel", this call does not include a
+         * trailing 0-byte in the data blob.
+         */
         driver_write_bytes(out_v, connection->seclabel, connection->n_seclabel);
 
         return 0;
