@@ -34,93 +34,106 @@
                                                         type                                    \
                                                 )                                               \
                                         )
-static const CDVarType * const driver_type_in_unit = (const CDVarType[]){
-                                                C_DVAR_T_INIT(
-                                                        C_DVAR_T_TUPLE0
-                                                ) };
-static const CDVarType * const driver_type_in_s = (const CDVarType[]){
-                                                C_DVAR_T_INIT(
-                                                        C_DVAR_T_TUPLE1(
-                                                                C_DVAR_T_s
-                                                        )
-                                                ) };
-static const CDVarType * const driver_type_in_su = (const CDVarType[]){
-                                                C_DVAR_T_INIT(
-                                                        C_DVAR_T_TUPLE2(
-                                                                C_DVAR_T_s,
-                                                                C_DVAR_T_u
-                                                        )
-                                                ) };
-static const CDVarType * const driver_type_in_apss = (const CDVarType[]){
-                                                C_DVAR_T_INIT(
-                                                        C_DVAR_T_TUPLE1(
-                                                                C_DVAR_T_ARRAY(
-                                                                        C_DVAR_T_PAIR(
-                                                                                C_DVAR_T_s,
-                                                                                C_DVAR_T_s
-                                                                        )
-                                                                )
-                                                        )
-                                                ) };
-static const CDVarType * const driver_type_in_asu = (const CDVarType[]){
-                                                C_DVAR_T_INIT(
-                                                        C_DVAR_T_TUPLE2(
-                                                                C_DVAR_T_ARRAY(
-                                                                        C_DVAR_T_s
-                                                                ),
-                                                                C_DVAR_T_u
-                                                        )
-                                                ) };
 
-static const CDVarType * const driver_type_out_unit = (const CDVarType[]){
-                                                DRIVER_T_OUT_INIT(
-                                                        C_DVAR_T_TUPLE0
-                                                ) };
-static const CDVarType * const driver_type_out_s = (const CDVarType[]){
-                                                DRIVER_T_OUT_INIT(
-                                                        C_DVAR_T_TUPLE1(
-                                                                C_DVAR_T_s
-                                                        )
-                                                ) };
-static const CDVarType * const driver_type_out_b = (const CDVarType[]){
-                                                DRIVER_T_OUT_INIT(
-                                                        C_DVAR_T_TUPLE1(
-                                                                C_DVAR_T_b
-                                                        )
-                                                ) };
-static const CDVarType * const driver_type_out_u = (const CDVarType[]){
-                                                DRIVER_T_OUT_INIT(
-                                                        C_DVAR_T_TUPLE1(
-                                                                C_DVAR_T_u
-                                                        )
-                                                ) };
-static const CDVarType * const driver_type_out_as = (const CDVarType[]){
-                                                DRIVER_T_OUT_INIT(
-                                                        C_DVAR_T_TUPLE1(
-                                                                C_DVAR_T_ARRAY(
-                                                                        C_DVAR_T_s
-                                                                )
-                                                        )
-                                                ) };
-static const CDVarType * const driver_type_out_ab = (const CDVarType[]){
-                                                DRIVER_T_OUT_INIT(
-                                                        C_DVAR_T_TUPLE1(
-                                                                C_DVAR_T_ARRAY(
-                                                                        C_DVAR_T_b
-                                                                )
-                                                        )
-                                                ) };
-static const CDVarType * const driver_type_out_apsv = (const CDVarType[]){
-                                                DRIVER_T_OUT_INIT(
-                                                        C_DVAR_T_TUPLE1(
-                                                                C_DVAR_T_ARRAY(
-                                                                        C_DVAR_T_PAIR(
-                                                                                C_DVAR_T_s,
-                                                                                C_DVAR_T_v
-                                                                        )
-                                                                )
-                                                        )
-                                                ) };
+static const CDVarType driver_type_in_unit[] = {
+        C_DVAR_T_INIT(
+                C_DVAR_T_TUPLE0
+        )
+};
+static const CDVarType driver_type_in_s[] = {
+        C_DVAR_T_INIT(
+                C_DVAR_T_TUPLE1(
+                        C_DVAR_T_s
+                )
+        )
+};
+static const CDVarType driver_type_in_su[] = {
+        C_DVAR_T_INIT(
+                C_DVAR_T_TUPLE2(
+                        C_DVAR_T_s,
+                        C_DVAR_T_u
+                )
+        )
+};
+static const CDVarType driver_type_in_apss[] = {
+        C_DVAR_T_INIT(
+                C_DVAR_T_TUPLE1(
+                        C_DVAR_T_ARRAY(
+                                C_DVAR_T_PAIR(
+                                        C_DVAR_T_s,
+                                        C_DVAR_T_s
+                                )
+                        )
+                )
+        )
+};
+static const CDVarType driver_type_in_asu[] = {
+        C_DVAR_T_INIT(
+                C_DVAR_T_TUPLE2(
+                        C_DVAR_T_ARRAY(
+                                C_DVAR_T_s
+                        ),
+                        C_DVAR_T_u
+                )
+        )
+};
+static const CDVarType driver_type_out_unit[] = {
+        DRIVER_T_OUT_INIT(
+                C_DVAR_T_TUPLE0
+        )
+};
+static const CDVarType driver_type_out_s[] = {
+        DRIVER_T_OUT_INIT(
+                C_DVAR_T_TUPLE1(
+                        C_DVAR_T_s
+
+                )
+        )
+};
+static const CDVarType driver_type_out_b[] = {
+        DRIVER_T_OUT_INIT(
+                C_DVAR_T_TUPLE1(
+                        C_DVAR_T_b
+                )
+        )
+};
+static const CDVarType driver_type_out_u[] = {
+        DRIVER_T_OUT_INIT(
+                C_DVAR_T_TUPLE1(
+                        C_DVAR_T_u
+                )
+        )
+};
+static const CDVarType driver_type_out_as[] = {
+        DRIVER_T_OUT_INIT(
+                C_DVAR_T_TUPLE1(
+                        C_DVAR_T_ARRAY(
+                                C_DVAR_T_s
+                        )
+                )
+        )
+};
+static const CDVarType driver_type_out_ab[] = {
+        DRIVER_T_OUT_INIT(
+                C_DVAR_T_TUPLE1(
+                        C_DVAR_T_ARRAY(
+                                C_DVAR_T_b
+                        )
+                )
+        )
+};
+static const CDVarType driver_type_out_apsv[] = {
+        DRIVER_T_OUT_INIT(
+                C_DVAR_T_TUPLE1(
+                        C_DVAR_T_ARRAY(
+                                C_DVAR_T_PAIR(
+                                        C_DVAR_T_s,
+                                        C_DVAR_T_v
+                                )
+                        )
+                )
+        )
+};
 
 typedef struct DriverMethod DriverMethod;
 typedef int (*DriverMethodFn) (Peer *peer, CDVar *var_in, CDVar *var_out);
@@ -128,8 +141,8 @@ typedef int (*DriverMethodFn) (Peer *peer, CDVar *var_in, CDVar *var_out);
 struct DriverMethod {
         const char *name;
         DriverMethodFn fn;
-        const CDVarType * const *in;
-        const CDVarType * const *out;
+        const CDVarType *in;
+        const CDVarType *out;
 };
 
 static void driver_write_bytes(CDVar *var, char *bytes, size_t n_bytes) {
@@ -560,7 +573,7 @@ static int driver_handle_method(const DriverMethod *method, Peer *peer, uint32_t
         int r;
 
         /* prepare the input variant */
-        r = driver_dvar_verify_signature_in(*method->in, signature_in);
+        r = driver_dvar_verify_signature_in(method->in, signature_in);
         if (r)
                 return (r > 0) ? -ENOTRECOVERABLE : r;
 
@@ -568,7 +581,7 @@ static int driver_handle_method(const DriverMethod *method, Peer *peer, uint32_t
         if (r)
                 return (r > 0) ? -ENOTRECOVERABLE : r;
 
-        c_dvar_begin_read(var_in, message_in->big_endian, *method->in, message_in->body, message_in->n_body);
+        c_dvar_begin_read(var_in, message_in->big_endian, method->in, message_in->body, message_in->n_body);
 
         /* prepare the output variant */
         r = c_dvar_new(&var_out);
@@ -576,11 +589,11 @@ static int driver_handle_method(const DriverMethod *method, Peer *peer, uint32_t
                 return (r > 0) ? -ENOTRECOVERABLE : r;
 
         /* call the handler and write the output */
-        c_dvar_begin_write(var_out, *method->out);
+        c_dvar_begin_write(var_out, method->out);
 
         c_dvar_write(var_out, "(");
 
-        driver_write_reply_header(var_out, peer, serial, *method->out);
+        driver_write_reply_header(var_out, peer, serial, method->out);
 
         r = method->fn(peer, var_in, var_out);
         if (r)
@@ -607,25 +620,25 @@ static int driver_handle_method(const DriverMethod *method, Peer *peer, uint32_t
 
 static int driver_dispatch_method(Peer *peer, uint32_t serial, const char *method, const char *signature, Message *message) {
         static const DriverMethod methods[] = {
-                { "Hello", driver_method_hello, &driver_type_in_unit, &driver_type_out_s },
-                { "RequestName", driver_method_request_name, &driver_type_in_su, &driver_type_out_u },
-                { "ReleaseName", driver_method_release_name, &driver_type_in_s, &driver_type_out_u },
-                { "ListQueuedOwners", driver_method_list_queued_owners, &driver_type_in_s, &driver_type_out_as },
-                { "ListNames", driver_method_list_names, &driver_type_in_unit, &driver_type_out_as },
-                { "ListActivatableNames", driver_method_list_activatable_names, &driver_type_in_unit, &driver_type_out_as },
-                { "NameHasOwner", driver_method_name_has_owner, &driver_type_in_s, &driver_type_out_b },
-                { "StartServiceByName", driver_method_start_service_by_name, &driver_type_in_s, &driver_type_out_u },
-                { "UpdateActivationEnvironment", driver_method_update_activation_environment, &driver_type_in_apss, &driver_type_out_unit },
-                { "GetNameOwner", driver_method_get_name_owner, &driver_type_in_s, &driver_type_out_s },
-                { "GetConnectionUnixUser", driver_method_get_connection_unix_user, &driver_type_in_s, &driver_type_out_u },
-                { "GetConnectionUnixProcessID", driver_method_get_connection_unix_process_id, &driver_type_in_s, &driver_type_out_u },
-                { "GetConnectionCredentials", driver_method_get_connection_credentials, &driver_type_in_s, &driver_type_out_apsv },
-                { "GetAdtAuditSessionData", driver_method_get_adt_audit_session_data, &driver_type_in_s, &driver_type_out_ab },
-                { "GetConnectionSELinuxSecurityContext", driver_method_get_connection_selinux_security_context, &driver_type_in_s, &driver_type_out_ab },
-                { "AddMatch", driver_method_add_match, &driver_type_in_s, &driver_type_out_unit },
-                { "RemoveMatch", driver_method_remove_match, &driver_type_in_s, &driver_type_out_unit },
-                { "GetId", driver_method_get_id, &driver_type_in_unit, &driver_type_out_s },
-                { "BecomeMonitor", driver_method_become_monitor, &driver_type_in_asu, &driver_type_out_unit },
+                { "Hello",                                      driver_method_hello,                                            driver_type_in_unit,    driver_type_out_s },
+                { "RequestName",                                driver_method_request_name,                                     driver_type_in_su,      driver_type_out_u },
+                { "ReleaseName",                                driver_method_release_name,                                     driver_type_in_s,       driver_type_out_u },
+                { "ListQueuedOwners",                           driver_method_list_queued_owners,                               driver_type_in_s,       driver_type_out_as },
+                { "ListNames",                                  driver_method_list_names,                                       driver_type_in_unit,    driver_type_out_as },
+                { "ListActivatableNames",                       driver_method_list_activatable_names,                           driver_type_in_unit,    driver_type_out_as },
+                { "NameHasOwner",                               driver_method_name_has_owner,                                   driver_type_in_s,       driver_type_out_b },
+                { "StartServiceByName",                         driver_method_start_service_by_name,                            driver_type_in_s,       driver_type_out_u },
+                { "UpdateActivationEnvironment",                driver_method_update_activation_environment,                    driver_type_in_apss,    driver_type_out_unit },
+                { "GetNameOwner",                               driver_method_get_name_owner,                                   driver_type_in_s,       driver_type_out_s },
+                { "GetConnectionUnixUser",                      driver_method_get_connection_unix_user,                         driver_type_in_s,       driver_type_out_u },
+                { "GetConnectionUnixProcessID",                 driver_method_get_connection_unix_process_id,                   driver_type_in_s,       driver_type_out_u },
+                { "GetConnectionCredentials",                   driver_method_get_connection_credentials,                       driver_type_in_s,       driver_type_out_apsv },
+                { "GetAdtAuditSessionData",                     driver_method_get_adt_audit_session_data,                       driver_type_in_s,       driver_type_out_ab },
+                { "GetConnectionSELinuxSecurityContext",        driver_method_get_connection_selinux_security_context,          driver_type_in_s,       driver_type_out_ab },
+                { "AddMatch",                                   driver_method_add_match,                                        driver_type_in_s,       driver_type_out_unit },
+                { "RemoveMatch",                                driver_method_remove_match,                                     driver_type_in_s,       driver_type_out_unit },
+                { "GetId",                                      driver_method_get_id,                                           driver_type_in_unit,    driver_type_out_s },
+                { "BecomeMonitor",                              driver_method_become_monitor,                                   driver_type_in_asu,     driver_type_out_unit },
         };
         int r;
 
