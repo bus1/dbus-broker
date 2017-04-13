@@ -56,7 +56,7 @@ static int socket_buffer_new_line(SocketBuffer **bufferp, size_t n) {
         return 0;
 }
 
-static int socket_buffer_new_message(SocketBuffer **bufferp, Message *message) {
+int socket_buffer_new_message(SocketBuffer **bufferp, Message *message) {
         SocketBuffer *buffer;
         int r;
 
@@ -71,7 +71,7 @@ static int socket_buffer_new_message(SocketBuffer **bufferp, Message *message) {
         return 0;
 }
 
-static SocketBuffer *socket_buffer_free(SocketBuffer *buffer) {
+SocketBuffer *socket_buffer_free(SocketBuffer *buffer) {
         if (!buffer)
                 return NULL;
 

@@ -52,6 +52,15 @@ struct Socket {
         } out;
 };
 
+/* socket buffer */
+
+int socket_buffer_new_message(SocketBuffer **bufferp, Message *message);
+SocketBuffer *socket_buffer_free(SocketBuffer *buffer);
+
+C_DEFINE_CLEANUP(SocketBuffer *, socket_buffer_free);
+
+/* socket IO */
+
 int socket_new(Socket **socketp, int fd);
 Socket *socket_free(Socket *socket);
 
