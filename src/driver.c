@@ -15,6 +15,16 @@
 #include "peer.h"
 #include "socket.h"
 
+typedef struct DriverMethod DriverMethod;
+typedef int (*DriverMethodFn) (Peer *peer, CDVar *var_in, CDVar *var_out);
+
+struct DriverMethod {
+        const char *name;
+        DriverMethodFn fn;
+        const CDVarType *in;
+        const CDVarType *out;
+};
+
 /*
  * This macro defines a c-dvar type for DBus Messages. It evaluates to:
  *
@@ -148,16 +158,6 @@ static const CDVarType driver_type_out_apsv[] = {
                         )
                 )
         )
-};
-
-typedef struct DriverMethod DriverMethod;
-typedef int (*DriverMethodFn) (Peer *peer, CDVar *var_in, CDVar *var_out);
-
-struct DriverMethod {
-        const char *name;
-        DriverMethodFn fn;
-        const CDVarType *in;
-        const CDVarType *out;
 };
 
 static void driver_write_bytes(CDVar *var, char *bytes, size_t n_bytes) {
