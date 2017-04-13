@@ -342,12 +342,12 @@ void name_registry_release_name(NameRegistry *registry, Peer *peer, const char *
 }
 
 void name_registry_release_all_names(NameRegistry *registry, Peer *peer) {
-        CRBNode *n;
+        CRBNode *node, *next;
 
-        for (n = c_rbtree_first_postorder(&peer->names);
-             n;
-             n = c_rbnode_next_postorder(n)) {
-                NameOwner *owner = c_container_of(n, NameOwner, rb);
+        for (node = c_rbtree_first_postorder(&peer->names), c_rbnode_next_postorder(node);
+             node;
+             node = next, next = c_rbnode_next_postorder(node)) {
+                NameOwner *owner = c_container_of(node, NameOwner, rb);
 
                 name_owner_release(owner);
         }
