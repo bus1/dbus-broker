@@ -32,6 +32,11 @@ struct NameRegistry {
         CRBTree entries;
 };
 
+NameOwner *name_owner_free(NameOwner *owner);
+
+NameEntry *name_registry_find_entry(NameRegistry *registry, const char *name);
+Peer *name_registry_resolve_name(NameRegistry *registry, const char *name);
+
 void name_registry_init(NameRegistry *registry);
 void name_registry_deinit(NameRegistry *registry);
 
@@ -46,6 +51,3 @@ void name_registry_release_name(NameRegistry *registry,
                                 uint32_t *replyp);
 
 void name_registry_release_all_names(NameRegistry *registry, Peer *peer);
-
-NameEntry *name_registry_find_entry(NameRegistry *registry, const char *name);
-Peer *name_registry_resolve_name(NameRegistry *registry, const char *name);

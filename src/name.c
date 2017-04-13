@@ -40,9 +40,9 @@ static int name_owner_new(Peer *peer,
 }
 
 /* unlink from peer and entry and free entry if it is the last one */
-static void name_owner_free(NameOwner *owner) {
+NameOwner *name_owner_free(NameOwner *owner) {
         if (!owner)
-                return;
+                return NULL;
 
         c_rbtree_remove(&owner->peer->names, &owner->rb);
         c_list_unlink(&owner->entry_link);
@@ -53,6 +53,8 @@ static void name_owner_free(NameOwner *owner) {
                 name_entry_free(owner->entry);
 
         free(owner);
+
+        return NULL;
 }
 
 static int name_owner_compare(CRBTree *tree, void *k, CRBNode *rb) {
