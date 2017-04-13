@@ -452,13 +452,30 @@ void peer_registry_deinit(PeerRegistry *registry) {
 }
 
 void peer_registry_flush(PeerRegistry *registry) {
-        CRBNode *n, *next;
-        for (n = c_rbtree_first_postorder(&registry->peers), next = c_rbnode_next_postorder(n);
-             n;
-             n = next, next = c_rbnode_next(n)) {
-                Peer *peer = c_container_of(n, Peer, rb);
+        CRBNode *node1, *next1;
 
-                /* XXX: clean up peer without generating notifications */
+        for (node1 = c_rbtree_first_postorder(&registry->peers), next1 = c_rbnode_next_postorder(node1);
+             node1;
+             node1 = next1, next1 = c_rbnode_next(node1)) {
+                Peer *peer = c_container_of(node1, Peer, rb);
+                CRBNode *node2, *next2;
+
+                for (node2 = c_rbtree_first_postorder(&peer->names), next2 = c_rbnode_next_postorder(node2);
+                     node2;
+                     node2 = next2, next2 = c_rbnode_next_postorder(node2)) {
+                        NameOwner *owner = c_container_of(node2, NameOwner, rb);
+
+                        name_owner_free(owner);
+                }
+
+                for (node2 = c_rbtree_first_postorder(&peer->replies_outgoing.slots), next2 = c_rbnode_next_postorder(node2);
+                     node2;
+                     node2 = next2, next2 = c_rbnode_next_postorder(node2)) {
+                        ReplySlot *slot = c_container_of(node2, ReplySlot, rb);
+
+                        reply_slot_free(slot);
+                }
+
                 peer_free(peer);
         }
 }

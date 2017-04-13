@@ -33,10 +33,10 @@ struct Peer {
         size_t n_seclabel;
 
         ReplyRegistry replies_outgoing;
+        CRBTree names;
 
         CList replies_incoming;
         CRBTree match_rules;
-        CRBTree names;
 
         CRBNode rb;
         uint64_t id;
