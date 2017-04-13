@@ -47,7 +47,6 @@ static void test_setup(void) {
         struct sockaddr_un address;
         socklen_t addrlen;
         pthread_t thread;
-        void *retval;
         int r;
 
         thread = test_spawn_bus(&address, &addrlen);
@@ -88,11 +87,11 @@ static void test_setup(void) {
         assert(r >= 0);
         assert(cookie1 == cookie2);
 
-        r = pthread_cancel(thread);
+        r = pthread_kill(thread, SIGTERM);
         assert(r == 0);
 
-        r = pthread_join(thread, &retval);
-        assert(r == 0 && retval == PTHREAD_CANCELED);
+        r = pthread_join(thread, NULL);
+        assert(r == 0);
 }
 
 int main(int argc, char **argv) {

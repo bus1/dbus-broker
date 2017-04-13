@@ -476,6 +476,8 @@ void peer_registry_flush(PeerRegistry *registry) {
                         reply_slot_free(slot);
                 }
 
+                c_rbtree_remove_init(&registry->peers, &peer->rb);
+
                 peer_free(peer);
         }
 }

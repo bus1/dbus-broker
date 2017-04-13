@@ -113,6 +113,8 @@ int bus_new(Bus **busp,
         if (r < 0)
                 return r;
 
+        dispatch_file_select(&bus->accept_file, EPOLLIN);
+
         r = dispatch_file_init(&bus->signal_file,
                                &bus->dispatcher,
                                &bus->ready_list,
@@ -122,7 +124,7 @@ int bus_new(Bus **busp,
         if (r < 0)
                 return r;
 
-        dispatch_file_select(&bus->accept_file, EPOLLIN);
+        dispatch_file_select(&bus->signal_file, EPOLLIN);
 
         *busp = bus;
         bus = NULL;
