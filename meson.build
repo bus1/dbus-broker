@@ -5,6 +5,7 @@ project('dbus-broker',
         default_options: [ 'c_std=c11' ])
 
 add_project_arguments('-D_GNU_SOURCE', language: 'c')
+add_project_arguments('-DPACKAGE_VERSION=' + meson.project_version(), language: 'c')
 mod_pkgconfig = import('pkgconfig')
 dep_cdvar = dependency('libcdvar', version: '>=1', fallback: [ 'c-dvar', 'libcdvar_dep' ])
 dep_clist = dependency('libclist', version: '>=1', fallback: [ 'c-list', 'libclist_dep' ])

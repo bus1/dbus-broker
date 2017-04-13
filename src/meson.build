@@ -42,6 +42,22 @@ libdbus_broker_dep = declare_dependency(include_directories: include_directories
                                         version: meson.project_version())
 
 #
+# target: dbus-broker
+#
+
+exe_dbus_broker = executable(
+        'dbus-broker',
+        [
+                'broker/main.c',
+                'broker/manager.c',
+        ],
+        dependencies: [
+                dep_csundry,
+        ],
+        install: true
+)
+
+#
 # target: test-*
 # Bunch of tests for broker internals. They all link against the static broker
 # library so they get access to all internal functions and state.
