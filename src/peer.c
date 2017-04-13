@@ -402,6 +402,7 @@ int peer_new(Peer **peerp,
  */
 Peer *peer_free(Peer *peer) {
         CRBNode *node, *next;
+        ReplySlot *reply, *safe;
 
         if (!peer)
                 return NULL;
@@ -411,14 +412,16 @@ Peer *peer_free(Peer *peer) {
 
         peer->user->n_peers ++;
 
-        for (node = c_rbtree_first_postorder(&peer->match_rules),
-             next = c_rbnode_next_postorder(node);
+        for (node = c_rbtree_first_postorder(&peer->match_rules), next = c_rbnode_next_postorder(node);
              node;
              node = next, next = c_rbnode_next_postorder(node)) {
                 MatchRule *rule = c_container_of(node, MatchRule, rb_peer);
 
                 match_rule_free(&rule->n_refs, NULL);
         }
+
+        c_list_for_each_entry_safe(reply, safe, &peer->replies_incoming, link)
+                reply_slot_free(reply);
 
         dispatch_file_deinit(&peer->dispatch_file);
         reply_registry_deinit(&peer->replies_outgoing);
