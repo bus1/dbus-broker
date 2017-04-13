@@ -587,7 +587,11 @@ static int driver_handle_method(const DriverMethod *method, Peer *peer, uint32_t
         size_t n_data;
         int r;
 
-        /* prepare the input variant */
+        /*
+         * Verify the input signature and prepare the input & output variants
+         * for input parsing and output marshaling.
+         */
+
         r = driver_dvar_verify_signature_in(method->in, signature_in);
         if (r)
                 return (r > 0) ? -ENOTRECOVERABLE : r;
@@ -596,18 +600,21 @@ static int driver_handle_method(const DriverMethod *method, Peer *peer, uint32_t
         if (r)
                 return (r > 0) ? -ENOTRECOVERABLE : r;
 
-        c_dvar_begin_read(var_in, message_in->big_endian, method->in, message_in->body, message_in->n_body);
-
-        /* prepare the output variant */
         r = c_dvar_new(&var_out);
         if (r)
                 return (r > 0) ? -ENOTRECOVERABLE : r;
 
-        /* call the handler and write the output */
+        c_dvar_begin_read(var_in, message_in->big_endian, method->in, message_in->body, message_in->n_body);
         c_dvar_begin_write(var_out, method->out);
 
-        c_dvar_write(var_out, "(");
+        /*
+         * Write the generic reply-header and then call into the method-handler
+         * of the specific driver method. Note that the driver-methods are
+         * responsible to call c_dvar_end_read(var_in), to verify all read data
+         * was correct.
+         */
 
+        c_dvar_write(var_out, "(");
         driver_write_reply_header(var_out, peer, serial, method->out);
 
         r = method->fn(peer, var_in, var_out);
@@ -615,6 +622,13 @@ static int driver_handle_method(const DriverMethod *method, Peer *peer, uint32_t
                 return (r > 0) ? -ENOTRECOVERABLE : r;
 
         c_dvar_write(var_out, ")");
+
+        /*
+         * The message was correctly handled and the reply is serialized in
+         * @var_out. Lets finish it up and queue the reply on the destination.
+         * Note that any failure in doing so must be a fatal error, so there is
+         * no point in reverting the operation on failure.
+         */
 
         r = c_dvar_end_write(var_out, &data, &n_data);
         if (r)
