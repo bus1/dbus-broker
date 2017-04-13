@@ -1,45 +1,47 @@
 #
 # target: libdbus-broker.so
-# We build an internal, shared library with all the bits used by the broker.
-# This library is then linked into the real broker, but also all our internal
-# tests.
 #
 
-libdbus_broker_private = static_library('dbus-broker-private',
-                                        [
-                                                'bus.c',
-                                                'driver.c',
-                                                'match.c',
-                                                'message.c',
-                                                'name.c',
-                                                'peer.c',
-                                                'reply.c',
-                                                'sasl.c',
-                                                'socket.c',
-                                                'user.c',
-                                                'util/dispatch.c',
-                                                'util/fdlist.c',
-                                        ],
-                                        c_args: [
-                                                '-fvisibility=hidden',
-                                                '-fno-common',
-                                        ],
-                                        dependencies: [
-                                                dep_cdvar,
-                                                dep_clist,
-                                                dep_crbtree,
-                                                dep_csundry,
-                                        ],
-                                        pic: true)
-libdbus_broker_dep = declare_dependency(include_directories: include_directories('.'),
-                                        link_with: libdbus_broker_private,
-                                        dependencies: [
-                                                dep_cdvar,
-                                                dep_clist,
-                                                dep_crbtree,
-                                                dep_csundry,
-                                        ],
-                                        version: meson.project_version())
+libdbus_broker_private = static_library(
+        'dbus-broker-private',
+        [
+                'bus.c',
+                'driver.c',
+                'match.c',
+                'message.c',
+                'name.c',
+                'peer.c',
+                'reply.c',
+                'sasl.c',
+                'socket.c',
+                'user.c',
+                'util/dispatch.c',
+                'util/fdlist.c',
+        ],
+        c_args: [
+                '-fvisibility=hidden',
+                '-fno-common',
+        ],
+        dependencies: [
+                dep_cdvar,
+                dep_clist,
+                dep_crbtree,
+                dep_csundry,
+        ],
+        pic: true,
+)
+
+libdbus_broker_dep = declare_dependency(
+        include_directories: include_directories('.'),
+        link_with: libdbus_broker_private,
+        dependencies: [
+                dep_cdvar,
+                dep_clist,
+                dep_crbtree,
+                dep_csundry,
+        ],
+        version: meson.project_version(),
+)
 
 #
 # target: dbus-broker
@@ -54,13 +56,11 @@ exe_dbus_broker = executable(
         dependencies: [
                 dep_csundry,
         ],
-        install: true
+        install: true,
 )
 
 #
 # target: test-*
-# Bunch of tests for broker internals. They all link against the static broker
-# library so they get access to all internal functions and state.
 #
 
 if dep_systemd.found()

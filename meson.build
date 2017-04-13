@@ -1,8 +1,12 @@
-project('dbus-broker',
+project(
+        'dbus-broker',
         'c',
         version: '1',
         license: 'Apache',
-        default_options: [ 'c_std=c11' ])
+        default_options: [
+                'c_std=c11',
+        ],
+)
 
 add_project_arguments('-D_GNU_SOURCE', language: 'c')
 add_project_arguments('-DPACKAGE_VERSION=' + meson.project_version(), language: 'c')
