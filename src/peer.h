@@ -14,6 +14,7 @@
 
 typedef struct Bus Bus;
 typedef struct Peer Peer;
+typedef struct PeerRegistry PeerRegistry;
 typedef struct Socket Socket;
 typedef struct UserEntry UserEntry;
 
@@ -41,9 +42,12 @@ struct Peer {
         uint64_t id;
 };
 
-int peer_new(Peer **peerp,
-             Bus *bus,
-             int fd);
+struct PeerRegistry {
+        CRBTree peers;
+        uint64_t ids;
+};
+
+int peer_new(Peer **peerp, Bus *bus, int fd);
 Peer *peer_free(Peer *peer);
 
 int peer_dispatch(DispatchFile *file, uint32_t mask);
@@ -52,6 +56,13 @@ void peer_start(Peer *peer);
 void peer_stop(Peer *peer);
 
 int peer_id_from_unique_name(const char *name, uint64_t *idp);
+
+void peer_registry_init(PeerRegistry *registry);
+void peer_registry_deinit(PeerRegistry *registry);
+void peer_registry_flush(PeerRegistry *registry);
+void peer_registry_link_peer(PeerRegistry *registry, Peer *peer);
+void peer_registry_unlink_peer(PeerRegistry *registry, Peer *peer);
+Peer *peer_registry_find_peer(PeerRegistry *registry, uint64_t id);
 
 static inline bool peer_is_registered(Peer *peer) {
         return c_rbnode_is_linked(&peer->rb);

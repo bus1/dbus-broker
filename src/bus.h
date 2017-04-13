@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include "match.h"
 #include "name.h"
+#include "peer.h"
 #include "user.h"
 #include "util/dispatch.h"
 
@@ -20,7 +21,6 @@ enum {
 };
 
 typedef struct Bus Bus;
-typedef struct Peer Peer;
 
 struct Bus {
         char guid[16];
@@ -33,8 +33,7 @@ struct Bus {
         NameRegistry names;
         UserRegistry users;
         MatchRegistry matches;
-        CRBTree peers;
-        uint64_t ids;
+        PeerRegistry peers;
 };
 
 int bus_new(Bus **busp,
@@ -48,9 +47,6 @@ Bus *bus_free(Bus *bus);
 
 int bus_run(Bus *bus);
 
-void bus_register_peer(Bus *bus, Peer *peer);
-void bus_unregister_peer(Bus *bus, Peer *peer);
-Peer *bus_find_peer(Bus *bus, uint64_t id);
 Peer *bus_find_peer_by_name(Bus *bus, const char *name);
 
 C_DEFINE_CLEANUP(Bus *, bus_free);

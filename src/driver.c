@@ -261,7 +261,7 @@ static int driver_method_hello(Peer *peer, CDVar *in_v, CDVar *out_v) {
         c_dvar_write(out_v, ")");
 
         /* register on the bus */
-        bus_register_peer(peer->bus, peer);
+        peer_registry_link_peer(&peer->bus->peers, peer);
 
         return 0;
 }

@@ -27,8 +27,8 @@ static void test_setup(void) {
         r = peer_new(&peer, bus, pair[0]);
         assert(r >= 0);
 
-        bus_register_peer(bus, peer);
-        p = bus_find_peer(bus, 0);
+        peer_registry_link_peer(&bus->peers, peer);
+        p = peer_registry_find_peer(&bus->peers, 0);
         assert(p == peer);
 
         r = name_registry_request_name(&bus->names, peer, "foobar", 0, &reply);
@@ -42,10 +42,10 @@ static void test_setup(void) {
         assert(p == NULL);
 
         name_registry_release_all_names(&bus->names, peer);
-        p = bus_find_peer(bus, 0);
+        p = peer_registry_find_peer(&bus->peers, 0);
         assert(p == peer);
-        bus_unregister_peer(bus, peer);
-        p = bus_find_peer(bus, 0);
+        peer_registry_unlink_peer(&bus->peers, peer);
+        p = peer_registry_find_peer(&bus->peers, 0);
         assert(p == NULL);
         close(pair[1]);
 }
@@ -66,8 +66,8 @@ static void test_release(void) {
         assert(r >= 0);
         r = peer_new(&peer2, bus, pair[1]);
         assert(r >= 0);
-        bus_register_peer(bus, peer1);
-        bus_register_peer(bus, peer2);
+        peer_registry_link_peer(&bus->peers, peer1);
+        peer_registry_link_peer(&bus->peers, peer2);
 
         r = name_registry_request_name(&bus->names, peer1, "foobar", 0, &reply);
         assert(r >= 0);
@@ -80,9 +80,9 @@ static void test_release(void) {
         assert(reply == DBUS_RELEASE_NAME_REPLY_RELEASED);
 
         name_registry_release_all_names(&bus->names, peer2);
-        bus_unregister_peer(bus, peer2);
+        peer_registry_unlink_peer(&bus->peers, peer2);
         name_registry_release_all_names(&bus->names, peer1);
-        bus_unregister_peer(bus, peer1);
+        peer_registry_unlink_peer(&bus->peers, peer1);
 }
 
 static void test_queue(void) {
@@ -102,8 +102,8 @@ static void test_queue(void) {
         assert(r >= 0);
         r = peer_new(&peer2, bus, pair[1]);
         assert(r >= 0);
-        bus_register_peer(bus, peer1);
-        bus_register_peer(bus, peer2);
+        peer_registry_link_peer(&bus->peers, peer1);
+        peer_registry_link_peer(&bus->peers, peer2);
 
         /* first to request */
         r = name_registry_request_name(&bus->names, peer1, "foobar", 0, &reply);
@@ -190,9 +190,9 @@ static void test_queue(void) {
         name_registry_release_name(&bus->names, peer1, "foobar", &reply);
         assert(reply == DBUS_RELEASE_NAME_REPLY_RELEASED);
         name_registry_release_all_names(&bus->names, peer2);
-        bus_unregister_peer(bus, peer2);
+        peer_registry_unlink_peer(&bus->peers, peer2);
         name_registry_release_all_names(&bus->names, peer1);
-        bus_unregister_peer(bus, peer1);
+        peer_registry_unlink_peer(&bus->peers, peer1);
 }
 
 int main(int argc, char **argv) {

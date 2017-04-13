@@ -390,7 +390,7 @@ int peer_new(Peer **peerp,
         if (r < 0)
                 return r;
 
-        peer->id = bus->ids ++;
+        peer->id = bus->peers.ids++;
 
         *peerp = peer;
         peer = NULL;
@@ -437,6 +437,63 @@ void peer_start(Peer *peer) {
 
 void peer_stop(Peer *peer) {
         return dispatch_file_deselect(&peer->dispatch_file, EPOLLIN);
+}
+
+void peer_registry_init(PeerRegistry *registry) {
+        registry->peers = (CRBTree){};
+        registry->ids = 0;
+}
+
+void peer_registry_deinit(PeerRegistry *registry) {
+        assert(!registry->peers.root);
+}
+
+void peer_registry_flush(PeerRegistry *registry) {
+        CRBNode *n, *next;
+        for (n = c_rbtree_first_postorder(&registry->peers), next = c_rbnode_next_postorder(n);
+             n;
+             n = next, next = c_rbnode_next(n)) {
+                Peer *peer = c_container_of(n, Peer, rb);
+
+                /* XXX: clean up peer without generating notifications */
+                peer_free(peer);
+        }
+}
+
+static int peer_compare(CRBTree *tree, void *k, CRBNode *rb) {
+        Peer *peer = c_container_of(rb, Peer, rb);
+        uint64_t id = *(uint64_t*)k;
+
+        if (peer->id < id)
+                return -1;
+        if (peer->id > id)
+                return 1;
+
+        return 0;
+}
+
+void peer_registry_link_peer(PeerRegistry *registry, Peer *peer) {
+        CRBNode *parent, **slot;
+
+        assert(!c_rbnode_is_linked(&peer->rb));
+
+        slot = c_rbtree_find_slot(&registry->peers, peer_compare, &peer->id, &parent);
+        assert(slot); /* peer->id is guaranteed to be unique */
+        c_rbtree_add(&registry->peers, parent, slot, &peer->rb);
+
+        driver_notify_name_owner_change(NULL, NULL, peer);
+}
+
+void peer_registry_unlink_peer(PeerRegistry *registry, Peer *peer) {
+        assert(c_rbnode_is_linked(&peer->rb));
+
+        driver_notify_name_owner_change(NULL, peer, NULL);
+
+        c_rbtree_remove_init(&registry->peers, &peer->rb);
+}
+
+Peer *peer_registry_find_peer(PeerRegistry *registry, uint64_t id) {
+        return c_rbtree_find_entry(&registry->peers, peer_compare, &id, Peer, rb);
 }
 
 int peer_id_from_unique_name(const char *name, uint64_t *idp) {

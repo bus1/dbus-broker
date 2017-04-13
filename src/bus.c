@@ -95,12 +95,8 @@ int bus_new(Bus **busp,
         match_registry_init(&bus->matches);
         /* XXX: initialize guid with random data */
         name_registry_init(&bus->names);
-        user_registry_init(&bus->users,
-                           max_bytes,
-                           max_fds,
-                           max_peers,
-                           max_names,
-                           max_matches);
+        user_registry_init(&bus->users, max_bytes, max_fds, max_peers, max_names, max_matches);
+        peer_registry_init(&bus->peers);
         bus->dispatcher = (DispatchContext)DISPATCH_CONTEXT_NULL;
         bus->accept_file = (DispatchFile)DISPATCH_FILE_NULL(bus->accept_file);
 
@@ -137,14 +133,13 @@ Bus *bus_free(Bus *bus) {
         if (!bus)
                 return NULL;
 
-        assert(!bus->peers.root);
-
         dispatch_file_deinit(&bus->signal_file);
         dispatch_file_deinit(&bus->accept_file);
 
         assert(c_list_is_empty(&bus->ready_list));
 
         dispatch_context_deinit(&bus->dispatcher);
+        peer_registry_deinit(&bus->peers);
         user_registry_deinit(&bus->users);
         name_registry_deinit(&bus->names);
         match_registry_deinit(&bus->matches);
@@ -192,45 +187,6 @@ int bus_run(Bus *bus) {
         return 0;
 }
 
-static int peer_compare(CRBTree *tree, void *k, CRBNode *rb) {
-        Peer *peer = c_container_of(rb, Peer, rb);
-        uint64_t id = *(uint64_t*)k;
-
-        if (peer->id < id)
-                return -1;
-        if (peer->id > id)
-                return 1;
-
-        return 0;
-}
-
-void bus_register_peer(Bus *bus, Peer *peer) {
-        CRBNode *parent, **slot;
-
-        assert(!c_rbnode_is_linked(&peer->rb));
-
-        slot = c_rbtree_find_slot(&bus->peers,
-                                  peer_compare,
-                                  &peer->id,
-                                  &parent);
-        assert(slot); /* peer->id is guaranteed to be unique */
-        c_rbtree_add(&bus->peers, parent, slot, &peer->rb);
-
-        driver_notify_name_owner_change(NULL, NULL, peer);
-}
-
-void bus_unregister_peer(Bus *bus, Peer *peer) {
-        assert(c_rbnode_is_linked(&peer->rb));
-
-        driver_notify_name_owner_change(NULL, peer, NULL);
-
-        c_rbtree_remove_init(&bus->peers, &peer->rb);
-}
-
-Peer *bus_find_peer(Bus *bus, uint64_t id) {
-        return c_rbtree_find_entry(&bus->peers, peer_compare, &id, Peer, rb);
-}
-
 Peer *bus_find_peer_by_name(Bus *bus, const char *name) {
         int r;
 
@@ -243,6 +199,6 @@ Peer *bus_find_peer_by_name(Bus *bus, const char *name) {
                 if (r < 0)
                         return NULL;
 
-                return bus_find_peer(bus, id);
+                return peer_registry_find_peer(&bus->peers, id);
         }
 }
