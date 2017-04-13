@@ -15,25 +15,32 @@
 #include "peer.h"
 #include "socket.h"
 
-#define DRIVER_T_OUT_INIT(type)         C_DVAR_T_INIT(                                          \
-                                                C_DVAR_T_TUPLE2(                                \
-                                                        C_DVAR_T_TUPLE7(                        \
-                                                                C_DVAR_T_y,                     \
-                                                                C_DVAR_T_y,                     \
-                                                                C_DVAR_T_y,                     \
-                                                                C_DVAR_T_y,                     \
-                                                                C_DVAR_T_u,                     \
-                                                                C_DVAR_T_u,                     \
-                                                                C_DVAR_T_ARRAY(                 \
-                                                                        C_DVAR_T_TUPLE2(        \
-                                                                                C_DVAR_T_y,     \
-                                                                                C_DVAR_T_v      \
-                                                                        )                       \
-                                                                )                               \
-                                                        ),                                      \
-                                                        type                                    \
-                                                )                                               \
-                                        )
+/*
+ * This macro defines a c-dvar type for DBus Messages. It evaluates to:
+ *
+ *         ((yyyyuua(yv))X)
+ *
+ * ..where 'X' is provided via @_body. That is, it evaluates to the combination
+ * of DBus Header and DBus Body for a given body-type.
+ */
+#define DRIVER_T_MESSAGE(_body) \
+        C_DVAR_T_TUPLE2(                                \
+                C_DVAR_T_TUPLE7(                        \
+                        C_DVAR_T_y,                     \
+                        C_DVAR_T_y,                     \
+                        C_DVAR_T_y,                     \
+                        C_DVAR_T_y,                     \
+                        C_DVAR_T_u,                     \
+                        C_DVAR_T_u,                     \
+                        C_DVAR_T_ARRAY(                 \
+                                C_DVAR_T_TUPLE2(        \
+                                        C_DVAR_T_y,     \
+                                        C_DVAR_T_v      \
+                                )                       \
+                        )                               \
+                ),                                      \
+                _body                                   \
+        )
 
 static const CDVarType driver_type_in_s[] = {
         C_DVAR_T_INIT(
@@ -73,57 +80,70 @@ static const CDVarType driver_type_in_asu[] = {
         )
 };
 static const CDVarType driver_type_out_unit[] = {
-        DRIVER_T_OUT_INIT(
-                C_DVAR_T_TUPLE0
+        C_DVAR_T_INIT(
+                DRIVER_T_MESSAGE(
+                        C_DVAR_T_TUPLE0
+                )
         )
 };
 static const CDVarType driver_type_out_s[] = {
-        DRIVER_T_OUT_INIT(
-                C_DVAR_T_TUPLE1(
-                        C_DVAR_T_s
-
-                )
-        )
-};
-static const CDVarType driver_type_out_b[] = {
-        DRIVER_T_OUT_INIT(
-                C_DVAR_T_TUPLE1(
-                        C_DVAR_T_b
-                )
-        )
-};
-static const CDVarType driver_type_out_u[] = {
-        DRIVER_T_OUT_INIT(
-                C_DVAR_T_TUPLE1(
-                        C_DVAR_T_u
-                )
-        )
-};
-static const CDVarType driver_type_out_as[] = {
-        DRIVER_T_OUT_INIT(
-                C_DVAR_T_TUPLE1(
-                        C_DVAR_T_ARRAY(
+        C_DVAR_T_INIT(
+                DRIVER_T_MESSAGE(
+                        C_DVAR_T_TUPLE1(
                                 C_DVAR_T_s
                         )
                 )
         )
 };
-static const CDVarType driver_type_out_ab[] = {
-        DRIVER_T_OUT_INIT(
-                C_DVAR_T_TUPLE1(
-                        C_DVAR_T_ARRAY(
+static const CDVarType driver_type_out_b[] = {
+        C_DVAR_T_INIT(
+                DRIVER_T_MESSAGE(
+                        C_DVAR_T_TUPLE1(
                                 C_DVAR_T_b
                         )
                 )
         )
 };
+static const CDVarType driver_type_out_u[] = {
+        C_DVAR_T_INIT(
+                DRIVER_T_MESSAGE(
+                        C_DVAR_T_TUPLE1(
+                                C_DVAR_T_u
+                        )
+                )
+        )
+};
+static const CDVarType driver_type_out_as[] = {
+        C_DVAR_T_INIT(
+                DRIVER_T_MESSAGE(
+                        C_DVAR_T_TUPLE1(
+                                C_DVAR_T_ARRAY(
+                                        C_DVAR_T_s
+                                )
+                        )
+                )
+        )
+};
+static const CDVarType driver_type_out_ab[] = {
+        C_DVAR_T_INIT(
+                DRIVER_T_MESSAGE(
+                        C_DVAR_T_TUPLE1(
+                                C_DVAR_T_ARRAY(
+                                        C_DVAR_T_b
+                                )
+                        )
+                )
+        )
+};
 static const CDVarType driver_type_out_apsv[] = {
-        DRIVER_T_OUT_INIT(
-                C_DVAR_T_TUPLE1(
-                        C_DVAR_T_ARRAY(
-                                C_DVAR_T_PAIR(
-                                        C_DVAR_T_s,
-                                        C_DVAR_T_v
+        C_DVAR_T_INIT(
+                DRIVER_T_MESSAGE(
+                        C_DVAR_T_TUPLE1(
+                                C_DVAR_T_ARRAY(
+                                        C_DVAR_T_PAIR(
+                                                C_DVAR_T_s,
+                                                C_DVAR_T_v
+                                        )
                                 )
                         )
                 )
