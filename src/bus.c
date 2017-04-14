@@ -28,7 +28,7 @@ static int bus_signal(DispatchFile *file, uint32_t events) {
                 return -errno;
 
         assert(size == sizeof(fdsi));
-        assert(fdsi.ssi_signo == SIGTERM);
+        assert(fdsi.ssi_signo == SIGTERM || fdsi.ssi_signo == SIGINT);
 
         return DISPATCH_E_EXIT;
 }
@@ -79,6 +79,7 @@ int bus_new(Bus **busp,
 
         sigemptyset(&mask);
         sigaddset(&mask, SIGTERM);
+        sigaddset(&mask, SIGINT);
         sigprocmask(SIG_BLOCK, &mask, NULL);
         signal_fd = signalfd(-1, &mask, SFD_NONBLOCK|SFD_CLOEXEC);
         if (signal_fd < 0)
