@@ -676,7 +676,6 @@ static int driver_dispatch_method(Peer *peer, uint32_t serial, const char *metho
                 { "GetId",                                      driver_method_get_id,                                           c_dvar_type_unit,       driver_type_out_s },
                 { "BecomeMonitor",                              driver_method_become_monitor,                                   driver_type_in_asu,     driver_type_out_unit },
         };
-        int r;
 
         if (_c_unlikely_(!peer_is_registered(peer)) && strcmp(method, "Hello") != 0)
                 return -EBADMSG;
@@ -685,9 +684,7 @@ static int driver_dispatch_method(Peer *peer, uint32_t serial, const char *metho
                 if (strcmp(methods[i].name, method) != 0)
                         continue;
 
-                r = driver_handle_method(&methods[i], peer, serial, signature, message);
-                if (r < 0)
-                        return r;
+                return driver_handle_method(&methods[i], peer, serial, signature, message);
         }
 
         return -ENOENT;
