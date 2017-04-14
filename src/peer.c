@@ -377,16 +377,16 @@ int peer_new(Peer **peerp,
         reply_registry_init(&peer->replies_outgoing);
         peer->replies_incoming = (CList)C_LIST_INIT(peer->replies_incoming);
 
-        r = socket_new(&peer->socket, fd);
-        if (r < 0)
-                return r;
-
         r = dispatch_file_init(&peer->dispatch_file,
                                &bus->dispatcher,
                                &bus->ready_list,
                                peer_dispatch,
                                fd,
                                EPOLLIN | EPOLLOUT);
+        if (r < 0)
+                return r;
+
+        r = socket_new(&peer->socket, fd);
         if (r < 0)
                 return r;
 
