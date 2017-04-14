@@ -329,6 +329,18 @@ static int peer_get_peersec(int fd, char **labelp, size_t *lenp) {
         return 0;
 }
 
+static int peer_compare(CRBTree *tree, void *k, CRBNode *rb) {
+        Peer *peer = c_container_of(rb, Peer, rb);
+        uint64_t id = *(uint64_t*)k;
+
+        if (peer->id < id)
+                return -1;
+        if (peer->id > id)
+                return 1;
+
+        return 0;
+}
+
 /**
  * peer_new() - XXX
  */
@@ -338,6 +350,7 @@ int peer_new(Peer **peerp,
         _c_cleanup_(peer_freep) Peer *peer = NULL;
         _c_cleanup_(user_entry_unrefp) UserEntry *user = NULL;
         _c_cleanup_(c_freep) char *seclabel = NULL;
+        CRBNode **slot, *parent;
         size_t n_seclabel;
         struct ucred ucred;
         socklen_t socklen = sizeof(ucred);
@@ -391,6 +404,9 @@ int peer_new(Peer **peerp,
                 return r;
 
         peer->id = bus->peers.ids++;
+        slot = c_rbtree_find_slot(&bus->peers.peers, peer_compare, &peer->id, &parent);
+        assert(slot); /* peer->id is guaranteed to be unique */
+        c_rbtree_add(&bus->peers.peers, parent, slot, &peer->rb);
 
         *peerp = peer;
         peer = NULL;
@@ -408,7 +424,7 @@ Peer *peer_free(Peer *peer) {
                 return NULL;
 
         assert(!peer->names.root);
-        assert(!c_rbnode_is_linked(&peer->rb));
+        assert(!peer->registered);
 
         peer->user->n_peers ++;
 
@@ -422,6 +438,8 @@ Peer *peer_free(Peer *peer) {
 
         c_list_for_each_entry_safe(reply, safe, &peer->replies_incoming, link)
                 reply_slot_free(reply);
+
+        c_rbtree_remove_init(&peer->bus->peers.peers, &peer->rb);
 
         dispatch_file_deinit(&peer->dispatch_file);
         reply_registry_deinit(&peer->replies_outgoing);
@@ -440,6 +458,22 @@ void peer_start(Peer *peer) {
 
 void peer_stop(Peer *peer) {
         return dispatch_file_deselect(&peer->dispatch_file, EPOLLIN);
+}
+
+void peer_register(Peer *peer) {
+        assert(!peer->registered);
+
+        peer->registered = true;
+
+        driver_notify_name_owner_change(NULL, NULL, peer);
+}
+
+void peer_unregister(Peer *peer) {
+        assert(peer->registered);
+
+        driver_notify_name_owner_change(NULL, peer, NULL);
+
+        peer->registered = false;
 }
 
 void peer_registry_init(PeerRegistry *registry) {
@@ -476,46 +510,18 @@ void peer_registry_flush(PeerRegistry *registry) {
                         reply_slot_free(slot);
                 }
 
-                c_rbtree_remove_init(&registry->peers, &peer->rb);
+                peer->registered = false;
 
                 peer_free(peer);
         }
 }
 
-static int peer_compare(CRBTree *tree, void *k, CRBNode *rb) {
-        Peer *peer = c_container_of(rb, Peer, rb);
-        uint64_t id = *(uint64_t*)k;
-
-        if (peer->id < id)
-                return -1;
-        if (peer->id > id)
-                return 1;
-
-        return 0;
-}
-
-void peer_registry_link_peer(PeerRegistry *registry, Peer *peer) {
-        CRBNode *parent, **slot;
-
-        assert(!c_rbnode_is_linked(&peer->rb));
-
-        slot = c_rbtree_find_slot(&registry->peers, peer_compare, &peer->id, &parent);
-        assert(slot); /* peer->id is guaranteed to be unique */
-        c_rbtree_add(&registry->peers, parent, slot, &peer->rb);
-
-        driver_notify_name_owner_change(NULL, NULL, peer);
-}
-
-void peer_registry_unlink_peer(PeerRegistry *registry, Peer *peer) {
-        assert(c_rbnode_is_linked(&peer->rb));
-
-        driver_notify_name_owner_change(NULL, peer, NULL);
-
-        c_rbtree_remove_init(&registry->peers, &peer->rb);
-}
-
 Peer *peer_registry_find_peer(PeerRegistry *registry, uint64_t id) {
-        return c_rbtree_find_entry(&registry->peers, peer_compare, &id, Peer, rb);
+        Peer *peer;
+
+        peer = c_rbtree_find_entry(&registry->peers, peer_compare, &id, Peer, rb);
+
+        return peer->registered ? peer : NULL;
 }
 
 int peer_id_from_unique_name(const char *name, uint64_t *idp) {

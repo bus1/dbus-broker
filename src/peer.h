@@ -23,6 +23,7 @@ struct Peer {
 
         SASL sasl;
         bool authenticated : 1;
+        bool registered : 1;
 
         DispatchFile dispatch_file;
         Socket *socket;
@@ -55,17 +56,18 @@ int peer_dispatch(DispatchFile *file, uint32_t mask);
 void peer_start(Peer *peer);
 void peer_stop(Peer *peer);
 
+void peer_register(Peer *peer);
+void peer_unregister(Peer *peer);
+
 int peer_id_from_unique_name(const char *name, uint64_t *idp);
 
 void peer_registry_init(PeerRegistry *registry);
 void peer_registry_deinit(PeerRegistry *registry);
 void peer_registry_flush(PeerRegistry *registry);
-void peer_registry_link_peer(PeerRegistry *registry, Peer *peer);
-void peer_registry_unlink_peer(PeerRegistry *registry, Peer *peer);
 Peer *peer_registry_find_peer(PeerRegistry *registry, uint64_t id);
 
 static inline bool peer_is_registered(Peer *peer) {
-        return c_rbnode_is_linked(&peer->rb);
+        return peer->registered;
 }
 
 C_DEFINE_CLEANUP(Peer *, peer_free);
