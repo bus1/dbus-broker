@@ -16,7 +16,7 @@ static int match_rules_compare(CRBTree *tree, void *k, CRBNode *rb) {
         MatchRuleKeys *key1 = k, *key2 = &rule->keys;
         int r;
 
-        if ((r = c_string_compare(key1->filter.sender, key2->filter.sender)) ||
+        if ((r = c_string_compare(key1->sender, key2->sender)) ||
             (r = c_string_compare(key1->filter.destination, key2->filter.destination)) ||
             (r = c_string_compare(key1->filter.interface, key2->filter.interface)) ||
             (r = c_string_compare(key1->filter.member, key2->filter.member)) ||
@@ -66,9 +66,6 @@ static bool match_rule_keys_match_filter(MatchRuleKeys *keys, MatchFilter *filte
         if (!keys->eavesdrop && filter->destination)
                 return false;
 
-        if (keys->filter.sender && !c_string_equal(keys->filter.sender, filter->sender))
-                return false;
-
         if (keys->filter.destination && !c_string_equal(keys->filter.destination, filter->destination))
                 return false;
 
@@ -82,9 +79,6 @@ static bool match_rule_keys_match_filter(MatchRuleKeys *keys, MatchFilter *filte
                 return false;
 
         if (keys->path_namespace && !match_string_prefix(filter->path, keys->path_namespace, '/'))
-                return false;
-
-        if (keys->filter.sender && !c_string_equal(keys->filter.sender, filter->sender))
                 return false;
 
         /* XXX: verify that arg0 is a (potentially single-label) bus name */
@@ -118,7 +112,7 @@ static int match_rule_keys_assign(MatchRuleKeys *keys, const char *key, const ch
                 else
                         return -EBADMSG;
         } else if (strcmp(key, "sender") == 0) {
-                keys->filter.sender = value;
+                keys->sender = value;
         } else if (strcmp(key, "destination") == 0) {
                 keys->filter.destination = value;
         } else if (strcmp(key, "interface") == 0) {
