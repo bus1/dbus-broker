@@ -5,6 +5,7 @@
  */
 
 #include <c-macro.h>
+#include <c-ref.h>
 #include <stdlib.h>
 #include "peer.h"
 
@@ -21,6 +22,7 @@ struct NameOwner {
 };
 
 struct NameEntry {
+        _Atomic unsigned long n_refs;
         NameRegistry *registry;
         CList owners;
         CRBNode rb;
@@ -33,6 +35,7 @@ struct NameRegistry {
 };
 
 NameOwner *name_owner_free(NameOwner *owner);
+void name_entry_free(_Atomic unsigned long *n_refs, void *userpointer);
 
 NameEntry *name_registry_find_entry(NameRegistry *registry, const char *name);
 Peer *name_registry_resolve_name(NameRegistry *registry, const char *name);
@@ -51,3 +54,19 @@ void name_registry_release_name(NameRegistry *registry,
                                 uint32_t *replyp);
 
 void name_registry_release_all_names(NameRegistry *registry, Peer *peer);
+
+static inline NameEntry *name_entry_ref(NameEntry *entry) {
+        if (entry)
+                c_ref_inc(&entry->n_refs);
+
+        return entry;
+}
+
+static inline NameEntry *name_entry_unref(NameEntry *entry) {
+        if (entry)
+                c_ref_dec(&entry->n_refs, name_entry_free, NULL);
+
+        return NULL;
+}
+
+C_DEFINE_CLEANUP(NameEntry *, name_entry_unref);
