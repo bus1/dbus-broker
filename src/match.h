@@ -6,7 +6,6 @@
 
 #include <c-list.h>
 #include <c-rbtree.h>
-#include <c-ref.h>
 #include <stdlib.h>
 
 typedef struct MatchFilter MatchFilter;
@@ -34,7 +33,7 @@ struct MatchRuleKeys {
 };
 
 struct MatchRule {
-        _Atomic unsigned long n_refs;
+        unsigned int n_user_refs;
 
         Peer *peer;
 
@@ -51,7 +50,9 @@ struct MatchRegistry {
 };
 
 int match_rule_new(MatchRule **rulep, Peer *peer, const char *rule_string);
-void match_rule_free(_Atomic unsigned long *n_refs, void *userdata);
+MatchRule *match_rule_free(MatchRule *rule);
+MatchRule *match_rule_user_ref(MatchRule *rule);
+MatchRule *match_rule_user_unref(MatchRule *rule);
 
 void match_rule_link(MatchRule *rule, MatchRegistry *registry);
 int match_rule_get(MatchRule **rulep, Peer *peer, const char *rule_string);
@@ -61,16 +62,4 @@ MatchRule *match_rule_next(MatchRegistry *registry, MatchRule *rule, MatchFilter
 void match_registry_init(MatchRegistry *registry);
 void match_registry_deinit(MatchRegistry *registry);
 
-static inline MatchRule *match_rule_ref(MatchRule *rule) {
-        if (rule)
-                c_ref_inc(&rule->n_refs);
-        return rule;
-}
-
-static inline MatchRule *match_rule_unref(MatchRule *rule) {
-        if (rule)
-                c_ref_dec(&rule->n_refs, match_rule_free, NULL);
-        return NULL;
-}
-
-C_DEFINE_CLEANUP(MatchRule *, match_rule_unref);
+C_DEFINE_CLEANUP(MatchRule *, match_rule_free);

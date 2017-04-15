@@ -16,7 +16,7 @@ static void test_args(Peer *peer,
                       const char *arg1,
                       const char *arg2,
                       const char *arg3) {
-        _c_cleanup_(match_rule_unrefp) MatchRule *rule = NULL;
+        _c_cleanup_(match_rule_freep) MatchRule *rule = NULL;
         int r;
 
         r = match_rule_new(&rule, peer, match);

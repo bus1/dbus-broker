@@ -433,7 +433,7 @@ Peer *peer_free(Peer *peer) {
              node = next, next = c_rbnode_next_postorder(node)) {
                 MatchRule *rule = c_container_of(node, MatchRule, rb_peer);
 
-                match_rule_free(&rule->n_refs, NULL);
+                match_rule_free(rule);
         }
 
         c_list_for_each_entry_safe(reply, safe, &peer->replies_incoming, link)

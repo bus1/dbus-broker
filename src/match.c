@@ -244,7 +244,7 @@ int match_rule_keys_parse(MatchRuleKeys *keys, char *buffer, const char *rule_st
 }
 
 int match_rule_new(MatchRule **rulep, Peer *peer, const char *rule_string) {
-        _c_cleanup_(match_rule_unrefp) MatchRule *rule = NULL;
+        _c_cleanup_(match_rule_freep) MatchRule *rule = NULL;
         CRBNode **slot, *parent;
         size_t n_rule_string;
         int r;
@@ -258,7 +258,7 @@ int match_rule_new(MatchRule **rulep, Peer *peer, const char *rule_string) {
         if (!rule)
                 return -EINVAL;
 
-        rule->n_refs = C_REF_INIT;
+        rule->n_user_refs = 1;
         rule->peer = peer;
         rule->link_registry = (CList)C_LIST_INIT(rule->link_registry);
 
@@ -271,7 +271,7 @@ int match_rule_new(MatchRule **rulep, Peer *peer, const char *rule_string) {
         slot = c_rbtree_find_slot(&peer->match_rules, match_rules_compare, &rule->keys, &parent);
         if (!slot) {
                 /* one already exists, take a ref on that instead and drop the one we created */
-                *rulep = match_rule_ref(c_container_of(parent, MatchRule, rb_peer));
+                *rulep = match_rule_user_ref(rule);
         } else {
                 /* link the new rule into the rbtree */
                 c_rbtree_add(&peer->match_rules, parent, slot, &rule->rb_peer);
@@ -282,15 +282,40 @@ int match_rule_new(MatchRule **rulep, Peer *peer, const char *rule_string) {
         return 0;
 }
 
-void match_rule_free(_Atomic unsigned long *n_refs, void *userpointer) {
-        MatchRule *rule = c_container_of(n_refs, MatchRule, n_refs);
-
+MatchRule *match_rule_free(MatchRule *rule) {
         rule->peer->user->n_matches ++;
 
         c_list_unlink(&rule->link_registry);
         c_rbtree_remove(&rule->peer->match_rules, &rule->rb_peer);
 
         free(rule);
+
+        return NULL;
+}
+
+MatchRule *match_rule_user_ref(MatchRule *rule) {
+        if (!rule)
+                return NULL;
+
+        assert(rule->n_user_refs > 0);
+
+        ++rule->n_user_refs;
+
+        return rule;
+}
+
+MatchRule *match_rule_user_unref(MatchRule *rule) {
+        if (!rule)
+                return NULL;
+
+        assert(rule->n_user_refs > 0);
+
+        --rule->n_user_refs;
+
+        if (rule->n_user_refs == 0)
+                match_rule_free(rule);
+
+        return NULL;
 }
 
 void match_rule_link(MatchRule *rule, MatchRegistry *registry) {

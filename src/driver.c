@@ -556,7 +556,7 @@ static int driver_method_remove_match(Peer *peer, CDVar *in_v, CDVar *out_v) {
         if (r)
                 return (r > 0) ? -ENOTRECOVERABLE : r;
 
-        match_rule_unref(rule);
+        match_rule_user_unref(rule);
 
         c_dvar_write(out_v, "()");
 
