@@ -35,6 +35,8 @@ struct NameRegistry {
 };
 
 NameOwner *name_owner_free(NameOwner *owner);
+
+int name_entry_get(NameEntry **entryp, NameRegistry *registry, const char *name);
 void name_entry_free(_Atomic unsigned long *n_refs, void *userpointer);
 
 NameEntry *name_registry_find_entry(NameRegistry *registry, const char *name);

@@ -13,7 +13,7 @@
 #include "user.h"
 
 /* new owner object linked into the owning peer */
-static int name_owner_new(NameOwner **ownerp, NameEntry *entry, Peer *peer, CRBNode *parent, CRBNode **slot) {
+static int name_owner_new(NameOwner **ownerp, Peer *peer, NameEntry *entry, CRBNode *parent, CRBNode **slot) {
         NameOwner *owner;
 
         if (peer->user->n_names < 1)
@@ -62,7 +62,7 @@ static int name_owner_compare(CRBTree *tree, void *k, CRBNode *rb) {
         return 0;
 }
 
-static int name_owner_get(NameOwner **ownerp, NameEntry *entry, Peer *peer) {
+static int name_owner_get(NameOwner **ownerp, Peer *peer, NameEntry *entry) {
         CRBNode **slot, *parent;
         int r;
 
@@ -70,7 +70,7 @@ static int name_owner_get(NameOwner **ownerp, NameEntry *entry, Peer *peer) {
         if (!slot) {
                 *ownerp = c_container_of(parent, NameOwner, rb);
         } else {
-                r = name_owner_new(ownerp, entry, peer, parent, slot);
+                r = name_owner_new(ownerp, peer, entry, parent, slot);
                 if (r < 0)
                         return r;
         }
@@ -96,7 +96,7 @@ void name_owner_release(NameOwner *owner) {
 }
 
 /* new name entry linked into the registry */
-static int name_entry_new(NameRegistry *registry, NameEntry **entryp, const char *name, CRBNode *parent, CRBNode **slot) {
+static int name_entry_new(NameEntry **entryp, NameRegistry *registry, const char *name, CRBNode *parent, CRBNode **slot) {
         NameEntry *entry;
         size_t n_name;
 
@@ -131,6 +131,22 @@ static int name_entry_compare(CRBTree *tree, void *k, CRBNode *rb) {
         char *name = k;
 
         return strcmp(entry->name, name);
+}
+
+int name_entry_get(NameEntry **entryp, NameRegistry *registry, const char *name) {
+        CRBNode **slot, *parent;
+        int r;
+
+        slot = c_rbtree_find_slot(&registry->entries, name_entry_compare, name, &parent);
+        if (!slot) {
+                *entryp = name_entry_ref(c_container_of(parent, NameEntry, rb));
+        } else {
+                r = name_entry_new(entryp, registry, name, parent, slot);
+                if (r < 0)
+                        return r;
+        }
+
+        return 0;
 }
 
 /* send out notification and perform update */
@@ -190,51 +206,21 @@ void name_registry_deinit(NameRegistry *registry) {
         assert(!registry->entries.root);
 }
 
-/* add new name entry with its first owner to the registry */
-static int name_registry_add_entry(NameRegistry *registry, const char *name, Peer *peer, uint32_t flags, CRBNode *parent, CRBNode **slot, uint32_t *replyp) {
+int name_registry_request_name(NameRegistry *registry, Peer *peer, const char *name, uint32_t flags, uint32_t *replyp) {
         _c_cleanup_(name_entry_unrefp) NameEntry *entry = NULL;
         NameOwner *owner;
         uint32_t reply;
         int r;
 
-        r = name_entry_new(registry, &entry, name, parent, slot);
+        r = name_entry_get(&entry, registry, name);
         if (r < 0)
                 return r;
 
-        slot = c_rbtree_find_slot(&peer->names, name_owner_compare, entry, &parent);
-        assert(slot); /* @entry is new, it cannot be in the tree */
-
-        r = name_owner_new(&owner, entry, peer, parent, slot);
+        r = name_owner_get(&owner, peer, entry);
         if (r < 0)
                 return r;
 
         name_entry_update_owner(entry, owner, flags, &reply);
-
-        *replyp = reply;
-        return 0;
-}
-
-int name_registry_request_name(NameRegistry *registry, Peer *peer, const char *name, uint32_t flags, uint32_t *replyp) {
-        CRBNode **slot, *parent;
-        NameEntry *entry;
-        NameOwner *owner;
-        uint32_t reply;
-        int r;
-
-        slot = c_rbtree_find_slot(&registry->entries, name_entry_compare, name, &parent);
-        if (!slot) { /* entry exists */
-                entry = c_container_of(parent, NameEntry, rb);
-
-                r = name_owner_get(&owner, entry, peer);
-                if (r < 0)
-                        return r;
-
-                name_entry_update_owner(entry, owner, flags, &reply);
-        } else {
-                r = name_registry_add_entry(registry, name, peer, flags, parent, slot, &reply);
-                if (r < 0)
-                        return r;
-        }
 
         *replyp = reply;
         return 0;
