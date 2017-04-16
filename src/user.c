@@ -44,7 +44,7 @@ static void user_usage_unlink(UserUsage *usage) {
 static int user_usage_new(UserUsage **usagep, UserEntry *entry, uid_t uid) {
         UserUsage *usage;
 
-        usage = malloc(sizeof(*usage));
+        usage = calloc(1, sizeof(*usage));
         if (!usage)
                 return -ENOMEM;
 
@@ -52,8 +52,6 @@ static int user_usage_new(UserUsage **usagep, UserEntry *entry, uid_t uid) {
         usage->entry = entry;
         usage->uid = uid;
         usage->rb = (CRBNode)C_RBNODE_INIT(usage->rb);
-        usage->n_bytes = 0;
-        usage->n_fds = 0;
 
         *usagep = usage;
         return 0;

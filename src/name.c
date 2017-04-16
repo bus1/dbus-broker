@@ -19,7 +19,7 @@ static int name_owner_new(NameOwner **ownerp, NameEntry *entry, Peer *peer, CRBN
         if (peer->user->n_names < 1)
                 return -EDQUOT;
 
-        owner = malloc(sizeof(*owner));
+        owner = calloc(1, sizeof(*owner));
         if (!owner)
                 return -ENOMEM;
 
@@ -29,7 +29,6 @@ static int name_owner_new(NameOwner **ownerp, NameEntry *entry, Peer *peer, CRBN
         owner->entry = name_entry_ref(entry);
         owner->peer = peer;
         c_rbtree_add(&peer->names, parent, slot, &owner->rb);
-        owner->flags = 0;
 
         *ownerp = owner;
         return 0;
