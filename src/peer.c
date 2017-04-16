@@ -73,7 +73,52 @@ static int peer_forward_reply(Peer *sender, const char *destination, uint32_t re
         return 0;
 }
 
-static int peer_forward_broadcast(Peer *sender, const char *interface, const char *member, const char *path, Message *message) {
+static int peer_forward_broadcast_to_matches(MatchRegistry *matches, MatchFilter *filter, Message *message) {
+        MatchRule *rule;
+        int r;
+
+        for (rule = match_rule_next(matches, NULL, filter); rule; match_rule_next(matches, rule, filter)) {
+
+                r = socket_queue_message(rule->peer->socket, message);
+                if (r)
+                        return (r > 0) ? -ENOTRECOVERABLE : r;
+
+                dispatch_file_select(&rule->peer->dispatch_file, EPOLLOUT);
+        }
+
+        return 0;
+}
+
+static int peer_forward_broadcast(Peer *sender, const char *interface, const char *member, const char *path, const char *siganture, Message *message) {
+        MatchFilter filter = {
+                .type = message->header->type,
+                .interface = interface,
+                .member = member,
+                .path = path,
+        };
+        int r;
+
+        /* XXX: parse the message to verify the marshalling and read out the arguments for filtering */
+
+        r = peer_forward_broadcast_to_matches(&sender->bus->wildcard_matches, &filter, message);
+        if (r < 0)
+                return r;
+
+        for (CRBNode *node = c_rbtree_first(&sender->names); node; c_rbnode_next(node)) {
+                NameOwner *owner = c_container_of(node, NameOwner, rb);
+
+                if (!name_owner_is_primary(owner))
+                        continue;
+
+                r = peer_forward_broadcast_to_matches(&owner->entry->matches, &filter, message);
+                if (r < 0)
+                        return r;
+        }
+
+        r = peer_forward_broadcast_to_matches(&sender->matches, &filter, message);
+        if (r < 0)
+                return r;
+
         return 0;
 }
 
@@ -186,7 +231,7 @@ static int peer_dispatch_read_message(Peer *peer) {
         if (_c_unlikely_(c_string_equal(destination, "org.freedesktop.DBus")))
                 return driver_dispatch_interface(peer, serial, interface, member, path, signature, message);
 
-        /* XXX: verify message contents, append sender */
+        /* XXX: append sender */
 
         if (message->header->type != DBUS_MESSAGE_TYPE_METHOD_CALL)
                 message->header->flags |= DBUS_HEADER_FLAG_NO_REPLY_EXPECTED;
@@ -195,8 +240,10 @@ static int peer_dispatch_read_message(Peer *peer) {
                 if (message->header->type != DBUS_MESSAGE_TYPE_SIGNAL)
                         return -EBADMSG;
 
-                return peer_forward_broadcast(peer, interface, member, path, message);
+                return peer_forward_broadcast(peer, interface, member, path, signature, message);
         }
+
+        /* XXX: verify message contents */
 
         switch (message->header->type) {
         case DBUS_MESSAGE_TYPE_SIGNAL:
