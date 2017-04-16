@@ -341,7 +341,7 @@ int match_rule_get(MatchRule **rulep, Peer *peer, const char *rule_string) {
         return 0;
 }
 
-MatchRule *match_next_entry(MatchRegistry *registry, MatchRule *rule, MatchFilter *filter) {
+MatchRule *match_rule_next(MatchRegistry *registry, MatchRule *rule, MatchFilter *filter) {
         CList *link;
 
         if (!rule)

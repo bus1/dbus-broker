@@ -78,8 +78,12 @@ static int name_owner_get(NameOwner **ownerp, Peer *peer, NameEntry *entry) {
         return 0;
 }
 
-void name_owner_release(NameOwner *owner) {
-        if (c_list_first(&owner->entry->owners) == &owner->entry_link) {
+bool name_owner_is_primary(NameOwner *owner) {
+        return (c_list_first(&owner->entry->owners) == &owner->entry_link);
+}
+
+static void name_owner_release(NameOwner *owner) {
+        if (name_owner_is_primary(owner)) {
                 Peer *new_peer;
 
                 if (c_list_last(&owner->entry->owners) != &owner->entry_link) {

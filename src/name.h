@@ -36,6 +36,7 @@ struct NameRegistry {
 };
 
 NameOwner *name_owner_free(NameOwner *owner);
+bool name_owner_is_primary(NameOwner *owner);
 
 int name_entry_get(NameEntry **entryp, NameRegistry *registry, const char *name);
 void name_entry_free(_Atomic unsigned long *n_refs, void *userpointer);
