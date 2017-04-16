@@ -93,7 +93,8 @@ int bus_new(Bus **busp,
         bus->accept_fd = accept_fd;
         bus->signal_fd = signal_fd;
         signal_fd = -1;
-        match_registry_init(&bus->matches);
+        match_registry_init(&bus->wildcard_matches);
+        match_registry_init(&bus->driver_matches);
         /* XXX: initialize guid with random data */
         name_registry_init(&bus->names);
         user_registry_init(&bus->users, max_bytes, max_fds, max_peers, max_names, max_matches);
@@ -145,7 +146,8 @@ Bus *bus_free(Bus *bus) {
         peer_registry_deinit(&bus->peers);
         user_registry_deinit(&bus->users);
         name_registry_deinit(&bus->names);
-        match_registry_deinit(&bus->matches);
+        match_registry_deinit(&bus->driver_matches);
+        match_registry_deinit(&bus->wildcard_matches);
 
         free(bus);
 

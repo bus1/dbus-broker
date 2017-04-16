@@ -8,6 +8,7 @@
 #include <c-rbtree.h>
 #include <stdlib.h>
 #include <sys/types.h>
+#include "match.h"
 #include "reply.h"
 #include "sasl.h"
 #include "util/dispatch.h"
@@ -33,6 +34,7 @@ struct Peer {
         char *seclabel;
         size_t n_seclabel;
 
+        MatchRegistry matches;
         ReplyRegistry replies_outgoing;
         CRBTree names;
 

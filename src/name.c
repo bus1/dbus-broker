@@ -108,6 +108,7 @@ static int name_entry_new(NameEntry **entryp, NameRegistry *registry, const char
 
         entry->n_refs = C_REF_INIT;
         entry->registry = registry;
+        match_registry_init(&entry->matches);
         c_rbtree_add(&registry->entries, parent, slot, &entry->rb);
         entry->owners = (CList)C_LIST_INIT(entry->owners);
         memcpy((char*)entry->name, name, n_name);
@@ -122,6 +123,8 @@ void name_entry_free(_Atomic unsigned long *n_refs, void *userpointer) {
         assert(c_list_is_empty(&entry->owners));
 
         c_rbtree_remove(&entry->registry->entries, &entry->rb);
+
+        match_registry_deinit(&entry->matches);
 
         free(entry);
 }

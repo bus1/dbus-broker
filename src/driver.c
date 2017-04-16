@@ -534,7 +534,33 @@ static int driver_method_add_match(Peer *peer, CDVar *in_v, CDVar *out_v) {
         if (r)
                 return (r > 0) ? -ENOTRECOVERABLE : r;
 
-        match_rule_link(rule, &peer->bus->matches);
+        if (!rule->keys.sender)
+                match_rule_link(rule, &peer->bus->wildcard_matches);
+        else if (*rule->keys.sender == ':') {
+                Peer *sender;
+                uint64_t id;
+
+                r = peer_id_from_unique_name(rule->keys.sender, &id);
+                if (r)
+                        return (r > 0) ? -ENOTRECOVERABLE : r;
+
+                sender = peer_registry_find_peer(&peer->bus->peers, id);
+                if (!sender)
+                        return -ENOTRECOVERABLE;
+
+                match_rule_link(rule, &sender->matches);
+        } else if (strcmp(rule->keys.sender, "org.freedesktop.DBus") == 0) {
+                match_rule_link(rule, &peer->bus->driver_matches);
+        } else {
+                _c_cleanup_(name_entry_unrefp) NameEntry *name = NULL;
+
+                r = name_entry_get(&name, &peer->bus->names, rule->keys.sender);
+                if (r < 0)
+                        return r;
+
+                match_rule_link(rule, &name->matches);
+                name_entry_ref(name); /* this reference must be explicitly released */
+        }
 
         c_dvar_write(out_v, "()");
 
@@ -542,6 +568,7 @@ static int driver_method_add_match(Peer *peer, CDVar *in_v, CDVar *out_v) {
 }
 
 static int driver_method_remove_match(Peer *peer, CDVar *in_v, CDVar *out_v) {
+        _c_cleanup_(name_entry_unrefp) NameEntry *name = NULL;
         MatchRule *rule;
         const char *rule_string;
         int r;
@@ -555,6 +582,9 @@ static int driver_method_remove_match(Peer *peer, CDVar *in_v, CDVar *out_v) {
         r = match_rule_get(&rule, peer, rule_string);
         if (r)
                 return (r > 0) ? -ENOTRECOVERABLE : r;
+
+        if (rule->keys.sender && strcmp(rule->keys.sender, "org.freedesktop.DBus") != 0)
+                name = c_container_of(rule->registry, NameEntry, matches);
 
         match_rule_user_unref(rule);
 

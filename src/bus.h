@@ -32,7 +32,8 @@ struct Bus {
         CList ready_list;
         NameRegistry names;
         UserRegistry users;
-        MatchRegistry matches;
+        MatchRegistry wildcard_matches;
+        MatchRegistry driver_matches;
         PeerRegistry peers;
 };
 

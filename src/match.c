@@ -320,6 +320,7 @@ MatchRule *match_rule_user_unref(MatchRule *rule) {
 
 void match_rule_link(MatchRule *rule, MatchRegistry *registry) {
         c_list_link_tail(&registry->rules, &rule->link_registry);
+        rule->registry = registry;
 }
 
 int match_rule_get(MatchRule **rulep, Peer *peer, const char *rule_string) {

@@ -24,6 +24,7 @@ struct NameOwner {
 struct NameEntry {
         _Atomic unsigned long n_refs;
         NameRegistry *registry;
+        MatchRegistry matches;
         CList owners;
         CRBNode rb;
         const char name[];

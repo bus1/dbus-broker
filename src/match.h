@@ -36,6 +36,7 @@ struct MatchRule {
         unsigned int n_user_refs;
 
         Peer *peer;
+        MatchRegistry *registry;
 
         CList link_registry;
         CRBNode rb_peer;
