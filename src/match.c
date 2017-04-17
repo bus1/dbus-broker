@@ -17,7 +17,6 @@ static int match_rules_compare(CRBTree *tree, void *k, CRBNode *rb) {
         int r;
 
         if ((r = c_string_compare(key1->filter.sender, key2->filter.sender)) ||
-            (r = c_string_compare(key1->filter.destination, key2->filter.destination)) ||
             (r = c_string_compare(key1->filter.interface, key2->filter.interface)) ||
             (r = c_string_compare(key1->filter.member, key2->filter.member)) ||
             (r = c_string_compare(key1->filter.path, key2->filter.path)) ||
@@ -25,6 +24,10 @@ static int match_rules_compare(CRBTree *tree, void *k, CRBNode *rb) {
             (r = c_string_compare(key1->arg0namespace, key2->arg0namespace)))
                 return r;
 
+        if (key1->filter.destination > key2->filter.destination)
+                return 1;
+        if (key1->filter.destination < key2->filter.destination)
+                return -1;
         if (key1->filter.type > key2->filter.type)
                 return 1;
         if (key1->filter.type < key2->filter.type)
@@ -63,13 +66,13 @@ static bool match_rule_keys_match_filter(MatchRuleKeys *keys, MatchFilter *filte
         if (keys->filter.type && keys->filter.type != filter->type)
                 return false;
 
-        if (!keys->eavesdrop && filter->destination)
+        if (!keys->eavesdrop && filter->destination != PEER_ID_INVALID)
                 return false;
 
         if (keys->filter.sender && !c_string_equal(keys->filter.sender, filter->sender))
                 return false;
 
-        if (keys->filter.destination && !c_string_equal(keys->filter.destination, filter->destination))
+        if (keys->filter.destination != PEER_ID_INVALID && keys->filter.destination != filter->destination)
                 return false;
 
         if (keys->filter.interface && !c_string_equal(keys->filter.interface, filter->interface))
@@ -120,7 +123,14 @@ static int match_rule_keys_assign(MatchRuleKeys *keys, const char *key, const ch
         } else if (strcmp(key, "sender") == 0) {
                 keys->filter.sender = value;
         } else if (strcmp(key, "destination") == 0) {
-                keys->filter.destination = value;
+                uint64_t destination;
+                int r;
+
+                r = peer_id_from_unique_name(value, &destination);
+                if (r < 0)
+                        return r;
+
+                keys->filter.destination = destination;
         } else if (strcmp(key, "interface") == 0) {
                 keys->filter.interface = value;
         } else if (strcmp(key, "member") == 0) {
@@ -267,6 +277,7 @@ int match_rule_new(MatchRule **rulep, Peer *peer, const char *rule_string) {
         rule->n_refs = C_REF_INIT;
         rule->peer = peer;
         rule->link_registry = (CList)C_LIST_INIT(rule->link_registry);
+        rule->keys.filter.destination = PEER_ID_INVALID;
 
         peer->user->n_matches --;
 
@@ -309,6 +320,7 @@ int match_rule_get(MatchRule **rulep, Peer *peer, const char *rule_string) {
         MatchRule *rule;
         int r;
 
+        keys.filter.destination = PEER_ID_INVALID;
         r = match_rule_keys_parse(&keys, buffer, rule_string, strlen(rule_string));
         if (r < 0)
                 return r;
