@@ -21,6 +21,7 @@ struct MatchFilter {
         const char *member;
         const char *path;
         const char *args[64];
+        const char *argpaths[64];
 };
 
 struct MatchRuleKeys {
@@ -28,7 +29,6 @@ struct MatchRuleKeys {
         MatchFilter filter;
         bool eavesdrop : 1;
         const char *path_namespace;
-        const char *argpaths[64];
         const char *arg0namespace;
 };
 

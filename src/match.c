@@ -39,7 +39,7 @@ static int match_rules_compare(CRBTree *tree, void *k, CRBNode *rb) {
                 if ((r = c_string_compare(key1->filter.args[i], key2->filter.args[i])))
                         return r;
 
-                if ((r = c_string_compare(key1->argpaths[i], key2->argpaths[i])))
+                if ((r = c_string_compare(key1->filter.argpaths[i], key2->filter.argpaths[i])))
                         return r;
         }
 
@@ -89,9 +89,9 @@ static bool match_rule_keys_match_filter(MatchRuleKeys *keys, MatchFilter *filte
                 if (keys->filter.args[i] && !c_string_equal(keys->filter.args[i], filter->args[i]))
                         return false;
 
-                if (keys->argpaths[i]) {
-                        if (!match_string_prefix(filter->args[i], keys->argpaths[i], '/') &&
-                            !match_string_prefix(keys->argpaths[i], filter->args[i], '/'))
+                if (keys->filter.argpaths[i]) {
+                        if (!match_string_prefix(filter->argpaths[i], keys->filter.argpaths[i], '/') &&
+                            !match_string_prefix(keys->filter.argpaths[i], filter->argpaths[i], '/'))
                                 return false;
                 }
         }
@@ -147,7 +147,7 @@ static int match_rule_keys_assign(MatchRuleKeys *keys, const char *key, const ch
                 if (strcmp(key, "")  == 0) {
                         keys->filter.args[i] = value;
                 } else if (strcmp(key, "path") == 0) {
-                        keys->argpaths[i] = value;
+                        keys->filter.argpaths[i] = value;
                 } else
                         return -EBADMSG;
         } else {
