@@ -447,7 +447,7 @@ int peer_new(Peer **peerp,
         if (r < 0)
                 return r;
 
-        r = socket_new(&peer->socket, fd);
+        r = socket_new(&peer->socket, fd, true);
         if (r < 0)
                 return r;
 

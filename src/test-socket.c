@@ -10,17 +10,19 @@
 #include "socket.h"
 
 static void test_setup(void) {
-        _c_cleanup_(socket_freep) Socket *socket = NULL;
+        _c_cleanup_(socket_freep) Socket *server = NULL, *client = NULL;
         int r;
 
-        r = socket_new(&socket, -1);
+        r = socket_new(&server, -1, true);
+        assert(r >= 0);
+
+        r = socket_new(&client, -1, false);
         assert(r >= 0);
 }
 
 static void test_line(void) {
-        _c_cleanup_(socket_freep) Socket *socket1 = NULL,
-                                                  *socket2 = NULL;
-        char *test = "\0TEST\r\n";
+        _c_cleanup_(socket_freep) Socket *client = NULL, *server = NULL;
+        char *test = "TEST\r\n";
         char *line;
         size_t *pos, n_bytes;
         int pair[2], r;
@@ -28,49 +30,47 @@ static void test_line(void) {
         r = socketpair(AF_UNIX, SOCK_STREAM, 0, pair);
         assert(r >= 0);
 
-        r = socket_new(&socket1, pair[0]);
+        r = socket_new(&client, pair[0], false);
         assert(r >= 0);
 
-        r = socket_new(&socket2, pair[1]);
+        r = socket_new(&server, pair[1], true);
         assert(r >= 0);
 
-        r = socket_read_line(socket2, &line, &n_bytes);
+        r = socket_read_line(server, &line, &n_bytes);
         assert(r == -EAGAIN);
 
-        r = socket_queue_line(socket1, 16, &line, &pos);
+        r = socket_queue_line(client, 16, &line, &pos);
         assert(r >= 0);
 
-        memcpy(line, test, 1 + strlen(test + 1));
-        *pos += 1 + strlen(test + 1);
+        memcpy(line, test, strlen(test));
+        *pos += strlen(test);
 
-        r = socket_queue_line(socket1, 16, &line, &pos);
+        r = socket_queue_line(client, 16, &line, &pos);
         assert(r >= 0);
 
-        memcpy(line, test + 1, strlen(test + 1));
-        *pos += strlen(test + 1);
+        memcpy(line, test, strlen(test));
+        *pos += strlen(test);
 
-        r = socket_write(socket1);
+        r = socket_write(client);
         assert(r >= 0);
 
-        r = socket_read_line(socket2, &line, &n_bytes);
+        r = socket_read_line(server, &line, &n_bytes);
         assert(r >= 0);
-        assert(n_bytes == strlen(test + 1) - 2);
-        assert(memcmp(test + 1, line, n_bytes) == 0);
+        assert(n_bytes == strlen(test) - 2);
+        assert(memcmp(test, line, n_bytes) == 0);
 
-        r = socket_read_line(socket2, &line, &n_bytes);
+        r = socket_read_line(server, &line, &n_bytes);
         assert(r >= 0);
-        assert(n_bytes == strlen(test + 1) - 2);
-        assert(memcmp(test + 1, line, n_bytes) == 0);
+        assert(n_bytes == strlen(test) - 2);
+        assert(memcmp(test, line, n_bytes) == 0);
 
-        r = socket_read_line(socket2, &line, &n_bytes);
+        r = socket_read_line(server, &line, &n_bytes);
         assert(r == -EAGAIN);
 }
 
 static void test_message(void) {
-        _c_cleanup_(socket_freep) Socket *socket1 = NULL,
-                                                  *socket2 = NULL;
-        _c_cleanup_(message_unrefp) Message *message1 = NULL,
-                                                     *message2 = NULL;
+        _c_cleanup_(socket_freep) Socket *client = NULL, *server = NULL;
+        _c_cleanup_(message_unrefp) Message *message1 = NULL, *message2 = NULL;
         MessageHeader header = {
                 .endian = 'l',
         };
@@ -79,25 +79,25 @@ static void test_message(void) {
         r = socketpair(AF_UNIX, SOCK_STREAM, 0, pair);
         assert(r >= 0);
 
-        r = socket_new(&socket1, pair[0]);
+        r = socket_new(&client, pair[0], false);
         assert(r >= 0);
 
-        r = socket_new(&socket2, pair[1]);
+        r = socket_new(&server, pair[1], true);
         assert(r >= 0);
 
-        r = socket_read_message(socket2, &message2);
+        r = socket_read_message(server, &message2);
         assert(r == -EAGAIN);
 
         r = message_new_incoming(&message1, header);
         assert(r >= 0);
 
-        r = socket_queue_message(socket1, message1);
+        r = socket_queue_message(client, message1);
         assert(r >= 0);
 
-        r = socket_write(socket1);
+        r = socket_write(client);
         assert(r >= 0);
 
-        r = socket_read_message(socket2, &message2);
+        r = socket_read_message(server, &message2);
         assert(r >= 0);
 
         assert(memcmp(message1->header, message2->header, sizeof(header)) == 0);

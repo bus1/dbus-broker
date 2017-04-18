@@ -31,12 +31,12 @@ struct SocketBuffer {
 
 struct Socket {
         int fd;
+        bool server : 1;
 
+        bool null_byte_done : 1;
         bool lines_done : 1;
 
         struct SocketIn {
-                bool null_byte_done : 1;
-
                 char *data;
                 size_t data_size;
                 size_t data_start;
@@ -61,7 +61,7 @@ C_DEFINE_CLEANUP(SocketBuffer *, socket_buffer_free);
 
 /* socket IO */
 
-int socket_new(Socket **socketp, int fd);
+int socket_new(Socket **socketp, int fd, bool server);
 Socket *socket_free(Socket *socket);
 
 int socket_read_line(Socket *socket, char **linep, size_t *np);

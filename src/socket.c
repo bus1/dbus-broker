@@ -7,6 +7,9 @@
  * dual-mode: Line-based buffers for initial SASL transactions, and
  * message-based buffers for DBus transactions.
  *
+ * The first line (if any) of a SASL exchange sent from a client to a server
+ * must be prepended with a null byte. The wrapper handles this internally.
+ *
  * Note that once the first real DBus message was read, you must not use the
  * line-helpers, anymore!
  */
@@ -129,7 +132,7 @@ static bool socket_buffer_consume(SocketBuffer *buffer, size_t n) {
         return socket_buffer_is_consumed(buffer);
 }
 
-int socket_new(Socket **socketp, int fd) {
+int socket_new(Socket **socketp, int fd, bool server) {
         _c_cleanup_(socket_freep) Socket *socket = NULL;
 
         socket = calloc(1, sizeof(*socket));
@@ -137,6 +140,7 @@ int socket_new(Socket **socketp, int fd) {
                 return -ENOMEM;
 
         socket->fd = fd;
+        socket->server = server;
 
         socket->out.queue = (CList)C_LIST_INIT(socket->out.queue);
 
@@ -237,13 +241,13 @@ static int socket_line_pop(Socket *socket, char **linep, size_t *np) {
         size_t n;
 
         /* skip the very first byte of the stream, which must be 0 */
-        if (_c_unlikely_(!socket->in.null_byte_done) &&
+        if (_c_unlikely_(!socket->null_byte_done) &&
             socket->in.data_pos < socket->in.data_end) {
                 if (socket->in.data[socket->in.data_pos] != '\0')
                         return -EBADMSG;
 
                 socket->in.data_start = ++socket->in.data_pos;
-                socket->in.null_byte_done = true;
+                socket->null_byte_done = true;
         }
 
         /*
@@ -492,6 +496,10 @@ int socket_queue_line(Socket *socket, size_t n_bytes, char **linep, size_t **pos
 
         assert(!socket->lines_done);
 
+        /* when acting as a client, the first byte of the first line must be null */
+        if (_c_unlikely_(!socket->server && !socket->null_byte_done))
+                ++n_bytes;
+
         buffer = c_list_last_entry(&socket->out.queue, SocketBuffer, link);
         if (!buffer || n_bytes > socket_buffer_get_line_space(buffer)) {
                 r = socket_buffer_new_line(&buffer, n_bytes);
@@ -502,6 +510,14 @@ int socket_queue_line(Socket *socket, size_t n_bytes, char **linep, size_t **pos
         }
 
         socket_buffer_get_line_cursor(buffer, linep, posp);
+
+        if (_c_unlikely_(!socket->server && !socket->null_byte_done)) {
+                **linep = '\0';
+                ++(*linep);
+                ++(**posp);
+                socket->null_byte_done = true;
+        }
+
         return 0;
 }
 
