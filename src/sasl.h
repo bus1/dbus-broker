@@ -8,9 +8,6 @@
 #include <stdlib.h>
 #include <sys/types.h>
 
-/* the OK reply has length "OK 0123456789abcdef0123456789abdcef" */
-#define SASL_OK_LINE_LENGTH (35)
-
 typedef struct SASL SASL;
 typedef enum SASLState SASLState;
 
@@ -24,7 +21,7 @@ enum SASLState {
 struct SASL {
         SASLState state;
         uid_t uid;
-        char ok_response[SASL_OK_LINE_LENGTH];
+        char ok_response[sizeof("OK 0123456789abcdef0123456789abdcef") - 1];
 };
 
 void sasl_init(SASL *sasl, uid_t uid, char *guid);
