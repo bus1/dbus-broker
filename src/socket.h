@@ -64,7 +64,7 @@ C_DEFINE_CLEANUP(SocketBuffer *, socket_buffer_free);
 int socket_new(Socket **socketp, int fd, bool server);
 Socket *socket_free(Socket *socket);
 
-int socket_read_line(Socket *socket, char **linep, size_t *np);
+int socket_read_line(Socket *socket, const char **linep, size_t *np);
 int socket_read_message(Socket *socket, Message **messagep);
 
 void socket_queue(Socket *socket, SocketBuffer *buffer);

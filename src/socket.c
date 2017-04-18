@@ -236,7 +236,7 @@ error:
         return r;
 }
 
-static int socket_line_pop(Socket *socket, char **linep, size_t *np) {
+static int socket_line_pop(Socket *socket, const char **linep, size_t *np) {
         char *line;
         size_t n;
 
@@ -288,7 +288,7 @@ static int socket_line_pop(Socket *socket, char **linep, size_t *np) {
 
                         /* replace \r by safety NUL and return to caller */
                         line[n] = 0;
-                        *linep = line;
+                        *linep = (const char *)line;
                         *np = n;
                         return 0;
                 }
@@ -336,7 +336,7 @@ static int socket_line_shift(Socket *socket) {
 /**
  * socket_read_line() - XXX
  */
-int socket_read_line(Socket *socket, char **linep, size_t *np) {
+int socket_read_line(Socket *socket, const char **linep, size_t *np) {
         int r;
 
         assert(!socket->lines_done);

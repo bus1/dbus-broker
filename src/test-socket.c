@@ -22,8 +22,7 @@ static void test_setup(void) {
 
 static void test_line(void) {
         _c_cleanup_(socket_freep) Socket *client = NULL, *server = NULL;
-        char *test = "TEST";
-        char *line;
+        const char *test = "TEST", *line;
         size_t n_bytes;
         int pair[2], r;
 
