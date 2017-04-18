@@ -69,7 +69,7 @@ int socket_read_message(Socket *socket, Message **messagep);
 
 void socket_queue(Socket *socket, SocketBuffer *buffer);
 void socket_queue_many(Socket *socket, CList *list);
-int socket_queue_line(Socket *socket, size_t n_bytes, char **linep, size_t **posp);
+int socket_queue_line(Socket *socket, const char *line, size_t n);
 int socket_queue_message(Socket *socket, Message *message);
 
 int socket_write(Socket *socket);

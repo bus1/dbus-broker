@@ -258,16 +258,16 @@ static int peer_dispatch_read_message(Peer *peer) {
 }
 
 static int peer_dispatch_read_line(Peer *peer) {
-        char *line_in, *line_out;
+        char *line;
         const char *reply;
-        size_t *pos, n_line, n_reply;
+        size_t n_line, n_reply;
         int r;
 
-        r = socket_read_line(peer->socket, &line_in, &n_line);
+        r = socket_read_line(peer->socket, &line, &n_line);
         if (r < 0)
                 return r;
 
-        r = sasl_dispatch(&peer->sasl, line_in, &reply, &n_reply);
+        r = sasl_dispatch(&peer->sasl, line, &reply, &n_reply);
         if (r < 0) {
                 return r;
         } else if (r > 0) {
@@ -275,12 +275,9 @@ static int peer_dispatch_read_line(Peer *peer) {
                 return 0;
         }
 
-        r = socket_queue_line(peer->socket, n_reply, &line_out, &pos);
+        r = socket_queue_line(peer->socket, reply, n_reply);
         if (r < 0)
                 return r;
-
-        memcpy(line_out, reply, n_reply);
-        *pos += n_reply;
 
         dispatch_file_select(&peer->dispatch_file, EPOLLOUT);
 

@@ -24,7 +24,7 @@ static void test_line(void) {
         _c_cleanup_(socket_freep) Socket *client = NULL, *server = NULL;
         char *test = "TEST\r\n";
         char *line;
-        size_t *pos, n_bytes;
+        size_t n_bytes;
         int pair[2], r;
 
         r = socketpair(AF_UNIX, SOCK_STREAM, 0, pair);
@@ -39,17 +39,11 @@ static void test_line(void) {
         r = socket_read_line(server, &line, &n_bytes);
         assert(r == -EAGAIN);
 
-        r = socket_queue_line(client, 16, &line, &pos);
+        r = socket_queue_line(client, test, strlen(test));
         assert(r >= 0);
 
-        memcpy(line, test, strlen(test));
-        *pos += strlen(test);
-
-        r = socket_queue_line(client, 16, &line, &pos);
+        r = socket_queue_line(client, test, strlen(test));
         assert(r >= 0);
-
-        memcpy(line, test, strlen(test));
-        *pos += strlen(test);
 
         r = socket_write(client);
         assert(r >= 0);

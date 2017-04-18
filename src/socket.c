@@ -490,33 +490,39 @@ void socket_queue_many(Socket *socket, CList *list) {
 /**
  * socket_queue_line() - XXX
  */
-int socket_queue_line(Socket *socket, size_t n_bytes, char **linep, size_t **posp) {
+int socket_queue_line(Socket *socket, const char *line_in, size_t n) {
         SocketBuffer *buffer;
+        char *line_out;
+        size_t *pos;
         int r;
 
         assert(!socket->lines_done);
 
         /* when acting as a client, the first byte of the first line must be null */
         if (_c_unlikely_(!socket->server && !socket->null_byte_done))
-                ++n_bytes;
+                ++n;
 
         buffer = c_list_last_entry(&socket->out.queue, SocketBuffer, link);
-        if (!buffer || n_bytes > socket_buffer_get_line_space(buffer)) {
-                r = socket_buffer_new_line(&buffer, n_bytes);
+        if (!buffer || n > socket_buffer_get_line_space(buffer)) {
+                r = socket_buffer_new_line(&buffer, n);
                 if (r)
                         return r;
 
                 c_list_link_tail(&socket->out.queue, &buffer->link);
         }
 
-        socket_buffer_get_line_cursor(buffer, linep, posp);
+        socket_buffer_get_line_cursor(buffer, &line_out, &pos);
 
         if (_c_unlikely_(!socket->server && !socket->null_byte_done)) {
-                **linep = '\0';
-                ++(*linep);
-                ++(**posp);
+                *line_out = '\0';
+                ++(line_out);
+                ++(*pos);
+                --n;
                 socket->null_byte_done = true;
         }
+
+        memcpy(line_out, line_in, n);
+        *pos += n;
 
         return 0;
 }
