@@ -28,8 +28,6 @@ void sasl_init(SASL *sasl, uid_t uid, char *guid) {
         sasl->ok_response[1] = 'K';
         sasl->ok_response[2] = ' ';
         c_string_to_hex(guid, 16, &sasl->ok_response[3]);
-        sasl->ok_response[3 + 16 * 2] = '\r';
-        sasl->ok_response[3 + 16 * 2 + 1] = '\n';
 };
 
 void sasl_deinit(SASL *sasl) {
@@ -37,7 +35,7 @@ void sasl_deinit(SASL *sasl) {
 };
 
 static void sasl_send_rejected(SASL *sasl, const char **replyp, size_t *lenp) {
-        const char *rejected = "REJECTED EXTERNAL\r\n";
+        const char *rejected = "REJECTED EXTERNAL";
 
         sasl->state = SASL_STATE_INIT;
 
@@ -53,7 +51,7 @@ static void sasl_send_ok(SASL *sasl, const char **replyp, size_t *lenp) {
 }
 
 static void sasl_send_data(SASL *sasl, const char **replyp, size_t *lenp) {
-        const char *data = "DATA\r\n";
+        const char *data = "DATA";
 
         sasl->state = SASL_STATE_CHALLENGE;
 
@@ -62,14 +60,14 @@ static void sasl_send_data(SASL *sasl, const char **replyp, size_t *lenp) {
 }
 
 static void sasl_send_error(SASL *sasl, const char **replyp, size_t *lenp) {
-        const char *error = "ERROR\r\n";
+        const char *error = "ERROR";
 
         *replyp = error;
         *lenp = strlen(error);
 }
 
 static void sasl_send_agree_unix_fd(SASL *sasl, const char **replyp, size_t *lenp) {
-        const char *agree_unix_fd = "AGREE_UNIX_FD\r\n";
+        const char *agree_unix_fd = "AGREE_UNIX_FD";
 
         sasl->state = SASL_STATE_NEGOTIATED_FDS;
 

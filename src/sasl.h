@@ -8,8 +8,8 @@
 #include <stdlib.h>
 #include <sys/types.h>
 
-/* the OK reply has length "OK 0123456789abcdef0123456789abdcef\r\n" */
-#define SASL_OK_LINE_LENGTH (37)
+/* the OK reply has length "OK 0123456789abcdef0123456789abdcef" */
+#define SASL_OK_LINE_LENGTH (35)
 
 typedef struct SASL SASL;
 typedef enum SASLState SASLState;

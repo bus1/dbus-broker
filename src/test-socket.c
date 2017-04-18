@@ -22,7 +22,7 @@ static void test_setup(void) {
 
 static void test_line(void) {
         _c_cleanup_(socket_freep) Socket *client = NULL, *server = NULL;
-        char *test = "TEST\r\n";
+        char *test = "TEST";
         char *line;
         size_t n_bytes;
         int pair[2], r;
@@ -50,12 +50,12 @@ static void test_line(void) {
 
         r = socket_read_line(server, &line, &n_bytes);
         assert(r >= 0);
-        assert(n_bytes == strlen(test) - 2);
+        assert(n_bytes == strlen(test));
         assert(memcmp(test, line, n_bytes) == 0);
 
         r = socket_read_line(server, &line, &n_bytes);
         assert(r >= 0);
-        assert(n_bytes == strlen(test) - 2);
+        assert(n_bytes == strlen(test));
         assert(memcmp(test, line, n_bytes) == 0);
 
         r = socket_read_line(server, &line, &n_bytes);

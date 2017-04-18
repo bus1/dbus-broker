@@ -503,8 +503,8 @@ int socket_queue_line(Socket *socket, const char *line_in, size_t n) {
                 ++n;
 
         buffer = c_list_last_entry(&socket->out.queue, SocketBuffer, link);
-        if (!buffer || n > socket_buffer_get_line_space(buffer)) {
-                r = socket_buffer_new_line(&buffer, n);
+        if (!buffer || n + strlen("\r\n") > socket_buffer_get_line_space(buffer)) {
+                r = socket_buffer_new_line(&buffer, n + strlen("\r\n"));
                 if (r)
                         return r;
 
@@ -522,7 +522,11 @@ int socket_queue_line(Socket *socket, const char *line_in, size_t n) {
         }
 
         memcpy(line_out, line_in, n);
+        line_out += n;
         *pos += n;
+
+        memcpy(line_out, "\r\n", strlen("\r\n"));
+        *pos += strlen("\r\n");
 
         return 0;
 }

@@ -32,7 +32,7 @@ static void test_discover(void) {
 
         sasl_init(&sasl, 1, "0123456789abcdef");
 
-        assert_dispatch(&sasl, "AUTH", "REJECTED EXTERNAL\r\n", 0);
+        assert_dispatch(&sasl, "AUTH", "REJECTED EXTERNAL", 0);
 
         sasl_deinit(&sasl);
 }
@@ -43,7 +43,7 @@ static void test_external(void) {
 
         sasl_init(&sasl, 1, "0123456789abcdef");
 
-        assert_dispatch(&sasl, "AUTH EXTERNAL 31", "OK 30313233343536373839616263646566\r\n", 0);
+        assert_dispatch(&sasl, "AUTH EXTERNAL 31", "OK 30313233343536373839616263646566", 0);
         assert_dispatch(&sasl, "BEGIN", "", 1);
 
         sasl_deinit(&sasl);
@@ -55,8 +55,8 @@ static void test_external_invalid(void) {
 
         sasl_init(&sasl, 1, "0123456789abcdef");
 
-        assert_dispatch(&sasl, "AUTH EXTERNAL 30", "REJECTED EXTERNAL\r\n", 0);
-        assert_dispatch(&sasl, "AUTH EXTERNAL 31", "OK 30313233343536373839616263646566\r\n", 0);
+        assert_dispatch(&sasl, "AUTH EXTERNAL 30", "REJECTED EXTERNAL", 0);
+        assert_dispatch(&sasl, "AUTH EXTERNAL 31", "OK 30313233343536373839616263646566", 0);
         assert_dispatch(&sasl, "BEGIN", "", 1);
 
         sasl_deinit(&sasl);
@@ -68,8 +68,8 @@ static void test_external_no_data(void) {
 
         sasl_init(&sasl, 1, "0123456789abcdef");
 
-        assert_dispatch(&sasl, "AUTH EXTERNAL", "DATA\r\n", 0);
-        assert_dispatch(&sasl, "DATA", "OK 30313233343536373839616263646566\r\n", 0);
+        assert_dispatch(&sasl, "AUTH EXTERNAL", "DATA", 0);
+        assert_dispatch(&sasl, "DATA", "OK 30313233343536373839616263646566", 0);
         assert_dispatch(&sasl, "BEGIN", "", 1);
 
         sasl_deinit(&sasl);
@@ -81,8 +81,8 @@ static void test_external_fds(void) {
 
         sasl_init(&sasl, 1, "0123456789abcdef");
 
-        assert_dispatch(&sasl, "AUTH EXTERNAL 31", "OK 30313233343536373839616263646566\r\n", 0);
-        assert_dispatch(&sasl, "NEGOTIATE_UNIX_FD", "AGREE_UNIX_FD\r\n", 0);
+        assert_dispatch(&sasl, "AUTH EXTERNAL 31", "OK 30313233343536373839616263646566", 0);
+        assert_dispatch(&sasl, "NEGOTIATE_UNIX_FD", "AGREE_UNIX_FD", 0);
         assert_dispatch(&sasl, "BEGIN", "", 1);
 
         sasl_deinit(&sasl);
