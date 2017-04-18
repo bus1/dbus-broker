@@ -70,6 +70,13 @@ int connection_dispatch_read(Connection *connection, DispatchFile *file, Message
         Message *message = NULL;
         int r;
 
+        /*
+         * Under normal operation we expect to receive at most four SASL lines and a message
+         * before breaking. There is no limit to the number of SASL exchnages however, and
+         * there is no harm in trying to process some more lines. If SASL has still not
+         * completed by the time we break, we return @message=NULL to indicate to the caller
+         * not to retry before going into poll again, so this cannot really be exploited.
+         */
         for (unsigned int i = 0; i < 32; i ++) {
                 if (_c_likely_(connection->authenticated)) {
                         r = socket_read_message(connection->socket, &message);
