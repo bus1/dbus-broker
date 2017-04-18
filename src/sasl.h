@@ -24,7 +24,7 @@ struct SASL {
         char ok_response[sizeof("OK 0123456789abcdef0123456789abdcef") - 1];
 };
 
-void sasl_init(SASL *sasl, uid_t uid, char *guid);
+void sasl_init(SASL *sasl, uid_t uid, const char *guid);
 void sasl_deinit(SASL *sasl);
 
-int sasl_dispatch(SASL *sasl, char *input, const char **outputp, size_t *n_outputp);
+int sasl_dispatch(SASL *sasl, const char *input, size_t n_input, const char **outputp, size_t *n_outputp);

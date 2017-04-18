@@ -13,12 +13,12 @@ static void test_setup(void) {
         sasl_deinit(&sasl);
 }
 
-static void assert_dispatch(SASL *sasl, char *in, char *out, int ret) {
+static void assert_dispatch(SASL *sasl, const char *in, const char *out, int ret) {
         const char *reply;
         size_t n_reply;
         int r;
 
-        r = sasl_dispatch(sasl, in, &reply, &n_reply);
+        r = sasl_dispatch(sasl, in, strlen(in), &reply, &n_reply);
         assert(r == ret);
         if (r == 0) {
                 assert(n_reply == strlen(out));

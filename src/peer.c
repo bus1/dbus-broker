@@ -258,8 +258,7 @@ static int peer_dispatch_read_message(Peer *peer) {
 }
 
 static int peer_dispatch_read_line(Peer *peer) {
-        char *line;
-        const char *reply;
+        const char *line, *reply;
         size_t n_line, n_reply;
         int r;
 
@@ -267,7 +266,7 @@ static int peer_dispatch_read_line(Peer *peer) {
         if (r < 0)
                 return r;
 
-        r = sasl_dispatch(&peer->sasl, line, &reply, &n_reply);
+        r = sasl_dispatch(&peer->sasl, line, n_line, &reply, &n_reply);
         if (r < 0) {
                 return r;
         } else if (r > 0) {
