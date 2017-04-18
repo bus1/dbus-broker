@@ -14,17 +14,15 @@ static void test_setup(void) {
 }
 
 static void assert_dispatch(SASL *sasl, char *in, char *out, int ret) {
-        char buffer[SASL_MAX_OUT_LINE_LENGTH];
-        size_t pos = 0;
+        const char *reply;
+        size_t n_reply;
         int r;
 
-        assert(strlen(out) <= SASL_MAX_OUT_LINE_LENGTH);
-
-        r = sasl_dispatch(sasl, in, buffer, &pos);
+        r = sasl_dispatch(sasl, in, &reply, &n_reply);
         assert(r == ret);
         if (r == 0) {
-                assert(pos == strlen(out));
-                assert(strncmp(buffer, out, pos) == 0);
+                assert(n_reply == strlen(out));
+                assert(strcmp(reply, out) == 0);
         }
 }
 

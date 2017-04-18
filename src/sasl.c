@@ -36,48 +36,45 @@ void sasl_deinit(SASL *sasl) {
         *sasl = (SASL){};
 };
 
-static void sasl_send_rejected(SASL *sasl, char *buffer, size_t *posp) {
+static void sasl_send_rejected(SASL *sasl, const char **replyp, size_t *lenp) {
         const char *rejected = "REJECTED EXTERNAL\r\n";
 
         sasl->state = SASL_STATE_INIT;
 
-        memcpy(buffer, rejected, strlen(rejected));
-        *posp += strlen(rejected);
+        *replyp = rejected;
+        *lenp = strlen(rejected);
 }
 
-static void sasl_send_ok(SASL *sasl,
-                              char *buffer,
-                              size_t *posp) {
-
+static void sasl_send_ok(SASL *sasl, const char **replyp, size_t *lenp) {
         sasl->state = SASL_STATE_AUTHENTICATED;
 
-        memcpy(buffer, sasl->ok_response, sizeof(sasl->ok_response));
-        *posp += sizeof(sasl->ok_response);
+        *replyp = sasl->ok_response;
+        *lenp = sizeof(sasl->ok_response);
 }
 
-static void sasl_send_data(SASL *sasl, char *buffer, size_t *posp) {
+static void sasl_send_data(SASL *sasl, const char **replyp, size_t *lenp) {
         const char *data = "DATA\r\n";
 
         sasl->state = SASL_STATE_CHALLENGE;
 
-        memcpy(buffer, data, strlen(data));
-        *posp += strlen(data);
+        *replyp = data;
+        *lenp = strlen(data);
 }
 
-static void sasl_send_error(SASL *sasl, char *buffer, size_t *posp) {
+static void sasl_send_error(SASL *sasl, const char **replyp, size_t *lenp) {
         const char *error = "ERROR\r\n";
 
-        memcpy(buffer, error, strlen(error));
-        *posp += strlen(error);
+        *replyp = error;
+        *lenp = strlen(error);
 }
 
-static void sasl_send_agree_unix_fd(SASL *sasl, char *buffer, size_t *posp) {
+static void sasl_send_agree_unix_fd(SASL *sasl, const char **replyp, size_t *lenp) {
         const char *agree_unix_fd = "AGREE_UNIX_FD\r\n";
 
         sasl->state = SASL_STATE_NEGOTIATED_FDS;
 
-        memcpy(buffer, agree_unix_fd, strlen(agree_unix_fd));
-        *posp += strlen(agree_unix_fd);
+        *replyp = agree_unix_fd;
+        *lenp = strlen(agree_unix_fd);
 }
 
 /*
@@ -146,109 +143,109 @@ static int uid_from_hexstring(char *hex, uid_t *uidp) {
         return 0;
 }
 
-static int sasl_handle_data(SASL *sasl, char *input, char *buffer, size_t *posp) {
+static int sasl_handle_data(SASL *sasl, char *input, const char **replyp, size_t *lenp) {
         uid_t uid;
         int r;
 
         if (!input) {
                 /* for the EXTERNAL mechanism data is optional */
-                sasl_send_ok(sasl, buffer, posp);
+                sasl_send_ok(sasl, replyp, lenp);
                 return 0;
         }
 
         /* if data was provided it must be valid and match what we expect */
         r = uid_from_hexstring(input, &uid);
         if (r < 0) {
-                sasl_send_error(sasl, buffer, posp);
+                sasl_send_error(sasl, replyp, lenp);
                 return 0;
         }
 
         if (uid == sasl->uid)
-                sasl_send_ok(sasl, buffer, posp);
+                sasl_send_ok(sasl, replyp, lenp);
         else
-                sasl_send_rejected(sasl, buffer, posp);
+                sasl_send_rejected(sasl, replyp, lenp);
 
         return 0;
 }
 
-static int sasl_handle_auth(SASL *sasl, char *input, char *buffer, size_t *posp) {
+static int sasl_handle_auth(SASL *sasl, char *input, const char **replyp, size_t *lenp) {
         char *data;
 
         if (!input) {
-                sasl_send_rejected(sasl, buffer, posp);
+                sasl_send_rejected(sasl, replyp, lenp);
                 return 0;
         }
 
         if (sasl_command_match("EXTERNAL", input, &data)) {
                 if (data)
-                        return sasl_handle_data(sasl, data, buffer, posp);
+                        return sasl_handle_data(sasl, data, replyp, lenp);
                 else {
-                        sasl_send_data(sasl, buffer, posp);
+                        sasl_send_data(sasl, replyp, lenp);
                         return 0;
                 }
         } else {
-                sasl_send_rejected(sasl, buffer, posp);
+                sasl_send_rejected(sasl, replyp, lenp);
                 return 0;
         }
 }
 
-int sasl_dispatch_init(SASL *sasl, char *input, char *buffer, size_t *posp) {
+int sasl_dispatch_init(SASL *sasl, char *input, const char **replyp, size_t *lenp) {
         char *argument;
 
         if (sasl_command_match("AUTH", input, &argument))
-                return sasl_handle_auth(sasl, argument, buffer, posp);
+                return sasl_handle_auth(sasl, argument, replyp, lenp);
         else if (sasl_command_match("ERROR", input, &argument))
-                sasl_send_rejected(sasl, buffer, posp);
+                sasl_send_rejected(sasl, replyp, lenp);
         else if (sasl_command_match("BEGIN", input, NULL))
                 return -EBADMSG;
         else
-                sasl_send_error(sasl, buffer, posp);
+                sasl_send_error(sasl, replyp, lenp);
 
         return 0;
 }
 
-int sasl_dispatch_challenge(SASL *sasl, char *input, char *buffer, size_t *posp) {
+int sasl_dispatch_challenge(SASL *sasl, char *input, const char **replyp, size_t *lenp) {
         char *argument;
 
         if (sasl_command_match("DATA", input, &argument))
-                return sasl_handle_data(sasl, argument, buffer, posp);
+                return sasl_handle_data(sasl, argument, replyp, lenp);
         else if (sasl_command_match("ERROR", input, &argument) ||
                  sasl_command_match("CANCEL", input, NULL))
-                sasl_send_rejected(sasl, buffer, posp);
+                sasl_send_rejected(sasl, replyp, lenp);
         else if (sasl_command_match("BEGIN", input, NULL))
                 return -EBADMSG;
         else
-                sasl_send_error(sasl, buffer, posp);
+                sasl_send_error(sasl, replyp, lenp);
 
         return 0;
 }
 
-int sasl_dispatch_authenticated(SASL *sasl, char *input, char *buffer, size_t *posp) {
+int sasl_dispatch_authenticated(SASL *sasl, char *input, const char **replyp, size_t *lenp) {
         char *argument;
 
         if (sasl_command_match("NEGOTIATE_UNIX_FD", input, NULL))
-                sasl_send_agree_unix_fd(sasl, buffer, posp);
+                sasl_send_agree_unix_fd(sasl, replyp, lenp);
         else if (sasl_command_match("BEGIN", input, NULL))
                 return 1;
         else if (sasl_command_match("ERROR", input, &argument) ||
                    sasl_command_match("CANCEL", input, NULL))
-                sasl_send_rejected(sasl, buffer, posp);
+                sasl_send_rejected(sasl, replyp, lenp);
         else
-                sasl_send_error(sasl, buffer, posp);
+                sasl_send_error(sasl, replyp, lenp);
 
         return 0;
 }
 
-int sasl_dispatch(SASL *sasl, char *input, char *buffer, size_t *posp) {
+int sasl_dispatch(SASL *sasl, char *input, const char **replyp, size_t *lenp) {
         switch (sasl->state) {
         case SASL_STATE_INIT:
-                return sasl_dispatch_init(sasl, input, buffer, posp);
+                return sasl_dispatch_init(sasl, input, replyp, lenp);
         case SASL_STATE_CHALLENGE:
-                return sasl_dispatch_challenge(sasl, input, buffer, posp);
+                return sasl_dispatch_challenge(sasl, input, replyp, lenp);
         case SASL_STATE_AUTHENTICATED:
-                return sasl_dispatch_authenticated(sasl, input, buffer, posp);
+                return sasl_dispatch_authenticated(sasl, input, replyp, lenp);
         case SASL_STATE_NEGOTIATED_FDS:
-                return sasl_dispatch_authenticated(sasl, input, buffer, posp);
+                return sasl_dispatch_authenticated(sasl, input, replyp, lenp);
         default:
                 assert(0);
         }

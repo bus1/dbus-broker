@@ -30,4 +30,4 @@ struct SASL {
 void sasl_init(SASL *sasl, uid_t uid, char *guid);
 void sasl_deinit(SASL *sasl);
 
-int sasl_dispatch(SASL *sasl, char *input, char *buffer, size_t *posp);
+int sasl_dispatch(SASL *sasl, char *input, const char **outputp, size_t *n_outputp);
