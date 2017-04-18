@@ -22,7 +22,7 @@ typedef struct UserEntry UserEntry;
 struct Peer {
         Bus *bus;
 
-        SASL sasl;
+        SASLServer sasl;
         bool authenticated : 1;
         bool registered : 1;
 

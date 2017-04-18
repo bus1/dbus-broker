@@ -266,7 +266,7 @@ static int peer_dispatch_read_line(Peer *peer) {
         if (r < 0)
                 return r;
 
-        r = sasl_dispatch(&peer->sasl, line, n_line, &reply, &n_reply);
+        r = sasl_server_dispatch(&peer->sasl, line, n_line, &reply, &n_reply);
         if (r < 0) {
                 return r;
         } else if (r > 0) {
@@ -435,7 +435,7 @@ int peer_new(Peer **peerp,
         seclabel = NULL;
         peer->n_seclabel = n_seclabel;
         peer->dispatch_file = (DispatchFile)DISPATCH_FILE_NULL(peer->dispatch_file);
-        sasl_init(&peer->sasl, ucred.uid, bus->guid);
+        sasl_server_init(&peer->sasl, ucred.uid, bus->guid);
         match_registry_init(&peer->matches);
         reply_registry_init(&peer->replies_outgoing);
         peer->replies_incoming = (CList)C_LIST_INIT(peer->replies_incoming);
@@ -494,7 +494,7 @@ Peer *peer_free(Peer *peer) {
         dispatch_file_deinit(&peer->dispatch_file);
         reply_registry_deinit(&peer->replies_outgoing);
         match_registry_deinit(&peer->matches);
-        sasl_deinit(&peer->sasl);
+        sasl_server_deinit(&peer->sasl);
         socket_free(peer->socket);
         user_entry_unref(peer->user);
         free(peer->seclabel);
