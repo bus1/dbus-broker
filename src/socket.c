@@ -241,7 +241,7 @@ static int socket_line_pop(Socket *socket, char **linep, size_t *np) {
         size_t n;
 
         /* skip the very first byte of the stream, which must be 0 */
-        if (_c_unlikely_(!socket->null_byte_done) &&
+        if (_c_unlikely_(!socket->null_byte_done) && socket->server &&
             socket->in.data_pos < socket->in.data_end) {
                 if (socket->in.data[socket->in.data_pos] != '\0')
                         return -EBADMSG;
