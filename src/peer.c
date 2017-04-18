@@ -38,11 +38,9 @@ static int peer_forward_method_call(Peer *sender, const char *destination, uint3
                         return r;
         }
 
-        r = socket_queue_message(receiver->socket, message);
+        r = connection_queue_message(&receiver->connection, &receiver->dispatch_file, message);
         if (r)
                 return (r > 0) ? -ENOTRECOVERABLE : r;
-
-        dispatch_file_select(&receiver->dispatch_file, EPOLLOUT);
 
         slot = NULL;
 
@@ -62,11 +60,9 @@ static int peer_forward_reply(Peer *sender, const char *destination, uint32_t re
         if (!slot)
                 return -EBADMSG;
 
-        r = socket_queue_message(slot->sender->socket, message);
+        r = connection_queue_message(&slot->sender->connection, &slot->sender->dispatch_file, message);
         if (r)
                 return (r > 0) ? -ENOTRECOVERABLE : r;
-
-        dispatch_file_select(&slot->sender->dispatch_file, EPOLLOUT);
 
         reply_slot_free(slot);
 
@@ -79,11 +75,9 @@ static int peer_forward_broadcast_to_matches(MatchRegistry *matches, MatchFilter
 
         for (rule = match_rule_next(matches, NULL, filter); rule; match_rule_next(matches, rule, filter)) {
 
-                r = socket_queue_message(rule->peer->socket, message);
+                r = connection_queue_message(&rule->peer->connection, &rule->peer->dispatch_file, message);
                 if (r)
                         return (r > 0) ? -ENOTRECOVERABLE : r;
-
-                dispatch_file_select(&rule->peer->dispatch_file, EPOLLOUT);
         }
 
         return 0;
@@ -122,7 +116,7 @@ static int peer_forward_broadcast(Peer *sender, const char *interface, const cha
         return 0;
 }
 
-static int peer_dispatch_read_message(Peer *peer) {
+static int peer_dispatch_message(Peer *peer, Message *message) {
         static const CDVarType type[] = {
                 C_DVAR_T_INIT(
                         C_DVAR_T_TUPLE7(
@@ -141,7 +135,6 @@ static int peer_dispatch_read_message(Peer *peer) {
                         )
                 ), /* (yyyyuua(yv)) */
         };
-        _c_cleanup_(message_unrefp) Message *message = NULL;
         _c_cleanup_(c_dvar_freep) CDVar *v = NULL;
         const char *path = NULL,
                    *interface = NULL,
@@ -153,10 +146,6 @@ static int peer_dispatch_read_message(Peer *peer) {
         uint32_t serial = 0, reply_serial = 0, n_fds = 0;
         uint8_t field;
         int r;
-
-        r = socket_read_message(peer->socket, &message);
-        if (r < 0)
-                return r;
 
         /*
          * XXX: Rather than allocating @v, we should use its static versions on the stack,
@@ -257,85 +246,26 @@ static int peer_dispatch_read_message(Peer *peer) {
         return 0;
 }
 
-static int peer_dispatch_read_line(Peer *peer) {
-        const char *line, *reply;
-        size_t n_line, n_reply;
-        int r;
-
-        r = socket_read_line(peer->socket, &line, &n_line);
-        if (r < 0)
-                return r;
-
-        r = sasl_server_dispatch(&peer->sasl, line, n_line, &reply, &n_reply);
-        if (r < 0) {
-                return r;
-        } else if (r > 0) {
-                peer->authenticated = true;
-                return 0;
-        }
-
-        r = socket_queue_line(peer->socket, reply, n_reply);
-        if (r < 0)
-                return r;
-
-        dispatch_file_select(&peer->dispatch_file, EPOLLOUT);
-
-        return 0;
-}
-
-static int peer_dispatch_read(Peer *peer) {
-        int r;
-
-        for (unsigned int i = 0; i < 32; i ++) {
-                if (_c_likely_(peer->authenticated)) {
-                        r = peer_dispatch_read_message(peer);
-                } else {
-                        r = peer_dispatch_read_line(peer);
-                }
-                if (r == -EAGAIN) {
-                        /* nothing to be done */
-                        dispatch_file_clear(&peer->dispatch_file, EPOLLIN);
-                        return 0;
-                } else if (r < 0) {
-                        /* XXX: swallow error code and tear down this peer */
-                        return 0;
-                }
-        }
-
-        return 0;
-}
-
-static int peer_dispatch_write(Peer *peer) {
-        int r;
-
-        r = socket_write(peer->socket);
-        if (r == -EAGAIN) {
-                /* not able to write more */
-                dispatch_file_clear(&peer->dispatch_file, EPOLLOUT);
-                return 0;
-        } else if (r == 0) {
-                /* nothing more to write */
-                dispatch_file_deselect(&peer->dispatch_file, EPOLLOUT);
-        } else if (r < 0) {
-                /* XXX: swallow error code and tear down this peer */
-                return 0;
-        }
-
-        return 0;
-}
-
 int peer_dispatch(DispatchFile *file, uint32_t mask) {
         Peer *peer = c_container_of(file, Peer, dispatch_file);
         int r;
 
         if (mask & EPOLLIN) {
-                r = peer_dispatch_read(peer);
+                _c_cleanup_(message_unrefp) Message *message = NULL;
+
+                r = connection_dispatch_read(&peer->connection, file, &message);
                 if (r < 0)
                         return r;
+
+                if (message) {
+                        r = peer_dispatch_message(peer, message);
+                        if (r < 0)
+                                return r;
+                }
         }
 
         if (mask & EPOLLOUT) {
-                r = peer_dispatch_write(peer);
+                r = connection_dispatch_write(&peer->connection, file);
                 if (r < 0)
                         return r;
         }
@@ -435,7 +365,6 @@ int peer_new(Peer **peerp,
         seclabel = NULL;
         peer->n_seclabel = n_seclabel;
         peer->dispatch_file = (DispatchFile)DISPATCH_FILE_NULL(peer->dispatch_file);
-        sasl_server_init(&peer->sasl, ucred.uid, bus->guid);
         match_registry_init(&peer->matches);
         reply_registry_init(&peer->replies_outgoing);
         peer->replies_incoming = (CList)C_LIST_INIT(peer->replies_incoming);
@@ -449,7 +378,7 @@ int peer_new(Peer **peerp,
         if (r < 0)
                 return r;
 
-        r = socket_new(&peer->socket, fd, true);
+        r = connection_init(&peer->connection, &peer->dispatch_file, fd, true, ucred.uid, bus->guid);
         if (r < 0)
                 return r;
 
@@ -494,8 +423,7 @@ Peer *peer_free(Peer *peer) {
         dispatch_file_deinit(&peer->dispatch_file);
         reply_registry_deinit(&peer->replies_outgoing);
         match_registry_deinit(&peer->matches);
-        sasl_server_deinit(&peer->sasl);
-        socket_free(peer->socket);
+        connection_deinit(&peer->connection);
         user_entry_unref(peer->user);
         free(peer->seclabel);
         free(peer);

@@ -8,6 +8,7 @@
 #include <c-rbtree.h>
 #include <stdlib.h>
 #include <sys/types.h>
+#include "connection.h"
 #include "match.h"
 #include "reply.h"
 #include "sasl.h"
@@ -22,12 +23,9 @@ typedef struct UserEntry UserEntry;
 struct Peer {
         Bus *bus;
 
-        SASLServer sasl;
-        bool authenticated : 1;
-        bool registered : 1;
-
+        Connection connection;
         DispatchFile dispatch_file;
-        Socket *socket;
+        bool registered : 1;
 
         UserEntry *user;
         pid_t pid;

@@ -675,11 +675,9 @@ static int driver_handle_method(const DriverMethod *method, Peer *peer, uint32_t
         if (r)
                 return (r > 0) ? -ENOTRECOVERABLE : r;
 
-        r = socket_queue_message(peer->socket, message_out);
+        r = connection_queue_message(&peer->connection, &peer->dispatch_file, message_out);
         if (r)
                 return (r > 0) ? -ENOTRECOVERABLE : r;
-
-        dispatch_file_select(&peer->dispatch_file, EPOLLOUT);
 
         return 0;
 }
