@@ -45,7 +45,7 @@ static int name_owner_new(NameOwner **ownerp, Peer *peer, NameEntry *entry, CRBN
 }
 
 /* unlink from peer and entry */
-NameOwner *name_owner_free(NameOwner *owner) {
+static NameOwner *name_owner_free(NameOwner *owner) {
         if (!owner)
                 return NULL;
 
@@ -144,7 +144,7 @@ static void name_owner_update(NameOwner *owner, uint32_t flags, NameChange *chan
         }
 }
 
-static void name_owner_release(NameOwner *owner, NameChange *change) {
+void name_owner_release(NameOwner *owner, NameChange *change) {
         assert(!change->name);
         assert(!change->old_owner);
         assert(!change->new_owner);

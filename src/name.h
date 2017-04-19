@@ -45,7 +45,7 @@ struct NameRegistry {
 void name_change_init(NameChange *change);
 void name_change_deinit(NameChange *change);
 
-NameOwner *name_owner_free(NameOwner *owner);
+void name_owner_release(NameOwner *owner, NameChange *change);
 bool name_owner_is_primary(NameOwner *owner);
 
 int name_entry_get(NameEntry **entryp, NameRegistry *registry, const char *name);

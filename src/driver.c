@@ -237,6 +237,41 @@ static void driver_write_reply_header(CDVar *var,
         c_dvar_write(var, ">)])");
 }
 
+static int driver_notify_name_lost(Peer *peer, const char *name) {
+        /* XXX */
+        return 0;
+}
+
+static int driver_notify_name_acquired(Peer *peer, const char *name) {
+        /* XXX */
+        return 0;
+}
+
+static int driver_notify_name_owner_changed(const char *name, Peer *old_owner, Peer *new_owner) {
+        int r;
+
+        assert(old_owner || new_owner);
+        assert(name || !old_owner || !new_owner);
+
+        /* XXX: in case name is not given, generate it from the calling peer */
+
+        if (old_owner) {
+                r = driver_notify_name_lost(old_owner, name);
+                if (r)
+                        return (r > 0) ? -ENOTRECOVERABLE : r;
+        }
+
+        if (new_owner) {
+                r = driver_notify_name_acquired(new_owner, name);
+                if (r)
+                        return (r > 0) ? -ENOTRECOVERABLE : r;
+        }
+
+        /* XXX: send name owner changed signal */
+
+        return 0;
+}
+
 static int driver_method_hello(Peer *peer, CDVar *in_v, CDVar *out_v) {
         int r;
 
@@ -257,6 +292,10 @@ static int driver_method_hello(Peer *peer, CDVar *in_v, CDVar *out_v) {
 
         /* register on the bus */
         peer_register(peer);
+
+        r = driver_notify_name_owner_changed(NULL, peer, NULL);
+        if (r)
+                return (r > 0) ? -ENOTRECOVERABLE : r;
 
         return 0;
 }
@@ -281,6 +320,12 @@ static int driver_method_request_name(Peer *peer, CDVar *in_v, CDVar *out_v) {
 
         c_dvar_write(out_v, "u", reply);
 
+        if (change.name) {
+                r = driver_notify_name_owner_changed(change.name->name, change.old_owner, change.new_owner);
+                if (r)
+                        return (r > 0) ? -ENOTRECOVERABLE : r;
+        }
+
         name_change_deinit(&change);
 
         return 0;
@@ -303,6 +348,12 @@ static int driver_method_release_name(Peer *peer, CDVar *in_v, CDVar *out_v) {
         name_registry_release_name(&peer->bus->names, peer, name, &change, &reply);
 
         c_dvar_write(out_v, "u", reply);
+
+        if (change.name) {
+                r = driver_notify_name_owner_changed(change.name->name, change.old_owner, change.new_owner);
+                if (r)
+                        return (r > 0) ? -ENOTRECOVERABLE : r;
+        }
 
         name_change_deinit(&change);
 
@@ -746,9 +797,49 @@ int driver_dispatch_interface(Peer *peer,
         return driver_dispatch_method(peer, serial, member, signature, message);
 }
 
-void driver_notify_name_owner_change(const char *name, Peer *old_peer, Peer *new_peer) {
-        assert(old_peer || new_peer);
-        assert(!old_peer || c_rbnode_is_linked(&old_peer->rb));
-        assert(!new_peer || c_rbnode_is_linked(&new_peer->rb));
-        assert(name || !old_peer || !new_peer);
+int driver_goodbye(Peer *peer, bool silent) {
+        CRBNode *node, *next;
+        int r;
+
+        for (node = c_rbtree_first_postorder(&peer->replies_outgoing.slots), next = c_rbnode_next_postorder(node);
+             node;
+             node = next, next = c_rbnode_next_postorder(node)) {
+                ReplySlot *slot = c_container_of(node, ReplySlot, rb);
+
+                /* XXX: synthesize reply */
+                reply_slot_free(slot);
+        }
+
+        for (node = c_rbtree_first_postorder(&peer->match_rules), next = c_rbnode_next_postorder(node);
+             node;
+             node = next, next = c_rbnode_next_postorder(node)) {
+                MatchRule *rule = c_container_of(node, MatchRule, rb_peer);
+
+                match_rule_free(rule);
+        }
+
+        for (node = c_rbtree_first_postorder(&peer->names), next = c_rbnode_next_postorder(node);
+             node;
+             node = next, next = c_rbnode_next_postorder(node)) {
+                NameOwner *owner = c_container_of(node, NameOwner, rb);
+                NameChange change;
+                int r = 0;
+
+                name_change_init(&change);
+                name_owner_release(owner, &change);
+                if (!silent && change.name)
+                        r = driver_notify_name_owner_changed(change.name->name, change.old_owner, change.new_owner);
+                name_change_deinit(&change);
+                if (r)
+                        return (r > 0) ? -ENOTRECOVERABLE : r;
+        }
+
+        if (!silent) {
+                r = driver_notify_name_owner_changed(NULL, peer, NULL);
+                if (r)
+                        return (r > 0) ? -ENOTRECOVERABLE : r;
+        }
+        peer_unregister(peer);
+
+        return 0;
 }

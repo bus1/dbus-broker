@@ -405,24 +405,16 @@ int peer_new(Peer **peerp,
  * peer_free() - XXX
  */
 Peer *peer_free(Peer *peer) {
-        CRBNode *node, *next;
         ReplySlot *reply, *safe;
 
         if (!peer)
                 return NULL;
 
+        assert(!peer->match_rules.root);
         assert(!peer->names.root);
         assert(!peer->registered);
 
         peer->user->n_peers ++;
-
-        for (node = c_rbtree_first_postorder(&peer->match_rules), next = c_rbnode_next_postorder(node);
-             node;
-             node = next, next = c_rbnode_next_postorder(node)) {
-                MatchRule *rule = c_container_of(node, MatchRule, rb_peer);
-
-                match_rule_free(rule);
-        }
 
         c_list_for_each_entry_safe(reply, safe, &peer->replies_incoming, link)
                 reply_slot_free(reply);
@@ -452,14 +444,10 @@ void peer_register(Peer *peer) {
         assert(!peer->registered);
 
         peer->registered = true;
-
-        driver_notify_name_owner_change(NULL, NULL, peer);
 }
 
 void peer_unregister(Peer *peer) {
         assert(peer->registered);
-
-        driver_notify_name_owner_change(NULL, peer, NULL);
 
         peer->registered = false;
 }
@@ -474,31 +462,18 @@ void peer_registry_deinit(PeerRegistry *registry) {
 }
 
 void peer_registry_flush(PeerRegistry *registry) {
-        CRBNode *node1, *next1;
+        CRBNode *node, *next;
+        int r;
 
-        for (node1 = c_rbtree_first_postorder(&registry->peers), next1 = c_rbnode_next_postorder(node1);
-             node1;
-             node1 = next1, next1 = c_rbnode_next(node1)) {
-                Peer *peer = c_container_of(node1, Peer, rb);
-                CRBNode *node2, *next2;
+        for (node = c_rbtree_first_postorder(&registry->peers), next = c_rbnode_next_postorder(node);
+             node;
+             node = next, next = c_rbnode_next(node)) {
+                Peer *peer = c_container_of(node, Peer, rb);
 
-                for (node2 = c_rbtree_first_postorder(&peer->names), next2 = c_rbnode_next_postorder(node2);
-                     node2;
-                     node2 = next2, next2 = c_rbnode_next_postorder(node2)) {
-                        NameOwner *owner = c_container_of(node2, NameOwner, rb);
-
-                        name_owner_free(owner);
+                if (peer_is_registered(peer)) {
+                        r = driver_goodbye(peer, true);
+                        assert(!r); /* can not fail in silent mode */
                 }
-
-                for (node2 = c_rbtree_first_postorder(&peer->replies_outgoing.slots), next2 = c_rbnode_next_postorder(node2);
-                     node2;
-                     node2 = next2, next2 = c_rbnode_next_postorder(node2)) {
-                        ReplySlot *slot = c_container_of(node2, ReplySlot, rb);
-
-                        reply_slot_free(slot);
-                }
-
-                peer->registered = false;
 
                 peer_free(peer);
         }

@@ -16,5 +16,4 @@ int driver_dispatch_interface(Peer *peer,
                               const char *path,
                               const char *signature,
                               Message *message);
-
-void driver_notify_name_owner_change(const char *name, Peer *old_peer, Peer *new_peer);
+int driver_goodbye(Peer *peer, bool silent);
