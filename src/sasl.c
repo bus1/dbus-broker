@@ -235,7 +235,7 @@ int sasl_server_dispatch(SASLServer *sasl, const char *input, size_t n_input, co
                         *n_outputp = strlen("AGREE_UNIX_FD");
                         sasl->state = SASL_SERVER_STATE_NEGOTIATED_FDS;
                 } else if (n_cmd == strlen("BEGIN") && !strncmp(cmd, "BEGIN", n_cmd) && !n_arg) {
-                        return 1;
+                        sasl->state = SASL_SERVER_STATE_DONE;
                 } else if ((n_cmd == strlen("ERROR") && !strncmp(cmd, "ERROR", n_cmd)) ||
                            (n_cmd == strlen("CANCEL") && !strncmp(cmd, "CANCEL", n_cmd) && !n_arg)) {
                         *outputp = "REJECTED EXTERNAL";

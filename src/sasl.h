@@ -41,6 +41,7 @@ int sasl_client_dispatch(SASLClient *sasl, const char *input, size_t n_input, co
 
 enum {
         SASL_SERVER_STATE_INIT,
+        SASL_SERVER_STATE_DONE,
         SASL_SERVER_STATE_CHALLENGE,
         SASL_SERVER_STATE_AUTHENTICATED,
         SASL_SERVER_STATE_NEGOTIATED_FDS,
@@ -61,4 +62,8 @@ int sasl_server_dispatch(SASLServer *sasl, const char *input, size_t n_input, co
 
 static inline bool sasl_client_is_done(SASLClient *client) {
         return _c_likely_(client->state == SASL_CLIENT_STATE_DONE);
+}
+
+static inline bool sasl_server_is_done(SASLServer *server) {
+        return _c_likely_(server->state == SASL_SERVER_STATE_DONE);
 }

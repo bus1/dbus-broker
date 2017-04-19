@@ -21,10 +21,10 @@ static int connection_dispatch_read_line(Connection *connection, DispatchFile *f
 
         if (connection->server) {
                 r = sasl_server_dispatch(&connection->sasl_server, input, n_input, &output, &n_output);
-                if (r > 0)
-                        connection->authenticated = true;
-                else if (r)
+                if (r)
                         return (r > 0) ? -ENOTRECOVERABLE : r;
+
+                connection->authenticated = sasl_server_is_done(&connection->sasl_server);
         } else {
                 r = sasl_client_dispatch(&connection->sasl_client, input, n_input, &output, &n_output);
                 if (r)
