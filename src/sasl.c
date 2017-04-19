@@ -177,58 +177,6 @@ static void sasl_server_send_agree_unix_fd(SASLServer *sasl, const char **replyp
         *lenp = strlen(agree_unix_fd);
 }
 
-/*
- * A command should be followed by a space, and optionally by an argumnet.
- * However, we alse accept command that do not have a trailing space, given
- * there are no arguments. We reject commansd that have argumnets even though
- * none are expected.
- */
-static bool sasl_server_command_match(const char *command, const char *input, size_t n_input, const char **argumentp, size_t *n_argumentp) {
-        const char *argument;
-        size_t n_argument;
-
-        if (n_input < strlen(command))
-                return false;
-
-        if (strncmp(input, command, strlen(command)) != 0)
-                return false;
-
-        argument = input + strlen(command);
-        n_argument = n_input - strlen(command);
-
-        if (n_argument == 0) {
-                if (argumentp) {
-                        *argumentp = NULL;
-                        *n_argumentp = 0;
-                }
-                return true;
-        }
-
-        if (*argument != ' ')
-                return false;
-
-        ++argument;
-        --n_argument;
-
-        if (n_argument == 0) {
-                if (argumentp) {
-                        *argumentp = NULL;
-                        *n_argumentp = 0;
-                }
-
-                return true;
-        }
-
-        if (argumentp) {
-                *argumentp = argument;
-                *n_argumentp = n_argument;
-
-                return true;
-        }
-
-        return false;
-}
-
 static int sasl_server_handle_data(SASLServer *sasl, const char *input, size_t n_input, const char **replyp, size_t *lenp) {
         char hexbuf[2 * C_DECIMAL_MAX(uint32_t) + 1];
         char uidbuf[C_DECIMAL_MAX(uint32_t) + 1];
@@ -254,26 +202,23 @@ static int sasl_server_handle_data(SASLServer *sasl, const char *input, size_t n
         return 0;
 }
 
-static int sasl_server_handle_auth(SASLServer *sasl, const char *input, size_t n_input, const char **replyp, size_t *lenp) {
-        const char *data;
-        size_t n_data;
+static int sasl_server_handle_auth(SASLServer *sasl, const char *input, size_t n_input, const char **outputp, size_t *n_outputp) {
+        const char *protocol, *arg;
+        size_t n_protocol, n_arg;
 
-        if (!input) {
-                sasl_server_send_rejected(sasl, replyp, lenp);
-                return 0;
-        }
+        sasl_split(input, n_input, &protocol, &n_protocol, &arg, &n_arg);
 
-        if (sasl_server_command_match("EXTERNAL", input, n_input, &data, &n_data)) {
-                if (data)
-                        return sasl_server_handle_data(sasl, data, n_data, replyp, lenp);
-                else {
-                        sasl_server_send_data(sasl, replyp, lenp);
+        if (n_protocol == strlen("EXTERNAL") && !strncmp(protocol, "EXTERNAL", n_protocol)) {
+                if (n_arg) {
+                        return sasl_server_handle_data(sasl, arg, n_arg, outputp, n_outputp);
+                } else {
+                        sasl_server_send_data(sasl, outputp, n_outputp);
                         return 0;
                 }
-        } else {
-                sasl_server_send_rejected(sasl, replyp, lenp);
-                return 0;
         }
+
+        sasl_server_send_rejected(sasl, outputp, n_outputp);
+        return 0;
 }
 
 int sasl_server_dispatch(SASLServer *sasl, const char *input, size_t n_input, const char **outputp, size_t *n_outputp) {
