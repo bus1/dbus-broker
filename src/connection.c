@@ -9,6 +9,7 @@
 #include "connection.h"
 #include "socket.h"
 #include "util/dispatch.h"
+#include "util/error.h"
 
 static int connection_dispatch_line(Connection *connection, DispatchFile *file, const char *input, size_t n_input) {
         const char *output = NULL;
@@ -18,13 +19,13 @@ static int connection_dispatch_line(Connection *connection, DispatchFile *file, 
         if (connection->server) {
                 r = sasl_server_dispatch(&connection->sasl_server, input, n_input, &output, &n_output);
                 if (r)
-                        return (r > 0) ? -ENOTRECOVERABLE : r;
+                        return error_fold(r);
 
                 connection->authenticated = sasl_server_is_done(&connection->sasl_server);
         } else {
                 r = sasl_client_dispatch(&connection->sasl_client, input, n_input, &output, &n_output);
                 if (r)
-                        return (r > 0) ? -ENOTRECOVERABLE : r;
+                        return error_fold(r);
 
                 connection->authenticated = sasl_client_is_done(&connection->sasl_client);
         }
@@ -32,7 +33,7 @@ static int connection_dispatch_line(Connection *connection, DispatchFile *file, 
         if (output && n_output) {
                 r = socket_queue_line(connection->socket, output, n_output);
                 if (r)
-                        return (r > 0) ? -ENOTRECOVERABLE : r;
+                        return error_fold(r);
 
                 dispatch_file_select(file, EPOLLOUT);
         }
@@ -54,14 +55,14 @@ int connection_dispatch_read(Connection *connection, DispatchFile *file, Message
                 dispatch_file_deselect(file, EPOLLIN);
         } else if (r != SOCKET_E_PREEMPTED) {
                 /* XXX: we should catch SOCKET_E_RESET here */
-                return (r > 0) ? -ENOTRECOVERABLE : r;
+                return error_fold(r);
         }
 
         if (_c_unlikely_(!connection->authenticated)) {
                 do {
                         r = socket_read_line(connection->socket, &input, &n_input);
                         if (r)
-                                return (r > 0) ? -ENOTRECOVERABLE : r;
+                                return error_fold(r);
 
                         if (!input) {
                                 dispatch_file_clear(file, EPOLLIN);
@@ -70,13 +71,13 @@ int connection_dispatch_read(Connection *connection, DispatchFile *file, Message
 
                         r = connection_dispatch_line(connection, file, input, n_input);
                         if (r)
-                                return r;
+                                return (r > 0) ? r : error_fold(r);
                 } while (!connection->authenticated);
         }
 
         r = socket_read_message(connection->socket, messagep);
         if (r)
-                return (r > 0) ? -ENOTRECOVERABLE : r;
+                return error_fold(r);
 
         if (!*messagep)
                 dispatch_file_clear(file, EPOLLIN);
@@ -96,7 +97,7 @@ int connection_dispatch_write(Connection *connection, DispatchFile *file) {
                 dispatch_file_deselect(file, EPOLLOUT);
         } else if (r != SOCKET_E_PREEMPTED) {
                 /* XXX: we should catch SOCKET_E_RESET here */
-                return (r > 0) ? -ENOTRECOVERABLE : r;
+                return error_fold(r);
         }
 
         return 0;
@@ -110,7 +111,7 @@ int connection_queue_message(Connection *connection, DispatchFile *file, Message
 
         r = socket_queue_message(connection->socket, message);
         if (r)
-                return (r > 0) ? -ENOTRECOVERABLE : r;
+                return error_fold(r);
 
         dispatch_file_select(file, EPOLLOUT);
 
@@ -127,7 +128,7 @@ int connection_init(Connection *connection, DispatchFile *file, int fd, bool ser
 
         r = socket_new(&connection->socket, fd, server);
         if (r < 0)
-                return r;
+                return error_fold(r);
 
         connection->server = server;
 
@@ -138,11 +139,11 @@ int connection_init(Connection *connection, DispatchFile *file, int fd, bool ser
 
                 r = sasl_client_dispatch(&connection->sasl_client, NULL, 0, &request, &n_request);
                 if (r)
-                        return (r > 0) ? -ENOTRECOVERABLE : r;
+                        return error_fold(r);
 
                 r = socket_queue_line(connection->socket, request, n_request);
                 if (r)
-                        return (r > 0) ? -ENOTRECOVERABLE : r;
+                        return error_fold(r);
 
                 dispatch_file_select(file, EPOLLOUT);
         }

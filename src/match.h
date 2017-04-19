@@ -14,6 +14,14 @@ typedef struct MatchRule MatchRule;
 typedef struct MatchRegistry MatchRegistry;
 typedef struct Peer Peer;
 
+enum {
+        _MATCH_E_SUCCESS,
+
+        MATCH_E_INVALID,
+        MATCH_E_NOT_FOUND,
+        MATCH_E_QUOTA,
+};
+
 struct MatchFilter {
         uint8_t type;
         const char *destination;

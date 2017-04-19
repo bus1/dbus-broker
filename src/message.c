@@ -8,13 +8,14 @@
 #include <stdlib.h>
 #include "message.h"
 #include "util/fdlist.h"
+#include "util/error.h"
 
 static int message_new(Message **messagep, bool big_endian, size_t n_extra) {
         _c_cleanup_(message_unrefp) Message *message = NULL;
 
         message = malloc(sizeof(*message) + c_align8(n_extra));
         if (!message)
-                return -ENOMEM;
+                return error_origin(-ENOMEM);
 
         message->n_refs = C_REF_INIT;
         message->big_endian = big_endian;
@@ -57,7 +58,7 @@ int message_new_incoming(Message **messagep, MessageHeader header) {
 
         r = message_new(&message, (header.endian == 'B'), n_data);
         if (r)
-                return r;
+                return error_trace(r);
 
         message->n_data = n_data;
         message->n_header = n_header;
@@ -99,7 +100,7 @@ int message_new_outgoing(Message **messagep, void *data, size_t n_data) {
 
         r = message_new(&message, (header->endian == 'B'), 0);
         if (r)
-                return r;
+                return error_trace(r);
 
         message->allocated_data = true;
         message->n_data = n_data;

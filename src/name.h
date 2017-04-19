@@ -14,6 +14,12 @@ typedef struct NameOwner NameOwner;
 typedef struct NameEntry NameEntry;
 typedef struct NameRegistry NameRegistry;
 
+enum {
+        _NAME_E_SUCCESS,
+
+        NAME_E_QUOTA,
+};
+
 struct NameChange {
         NameEntry *name;
         Peer *old_owner;

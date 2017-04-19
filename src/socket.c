@@ -22,6 +22,7 @@
 #include <sys/un.h>
 #include "message.h"
 #include "socket.h"
+#include "util/error.h"
 #include "util/fdlist.h"
 
 static char *socket_buffer_get_base(SocketBuffer *buffer) {
@@ -33,7 +34,7 @@ static int socket_buffer_new(SocketBuffer **bufferp, size_t n_vecs, size_t n_lin
 
         buffer = malloc(sizeof(*buffer) + n_vecs * sizeof(*buffer->vecs) + n_line);
         if (!buffer)
-                return -ENOMEM;
+                return error_origin(-ENOMEM);
 
         buffer->link = (CList)C_LIST_INIT(buffer->link);
         buffer->n_total = n_line;
@@ -137,7 +138,7 @@ int socket_new(Socket **socketp, int fd, bool server) {
 
         socket = calloc(1, sizeof(*socket));
         if (!socket)
-                return -ENOMEM;
+                return error_origin(-ENOMEM);
 
         socket->fd = fd;
         socket->server = server;
@@ -147,7 +148,7 @@ int socket_new(Socket **socketp, int fd, bool server) {
         socket->in.data_size = 2048;
         socket->in.data = malloc(socket->in.data_size);
         if (!socket->in.data)
-                return -ENOMEM;
+                return error_origin(-ENOMEM);
 
         *socketp = socket;
         socket = NULL;
@@ -268,7 +269,7 @@ int socket_read_message(Socket *socket, Message **messagep) {
 
                 r = message_new_incoming(&msg, header);
                 if (r)
-                        return (r > 0) ? -ENOTRECOVERABLE : r;
+                        return error_fold(r);
 
                 n_data -= n;
                 socket->in.data_start += n;
@@ -346,7 +347,7 @@ int socket_queue_line(Socket *socket, const char *line_in, size_t n) {
         if (!buffer || n + strlen("\r\n") > socket_buffer_get_line_space(buffer)) {
                 r = socket_buffer_new_line(&buffer, n + strlen("\r\n"));
                 if (r)
-                        return r;
+                        return error_fold(r);
 
                 c_list_link_tail(&socket->out.queue, &buffer->link);
         }
@@ -379,10 +380,12 @@ int socket_queue_message(Socket *socket, Message *message) {
         int r;
 
         r = socket_buffer_new_message(&buffer, message);
-        if (!r)
-                socket_queue(socket, buffer);
+        if (r)
+                return error_fold(r);
 
-        return r;
+        socket_queue(socket, buffer);
+
+        return 0;
 }
 
 static int socket_recvmsg(int fd, void *buffer, size_t *from, size_t *to, FDList **fdsp) {
@@ -431,7 +434,7 @@ static int socket_recvmsg(int fd, void *buffer, size_t *from, size_t *to, FDList
                         return SOCKET_E_RESET;
                 }
 
-                return -errno;
+                return error_origin(-errno);
         }
 
         for (cmsg = CMSG_FIRSTHDR(&msg); cmsg; cmsg = CMSG_NXTHDR(&msg, cmsg)) {
@@ -457,8 +460,10 @@ static int socket_recvmsg(int fd, void *buffer, size_t *from, size_t *to, FDList
                 }
 
                 r = fdlist_new_consume_fds(fdsp, fds, n_fds);
-                if (r)
+                if (r) {
+                        r = error_fold(r);
                         goto error;
+                }
         }
 
         *from += l;
@@ -520,7 +525,7 @@ int socket_read(Socket *socket) {
 
                 p = malloc(SOCKET_LINE_MAX);
                 if (!p)
-                        return -ENOMEM;
+                        return error_origin(-ENOMEM);
 
                 memcpy(p,
                        socket->in.data + socket->in.data_start,
@@ -609,7 +614,7 @@ int socket_write(Socket *socket) {
                         return SOCKET_E_RESET;
                 }
 
-                return -errno;
+                return error_origin(-errno);
         }
 
         i = 0;

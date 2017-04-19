@@ -20,7 +20,7 @@ static void test_args(Peer *peer,
         int r;
 
         r = match_rule_new(&rule, peer, match);
-        assert(r >= 0);
+        assert(r == 0);
         assert(strcmp(rule->keys.filter.args[0], arg0) == 0);
         assert(strcmp(rule->keys.filter.args[1], arg1) == 0);
         assert(strcmp(rule->keys.filter.args[2], arg2) == 0);

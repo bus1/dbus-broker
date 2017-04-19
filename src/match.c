@@ -10,6 +10,7 @@
 #include "match.h"
 #include "peer.h"
 #include "user.h"
+#include "util/error.h"
 
 static int match_rules_compare(CRBTree *tree, void *k, CRBNode *rb) {
         MatchRule *rule = c_container_of(rb, MatchRule, rb_peer);
@@ -110,7 +111,7 @@ static int match_rule_keys_assign(MatchRuleKeys *keys, const char *key, const ch
                 else if (strcmp(value, "error") == 0)
                         keys->filter.type = DBUS_MESSAGE_TYPE_ERROR;
                 else
-                        return -EBADMSG;
+                        return MATCH_E_INVALID;
         } else if (strcmp(key, "sender") == 0) {
                 keys->sender = value;
         } else if (strcmp(key, "destination") == 0) {
@@ -129,7 +130,7 @@ static int match_rule_keys_assign(MatchRuleKeys *keys, const char *key, const ch
                 else if (strcmp(value, "fase") == 0)
                         keys->eavesdrop = false;
                 else
-                        return -EBADMSG;
+                        return MATCH_E_INVALID;
         } else if (strcmp(key, "arg0namespace") == 0) {
                 keys->arg0namespace = value;
         } else if (strncmp(key, "arg", strlen("arg")) == 0) {
@@ -149,9 +150,9 @@ static int match_rule_keys_assign(MatchRuleKeys *keys, const char *key, const ch
                 } else if (strcmp(key, "path") == 0) {
                         keys->filter.argpaths[i] = value;
                 } else
-                        return -EBADMSG;
+                        return MATCH_E_INVALID;
         } else {
-                return -EBADMSG;
+                return MATCH_E_INVALID;
         }
 
         return 0;
@@ -223,11 +224,11 @@ int match_rule_keys_parse(MatchRuleKeys *keys, char *buffer, const char *rule_st
                 if (c == '\0') {
                         /* did not finish reading key yet */
                         if (!value)
-                                return -EBADMSG;
+                                return MATCH_E_INVALID;
 
                         r = match_rule_keys_assign(keys, key, value);
-                        if (r < 0)
-                                return r;
+                        if (r)
+                                return error_trace(r);
 
                         key = NULL;
                         value = NULL;
@@ -240,7 +241,7 @@ int match_rule_keys_parse(MatchRuleKeys *keys, char *buffer, const char *rule_st
 
         /* XXX: verify that no invalid combinations such as path/path_namespace occur */
 
-        return -EBADMSG;
+        return MATCH_E_INVALID;
 }
 
 int match_rule_new(MatchRule **rulep, Peer *peer, const char *rule_string) {
@@ -250,13 +251,13 @@ int match_rule_new(MatchRule **rulep, Peer *peer, const char *rule_string) {
         int r;
 
         if (peer->user->n_matches == 0)
-                return -EDQUOT;
+                return MATCH_E_QUOTA;
 
         n_rule_string = strlen(rule_string);
 
         rule = calloc(1, sizeof(*rule) + n_rule_string);
         if (!rule)
-                return -EINVAL;
+                return error_origin(-ENOMEM);
 
         rule->n_user_refs = 1;
         rule->peer = peer;
@@ -265,8 +266,8 @@ int match_rule_new(MatchRule **rulep, Peer *peer, const char *rule_string) {
         peer->user->n_matches --;
 
         r = match_rule_keys_parse(&rule->keys, rule->buffer, rule_string, n_rule_string);
-        if (r < 0)
-                return r;
+        if (r)
+                return error_trace(r);
 
         slot = c_rbtree_find_slot(&peer->match_rules, match_rules_compare, &rule->keys, &parent);
         if (!slot) {
@@ -330,12 +331,12 @@ int match_rule_get(MatchRule **rulep, Peer *peer, const char *rule_string) {
         int r;
 
         r = match_rule_keys_parse(&keys, buffer, rule_string, strlen(rule_string));
-        if (r < 0)
-                return r;
+        if (r)
+                return error_trace(r);
 
         rule = c_rbtree_find_entry(&peer->match_rules, match_rules_compare, &keys, MatchRule, rb_peer);
         if (!rule)
-                return -ENOENT;
+                return MATCH_E_NOT_FOUND;
 
         *rulep = rule;
         return 0;

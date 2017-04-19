@@ -19,7 +19,7 @@ static inline void *test_run_bus(void *userdata) {
         assert(r >= 0);
 
         r = bus_run(bus);
-        assert(r >= 0);
+        assert(r == 0);
 
         peer_registry_flush(&bus->peers);
 

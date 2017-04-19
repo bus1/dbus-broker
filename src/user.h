@@ -35,6 +35,12 @@ typedef struct UserUsage UserUsage;
 typedef struct UserEntry UserEntry;
 typedef struct UserRegistry UserRegistry;
 
+enum {
+        _USER_E_SUCCESS,
+
+        USER_E_QUOTA,
+};
+
 struct UserCharge {
         UserUsage *usage;
 

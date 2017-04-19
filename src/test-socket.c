@@ -14,10 +14,10 @@ static void test_setup(void) {
         int r;
 
         r = socket_new(&server, -1, true);
-        assert(r >= 0);
+        assert(r == 0);
 
         r = socket_new(&client, -1, false);
-        assert(r >= 0);
+        assert(r == 0);
 }
 
 static void test_line(void) {
@@ -30,19 +30,19 @@ static void test_line(void) {
         assert(r >= 0);
 
         r = socket_new(&client, pair[0], false);
-        assert(r >= 0);
+        assert(r == 0);
 
         r = socket_new(&server, pair[1], true);
-        assert(r >= 0);
+        assert(r == 0);
 
         r = socket_read_line(server, &line, &n_bytes);
         assert(!r && !line);
 
         r = socket_queue_line(client, test, strlen(test));
-        assert(r >= 0);
+        assert(r == 0);
 
         r = socket_queue_line(client, test, strlen(test));
-        assert(r >= 0);
+        assert(r == 0);
 
         r = socket_write(client);
         assert(r == SOCKET_E_LOST_INTEREST);
@@ -75,19 +75,19 @@ static void test_message(void) {
         assert(r >= 0);
 
         r = socket_new(&client, pair[0], false);
-        assert(r >= 0);
+        assert(r == 0);
 
         r = socket_new(&server, pair[1], true);
-        assert(r >= 0);
+        assert(r == 0);
 
         r = socket_read_message(server, &message2);
         assert(!r && !message2);
 
         r = message_new_incoming(&message1, header);
-        assert(r >= 0);
+        assert(r == 0);
 
         r = socket_queue_message(client, message1);
-        assert(r >= 0);
+        assert(r == 0);
 
         r = socket_write(client);
         assert(r == SOCKET_E_LOST_INTEREST);

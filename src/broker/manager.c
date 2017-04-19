@@ -11,6 +11,7 @@
 #include "main.h"
 #include "manager.h"
 #include "util/dispatch.h"
+#include "util/error.h"
 
 struct Manager {
         DispatchContext dispatcher;
@@ -29,7 +30,7 @@ static int manager_dispatch_signals(DispatchFile *file, uint32_t events) {
 
         l = read(manager->signals_fd, &si, sizeof(si));
         if (l < 0)
-                return -errno;
+                return error_origin(-errno);
 
         assert(l == sizeof(si));
 
@@ -50,7 +51,7 @@ int manager_new(Manager **managerp) {
 
         manager = calloc(1, sizeof(*manager));
         if (!manager)
-                return -ENOMEM;
+                return error_origin(-ENOMEM);
 
         manager->dispatcher = (DispatchContext)DISPATCH_CONTEXT_NULL;
         manager->dispatcher_list = (CList)C_LIST_INIT(manager->dispatcher_list);
@@ -59,7 +60,7 @@ int manager_new(Manager **managerp) {
 
         r = dispatch_context_init(&manager->dispatcher);
         if (r)
-                return (r > 0) ? -ENOTRECOVERABLE : r;
+                return error_fold(r);
 
         sigemptyset(&sigmask);
         sigaddset(&sigmask, SIGTERM);
@@ -68,7 +69,7 @@ int manager_new(Manager **managerp) {
 
         manager->signals_fd = signalfd(-1, &sigmask, SFD_CLOEXEC | SFD_NONBLOCK);
         if (manager->signals_fd < 0)
-                return -errno;
+                return error_origin(-errno);
 
         r = dispatch_file_init(&manager->signals_file,
                                &manager->dispatcher,
@@ -76,8 +77,8 @@ int manager_new(Manager **managerp) {
                                manager_dispatch_signals,
                                manager->signals_fd,
                                EPOLLIN);
-        if (r < 0)
-                return r;
+        if (r)
+                return error_fold(r);
 
         dispatch_file_select(&manager->signals_file, EPOLLIN);
 
@@ -106,7 +107,7 @@ static int manager_dispatch(Manager *manager) {
 
         r = dispatch_context_poll(&manager->dispatcher, c_list_is_empty(&manager->dispatcher_list) ? -1 : 0);
         if (r)
-                return (r > 0) ? -ENOTRECOVERABLE : r;
+                return error_fold(r);
 
         while (!r && (file = c_list_first_entry(&manager->dispatcher_list, DispatchFile, ready_link))) {
                 c_list_unlink(&file->ready_link);
@@ -117,8 +118,8 @@ static int manager_dispatch(Manager *manager) {
                         r = MAIN_EXIT;
                 else if (r == DISPATCH_E_FAILURE)
                         r = MAIN_FAILED;
-                else if (r > 0)
-                        r = -ENOTRECOVERABLE;
+                else if (r != 0)
+                        r = error_fold(r);
         }
 
         c_list_splice(&manager->dispatcher_list, &processed);

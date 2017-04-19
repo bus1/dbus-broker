@@ -14,6 +14,7 @@
 #include "message.h"
 #include "peer.h"
 #include "socket.h"
+#include "util/error.h"
 
 typedef struct DriverMethod DriverMethod;
 typedef int (*DriverMethodFn) (Peer *peer, CDVar *var_in, CDVar *var_out);
@@ -209,14 +210,14 @@ static void driver_dvar_write_signature_out(CDVar *var, const CDVarType *type) {
 
 static int driver_dvar_verify_signature_in(const CDVarType *type, const char *signature) {
         if (type->length - 2 != strlen(signature))
-                return -EBADMSG;
+                return DRIVER_E_INVALID_SIGNATURE;
 
         assert(type[0].element == '(');
         assert(type[type->length - 1].element == ')');
 
         for (unsigned int i = 1; i < type->length - 1; i++)
                 if (signature[i - 1] != type[i].element)
-                        return -EBADMSG;
+                        return DRIVER_E_INVALID_SIGNATURE;
 
         return 0;
 }
@@ -258,13 +259,13 @@ static int driver_notify_name_owner_changed(const char *name, Peer *old_owner, P
         if (old_owner) {
                 r = driver_notify_name_lost(old_owner, name);
                 if (r)
-                        return (r > 0) ? -ENOTRECOVERABLE : r;
+                        return error_trace(r);
         }
 
         if (new_owner) {
                 r = driver_notify_name_acquired(new_owner, name);
                 if (r)
-                        return (r > 0) ? -ENOTRECOVERABLE : r;
+                        return error_trace(r);
         }
 
         /* XXX: send name owner changed signal */
@@ -276,14 +277,14 @@ static int driver_method_hello(Peer *peer, CDVar *in_v, CDVar *out_v) {
         int r;
 
         if (_c_unlikely_(peer_is_registered(peer)))
-                return -EBADMSG;
+                return DRIVER_E_PEER_ALREADY_REGISTERED;
 
         /* verify the input argument */
         c_dvar_read(in_v, "()");
 
         r = c_dvar_end_read(in_v);
         if (r)
-                return (r > 0) ? -ENOTRECOVERABLE : r;
+                return error_origin(r);
 
         /* write the output message */
         c_dvar_write(out_v, "(");
@@ -295,7 +296,7 @@ static int driver_method_hello(Peer *peer, CDVar *in_v, CDVar *out_v) {
 
         r = driver_notify_name_owner_changed(NULL, peer, NULL);
         if (r)
-                return (r > 0) ? -ENOTRECOVERABLE : r;
+                return error_trace(r);
 
         return 0;
 }
@@ -312,18 +313,18 @@ static int driver_method_request_name(Peer *peer, CDVar *in_v, CDVar *out_v) {
 
         r = c_dvar_end_read(in_v);
         if (r)
-                return (r > 0) ? -ENOTRECOVERABLE : r;
+                return error_origin(r);
 
         r = name_registry_request_name(&peer->bus->names, peer, name, flags, &change, &reply);
         if (r)
-                return (r > 0) ? -ENOTRECOVERABLE : r;
+                return error_fold(r);
 
         c_dvar_write(out_v, "u", reply);
 
         if (change.name) {
                 r = driver_notify_name_owner_changed(change.name->name, change.old_owner, change.new_owner);
                 if (r)
-                        return (r > 0) ? -ENOTRECOVERABLE : r;
+                        return error_trace(r);
         }
 
         name_change_deinit(&change);
@@ -343,7 +344,7 @@ static int driver_method_release_name(Peer *peer, CDVar *in_v, CDVar *out_v) {
 
         r = c_dvar_end_read(in_v);
         if (r)
-                return (r > 0) ? -ENOTRECOVERABLE : r;
+                return error_origin(r);
 
         name_registry_release_name(&peer->bus->names, peer, name, &change, &reply);
 
@@ -352,7 +353,7 @@ static int driver_method_release_name(Peer *peer, CDVar *in_v, CDVar *out_v) {
         if (change.name) {
                 r = driver_notify_name_owner_changed(change.name->name, change.old_owner, change.new_owner);
                 if (r)
-                        return (r > 0) ? -ENOTRECOVERABLE : r;
+                        return error_trace(r);
         }
 
         name_change_deinit(&change);
@@ -370,11 +371,11 @@ static int driver_method_list_queued_owners(Peer *peer, CDVar *in_v, CDVar *out_
 
         r = c_dvar_end_read(in_v);
         if (r)
-                return (r > 0) ? -ENOTRECOVERABLE : r;
+                return error_origin(r);
 
         entry = name_registry_find_entry(&peer->bus->names, name);
         if (!entry)
-                return -ENOTRECOVERABLE;
+                return DRIVER_E_NAME_NOT_FOUND;
 
         /* XXX: verify if the actual owner should be included */
         c_dvar_write(out_v, "(");
@@ -392,7 +393,7 @@ static int driver_method_list_names(Peer *peer, CDVar *in_v, CDVar *out_v) {
 
         r = c_dvar_end_read(in_v);
         if (r)
-                return (r > 0) ? -ENOTRECOVERABLE : r;
+                return error_origin(r);
 
         c_dvar_write(out_v, "(");
         for (CRBNode *n = c_rbtree_first(&peer->bus->names.entries); n; n = c_rbnode_next(n)) {
@@ -420,7 +421,7 @@ static int driver_method_name_has_owner(Peer *peer, CDVar *in_v, CDVar *out_v) {
 
         r = c_dvar_end_read(in_v);
         if (r)
-                return (r > 0) ? -ENOTRECOVERABLE : r;
+                return error_origin(r);
 
         connection = bus_find_peer_by_name(peer->bus, name);
 
@@ -450,11 +451,11 @@ static int driver_method_get_name_owner(Peer *peer, CDVar *in_v, CDVar *out_v) {
 
         r = c_dvar_end_read(in_v);
         if (r)
-                return (r > 0) ? -ENOTRECOVERABLE : r;
+                return error_origin(r);
 
         owner = name_registry_resolve_name(&peer->bus->names, name);
         if (!owner)
-                return -ENOTRECOVERABLE;
+                return DRIVER_E_NAME_OWNER_NOT_FOUND;
 
         driver_dvar_write_unique_name(out_v, owner);
 
@@ -470,11 +471,11 @@ static int driver_method_get_connection_unix_user(Peer *peer, CDVar *in_v, CDVar
 
         r = c_dvar_end_read(in_v);
         if (r)
-                return (r > 0) ? -ENOTRECOVERABLE : r;
+                return error_origin(r);
 
         connection = bus_find_peer_by_name(peer->bus, name);
         if (!connection)
-                return -ENOTRECOVERABLE;
+                return DRIVER_E_PEER_NOT_FOUND;
 
         c_dvar_write(out_v, "u", connection->user->uid);
 
@@ -490,11 +491,11 @@ static int driver_method_get_connection_unix_process_id(Peer *peer, CDVar *in_v,
 
         r = c_dvar_end_read(in_v);
         if (r)
-                return (r > 0) ? -ENOTRECOVERABLE : r;
+                return error_origin(r);
 
         connection = bus_find_peer_by_name(peer->bus, name);
         if (!connection)
-                return -ENOTRECOVERABLE;
+                return DRIVER_E_PEER_NOT_FOUND;
 
         c_dvar_write(out_v, "u", connection->pid);
 
@@ -510,11 +511,11 @@ static int driver_method_get_connection_credentials(Peer *peer, CDVar *in_v, CDV
 
         r = c_dvar_end_read(in_v);
         if (r)
-                return (r > 0) ? -ENOTRECOVERABLE : r;
+                return error_origin(r);
 
         connection = bus_find_peer_by_name(peer->bus, name);
         if (!connection)
-                return -ENOTRECOVERABLE;
+                return DRIVER_E_PEER_NOT_FOUND;
 
         c_dvar_write(out_v, "[{s<u>}{s<u>}",
                      "UnixUserID", c_dvar_type_u, connection->user->uid,
@@ -562,14 +563,14 @@ static int driver_method_get_connection_selinux_security_context(Peer *peer, CDV
 
         r = c_dvar_end_read(in_v);
         if (r)
-                return (r > 0) ? -ENOTRECOVERABLE : r;
+                return error_origin(r);
 
         connection = bus_find_peer_by_name(peer->bus, name);
         if (!connection)
-                return -ENOTRECOVERABLE;
+                return DRIVER_E_PEER_NOT_FOUND;
 
         if (!connection->seclabel)
-                return -ENOTRECOVERABLE;
+                return DRIVER_E_METHOD_NOT_SUPPORTED;
 
         /*
          * Unlike the "LinuxSecurityLabel", this call does not include a
@@ -589,11 +590,11 @@ static int driver_method_add_match(Peer *peer, CDVar *in_v, CDVar *out_v) {
 
         r = c_dvar_end_read(in_v);
         if (r)
-                return (r > 0) ? -ENOTRECOVERABLE : r;
+                return error_origin(r);
 
         r = match_rule_new(&rule, peer, rule_string);
         if (r)
-                return (r > 0) ? -ENOTRECOVERABLE : r;
+                return error_fold(r);
 
         if (!rule->keys.sender)
                 match_rule_link(rule, &peer->bus->wildcard_matches);
@@ -603,7 +604,7 @@ static int driver_method_add_match(Peer *peer, CDVar *in_v, CDVar *out_v) {
 
                 r = peer_id_from_unique_name(rule->keys.sender, &id);
                 if (r)
-                        return (r > 0) ? -ENOTRECOVERABLE : r;
+                        return error_fold(r);
 
                 sender = peer_registry_find_peer(&peer->bus->peers, id);
                 if (!sender)
@@ -616,8 +617,8 @@ static int driver_method_add_match(Peer *peer, CDVar *in_v, CDVar *out_v) {
                 _c_cleanup_(name_entry_unrefp) NameEntry *name = NULL;
 
                 r = name_entry_get(&name, &peer->bus->names, rule->keys.sender);
-                if (r < 0)
-                        return r;
+                if (r)
+                        return error_fold(r);
 
                 match_rule_link(rule, &name->matches);
                 name_entry_ref(name); /* this reference must be explicitly released */
@@ -638,11 +639,11 @@ static int driver_method_remove_match(Peer *peer, CDVar *in_v, CDVar *out_v) {
 
         r = c_dvar_end_read(in_v);
         if (r)
-                return (r > 0) ? -ENOTRECOVERABLE : r;
+                return error_origin(r);
 
         r = match_rule_get(&rule, peer, rule_string);
         if (r)
-                return (r > 0) ? -ENOTRECOVERABLE : r;
+                return error_fold(r);
 
         if (rule->keys.sender && strcmp(rule->keys.sender, "org.freedesktop.DBus") != 0)
                 name = c_container_of(rule->registry, NameEntry, matches);
@@ -663,7 +664,7 @@ static int driver_method_get_id(Peer *peer, CDVar *in_v, CDVar *out_v) {
 
         r = c_dvar_end_read(in_v);
         if (r)
-                return (r > 0) ? -ENOTRECOVERABLE : r;
+                return error_origin(r);
 
         /* write the output message */
         c_string_to_hex(peer->bus->guid, sizeof(peer->bus->guid), buffer);
@@ -692,15 +693,15 @@ static int driver_handle_method(const DriverMethod *method, Peer *peer, uint32_t
 
         r = driver_dvar_verify_signature_in(method->in, signature_in);
         if (r)
-                return (r > 0) ? -ENOTRECOVERABLE : r;
+                return error_trace(r);
 
         r = c_dvar_new(&var_in);
         if (r)
-                return (r > 0) ? -ENOTRECOVERABLE : r;
+                return error_origin(r);
 
         r = c_dvar_new(&var_out);
         if (r)
-                return (r > 0) ? -ENOTRECOVERABLE : r;
+                return error_origin(r);
 
         c_dvar_begin_read(var_in, message_in->big_endian, method->in, message_in->body, message_in->n_body);
         c_dvar_begin_write(var_out, method->out);
@@ -717,7 +718,7 @@ static int driver_handle_method(const DriverMethod *method, Peer *peer, uint32_t
 
         r = method->fn(peer, var_in, var_out);
         if (r)
-                return (r > 0) ? -ENOTRECOVERABLE : r;
+                return error_trace(r);
 
         c_dvar_write(var_out, ")");
 
@@ -730,15 +731,15 @@ static int driver_handle_method(const DriverMethod *method, Peer *peer, uint32_t
 
         r = c_dvar_end_write(var_out, &data, &n_data);
         if (r)
-                return (r > 0) ? -ENOTRECOVERABLE : r;
+                return error_origin(r);
 
         r = message_new_outgoing(&message_out, data, n_data);
         if (r)
-                return (r > 0) ? -ENOTRECOVERABLE : r;
+                return error_fold(r);
 
         r = connection_queue_message(&peer->connection, &peer->dispatch_file, message_out);
         if (r)
-                return (r > 0) ? -ENOTRECOVERABLE : r;
+                return error_fold(r);
 
         return 0;
 }
@@ -767,7 +768,7 @@ static int driver_dispatch_method(Peer *peer, uint32_t serial, const char *metho
         };
 
         if (_c_unlikely_(!peer_is_registered(peer)) && strcmp(method, "Hello") != 0)
-                return -EBADMSG;
+                return DRIVER_E_PEER_NOT_REGISTERED;
 
         for (size_t i = 0; i < C_ARRAY_SIZE(methods); i++) {
                 if (strcmp(methods[i].name, method) != 0)
@@ -776,7 +777,7 @@ static int driver_dispatch_method(Peer *peer, uint32_t serial, const char *metho
                 return driver_handle_method(&methods[i], peer, serial, signature, message);
         }
 
-        return -ENOENT;
+        return DRIVER_E_INVALID_METHOD;
 }
 
 int driver_dispatch_interface(Peer *peer,
@@ -787,10 +788,10 @@ int driver_dispatch_interface(Peer *peer,
                               const char *signature,
                               Message *message) {
         if (message->header->type != DBUS_MESSAGE_TYPE_METHOD_CALL)
-                return -EBADMSG;
+                return DRIVER_E_INVALID_MESSAGE;
 
         if (interface && _c_unlikely_(strcmp(interface, "org.freedesktop.DBus") != 0))
-                return -EBADMSG;
+                return DRIVER_E_INVALID_INTERFACE;
 
         /* XXX: path ? */
 
@@ -831,13 +832,13 @@ int driver_goodbye(Peer *peer, bool silent) {
                         r = driver_notify_name_owner_changed(change.name->name, change.old_owner, change.new_owner);
                 name_change_deinit(&change);
                 if (r)
-                        return (r > 0) ? -ENOTRECOVERABLE : r;
+                        return error_fold(r);
         }
 
         if (!silent) {
                 r = driver_notify_name_owner_changed(NULL, peer, NULL);
                 if (r)
-                        return (r > 0) ? -ENOTRECOVERABLE : r;
+                        return error_trace(r);
         }
         peer_unregister(peer);
 

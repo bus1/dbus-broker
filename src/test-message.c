@@ -14,10 +14,10 @@ static void test_setup(void) {
         /* verify constructors / destructors */
 
         r = message_new_incoming(&m2, hdr);
-        assert(r >= 0);
+        assert(r == 0);
 
         r = message_new_incoming(&m3, hdr);
-        assert(r >= 0);
+        assert(r == 0);
 
         m3 = message_unref(m3);
         m1 = message_unref(m1);

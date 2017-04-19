@@ -13,6 +13,12 @@ typedef struct Peer Peer;
 typedef struct ReplySlot ReplySlot;
 typedef struct ReplyRegistry ReplyRegistry;
 
+enum {
+        _REPLY_E_SUCCESS,
+
+        REPLY_E_EXISTS,
+};
+
 struct ReplySlot {
         ReplyRegistry *registry;
         Peer *sender;

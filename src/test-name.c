@@ -35,7 +35,7 @@ static void test_setup(void) {
         assert(p == peer);
 
         r = name_registry_request_name(&bus->names, peer, "foobar", 0, &change, &reply);
-        assert(r >= 0);
+        assert(r == 0);
         assert(reply == DBUS_REQUEST_NAME_REPLY_PRIMARY_OWNER);
         assert(strcmp(change.name->name, "foobar") == 0);
         assert(change.old_owner == NULL);
@@ -83,7 +83,7 @@ static void test_release(void) {
         peer_register(peer2);
 
         r = name_registry_request_name(&bus->names, peer1, "foobar", 0, &change, &reply);
-        assert(r >= 0);
+        assert(r == 0);
         assert(reply == DBUS_REQUEST_NAME_REPLY_PRIMARY_OWNER);
         assert(strcmp(change.name->name, "foobar") == 0);
         assert(change.old_owner == NULL);
@@ -136,7 +136,7 @@ static void test_queue(void) {
 
         /* first to request */
         r = name_registry_request_name(&bus->names, peer1, "foobar", 0, &change, &reply);
-        assert(r >= 0);
+        assert(r == 0);
         assert(reply == DBUS_REQUEST_NAME_REPLY_PRIMARY_OWNER);
         assert(strcmp(change.name->name, "foobar") == 0);
         assert(change.old_owner == NULL);
@@ -147,28 +147,28 @@ static void test_queue(void) {
         assert(peer == peer1);
         /* already the owner */
         r = name_registry_request_name(&bus->names, peer1, "foobar", 0, &change, &reply);
-        assert(r >= 0);
+        assert(r == 0);
         assert(reply == DBUS_REQUEST_NAME_REPLY_ALREADY_OWNER);
         assert(change.name == NULL);
         assert(change.old_owner == NULL);
         assert(change.new_owner == NULL);
         /* refuse to queue */
         r = name_registry_request_name(&bus->names, peer2, "foobar", DBUS_NAME_FLAG_DO_NOT_QUEUE, &change, &reply);
-        assert(r >= 0);
+        assert(r == 0);
         assert(reply == DBUS_REQUEST_NAME_REPLY_EXISTS);
         assert(change.name == NULL);
         assert(change.old_owner == NULL);
         assert(change.new_owner == NULL);
         /* try to overtake, but owner won't allow it */
         r = name_registry_request_name(&bus->names, peer2, "foobar", DBUS_NAME_FLAG_DO_NOT_QUEUE | DBUS_NAME_FLAG_REPLACE_EXISTING, &change, &reply);
-        assert(r >= 0);
+        assert(r == 0);
         assert(reply == DBUS_REQUEST_NAME_REPLY_EXISTS);
         assert(change.name == NULL);
         assert(change.old_owner == NULL);
         assert(change.new_owner == NULL);
         /* queue */
         r = name_registry_request_name(&bus->names, peer2, "foobar", 0, &change, &reply);
-        assert(r >= 0);
+        assert(r == 0);
         assert(reply == DBUS_REQUEST_NAME_REPLY_IN_QUEUE);
         assert(change.name == NULL);
         assert(change.old_owner == NULL);
@@ -187,28 +187,28 @@ static void test_queue(void) {
         assert(peer == peer1);
         /* try to overtake, but wait in queue if it fails */
         r = name_registry_request_name(&bus->names, peer2, "foobar", DBUS_NAME_FLAG_REPLACE_EXISTING, &change, &reply);
-        assert(r >= 0);
+        assert(r == 0);
         assert(reply == DBUS_REQUEST_NAME_REPLY_IN_QUEUE);
         assert(change.name == NULL);
         assert(change.old_owner == NULL);
         assert(change.new_owner == NULL);
         /* again */
         r = name_registry_request_name(&bus->names, peer2, "foobar", DBUS_NAME_FLAG_REPLACE_EXISTING, &change, &reply);
-        assert(r >= 0);
+        assert(r == 0);
         assert(reply == DBUS_REQUEST_NAME_REPLY_IN_QUEUE);
         assert(change.name == NULL);
         assert(change.old_owner == NULL);
         assert(change.new_owner == NULL);
         /* update primary owner to allow replacement */
         r = name_registry_request_name(&bus->names, peer1, "foobar", DBUS_NAME_FLAG_ALLOW_REPLACEMENT, &change, &reply);
-        assert(r >= 0);
+        assert(r == 0);
         assert(reply == DBUS_REQUEST_NAME_REPLY_ALREADY_OWNER);
         assert(change.name == NULL);
         assert(change.old_owner == NULL);
         assert(change.new_owner == NULL);
         /* queue again, but do not attempt to overtake */
         r = name_registry_request_name(&bus->names, peer2, "foobar", 0, &change, &reply);
-        assert(r >= 0);
+        assert(r == 0);
         assert(reply == DBUS_REQUEST_NAME_REPLY_IN_QUEUE);
         assert(change.name == NULL);
         assert(change.old_owner == NULL);
@@ -223,7 +223,7 @@ static void test_queue(void) {
                                        DBUS_NAME_FLAG_ALLOW_REPLACEMENT |
                                        DBUS_NAME_FLAG_DO_NOT_QUEUE,
                                        &change, &reply);
-        assert(r >= 0);
+        assert(r == 0);
         assert(reply == DBUS_REQUEST_NAME_REPLY_PRIMARY_OWNER);
         assert(strcmp(change.name->name, "foobar") == 0);
         assert(change.old_owner == peer1);
@@ -234,7 +234,7 @@ static void test_queue(void) {
         assert(peer == peer2);
         /* overtake again */
         r = name_registry_request_name(&bus->names, peer1, "foobar", DBUS_NAME_FLAG_REPLACE_EXISTING, &change, &reply);
-        assert(r >= 0);
+        assert(r == 0);
         assert(reply == DBUS_REQUEST_NAME_REPLY_PRIMARY_OWNER);
         assert(strcmp(change.name->name, "foobar") == 0);
         assert(change.old_owner == peer2);

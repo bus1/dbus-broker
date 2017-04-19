@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <sys/epoll.h>
 #include "dispatch.h"
+#include "error.h"
 
 /**
  * dispatch_file_init() - XXX
@@ -33,7 +34,7 @@ int dispatch_file_init(DispatchFile *file,
                                 .data.ptr = file,
                       });
         if (r < 0)
-                return r;
+                return error_origin(-errno);
 
         file->context = ctx;
         file->ready_list = ready_list;
@@ -116,7 +117,7 @@ int dispatch_context_init(DispatchContext *ctxp) {
 
         ctx.epoll_fd = epoll_create1(EPOLL_CLOEXEC);
         if (ctx.epoll_fd < 0)
-                return -errno;
+                return error_origin(-errno);
 
         *ctxp = ctx;
         return 0;
@@ -145,7 +146,7 @@ int dispatch_context_poll(DispatchContext *ctx, int timeout) {
         if (n > 128UL * 1024UL) {
                 buffer = malloc(n);
                 if (!buffer)
-                        return -ENOMEM;
+                        return error_origin(-ENOMEM);
 
                 events = buffer;
         } else {
@@ -154,7 +155,7 @@ int dispatch_context_poll(DispatchContext *ctx, int timeout) {
 
         r = epoll_wait(ctx->epoll_fd, events, ctx->n_files, timeout);
         if (r < 0)
-                return -errno;
+                return error_origin(-errno);
 
         while (r > 0) {
                 e = &events[--r];

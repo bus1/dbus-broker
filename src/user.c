@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <sys/types.h>
 #include "user.h"
+#include "util/error.h"
 
 struct UserUsage {
         _Atomic unsigned long n_refs;
@@ -46,7 +47,7 @@ static int user_usage_new(UserUsage **usagep, UserEntry *entry, uid_t uid) {
 
         usage = calloc(1, sizeof(*usage));
         if (!usage)
-                return -ENOMEM;
+                return error_origin(-ENOMEM);
 
         usage->n_refs = C_REF_INIT;
         usage->entry = entry;
@@ -122,7 +123,7 @@ static int user_charge_check(unsigned int remaining,
                              unsigned int share,
                              unsigned int charge) {
         if (remaining - charge < (share + charge) * users)
-                return -EDQUOT;
+                return USER_E_QUOTA;
 
         return 0;
 }
@@ -149,7 +150,7 @@ static int user_entry_new(UserEntry **entryp,
 
         entry = calloc(1, sizeof(*entry));
         if (!entry)
-                return -ENOMEM;
+                return error_origin(-ENOMEM);
 
         entry->n_refs = C_REF_INIT;
         entry->registry = registry;
@@ -244,21 +245,21 @@ int user_entry_charge(UserEntry *entry,
 
         r = user_entry_ref_usage(entry, &usage, actor);
         if (r)
-                return r;
+                return error_trace(r);
 
         r = user_charge_check(entry->n_bytes,
                               entry->n_usages,
                               usage->n_bytes,
                               n_bytes);
         if (r)
-                return r;
+                return error_trace(r);
 
         r = user_charge_check(entry->n_fds,
                               entry->n_usages,
                               usage->n_fds,
                               n_fds);
         if (r)
-                return r;
+                return error_trace(r);
 
         entry->n_bytes -= n_bytes;
         entry->n_fds -= n_fds;
@@ -355,7 +356,7 @@ int user_registry_ref_entry(UserRegistry *registry, UserEntry **entryp, uid_t ui
                                    registry->max_names,
                                    registry->max_matches);
                 if (r)
-                        return r;
+                        return error_trace(r);
 
                 user_entry_link(entry, parent, slot);
         } else {

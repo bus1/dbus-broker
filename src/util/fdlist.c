@@ -6,13 +6,14 @@
 #include <stdlib.h>
 #include <sys/socket.h>
 #include "fdlist.h"
+#include "error.h"
 
 int fdlist_new_with_fds(FDList **listp, const int *fds, size_t n_fds) {
         FDList *list;
 
         list = malloc(sizeof(*list) + CMSG_SPACE(n_fds * sizeof(int)));
         if (!list)
-                return -ENOMEM;
+                return error_origin(-ENOMEM);
 
         list->consumed = false;
         list->cmsg->cmsg_len = CMSG_LEN(n_fds * sizeof(int));

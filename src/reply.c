@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include "peer.h"
 #include "reply.h"
+#include "util/error.h"
 
 typedef struct ReplySlotKey ReplySlotKey;
 
@@ -51,11 +52,11 @@ int reply_slot_new(ReplySlot **replyp, ReplyRegistry *registry, Peer *sender, ui
 
         slot = c_rbtree_find_slot(&registry->slots, reply_slot_compare, &key, &parent);
         if (!slot)
-                return -EEXIST;
+                return REPLY_E_EXISTS;
 
         reply = calloc(1, sizeof(*reply));
         if (!reply)
-                return -ENOMEM;
+                return error_origin(-ENOMEM);
 
         reply->registry = registry;
         c_rbnode_init(&reply->rb);

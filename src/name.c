@@ -11,6 +11,7 @@
 #include "driver.h"
 #include "name.h"
 #include "user.h"
+#include "util/error.h"
 
 void name_change_init(NameChange *change) {
         *change = (NameChange){};
@@ -27,11 +28,11 @@ static int name_owner_new(NameOwner **ownerp, Peer *peer, NameEntry *entry, CRBN
         NameOwner *owner;
 
         if (peer->user->n_names < 1)
-                return -EDQUOT;
+                return NAME_E_QUOTA;
 
         owner = calloc(1, sizeof(*owner));
         if (!owner)
-                return -ENOMEM;
+                return error_origin(-ENOMEM);
 
         peer->user->n_names --;
 
@@ -81,8 +82,8 @@ static int name_owner_get(NameOwner **ownerp, Peer *peer, NameEntry *entry) {
                 *ownerp = c_container_of(parent, NameOwner, rb);
         } else {
                 r = name_owner_new(ownerp, peer, entry, parent, slot);
-                if (r < 0)
-                        return r;
+                if (r)
+                        return error_trace(r);
         }
 
         return 0;
@@ -176,7 +177,7 @@ static int name_entry_new(NameEntry **entryp, NameRegistry *registry, const char
 
         entry = malloc(sizeof(*entry) + n_name);
         if (!entry)
-                return -ENOMEM;
+                return error_origin(-ENOMEM);
 
         entry->n_refs = C_REF_INIT;
         entry->registry = registry;
@@ -217,8 +218,8 @@ int name_entry_get(NameEntry **entryp, NameRegistry *registry, const char *name)
                 *entryp = name_entry_ref(c_container_of(parent, NameEntry, rb));
         } else {
                 r = name_entry_new(entryp, registry, name, parent, slot);
-                if (r < 0)
-                        return r;
+                if (r)
+                        return error_trace(r);
         }
 
         return 0;
@@ -238,12 +239,12 @@ int name_registry_request_name(NameRegistry *registry, Peer *peer, const char *n
         int r;
 
         r = name_entry_get(&entry, registry, name);
-        if (r < 0)
-                return r;
+        if (r)
+                return error_trace(r);
 
         r = name_owner_get(&owner, peer, entry);
-        if (r < 0)
-                return r;
+        if (r)
+                return error_trace(r);
 
         name_owner_update(owner, flags, change, replyp);
 
