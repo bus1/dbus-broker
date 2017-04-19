@@ -9,8 +9,8 @@
 #include "main.h"
 #include "manager.h"
 
-int main_arg_controller;
-bool main_arg_verbose;
+int main_arg_controller = 3;
+bool main_arg_verbose = false;
 
 static void help(void) {
         printf("%s [GLOBALS...] ...\n\n"
