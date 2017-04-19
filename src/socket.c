@@ -578,11 +578,31 @@ int socket_write(Socket *socket) {
         }
 
         if (!n_msgs)
-                return 0;
+                return SOCKET_E_LOST_INTEREST;
 
         n_msgs = sendmmsg(socket->fd, msgs, n_msgs, MSG_DONTWAIT | MSG_NOSIGNAL);
-        if (n_msgs < 0)
+        if (n_msgs < 0) {
+                switch (errno) {
+                case EAGAIN:
+                        return 0;
+                case ECOMM:
+                case ECONNABORTED:
+                case ECONNRESET:
+                case EHOSTDOWN:
+                case EHOSTUNREACH:
+                case EIO:
+                case ENOBUFS:
+                case ENOMEM:
+                case EPIPE:
+                case EPROTO:
+                case EREMOTEIO:
+                case ESHUTDOWN:
+                case ETIMEDOUT:
+                        return SOCKET_E_RESET;
+                }
+
                 return -errno;
+        }
 
         i = 0;
         c_list_for_each_entry_safe(buffer, safe, &socket->out.queue, link) {
@@ -596,5 +616,5 @@ int socket_write(Socket *socket) {
         }
         assert(i == n_msgs);
 
-        return !c_list_is_empty(&socket->out.queue);
+        return c_list_is_empty(&socket->out.queue) ? SOCKET_E_LOST_INTEREST : 0;
 }

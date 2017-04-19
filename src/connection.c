@@ -77,16 +77,15 @@ int connection_dispatch_write(Connection *connection, DispatchFile *file) {
         int r;
 
         r = socket_write(connection->socket);
-        if (r == -EAGAIN) {
-                /* not able to write more */
+        if (!r) {
+                /* kernel event handled, interest did not change */
                 dispatch_file_clear(file, EPOLLOUT);
-                return 0;
-        } else if (r == 0) {
-                /* nothing more to write */
+        } else if (r == SOCKET_E_LOST_INTEREST) {
+                /* kernel event unknown, interest lost */
                 dispatch_file_deselect(file, EPOLLOUT);
-        } else if (r < 0) {
-                /* XXX: swallow error code and tear down this peer */
-                return 0;
+        } else if (r != SOCKET_E_PREEMPTED) {
+                /* XXX: we should catch SOCKET_E_RESET here */
+                return (r > 0) ? -ENOTRECOVERABLE : r;
         }
 
         return 0;

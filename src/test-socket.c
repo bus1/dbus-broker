@@ -45,7 +45,7 @@ static void test_line(void) {
         assert(r >= 0);
 
         r = socket_write(client);
-        assert(r >= 0);
+        assert(r == SOCKET_E_LOST_INTEREST);
 
         r = socket_read_line(server, &line, &n_bytes);
         assert(r >= 0);
@@ -88,7 +88,7 @@ static void test_message(void) {
         assert(r >= 0);
 
         r = socket_write(client);
-        assert(r >= 0);
+        assert(r == SOCKET_E_LOST_INTEREST);
 
         r = socket_read_message(server, &message2);
         assert(r >= 0);

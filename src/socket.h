@@ -18,6 +18,17 @@ typedef struct SocketBuffer SocketBuffer;
 #define SOCKET_FD_MAX (253UL) /* taken from kernel SCM_MAX_FD */
 #define SOCKET_MMSG_MAX (16) /* XXX */
 
+enum {
+        _SOCKET_E_SUCCESS,
+
+        /* I/O handling */
+        SOCKET_E_LOST_INTEREST,
+        SOCKET_E_PREEMPTED,
+
+        /* socket errors */
+        SOCKET_E_RESET,
+};
+
 struct SocketBuffer {
         CList link;
 
