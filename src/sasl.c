@@ -298,67 +298,55 @@ static int sasl_server_handle_auth(SASLServer *sasl, const char *input, size_t n
         }
 }
 
-int sasl_server_dispatch_init(SASLServer *sasl, const char *input, size_t n_input, const char **replyp, size_t *lenp) {
-        const char *argument;
-        size_t n_argument;
-
-        if (sasl_server_command_match("AUTH", input, n_input, &argument, &n_argument))
-                return sasl_server_handle_auth(sasl, argument, n_argument, replyp, lenp);
-        else if (sasl_server_command_match("ERROR", input, n_input, &argument, &n_argument))
-                sasl_server_send_rejected(sasl, replyp, lenp);
-        else if (sasl_server_command_match("BEGIN", input, n_input, NULL, NULL))
-                return -EBADMSG;
-        else
-                sasl_server_send_error(sasl, replyp, lenp);
-
-        return 0;
-}
-
-int sasl_server_dispatch_challenge(SASLServer *sasl, const char *input, size_t n_input, const char **replyp, size_t *lenp) {
-        const char *argument;
-        size_t n_argument;
-
-        if (sasl_server_command_match("DATA", input, n_input, &argument, &n_argument))
-                return sasl_server_handle_data(sasl, argument, n_argument, replyp, lenp);
-        else if (sasl_server_command_match("ERROR", input, n_input, &argument, &n_argument) ||
-                 sasl_server_command_match("CANCEL", input, n_input, NULL, NULL))
-                sasl_server_send_rejected(sasl, replyp, lenp);
-        else if (sasl_server_command_match("BEGIN", input, n_input, NULL, NULL))
-                return -EBADMSG;
-        else
-                sasl_server_send_error(sasl, replyp, lenp);
-
-        return 0;
-}
-
-int sasl_server_dispatch_authenticated(SASLServer *sasl, const char *input, size_t n_input, const char **replyp, size_t *lenp) {
-        const char *argument;
-        size_t n_argument;
-
-        if (sasl_server_command_match("NEGOTIATE_UNIX_FD", input, n_input, NULL, NULL))
-                sasl_server_send_agree_unix_fd(sasl, replyp, lenp);
-        else if (sasl_server_command_match("BEGIN", input, n_input, NULL, NULL))
-                return 1;
-        else if (sasl_server_command_match("ERROR", input, n_input, &argument, &n_argument) ||
-                   sasl_server_command_match("CANCEL", input, n_input, NULL, NULL))
-                sasl_server_send_rejected(sasl, replyp, lenp);
-        else
-                sasl_server_send_error(sasl, replyp, lenp);
-
-        return 0;
-}
-
 int sasl_server_dispatch(SASLServer *sasl, const char *input, size_t n_input, const char **replyp, size_t *lenp) {
+        const char *argument;
+        size_t n_argument;
+
         switch (sasl->state) {
         case SASL_SERVER_STATE_INIT:
-                return sasl_server_dispatch_init(sasl, input, n_input, replyp, lenp);
+                if (sasl_server_command_match("AUTH", input, n_input, &argument, &n_argument)) {
+                        return sasl_server_handle_auth(sasl, argument, n_argument, replyp, lenp);
+                } else if (sasl_server_command_match("ERROR", input, n_input, &argument, &n_argument)) {
+                        sasl_server_send_rejected(sasl, replyp, lenp);
+                } else if (sasl_server_command_match("BEGIN", input, n_input, NULL, NULL)) {
+                        return -EBADMSG;
+                } else {
+                        sasl_server_send_error(sasl, replyp, lenp);
+                }
+
+                break;
+
         case SASL_SERVER_STATE_CHALLENGE:
-                return sasl_server_dispatch_challenge(sasl, input, n_input, replyp, lenp);
+                if (sasl_server_command_match("DATA", input, n_input, &argument, &n_argument))
+                        return sasl_server_handle_data(sasl, argument, n_argument, replyp, lenp);
+                else if (sasl_server_command_match("ERROR", input, n_input, &argument, &n_argument) ||
+                         sasl_server_command_match("CANCEL", input, n_input, NULL, NULL))
+                        sasl_server_send_rejected(sasl, replyp, lenp);
+                else if (sasl_server_command_match("BEGIN", input, n_input, NULL, NULL))
+                        return -EBADMSG;
+                else
+                        sasl_server_send_error(sasl, replyp, lenp);
+
+                break;
+
         case SASL_SERVER_STATE_AUTHENTICATED:
-                return sasl_server_dispatch_authenticated(sasl, input, n_input, replyp, lenp);
         case SASL_SERVER_STATE_NEGOTIATED_FDS:
-                return sasl_server_dispatch_authenticated(sasl, input, n_input, replyp, lenp);
+                if (sasl_server_command_match("NEGOTIATE_UNIX_FD", input, n_input, NULL, NULL))
+                        sasl_server_send_agree_unix_fd(sasl, replyp, lenp);
+                else if (sasl_server_command_match("BEGIN", input, n_input, NULL, NULL))
+                        return 1;
+                else if (sasl_server_command_match("ERROR", input, n_input, &argument, &n_argument) ||
+                           sasl_server_command_match("CANCEL", input, n_input, NULL, NULL))
+                        sasl_server_send_rejected(sasl, replyp, lenp);
+                else
+                        sasl_server_send_error(sasl, replyp, lenp);
+
+                break;
+
         default:
                 assert(0);
+                return -ENOTRECOVERABLE;
         }
+
+        return 0;
 }
