@@ -16,6 +16,7 @@ libdbus_broker_private = static_library(
                 'sasl.c',
                 'socket.c',
                 'user.c',
+                'util/error.c',
                 'util/dispatch.c',
                 'util/fdlist.c',
         ],
