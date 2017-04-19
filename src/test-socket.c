@@ -36,7 +36,7 @@ static void test_line(void) {
         assert(r >= 0);
 
         r = socket_read_line(server, &line, &n_bytes);
-        assert(r == -EAGAIN);
+        assert(!r && !line);
 
         r = socket_queue_line(client, test, strlen(test));
         assert(r >= 0);
@@ -46,19 +46,21 @@ static void test_line(void) {
 
         r = socket_write(client);
         assert(r == SOCKET_E_LOST_INTEREST);
+        r = socket_read(server);
+        assert(!r);
 
         r = socket_read_line(server, &line, &n_bytes);
-        assert(r >= 0);
+        assert(!r && line);
         assert(n_bytes == strlen(test));
         assert(memcmp(test, line, n_bytes) == 0);
 
         r = socket_read_line(server, &line, &n_bytes);
-        assert(r >= 0);
+        assert(!r && line);
         assert(n_bytes == strlen(test));
         assert(memcmp(test, line, n_bytes) == 0);
 
         r = socket_read_line(server, &line, &n_bytes);
-        assert(r == -EAGAIN);
+        assert(!r && !line);
 }
 
 static void test_message(void) {
@@ -79,7 +81,7 @@ static void test_message(void) {
         assert(r >= 0);
 
         r = socket_read_message(server, &message2);
-        assert(r == -EAGAIN);
+        assert(!r && !message2);
 
         r = message_new_incoming(&message1, header);
         assert(r >= 0);
@@ -89,9 +91,11 @@ static void test_message(void) {
 
         r = socket_write(client);
         assert(r == SOCKET_E_LOST_INTEREST);
+        r = socket_read(server);
+        assert(!r);
 
         r = socket_read_message(server, &message2);
-        assert(r >= 0);
+        assert(!r && message2);
 
         assert(memcmp(message1->header, message2->header, sizeof(header)) == 0);
 }

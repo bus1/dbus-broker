@@ -173,15 +173,20 @@ Socket *socket_free(Socket *socket) {
         return NULL;
 }
 
-static int socket_line_pop(Socket *socket, const char **linep, size_t *np) {
+/**
+ * socket_read_line() - XXX
+ */
+int socket_read_line(Socket *socket, const char **linep, size_t *np) {
         char *line;
         size_t n;
+
+        assert(!socket->lines_done);
 
         /* skip the very first byte of the stream, which must be 0 */
         if (_c_unlikely_(!socket->null_byte_done) && socket->server &&
             socket->in.data_pos < socket->in.data_end) {
                 if (socket->in.data[socket->in.data_pos] != '\0')
-                        return -EBADMSG;
+                        return SOCKET_E_NO_NULL_BYTE;
 
                 socket->in.data_start = ++socket->in.data_pos;
                 socket->null_byte_done = true;
@@ -231,33 +236,22 @@ static int socket_line_pop(Socket *socket, const char **linep, size_t *np) {
                 }
         }
 
-        return -EAGAIN;
+        *linep = NULL;
+        *np = 0;
+        return 0;
 }
 
 /**
- * socket_read_line() - XXX
+ * socket_read_message() - XXX
  */
-int socket_read_line(Socket *socket, const char **linep, size_t *np) {
-        int r;
-
-        assert(!socket->lines_done);
-
-        r = socket_line_pop(socket, linep, np);
-        if (r != -EAGAIN)
-                return r;
-
-        r = socket_read(socket);
-        if (r)
-                return r;
-
-        return socket_line_pop(socket, linep, np);
-}
-
-static int socket_message_pop(Socket *socket, Message **messagep) {
+int socket_read_message(Socket *socket, Message **messagep) {
         MessageHeader header;
         Message *msg;
         size_t n, n_data;
         int r;
+
+        if (_c_unlikely_(!socket->lines_done))
+                socket->lines_done = true;
 
         msg = socket->in.pending_message;
         n_data = socket->in.data_end - socket->in.data_start;
@@ -266,14 +260,15 @@ static int socket_message_pop(Socket *socket, Message **messagep) {
                 n = sizeof(MessageHeader);
                 if (_c_unlikely_(n_data < n)) {
                         socket->in.data_pos = socket->in.data_end;
-                        return -EAGAIN;
+                        *messagep = NULL;
+                        return 0;
                 }
 
                 memcpy(&header, socket->in.data + socket->in.data_start, n);
 
                 r = message_new_incoming(&msg, header);
-                if (r < 0)
-                        return r;
+                if (r)
+                        return (r > 0) ? -ENOTRECOVERABLE : r;
 
                 n_data -= n;
                 socket->in.data_start += n;
@@ -293,39 +288,20 @@ static int socket_message_pop(Socket *socket, Message **messagep) {
 
         if (_c_unlikely_(!n_data && socket->in.fds)) {
                 if (msg->fds)
-                        return -EBADMSG;
+                        return SOCKET_E_SPLIT_FDS;
 
                 msg->fds = socket->in.fds;
                 socket->in.fds = NULL;
         }
 
-        if (msg->n_copied < msg->n_data)
-                return -EAGAIN;
-
-        *messagep = msg;
-        socket->in.pending_message = NULL;
-        return 0;
-}
-
-/**
- * socket_read_message() - XXX
- */
-int socket_read_message(Socket *socket, Message **messagep) {
-        int r;
-
-        if (_c_unlikely_(!socket->lines_done)) {
-                socket->lines_done = true;
+        if (msg->n_copied >= msg->n_data) {
+                *messagep = msg;
+                socket->in.pending_message = NULL;
+        } else {
+                *messagep = NULL;
         }
 
-        r = socket_message_pop(socket, messagep);
-        if (r != -EAGAIN)
-                return r;
-
-        r = socket_read(socket);
-        if (r)
-                return r;
-
-        return socket_message_pop(socket, messagep);
+        return 0;
 }
 
 /**
@@ -433,8 +409,30 @@ static int socket_recvmsg(int fd, void *buffer, size_t *from, size_t *to, FDList
         };
 
         l = recvmsg(fd, &msg, MSG_DONTWAIT | MSG_CMSG_CLOEXEC);
-        if (_c_unlikely_(l <= 0))
-                return (l < 0) ? -errno : -ECONNRESET;
+        if (_c_unlikely_(!l))
+                return SOCKET_E_RESET;
+        if (_c_unlikely_(l < 0)) {
+                switch (errno) {
+                case EAGAIN:
+                        return 0;
+                case ECOMM:
+                case ECONNABORTED:
+                case ECONNRESET:
+                case EHOSTDOWN:
+                case EHOSTUNREACH:
+                case EIO:
+                case ENOBUFS:
+                case ENOMEM:
+                case EPIPE:
+                case EPROTO:
+                case EREMOTEIO:
+                case ESHUTDOWN:
+                case ETIMEDOUT:
+                        return SOCKET_E_RESET;
+                }
+
+                return -errno;
+        }
 
         for (cmsg = CMSG_FIRSTHDR(&msg); cmsg; cmsg = CMSG_NXTHDR(&msg, cmsg)) {
                 if (cmsg->cmsg_level == SOL_SOCKET &&
@@ -454,7 +452,7 @@ static int socket_recvmsg(int fd, void *buffer, size_t *from, size_t *to, FDList
 
         if (_c_unlikely_(n_fds)) {
                 if (_c_unlikely_(*fdsp)) {
-                        r = -EBADMSG;
+                        r = SOCKET_E_SPLIT_FDS;
                         goto error;
                 }
 

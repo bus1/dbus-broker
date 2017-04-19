@@ -10,14 +10,10 @@
 #include "socket.h"
 #include "util/dispatch.h"
 
-static int connection_dispatch_read_line(Connection *connection, DispatchFile *file) {
-        const char *input, *output = NULL;
-        size_t n_input, n_output = 0;
+static int connection_dispatch_line(Connection *connection, DispatchFile *file, const char *input, size_t n_input) {
+        const char *output = NULL;
+        size_t n_output = 0;
         int r;
-
-        r = socket_read_line(connection->socket, &input, &n_input);
-        if (r)
-                return (r > 0) ? -ENOTRECOVERABLE : r;
 
         if (connection->server) {
                 r = sasl_server_dispatch(&connection->sasl_server, input, n_input, &output, &n_output);
@@ -45,31 +41,46 @@ static int connection_dispatch_read_line(Connection *connection, DispatchFile *f
 }
 
 int connection_dispatch_read(Connection *connection, DispatchFile *file, Message **messagep) {
-        Message *message = NULL;
+        const char *input;
+        size_t n_input;
         int r;
 
-        /*
-         * Under normal operation we expect to receive at most four SASL lines and a message
-         * before breaking. There is no limit to the number of SASL exchnages however, and
-         * there is no harm in trying to process some more lines. If SASL has still not
-         * completed by the time we break, we return @message=NULL to indicate to the caller
-         * not to retry before going into poll again, so this cannot really be exploited.
-         */
-        for (unsigned int i = 0; i < 32; i ++) {
-                if (_c_likely_(connection->authenticated)) {
-                        r = socket_read_message(connection->socket, &message);
-                        if (r >= 0)
-                                break;
-                } else {
-                        r = connection_dispatch_read_line(connection, file);
-                }
-                if (r == -EAGAIN)
-                        dispatch_file_clear(file, EPOLLIN);
-                else if (r < 0)
-                        return r;
+        r = socket_read(connection->socket);
+        if (!r) {
+                /* kernel event handled, interest did not change */
+                dispatch_file_clear(file, EPOLLIN);
+        } else if (r == SOCKET_E_LOST_INTEREST) {
+                /* kernel event unknown, interest lost */
+                dispatch_file_deselect(file, EPOLLIN);
+        } else if (r != SOCKET_E_PREEMPTED) {
+                /* XXX: we should catch SOCKET_E_RESET here */
+                return (r > 0) ? -ENOTRECOVERABLE : r;
         }
 
-        *messagep = message;
+        if (_c_unlikely_(!connection->authenticated)) {
+                do {
+                        r = socket_read_line(connection->socket, &input, &n_input);
+                        if (r)
+                                return (r > 0) ? -ENOTRECOVERABLE : r;
+
+                        if (!input) {
+                                dispatch_file_clear(file, EPOLLIN);
+                                return 0;
+                        }
+
+                        r = connection_dispatch_line(connection, file, input, n_input);
+                        if (r)
+                                return r;
+                } while (!connection->authenticated);
+        }
+
+        r = socket_read_message(connection->socket, messagep);
+        if (r)
+                return (r > 0) ? -ENOTRECOVERABLE : r;
+
+        if (!*messagep)
+                dispatch_file_clear(file, EPOLLIN);
+
         return 0;
 }
 
