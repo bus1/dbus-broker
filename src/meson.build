@@ -55,7 +55,9 @@ exe_dbus_broker = executable(
                 'broker/manager.c',
         ],
         dependencies: [
+                dep_clist,
                 dep_csundry,
+                libdbus_broker_dep,
         ],
         install: true,
 )

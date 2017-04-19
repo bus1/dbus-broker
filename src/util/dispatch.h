@@ -64,3 +64,9 @@ int dispatch_context_init(DispatchContext *ctxp);
 void dispatch_context_deinit(DispatchContext *ctx);
 
 int dispatch_context_poll(DispatchContext *ctx, int timeout);
+
+/* inline helpers */
+
+static inline int dispatch_file_call(DispatchFile *file) {
+        return file->fn(file, file->events & file->user_mask);
+}
