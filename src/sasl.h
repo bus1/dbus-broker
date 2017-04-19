@@ -10,7 +10,6 @@
 
 typedef struct SASLClient SASLClient;
 typedef struct SASLServer SASLServer;
-typedef enum SASLServerState SASLServerState;
 
 enum {
         _SASL_E_SUCCESS,
@@ -40,7 +39,7 @@ int sasl_client_dispatch(SASLClient *sasl, const char *input, size_t n_input, co
 
 /* server */
 
-enum SASLServerState {
+enum {
         SASL_SERVER_STATE_INIT,
         SASL_SERVER_STATE_CHALLENGE,
         SASL_SERVER_STATE_AUTHENTICATED,
@@ -48,7 +47,7 @@ enum SASLServerState {
 };
 
 struct SASLServer {
-        SASLServerState state;
+        unsigned int state;
         uid_t uid;
         char ok_response[sizeof("OK 0123456789abcdef0123456789abdcef") - 1];
 };
