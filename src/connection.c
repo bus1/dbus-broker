@@ -10,55 +10,33 @@
 #include "socket.h"
 #include "util/dispatch.h"
 
-static int connection_sasl_client_dispatch(Connection *connection, const char *line) {
-        switch (connection->sasl_client_state) {
-        case SASL_CLIENT_STATE_AUTH:
-                if (strcmp(line, "DATA") != 0)
-                        return -EBADMSG;
-                else {
-                        connection->sasl_client_state = SASL_CLIENT_STATE_DATA;
-                        return 0;
-                }
-        case SASL_CLIENT_STATE_DATA:
-                if ((strncmp(line, "OK ", strlen("OK ")) != 0) ||
-                    (strlen(line) != strlen("OK 0123456789abcdef0123456789abcdef")))
-                        return -EBADMSG;
-                else {
-                        connection->sasl_client_state = SASL_CLIENT_STATE_UNIX_FD;
-                        return 0;
-                }
-        case SASL_CLIENT_STATE_UNIX_FD:
-                if (strcmp(line, "AGREE_UNIX_FD") != 0)
-                        return -EBADMSG;
-                else
-                        return 1;
-        }
-
-        assert(false);
-}
-
 static int connection_dispatch_read_line(Connection *connection, DispatchFile *file) {
-        const char *line, *reply = NULL;
-        size_t n_line, n_reply = 0;
+        const char *input, *output = NULL;
+        size_t n_input, n_output = 0;
         int r;
 
-        r = socket_read_line(connection->socket, &line, &n_line);
-        if (r < 0)
-                return r;
+        r = socket_read_line(connection->socket, &input, &n_input);
+        if (r)
+                return (r > 0) ? -ENOTRECOVERABLE : r;
 
-        if (connection->server)
-                r = sasl_server_dispatch(&connection->sasl_server, line, n_line, &reply, &n_reply);
-        else
-                r = connection_sasl_client_dispatch(connection, line);
-        if (r < 0)
-                return r;
-        else if (r > 0)
-                connection->authenticated = true;
+        if (connection->server) {
+                r = sasl_server_dispatch(&connection->sasl_server, input, n_input, &output, &n_output);
+                if (r > 0)
+                        connection->authenticated = true;
+                else if (r)
+                        return (r > 0) ? -ENOTRECOVERABLE : r;
+        } else {
+                r = sasl_client_dispatch(&connection->sasl_client, input, n_input, &output, &n_output);
+                if (r)
+                        return (r > 0) ? -ENOTRECOVERABLE : r;
 
-        if (reply) {
-                r = socket_queue_line(connection->socket, reply, n_reply);
-                if (r < 0)
-                        return r;
+                connection->authenticated = sasl_client_is_done(&connection->sasl_client);
+        }
+
+        if (output && n_output) {
+                r = socket_queue_line(connection->socket, output, n_output);
+                if (r)
+                        return (r > 0) ? -ENOTRECOVERABLE : r;
 
                 dispatch_file_select(file, EPOLLOUT);
         }
@@ -133,6 +111,8 @@ int connection_queue_message(Connection *connection, DispatchFile *file, Message
  * connection_init() - XXX
  */
 int connection_init(Connection *connection, DispatchFile *file, int fd, bool server, uid_t uid, const char *guid) {
+        const char *request;
+        size_t n_request;
         int r;
 
         r = socket_new(&connection->socket, fd, server);
@@ -144,23 +124,15 @@ int connection_init(Connection *connection, DispatchFile *file, int fd, bool ser
         if (server) {
                 sasl_server_init(&connection->sasl_server, uid, guid);
         } else {
-                connection->sasl_client_state = SASL_CLIENT_STATE_AUTH;
+                sasl_client_init(&connection->sasl_client);
 
-                r = socket_queue_line(connection->socket, "AUTH EXTERNAL", strlen("AUTH EXTERNAL"));
-                if (r < 0)
-                        return r;
+                r = sasl_client_dispatch(&connection->sasl_client, NULL, 0, &request, &n_request);
+                if (r)
+                        return (r > 0) ? -ENOTRECOVERABLE : r;
 
-                r = socket_queue_line(connection->socket, "DATA", strlen("DATA"));
-                if (r < 0)
-                        return r;
-
-                r = socket_queue_line(connection->socket, "NEGOTIATE UNIX FD", strlen("NEGOTIATE UNIX FD"));
-                if (r < 0)
-                        return r;
-
-                r = socket_queue_line(connection->socket, "BEGIN", strlen("BEGIN"));
-                if (r < 0)
-                        return r;
+                r = socket_queue_line(connection->socket, request, n_request);
+                if (r)
+                        return (r > 0) ? -ENOTRECOVERABLE : r;
 
                 dispatch_file_select(file, EPOLLOUT);
         }
@@ -172,6 +144,9 @@ int connection_init(Connection *connection, DispatchFile *file, int fd, bool ser
  * connection_deinit() - XXX
  */
 void connection_deinit(Connection *connection) {
-        sasl_server_deinit(&connection->sasl_server);
+        if (connection->server)
+                sasl_server_deinit(&connection->sasl_server);
+        else
+                sasl_client_deinit(&connection->sasl_client);
         connection->socket = socket_free(connection->socket);
 }

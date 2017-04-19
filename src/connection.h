@@ -10,23 +10,16 @@
 #include "sasl.h"
 #include "util/dispatch.h"
 
-typedef enum SASLClientState SASLClientState;
 typedef struct Connection Connection;
 typedef struct Message Message;
 typedef struct Socket Socket;
-
-enum SASLClientState {
-        SASL_CLIENT_STATE_AUTH,
-        SASL_CLIENT_STATE_DATA,
-        SASL_CLIENT_STATE_UNIX_FD,
-};
 
 struct Connection {
         bool authenticated : 1;
         bool server : 1;
         union {
+                SASLClient sasl_client;
                 SASLServer sasl_server;
-                SASLClientState sasl_client_state;
         };
 
         Socket *socket;

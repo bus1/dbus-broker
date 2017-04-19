@@ -8,8 +8,37 @@
 #include <stdlib.h>
 #include <sys/types.h>
 
+typedef struct SASLClient SASLClient;
 typedef struct SASLServer SASLServer;
 typedef enum SASLServerState SASLServerState;
+
+enum {
+        _SASL_E_SUCCESS,
+
+        SASL_E_FAILURE,
+        SASL_E_PROTOCOL_VIOLATION,
+};
+
+/* client */
+
+enum {
+        SASL_CLIENT_STATE_INIT,
+        SASL_CLIENT_STATE_DONE,
+        SASL_CLIENT_STATE_AUTH,
+        SASL_CLIENT_STATE_DATA,
+        SASL_CLIENT_STATE_UNIX_FD,
+};
+
+struct SASLClient {
+        unsigned int state;
+};
+
+void sasl_client_init(SASLClient *sasl);
+void sasl_client_deinit(SASLClient *sasl);
+
+int sasl_client_dispatch(SASLClient *sasl, const char *input, size_t n_input, const char **outputp, size_t *n_outputp);
+
+/* server */
 
 enum SASLServerState {
         SASL_SERVER_STATE_INIT,
@@ -28,3 +57,9 @@ void sasl_server_init(SASLServer *sasl, uid_t uid, const char *guid);
 void sasl_server_deinit(SASLServer *sasl);
 
 int sasl_server_dispatch(SASLServer *sasl, const char *input, size_t n_input, const char **outputp, size_t *n_outputp);
+
+/* inline helpers */
+
+static inline bool sasl_client_is_done(SASLClient *client) {
+        return _c_likely_(client->state == SASL_CLIENT_STATE_DONE);
+}

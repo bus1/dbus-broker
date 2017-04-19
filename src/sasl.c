@@ -21,6 +21,99 @@
 #include <sys/types.h>
 #include "sasl.h"
 
+void sasl_client_init(SASLClient *sasl) {
+        sasl->state = SASL_CLIENT_STATE_INIT;
+}
+
+void sasl_client_deinit(SASLClient *sasl) {
+        /* nothing to do */
+}
+
+int sasl_client_dispatch(SASLClient *sasl, const char *input, size_t n_input, const char **outputp, size_t *n_outputp) {
+        static const char request[] = {
+                "AUTH EXTERNAL\r\n"
+                "DATA\r\n"
+                "NEGOTIATE_UNIX_FD\r\n"
+                "BEGIN"
+        };
+        const char *cmd, *arg;
+        size_t n_cmd, n_arg;
+
+        /*
+         * Split @input into a command and argument. This splits after the
+         * first occurrence of whitespace characters. If the argument is empty
+         * it is treated as non-existant (which is what legacy D-Bus
+         * applications expect).
+         */
+        n_cmd = n_input;
+        n_arg = 0;
+        cmd = input;
+        arg = memchr(input, ' ', n_input);
+        if (arg) {
+                n_cmd = arg - cmd;
+                n_arg = n_input - n_cmd;
+
+                do {
+                        ++arg;
+                        --n_arg;
+                } while (n_arg && *arg == ' ');
+        }
+
+        switch (sasl->state) {
+        case SASL_CLIENT_STATE_INIT:
+                if (cmd)
+                        return SASL_E_PROTOCOL_VIOLATION;
+
+                *outputp = request;
+                *n_outputp = sizeof(request) - 1;
+
+                sasl->state = SASL_CLIENT_STATE_AUTH;
+                break;
+
+        case SASL_CLIENT_STATE_AUTH:
+                if (!cmd)
+                        break;
+
+                if (n_cmd != strlen("DATA") || strncmp(cmd, "DATA", n_cmd))
+                        return SASL_E_FAILURE;
+                if (n_arg)
+                        return SASL_E_PROTOCOL_VIOLATION;
+
+                sasl->state = SASL_CLIENT_STATE_DATA;
+                break;
+
+        case SASL_CLIENT_STATE_DATA:
+                if (!cmd)
+                        break;
+
+                if (n_cmd != strlen("OK") || strncmp(cmd, "OK", n_cmd))
+                        return SASL_E_FAILURE;
+                if (n_arg != strlen("0123456789abcdef0123456789abcdef"))
+                        return SASL_E_PROTOCOL_VIOLATION;
+
+                sasl->state = SASL_CLIENT_STATE_UNIX_FD;
+                break;
+
+        case SASL_CLIENT_STATE_UNIX_FD:
+                if (!cmd)
+                        break;
+
+                if (n_cmd != strlen("AGREE_UNIX_FD") || strncmp(cmd, "AGREE_UNIX_FD", n_cmd))
+                        return SASL_E_FAILURE;
+                if (n_arg)
+                        return SASL_E_PROTOCOL_VIOLATION;
+
+                sasl->state = SASL_CLIENT_STATE_DONE;
+                break;
+
+        default:
+                assert(0);
+                return -ENOTRECOVERABLE;
+        }
+
+        return 0;
+}
+
 void sasl_server_init(SASLServer *sasl, uid_t uid, const char *guid) {
         *sasl = (SASLServer){};
         sasl->uid = uid;
