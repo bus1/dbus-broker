@@ -82,6 +82,53 @@ bool name_owner_is_primary(NameOwner *owner) {
         return (c_list_first(&owner->entry->owners) == &owner->entry_link);
 }
 
+static void name_owner_update(NameOwner *owner, uint32_t flags, uint32_t *replyp) {
+        NameEntry *entry = owner->entry;
+        NameOwner *head;
+        uint32_t reply;
+
+        head = c_container_of(c_list_first(&entry->owners), NameOwner, entry_link);
+        if (!head) {
+                /* there is no primary owner */
+                driver_notify_name_owner_change(entry->name, NULL, owner->peer);
+
+                /* @owner cannot already be linked */
+                c_list_link_front(&entry->owners, &owner->entry_link);
+                owner->flags = flags;
+                reply = DBUS_REQUEST_NAME_REPLY_PRIMARY_OWNER;
+        } else if (head == owner) {
+                /* we are already the primary owner */
+                owner->flags = flags;
+                reply = DBUS_REQUEST_NAME_REPLY_ALREADY_OWNER;
+        } else if ((flags & DBUS_NAME_FLAG_REPLACE_EXISTING) &&
+                   (head->flags & DBUS_NAME_FLAG_ALLOW_REPLACEMENT)) {
+                /* we replace the primary owner */
+                driver_notify_name_owner_change(entry->name, head->peer, owner->peer);
+
+                if (head->flags & DBUS_NAME_FLAG_DO_NOT_QUEUE)
+                        /* the previous primary owner is dropped */
+                        name_owner_free(head);
+
+                c_list_unlink(&owner->entry_link);
+                c_list_link_front(&entry->owners, &owner->entry_link);
+                owner->flags = flags;
+                reply = DBUS_REQUEST_NAME_REPLY_PRIMARY_OWNER;
+        } else if (!(flags & DBUS_NAME_FLAG_DO_NOT_QUEUE)) {
+                /* we are appended to the queue */
+                if (!c_list_is_linked(&owner->entry_link)) {
+                        c_list_link_tail(&entry->owners, &owner->entry_link);
+                }
+                owner->flags = flags;
+                reply = DBUS_REQUEST_NAME_REPLY_IN_QUEUE;
+        } else {
+                /* we are dropped */
+                name_owner_free(owner);
+                reply = DBUS_REQUEST_NAME_REPLY_EXISTS;
+        }
+
+        *replyp = reply;
+}
+
 static void name_owner_release(NameOwner *owner) {
         if (name_owner_is_primary(owner)) {
                 Peer *new_peer;
@@ -156,55 +203,6 @@ int name_entry_get(NameEntry **entryp, NameRegistry *registry, const char *name)
         return 0;
 }
 
-/* send out notification and perform update */
-static void name_entry_update_owner(NameEntry *entry, NameOwner *owner, uint32_t flags, uint32_t *replyp) {
-        NameOwner *head;
-        uint32_t reply;
-
-        assert(owner->entry == entry);
-
-        head = c_container_of(c_list_first(&entry->owners), NameOwner, entry_link);
-        if (!head) {
-                /* there is no primary owner */
-                driver_notify_name_owner_change(entry->name, NULL, owner->peer);
-
-                /* @owner cannot already be linked */
-                c_list_link_front(&entry->owners, &owner->entry_link);
-                owner->flags = flags;
-                reply = DBUS_REQUEST_NAME_REPLY_PRIMARY_OWNER;
-        } else if (head == owner) {
-                /* we are already the primary owner */
-                owner->flags = flags;
-                reply = DBUS_REQUEST_NAME_REPLY_ALREADY_OWNER;
-        } else if ((flags & DBUS_NAME_FLAG_REPLACE_EXISTING) &&
-                   (head->flags & DBUS_NAME_FLAG_ALLOW_REPLACEMENT)) {
-                /* we replace the primary owner */
-                driver_notify_name_owner_change(entry->name, head->peer, owner->peer);
-
-                if (head->flags & DBUS_NAME_FLAG_DO_NOT_QUEUE)
-                        /* the previous primary owner is dropped */
-                        name_owner_free(head);
-
-                c_list_unlink(&owner->entry_link);
-                c_list_link_front(&entry->owners, &owner->entry_link);
-                owner->flags = flags;
-                reply = DBUS_REQUEST_NAME_REPLY_PRIMARY_OWNER;
-        } else if (!(flags & DBUS_NAME_FLAG_DO_NOT_QUEUE)) {
-                /* we are appended to the queue */
-                if (!c_list_is_linked(&owner->entry_link)) {
-                        c_list_link_tail(&entry->owners, &owner->entry_link);
-                }
-                owner->flags = flags;
-                reply = DBUS_REQUEST_NAME_REPLY_IN_QUEUE;
-        } else {
-                /* we are dropped */
-                name_owner_free(owner);
-                reply = DBUS_REQUEST_NAME_REPLY_EXISTS;
-        }
-
-        *replyp = reply;
-}
-
 void name_registry_init(NameRegistry *registry) {
         *registry = (NameRegistry) {};
 }
@@ -227,7 +225,7 @@ int name_registry_request_name(NameRegistry *registry, Peer *peer, const char *n
         if (r < 0)
                 return r;
 
-        name_entry_update_owner(entry, owner, flags, &reply);
+        name_owner_update(owner, flags, &reply);
 
         *replyp = reply;
         return 0;
