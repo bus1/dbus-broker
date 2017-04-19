@@ -372,8 +372,10 @@ static int socket_message_pop(Socket *socket, Message **messagep) {
 
         if (!msg) {
                 n = sizeof(MessageHeader);
-                if (n_data < n)
+                if (_c_unlikely_(n_data < n)) {
+                        socket->in.data_pos = socket->in.data_end;
                         return -EAGAIN;
+                }
 
                 memcpy(&header, socket->in.data + socket->in.data_start, n);
 
@@ -383,7 +385,7 @@ static int socket_message_pop(Socket *socket, Message **messagep) {
 
                 n_data -= n;
                 socket->in.data_start += n;
-                socket->in.data_pos += n;
+                socket->in.data_pos = socket->in.data_start;
                 socket->in.pending_message = msg;
         }
 
@@ -393,7 +395,7 @@ static int socket_message_pop(Socket *socket, Message **messagep) {
 
                 n_data -= n;
                 socket->in.data_start += n;
-                socket->in.data_pos += n;
+                socket->in.data_pos = socket->in.data_start;
                 msg->n_copied += n;
         }
 
