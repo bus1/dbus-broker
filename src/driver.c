@@ -315,8 +315,16 @@ static int driver_method_request_name(Peer *peer, CDVar *in_v, CDVar *out_v) {
         if (r)
                 return error_origin(r);
 
-        r = name_registry_request_name(&peer->bus->names, peer, name, flags, &change, &reply);
-        if (r)
+        r = name_registry_request_name(&peer->bus->names, peer, name, flags, &change);
+        if (r == 0)
+                reply = DBUS_REQUEST_NAME_REPLY_PRIMARY_OWNER;
+        else if (r == NAME_E_IN_QUEUE)
+                reply = DBUS_REQUEST_NAME_REPLY_IN_QUEUE;
+        else if (r == NAME_E_EXISTS)
+                reply = DBUS_REQUEST_NAME_REPLY_EXISTS;
+        else if (r = NAME_E_ALREADY_OWNER)
+                reply = DBUS_REQUEST_NAME_REPLY_ALREADY_OWNER;
+        else
                 return error_fold(r);
 
         c_dvar_write(out_v, "u", reply);
@@ -346,7 +354,15 @@ static int driver_method_release_name(Peer *peer, CDVar *in_v, CDVar *out_v) {
         if (r)
                 return error_origin(r);
 
-        name_registry_release_name(&peer->bus->names, peer, name, &change, &reply);
+        r = name_registry_release_name(&peer->bus->names, peer, name, &change);
+        if (r == 0)
+                reply = DBUS_RELEASE_NAME_REPLY_RELEASED;
+        else if (r == NAME_E_NOT_FOUND)
+                reply = DBUS_RELEASE_NAME_REPLY_NON_EXISTENT;
+        else if (r == NAME_E_NOT_OWNER)
+                reply = DBUS_RELEASE_NAME_REPLY_NOT_OWNER;
+        else
+                return error_fold(r);
 
         c_dvar_write(out_v, "u", reply);
 

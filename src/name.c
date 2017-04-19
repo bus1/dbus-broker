@@ -93,7 +93,7 @@ bool name_owner_is_primary(NameOwner *owner) {
         return (c_list_first(&owner->entry->owners) == &owner->entry_link);
 }
 
-static void name_owner_update(NameOwner *owner, uint32_t flags, NameChange *change, uint32_t *replyp) {
+static int name_owner_update(NameOwner *owner, uint32_t flags, NameChange *change) {
         NameEntry *entry = owner->entry;
         NameOwner *head;
 
@@ -111,11 +111,11 @@ static void name_owner_update(NameOwner *owner, uint32_t flags, NameChange *chan
                 /* @owner cannot already be linked */
                 c_list_link_front(&entry->owners, &owner->entry_link);
                 owner->flags = flags;
-                *replyp = DBUS_REQUEST_NAME_REPLY_PRIMARY_OWNER;
+                return 0;
         } else if (head == owner) {
                 /* we are already the primary owner */
                 owner->flags = flags;
-                *replyp = DBUS_REQUEST_NAME_REPLY_ALREADY_OWNER;
+                return NAME_E_ALREADY_OWNER;
         } else if ((flags & DBUS_NAME_FLAG_REPLACE_EXISTING) &&
                    (head->flags & DBUS_NAME_FLAG_ALLOW_REPLACEMENT)) {
                 /* we replace the primary owner */
@@ -130,18 +130,18 @@ static void name_owner_update(NameOwner *owner, uint32_t flags, NameChange *chan
                 c_list_unlink(&owner->entry_link);
                 c_list_link_front(&entry->owners, &owner->entry_link);
                 owner->flags = flags;
-                *replyp = DBUS_REQUEST_NAME_REPLY_PRIMARY_OWNER;
+                return 0;
         } else if (!(flags & DBUS_NAME_FLAG_DO_NOT_QUEUE)) {
                 /* we are appended to the queue */
                 if (!c_list_is_linked(&owner->entry_link)) {
                         c_list_link_tail(&entry->owners, &owner->entry_link);
                 }
                 owner->flags = flags;
-                *replyp = DBUS_REQUEST_NAME_REPLY_IN_QUEUE;
+                return NAME_E_IN_QUEUE;
         } else {
                 /* we are dropped */
                 name_owner_free(owner);
-                *replyp = DBUS_REQUEST_NAME_REPLY_EXISTS;
+                return NAME_E_EXISTS;
         }
 }
 
@@ -233,7 +233,7 @@ void name_registry_deinit(NameRegistry *registry) {
         assert(!registry->entries.root);
 }
 
-int name_registry_request_name(NameRegistry *registry, Peer *peer, const char *name, uint32_t flags, NameChange *change, uint32_t *replyp) {
+int name_registry_request_name(NameRegistry *registry, Peer *peer, const char *name, uint32_t flags, NameChange *change) {
         _c_cleanup_(name_entry_unrefp) NameEntry *entry = NULL;
         NameOwner *owner;
         int r;
@@ -246,7 +246,9 @@ int name_registry_request_name(NameRegistry *registry, Peer *peer, const char *n
         if (r)
                 return error_trace(r);
 
-        name_owner_update(owner, flags, change, replyp);
+        r = name_owner_update(owner, flags, change);
+        if (r)
+                return error_trace(r);
 
         return 0;
 }
@@ -255,25 +257,21 @@ NameEntry *name_registry_find_entry(NameRegistry *registry, const char *name) {
         return c_rbtree_find_entry(&registry->entries, name_entry_compare, name, NameEntry, rb);
 }
 
-void name_registry_release_name(NameRegistry *registry, Peer *peer, const char *name, NameChange *change, uint32_t *replyp) {
+int name_registry_release_name(NameRegistry *registry, Peer *peer, const char *name, NameChange *change) {
         NameEntry *entry;
         NameOwner *owner;
 
         entry = name_registry_find_entry(registry, name);
-        if (!entry) {
-                *replyp = DBUS_RELEASE_NAME_REPLY_NON_EXISTENT;
-                return;
-        }
+        if (!entry)
+                return NAME_E_NOT_FOUND;
 
         owner = c_rbtree_find_entry(&peer->names, name_owner_compare, entry, NameOwner, rb);
-        if (!owner) {
-                *replyp = DBUS_RELEASE_NAME_REPLY_NOT_OWNER;
-                return;
-        }
+        if (!owner)
+                return NAME_E_NOT_OWNER;
 
         name_owner_release(owner, change);
 
-        *replyp = DBUS_RELEASE_NAME_REPLY_RELEASED;
+        return 0;
 }
 
 Peer *name_registry_resolve_name(NameRegistry *registry, const char *name) {

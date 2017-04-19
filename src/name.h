@@ -18,6 +18,13 @@ enum {
         _NAME_E_SUCCESS,
 
         NAME_E_QUOTA,
+
+        NAME_E_NOT_FOUND,
+        NAME_E_NOT_OWNER,
+
+        NAME_E_IN_QUEUE,
+        NAME_E_EXISTS,
+        NAME_E_ALREADY_OWNER,
 };
 
 struct NameChange {
@@ -63,17 +70,8 @@ Peer *name_registry_resolve_name(NameRegistry *registry, const char *name);
 void name_registry_init(NameRegistry *registry);
 void name_registry_deinit(NameRegistry *registry);
 
-int name_registry_request_name(NameRegistry *registry,
-                               Peer *peer,
-                               const char *name,
-                               uint32_t flags,
-                               NameChange *change,
-                               uint32_t *replyp);
-void name_registry_release_name(NameRegistry *registry,
-                                Peer *peer,
-                                const char *name,
-                                NameChange *change,
-                                uint32_t *replyp);
+int name_registry_request_name(NameRegistry *registry, Peer *peer, const char *name, uint32_t flags, NameChange *change);
+int name_registry_release_name(NameRegistry *registry, Peer *peer, const char *name, NameChange *change);
 
 static inline NameEntry *name_entry_ref(NameEntry *entry) {
         if (entry)
