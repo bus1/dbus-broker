@@ -7,15 +7,33 @@
 #include "util/error.h"
 
 /**
- * error_slow_fold() - Slow-path of error_fold()
- * @r:          error code to fold
- *
- * This is the slow-path of error_fold(). See its description for details. This
- * function handles the case where we actually have to fold the error code.
- *
- * Return: Folded negative error code.
+ * error_slow_origin() - XXX
  */
-int error_slow_fold(int r) {
-        /* XXX: hook up tracing */
-        return (r <= 0) ? r : -ENOTRECOVERABLE;
+int error_slow_origin(int r, const char *function, const char *file, int line) {
+        assert(r);
+
+        if (r < 0) {
+                int err = errno;
+
+                errno = -r;
+                fprintf(stderr, "ERROR %s @ %s +%d: %m\n", function, file, line);
+                errno = err;
+
+                return r;
+        }
+
+        fprintf(stderr, "ERROR %s @ %s +%d: Return code %d\n", function, file, line, r);
+
+        return -ENOTRECOVERABLE;
+}
+
+/**
+ * error_slow_fold() - XXX
+ */
+int error_slow_fold(int r, const char *function, const char *file, int line) {
+        assert(r < 0);
+
+        fprintf(stderr, "      %s @ %s +%d\n", function, file, line);
+
+        return r;
 }
