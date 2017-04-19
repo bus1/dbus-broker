@@ -57,7 +57,7 @@ static int parse_argv(int argc, char *argv[]) {
 
         if (optind != argc) {
                 fprintf(stderr, "%s: invalid arguments -- '%s'\n", program_invocation_name, argv[optind]);
-                return MAIN_EXIT;
+                return MAIN_FAILED;
         }
 
         return 0;
