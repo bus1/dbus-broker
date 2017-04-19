@@ -21,6 +21,33 @@
 #include <sys/types.h>
 #include "sasl.h"
 
+static void sasl_split(const char *input, size_t n_input,
+                       const char **cmd, size_t *n_cmd,
+                       const char **arg, size_t *n_arg) {
+        /*
+         * Split @cmd into a command and argument. This splits after the
+         * first occurrence of whitespace characters. If the argument is empty
+         * it is treated as non-existant (which is what legacy D-Bus
+         * applications expect).
+         */
+
+        *cmd = input;
+        *arg = memchr(input, ' ', n_input);
+
+        if (*arg) {
+                *n_cmd = *arg - input;
+                *n_arg = n_input - *n_cmd;
+
+                do {
+                        ++*arg;
+                        --*n_arg;
+                } while (*n_arg && **arg == ' ');
+        } else {
+                *n_cmd = n_input;
+                *n_arg = 0;
+        }
+}
+
 void sasl_client_init(SASLClient *sasl) {
         sasl->state = SASL_CLIENT_STATE_INIT;
 }
@@ -39,25 +66,7 @@ int sasl_client_dispatch(SASLClient *sasl, const char *input, size_t n_input, co
         const char *cmd, *arg;
         size_t n_cmd, n_arg;
 
-        /*
-         * Split @input into a command and argument. This splits after the
-         * first occurrence of whitespace characters. If the argument is empty
-         * it is treated as non-existant (which is what legacy D-Bus
-         * applications expect).
-         */
-        n_cmd = n_input;
-        n_arg = 0;
-        cmd = input;
-        arg = memchr(input, ' ', n_input);
-        if (arg) {
-                n_cmd = arg - cmd;
-                n_arg = n_input - n_cmd;
-
-                do {
-                        ++arg;
-                        --n_arg;
-                } while (n_arg && *arg == ' ');
-        }
+        sasl_split(input, n_input, &cmd, &n_cmd, &arg, &n_arg);
 
         switch (sasl->state) {
         case SASL_CLIENT_STATE_INIT:
@@ -298,48 +307,52 @@ static int sasl_server_handle_auth(SASLServer *sasl, const char *input, size_t n
         }
 }
 
-int sasl_server_dispatch(SASLServer *sasl, const char *input, size_t n_input, const char **replyp, size_t *lenp) {
-        const char *argument;
-        size_t n_argument;
+int sasl_server_dispatch(SASLServer *sasl, const char *input, size_t n_input, const char **outputp, size_t *n_outputp) {
+        const char *cmd, *arg;
+        size_t n_cmd, n_arg;
+
+        sasl_split(input, n_input, &cmd, &n_cmd, &arg, &n_arg);
 
         switch (sasl->state) {
         case SASL_SERVER_STATE_INIT:
-                if (sasl_server_command_match("AUTH", input, n_input, &argument, &n_argument)) {
-                        return sasl_server_handle_auth(sasl, argument, n_argument, replyp, lenp);
-                } else if (sasl_server_command_match("ERROR", input, n_input, &argument, &n_argument)) {
-                        sasl_server_send_rejected(sasl, replyp, lenp);
-                } else if (sasl_server_command_match("BEGIN", input, n_input, NULL, NULL)) {
-                        return -EBADMSG;
+                if (n_cmd == strlen("AUTH") && !strncmp(cmd, "AUTH", n_cmd)) {
+                        return sasl_server_handle_auth(sasl, arg, n_arg, outputp, n_outputp);
+                } else if (n_cmd == strlen("ERROR") && !strncmp(cmd, "ERROR", n_cmd)) {
+                        sasl_server_send_rejected(sasl, outputp, n_outputp);
+                } else if (n_cmd == strlen("BEGIN") && !strncmp(cmd, "BEGIN", n_cmd) && !n_arg) {
+                        return SASL_E_FAILURE;
                 } else {
-                        sasl_server_send_error(sasl, replyp, lenp);
+                        sasl_server_send_error(sasl, outputp, n_outputp);
                 }
 
                 break;
 
         case SASL_SERVER_STATE_CHALLENGE:
-                if (sasl_server_command_match("DATA", input, n_input, &argument, &n_argument))
-                        return sasl_server_handle_data(sasl, argument, n_argument, replyp, lenp);
-                else if (sasl_server_command_match("ERROR", input, n_input, &argument, &n_argument) ||
-                         sasl_server_command_match("CANCEL", input, n_input, NULL, NULL))
-                        sasl_server_send_rejected(sasl, replyp, lenp);
-                else if (sasl_server_command_match("BEGIN", input, n_input, NULL, NULL))
-                        return -EBADMSG;
-                else
-                        sasl_server_send_error(sasl, replyp, lenp);
+                if (n_cmd == strlen("DATA") && !strncmp(cmd, "DATA", n_cmd)) {
+                        return sasl_server_handle_data(sasl, arg, n_arg, outputp, n_outputp);
+                } else if ((n_cmd == strlen("ERROR") && !strncmp(cmd, "ERROR", n_cmd)) ||
+                           (n_cmd == strlen("CANCEL") && !strncmp(cmd, "CANCEL", n_cmd) && !n_arg)) {
+                        sasl_server_send_rejected(sasl, outputp, n_outputp);
+                } else if (n_cmd == strlen("BEGIN") && !strncmp(cmd, "BEGIN", n_cmd) && !n_arg) {
+                        return SASL_E_FAILURE;
+                } else {
+                        sasl_server_send_error(sasl, outputp, n_outputp);
+                }
 
                 break;
 
         case SASL_SERVER_STATE_AUTHENTICATED:
         case SASL_SERVER_STATE_NEGOTIATED_FDS:
-                if (sasl_server_command_match("NEGOTIATE_UNIX_FD", input, n_input, NULL, NULL))
-                        sasl_server_send_agree_unix_fd(sasl, replyp, lenp);
-                else if (sasl_server_command_match("BEGIN", input, n_input, NULL, NULL))
+                if (n_cmd == strlen("NEGOTIATE_UNIX_FD") && !strncmp(cmd, "NEGOTIATE_UNIX_FD", n_cmd) && !n_arg) {
+                        sasl_server_send_agree_unix_fd(sasl, outputp, n_outputp);
+                } else if (n_cmd == strlen("BEGIN") && !strncmp(cmd, "BEGIN", n_cmd) && !n_arg) {
                         return 1;
-                else if (sasl_server_command_match("ERROR", input, n_input, &argument, &n_argument) ||
-                           sasl_server_command_match("CANCEL", input, n_input, NULL, NULL))
-                        sasl_server_send_rejected(sasl, replyp, lenp);
-                else
-                        sasl_server_send_error(sasl, replyp, lenp);
+                } else if ((n_cmd == strlen("ERROR") && !strncmp(cmd, "ERROR", n_cmd)) ||
+                           (n_cmd == strlen("CANCEL") && !strncmp(cmd, "CANCEL", n_cmd) && !n_arg)) {
+                        sasl_server_send_rejected(sasl, outputp, n_outputp);
+                } else {
+                        sasl_server_send_error(sasl, outputp, n_outputp);
+                }
 
                 break;
 
