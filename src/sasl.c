@@ -229,59 +229,28 @@ static bool sasl_server_command_match(const char *command, const char *input, si
         return false;
 }
 
-static int uid_from_hexstring(const char *hex, size_t n_hex, uid_t *uidp) {
-        char uid_string[C_DECIMAL_MAX(uid_t)];
-        char *end;
-        unsigned long uid = 0;
-        bool valid;
-
-        if (n_hex / 2 > sizeof(uid_string))
-                return -EBADMSG;
-
-        valid = c_string_from_hex(uid_string, n_hex / 2, hex);
-        if (!valid)
-                return -EBADMSG;
-
-        uid_string[n_hex / 2] = '\0';
-
-        if (uid_string[0] == '-')
-                return -EBADMSG;
-
-        errno = 0;
-        uid = strtoul(uid_string, &end, 10);
-        if (errno != 0)
-                return -errno;
-        if (*end || uid_string == end)
-                return -EBADMSG;
-        if ((unsigned long)(long) uid != uid)
-                return -EBADMSG;
-
-        *uidp = uid;
-        return 0;
-}
-
 static int sasl_server_handle_data(SASLServer *sasl, const char *input, size_t n_input, const char **replyp, size_t *lenp) {
-        uid_t uid;
-        int r;
+        char hexbuf[2 * C_DECIMAL_MAX(uint32_t) + 1];
+        char uidbuf[C_DECIMAL_MAX(uint32_t) + 1];
+        int n;
 
-        if (!input) {
-                /* for the EXTERNAL mechanism data is optional */
-                sasl_server_send_ok(sasl, replyp, lenp);
-                return 0;
+        /*
+         * The EXTERNAL mechanism requires the UID to authenticate as as
+         * argument. If omitted, the server deduces the UID from the socket, in
+         * which case we rely on the kernel to verify its correctness.
+         */
+        if (n_input) {
+                n = snprintf(uidbuf, sizeof(uidbuf), "%" PRIu32, sasl->uid);
+                assert(n >= 0 && n < sizeof(uidbuf));
+
+                c_string_to_hex(uidbuf, n, hexbuf);
+                if (n_input != 2 * n || memcmp(input, hexbuf, 2 * n)) {
+                        sasl_server_send_rejected(sasl, replyp, lenp);
+                        return 0;
+                }
         }
 
-        /* if data was provided it must be valid and match what we expect */
-        r = uid_from_hexstring(input, n_input, &uid);
-        if (r < 0) {
-                sasl_server_send_error(sasl, replyp, lenp);
-                return 0;
-        }
-
-        if (uid == sasl->uid)
-                sasl_server_send_ok(sasl, replyp, lenp);
-        else
-                sasl_server_send_rejected(sasl, replyp, lenp);
-
+        sasl_server_send_ok(sasl, replyp, lenp);
         return 0;
 }
 
