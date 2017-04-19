@@ -13,4 +13,5 @@ enum {
         MAIN_FAILED,
 };
 
+extern int main_arg_controller;
 extern bool main_arg_verbose;

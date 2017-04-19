@@ -4,10 +4,12 @@
 
 #include <c-macro.h>
 #include <getopt.h>
+#include <limits.h>
 #include <stdlib.h>
 #include "main.h"
 #include "manager.h"
 
+int main_arg_controller;
 bool main_arg_verbose;
 
 static void help(void) {
@@ -16,19 +18,24 @@ static void help(void) {
                "  -h --help             Show this help\n"
                "     --version          Show package version\n"
                "  -v --verbose          Print progress to terminal\n"
+               "     --controller FD    Change controller file-descriptor\n"
                , program_invocation_short_name);
 }
 
 static int parse_argv(int argc, char *argv[]) {
         enum {
                 ARG_VERSION = 0x100,
+                ARG_CONTROLLER,
         };
         static const struct option options[] = {
-                { "help",       no_argument,    NULL,   'h'             },
-                { "version",    no_argument,    NULL,   ARG_VERSION     },
-                { "verbose",    no_argument,    NULL,   'v'             },
+                { "help",               no_argument,            NULL,   'h'                     },
+                { "version",            no_argument,            NULL,   ARG_VERSION             },
+                { "verbose",            no_argument,            NULL,   'v'                     },
+                { "controller",         required_argument,      NULL,   ARG_CONTROLLER          },
                 {}
         };
+        unsigned long vul;
+        char *end;
         int c;
 
         while ((c = getopt_long(argc, argv, "hv", options, NULL)) >= 0) {
@@ -43,6 +50,17 @@ static int parse_argv(int argc, char *argv[]) {
 
                 case 'v':
                         main_arg_verbose = true;
+                        break;
+
+                case ARG_CONTROLLER:
+                        errno = 0;
+                        vul = strtoul(optarg, &end, 10);
+                        if (errno != 0 || *end || optarg == end || vul > INT_MAX) {
+                                fprintf(stderr, "%s: invalid controller file-descriptor -- '%s'\n", program_invocation_name, optarg);
+                                return MAIN_FAILED;
+                        }
+
+                        main_arg_controller = vul;
                         break;
 
                 case '?':
