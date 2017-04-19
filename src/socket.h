@@ -27,6 +27,7 @@ enum {
 
         /* socket errors */
         SOCKET_E_RESET,
+        SOCKET_E_OVERLONG_LINE,
 };
 
 struct SocketBuffer {
@@ -83,6 +84,17 @@ void socket_queue_many(Socket *socket, CList *list);
 int socket_queue_line(Socket *socket, const char *line, size_t n);
 int socket_queue_message(Socket *socket, Message *message);
 
+int socket_read(Socket *socket);
 int socket_write(Socket *socket);
 
 C_DEFINE_CLEANUP(Socket *, socket_free);
+
+/* inline helpers */
+
+static inline bool socket_has_input(Socket *socket) {
+        return socket->in.data_pos < socket->in.data_end;
+}
+
+static inline bool socket_has_output(Socket *socket) {
+        return !c_list_is_empty(&socket->out.queue);
+}

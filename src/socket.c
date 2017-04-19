@@ -173,69 +173,6 @@ Socket *socket_free(Socket *socket) {
         return NULL;
 }
 
-static int socket_recvmsg(int fd, void *buffer, size_t *from, size_t *to, FDList **fdsp) {
-        union {
-                struct cmsghdr cmsg;
-                char buffer[CMSG_SPACE(sizeof(int) * SOCKET_FD_MAX)];
-        } control;
-        struct cmsghdr *cmsg;
-        struct msghdr msg;
-        int r, *fds = NULL;
-        size_t n_fds = 0;
-        ssize_t l;
-
-        assert(*to > *from);
-
-        msg = (struct msghdr){
-                .msg_iov = &(struct iovec){
-                        .iov_base = buffer + *from,
-                        .iov_len = *to - *from,
-                },
-                .msg_iovlen = 1,
-                .msg_control = &control,
-                .msg_controllen = sizeof(control),
-        };
-
-        l = recvmsg(fd, &msg, MSG_DONTWAIT | MSG_CMSG_CLOEXEC);
-        if (_c_unlikely_(l <= 0))
-                return (l < 0) ? -errno : -ECONNRESET;
-
-        for (cmsg = CMSG_FIRSTHDR(&msg); cmsg; cmsg = CMSG_NXTHDR(&msg, cmsg)) {
-                if (cmsg->cmsg_level == SOL_SOCKET &&
-                    cmsg->cmsg_type == SCM_RIGHTS) {
-                        /*
-                         * Kernel breaks after SKB+fd, so we never get more
-                         * than one SCM_RIGHTS array.
-                         */
-                        assert(!n_fds);
-                        fds = (void *)CMSG_DATA(cmsg);
-                        n_fds = (cmsg->cmsg_len - CMSG_LEN(0)) / sizeof(int);
-                        assert(n_fds <= SOCKET_FD_MAX);
-                } else {
-                        /* XXX: debug message? */
-                }
-        }
-
-        if (_c_unlikely_(n_fds)) {
-                if (_c_unlikely_(*fdsp)) {
-                        r = -EBADMSG;
-                        goto error;
-                }
-
-                r = fdlist_new_consume_fds(fdsp, fds, n_fds);
-                if (r)
-                        goto error;
-        }
-
-        *from += l;
-        return 0;
-
-error:
-        while (n_fds)
-                close(fds[--n_fds]);
-        return r;
-}
-
 static int socket_line_pop(Socket *socket, const char **linep, size_t *np) {
         char *line;
         size_t n;
@@ -297,42 +234,6 @@ static int socket_line_pop(Socket *socket, const char **linep, size_t *np) {
         return -EAGAIN;
 }
 
-static int socket_line_shift(Socket *socket) {
-        size_t n_unused;
-        char *p;
-
-        n_unused = socket->in.data_size - socket->in.data_end;
-        if (_c_likely_(n_unused))
-                return 0;
-
-        if (socket->in.data_start) {
-                memmove(socket->in.data,
-                        socket->in.data + socket->in.data_start,
-                        socket->in.data_end - socket->in.data_start);
-        } else {
-                if (socket->in.data_size >= SOCKET_LINE_MAX)
-                        return -EMSGSIZE;
-
-                p = malloc(SOCKET_LINE_MAX);
-                if (!p)
-                        return -ENOMEM;
-
-                memcpy(p,
-                       socket->in.data + socket->in.data_start,
-                       socket->in.data_end - socket->in.data_start);
-
-                free(socket->in.data);
-                socket->in.data = p;
-                socket->in.data_size = SOCKET_LINE_MAX;
-        }
-
-        socket->in.data_end -= socket->in.data_start;
-        socket->in.data_pos -= socket->in.data_start;
-        socket->in.data_start = 0;
-
-        return 0;
-}
-
 /**
  * socket_read_line() - XXX
  */
@@ -345,17 +246,8 @@ int socket_read_line(Socket *socket, const char **linep, size_t *np) {
         if (r != -EAGAIN)
                 return r;
 
-        r = socket_line_shift(socket);
-        if (r < 0)
-                return r;
-
-        assert(!socket->in.fds);
-        r = socket_recvmsg(socket->fd,
-                           socket->in.data,
-                           &socket->in.data_end,
-                           &socket->in.data_size,
-                           &socket->in.fds);
-        if (r < 0)
+        r = socket_read(socket);
+        if (r)
                 return r;
 
         return socket_line_pop(socket, linep, np);
@@ -415,21 +307,10 @@ static int socket_message_pop(Socket *socket, Message **messagep) {
         return 0;
 }
 
-static int socket_message_shift(Socket *socket) {
-        memmove(socket->in.data,
-                socket->in.data + socket->in.data_start,
-                socket->in.data_end - socket->in.data_start);
-        socket->in.data_end -= socket->in.data_start;
-        socket->in.data_pos -= socket->in.data_start;
-        socket->in.data_start = 0;
-        return 0;
-}
-
 /**
  * socket_read_message() - XXX
  */
 int socket_read_message(Socket *socket, Message **messagep) {
-        Message *msg;
         int r;
 
         if (_c_unlikely_(!socket->lines_done)) {
@@ -440,28 +321,9 @@ int socket_read_message(Socket *socket, Message **messagep) {
         if (r != -EAGAIN)
                 return r;
 
-        r = socket_message_shift(socket);
-        if (r < 0)
+        r = socket_read(socket);
+        if (r)
                 return r;
-
-        msg = socket->in.pending_message;
-        if (msg && msg->n_data - msg->n_copied >= socket->in.data_size - socket->in.data_end) {
-                r = socket_recvmsg(socket->fd,
-                                   msg->data,
-                                   &msg->n_copied,
-                                   &msg->n_data,
-                                   &msg->fds);
-                if (r < 0)
-                        return r;
-        } else {
-                r = socket_recvmsg(socket->fd,
-                                   socket->in.data,
-                                   &socket->in.data_end,
-                                   &socket->in.data_size,
-                                   &socket->in.fds);
-                if (r < 0)
-                        return r;
-        }
 
         return socket_message_pop(socket, messagep);
 }
@@ -545,6 +407,152 @@ int socket_queue_message(Socket *socket, Message *message) {
                 socket_queue(socket, buffer);
 
         return r;
+}
+
+static int socket_recvmsg(int fd, void *buffer, size_t *from, size_t *to, FDList **fdsp) {
+        union {
+                struct cmsghdr cmsg;
+                char buffer[CMSG_SPACE(sizeof(int) * SOCKET_FD_MAX)];
+        } control;
+        struct cmsghdr *cmsg;
+        struct msghdr msg;
+        int r, *fds = NULL;
+        size_t n_fds = 0;
+        ssize_t l;
+
+        assert(*to > *from);
+
+        msg = (struct msghdr){
+                .msg_iov = &(struct iovec){
+                        .iov_base = buffer + *from,
+                        .iov_len = *to - *from,
+                },
+                .msg_iovlen = 1,
+                .msg_control = &control,
+                .msg_controllen = sizeof(control),
+        };
+
+        l = recvmsg(fd, &msg, MSG_DONTWAIT | MSG_CMSG_CLOEXEC);
+        if (_c_unlikely_(l <= 0))
+                return (l < 0) ? -errno : -ECONNRESET;
+
+        for (cmsg = CMSG_FIRSTHDR(&msg); cmsg; cmsg = CMSG_NXTHDR(&msg, cmsg)) {
+                if (cmsg->cmsg_level == SOL_SOCKET &&
+                    cmsg->cmsg_type == SCM_RIGHTS) {
+                        /*
+                         * Kernel breaks after SKB+fd, so we never get more
+                         * than one SCM_RIGHTS array.
+                         */
+                        assert(!n_fds);
+                        fds = (void *)CMSG_DATA(cmsg);
+                        n_fds = (cmsg->cmsg_len - CMSG_LEN(0)) / sizeof(int);
+                        assert(n_fds <= SOCKET_FD_MAX);
+                } else {
+                        /* XXX: debug message? */
+                }
+        }
+
+        if (_c_unlikely_(n_fds)) {
+                if (_c_unlikely_(*fdsp)) {
+                        r = -EBADMSG;
+                        goto error;
+                }
+
+                r = fdlist_new_consume_fds(fdsp, fds, n_fds);
+                if (r)
+                        goto error;
+        }
+
+        *from += l;
+        return 0;
+
+error:
+        while (n_fds)
+                close(fds[--n_fds]);
+        return r;
+}
+
+/**
+ * socket_read() - XXX
+ */
+int socket_read(Socket *socket) {
+        Message *msg = socket->in.pending_message;
+        void *p;
+
+        assert(!socket_has_input(socket));
+
+        /*
+         * Always shift the input buffer. In case of the line-parser this
+         * should never happen since partial lines are only left behind in rare
+         * scenarios. And for the message-parser, there can be at most one
+         * message header left behind (16 bytes).
+         */
+        memmove(socket->in.data,
+                socket->in.data + socket->in.data_start,
+                socket->in.data_end - socket->in.data_start);
+        socket->in.data_end -= socket->in.data_start;
+        socket->in.data_pos -= socket->in.data_start;
+        socket->in.data_start = 0;
+
+        /*
+         * If there is a pending message, we try to shortcut the input buffer
+         * for overlong payloads. This avoids copying the message twice, at the
+         * cost of being unable to receive multiple messages at once. Hence, if
+         * messages are small, we prefer the round via the input buffer so we
+         * reduce the number of calls into the kernel.
+         */
+        if (_c_unlikely_(msg && msg->n_data - msg->n_copied >= socket->in.data_size - socket->in.data_end))
+                return socket_recvmsg(socket->fd,
+                                      msg->data,
+                                      &msg->n_copied,
+                                      &msg->n_data,
+                                      &msg->fds);
+
+        /*
+         * In case our input buffer is full, we need to resize it. This can
+         * only happen for the line-reader, since messages leave as most 16
+         * bytes behind (size of a single header).
+         * The line-reader, however, parses the entire line into the input
+         * buffer. Hence, in case the normal buffer size is exceeded, we
+         * re-allocate once to the maximum.
+         */
+        if (_c_unlikely_(socket->in.data_size <= socket->in.data_end)) {
+                if (socket->in.data_size >= SOCKET_LINE_MAX)
+                        return SOCKET_E_OVERLONG_LINE;
+
+                p = malloc(SOCKET_LINE_MAX);
+                if (!p)
+                        return -ENOMEM;
+
+                memcpy(p,
+                       socket->in.data + socket->in.data_start,
+                       socket->in.data_end - socket->in.data_start);
+
+                free(socket->in.data);
+                socket->in.data = p;
+                socket->in.data_size = SOCKET_LINE_MAX;
+                socket->in.data_end -= socket->in.data_start;
+                socket->in.data_pos -= socket->in.data_start;
+                socket->in.data_start = 0;
+        }
+
+        /*
+         * Read more data into the input buffer, and store the file-descriptors
+         * in the buffer as well. We always ask the kernel to fill the entire
+         * input buffer, so we get as much data as possible.
+         *
+         * Note that the kernel always breaks recvmsg() calls after an SKB with
+         * file-descriptor payload. Hence, this could be improvded with
+         * recvmmsg() so we get multiple messages at all cost. However, FD
+         * passing is no fast-path and should never be, so there is little
+         * reason to resort to recvmmsg() (which would be non-trivial, anyway,
+         * since we would need multiple input buffers).
+         */
+        return socket_recvmsg(socket->fd,
+                              socket->in.data,
+                              &socket->in.data_end,
+                              &socket->in.data_size,
+                              &socket->in.fds);
 }
 
 /**
