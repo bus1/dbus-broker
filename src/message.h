@@ -14,6 +14,12 @@ typedef struct MessageHeader MessageHeader;
 
 #define MESSAGE_SIZE_MAX (128UL * 1024UL * 1024UL) /* taken from spec */
 
+enum {
+        _MESSAGE_E_SUCCESS,
+
+        MESSAGE_E_CORRUPT_HEADER,
+};
+
 struct MessageHeader {
         uint8_t endian;
         uint8_t type;

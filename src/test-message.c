@@ -32,33 +32,33 @@ static void test_size(void) {
 
         hdr.n_body = 0;
         r = message_new_incoming(&m, hdr);
-        assert(r >= 0);
+        assert(r == 0);
         message_unref(m);
 
         hdr.n_body = 128;
         r = message_new_incoming(&m, hdr);
-        assert(r >= 0);
+        assert(r == 0);
         message_unref(m);
 
         hdr.n_body = 128UL * 1024UL * 1024UL - sizeof(MessageHeader);
         r = message_new_incoming(&m, hdr);
-        assert(r >= 0);
+        assert(r == 0);
         message_unref(m);
 
         hdr.n_body = 128UL * 1024UL * 1024UL - sizeof(MessageHeader) + 1UL;
         r = message_new_incoming(&m, hdr);
-        assert(r < 0);
+        assert(r == MESSAGE_E_CORRUPT_HEADER);
 
         hdr.n_fields = 8;
         hdr.n_body = 128UL * 1024UL * 1024UL - sizeof(MessageHeader) - 8;
         r = message_new_incoming(&m, hdr);
-        assert(r >= 0);
+        assert(r == 0);
         message_unref(m);
 
         hdr.n_fields = 8 + 1;
         hdr.n_body = 128UL * 1024UL * 1024UL - sizeof(MessageHeader) - 8;
         r = message_new_incoming(&m, hdr);
-        assert(r < 0);
+        assert(r == MESSAGE_E_CORRUPT_HEADER);
 }
 
 int main(int argc, char **argv) {

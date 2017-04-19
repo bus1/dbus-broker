@@ -48,12 +48,12 @@ int message_new_incoming(Message **messagep, MessageHeader header) {
                 n_header = sizeof(header) + (uint64_t)be32toh(header.n_fields);
                 n_body = (uint64_t)be32toh(header.n_body);
         } else {
-                return -EBADMSG;
+                return MESSAGE_E_CORRUPT_HEADER;
         }
 
         n_data = c_align8(n_header) + n_body;
         if (n_data > MESSAGE_SIZE_MAX)
-                return -EMSGSIZE;
+                return MESSAGE_E_CORRUPT_HEADER;
 
         r = message_new(&message, (header.endian == 'B'), n_data);
         if (r)
