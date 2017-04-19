@@ -262,9 +262,12 @@ static int driver_method_hello(Peer *peer, CDVar *in_v, CDVar *out_v) {
 }
 
 static int driver_method_request_name(Peer *peer, CDVar *in_v, CDVar *out_v) {
+        NameChange change;
         const char *name;
         uint32_t flags, reply;
         int r;
+
+        name_change_init(&change);
 
         c_dvar_read(in_v, "(su)", &name, &flags);
 
@@ -272,19 +275,24 @@ static int driver_method_request_name(Peer *peer, CDVar *in_v, CDVar *out_v) {
         if (r)
                 return (r > 0) ? -ENOTRECOVERABLE : r;
 
-        r = name_registry_request_name(&peer->bus->names, peer, name, flags, &reply);
+        r = name_registry_request_name(&peer->bus->names, peer, name, flags, &change, &reply);
         if (r)
                 return (r > 0) ? -ENOTRECOVERABLE : r;
 
         c_dvar_write(out_v, "u", reply);
 
+        name_change_deinit(&change);
+
         return 0;
 }
 
 static int driver_method_release_name(Peer *peer, CDVar *in_v, CDVar *out_v) {
+        NameChange change;
         const char *name;
         uint32_t reply;
         int r;
+
+        name_change_init(&change);
 
         c_dvar_read(in_v, "(s)", &name);
 
@@ -292,9 +300,11 @@ static int driver_method_release_name(Peer *peer, CDVar *in_v, CDVar *out_v) {
         if (r)
                 return (r > 0) ? -ENOTRECOVERABLE : r;
 
-        name_registry_release_name(&peer->bus->names, peer, name, &reply);
+        name_registry_release_name(&peer->bus->names, peer, name, &change, &reply);
 
         c_dvar_write(out_v, "u", reply);
+
+        name_change_deinit(&change);
 
         return 0;
 }

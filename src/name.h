@@ -9,9 +9,16 @@
 #include <stdlib.h>
 #include "peer.h"
 
+typedef struct NameChange NameChange;
 typedef struct NameOwner NameOwner;
 typedef struct NameEntry NameEntry;
 typedef struct NameRegistry NameRegistry;
+
+struct NameChange {
+        NameEntry *name;
+        Peer *old_owner;
+        Peer *new_owner;
+};
 
 struct NameOwner {
         Peer *peer;
@@ -35,6 +42,9 @@ struct NameRegistry {
         CRBTree entries;
 };
 
+void name_change_init(NameChange *change);
+void name_change_deinit(NameChange *change);
+
 NameOwner *name_owner_free(NameOwner *owner);
 bool name_owner_is_primary(NameOwner *owner);
 
@@ -51,13 +61,13 @@ int name_registry_request_name(NameRegistry *registry,
                                Peer *peer,
                                const char *name,
                                uint32_t flags,
+                               NameChange *change,
                                uint32_t *replyp);
 void name_registry_release_name(NameRegistry *registry,
                                 Peer *peer,
                                 const char *name,
+                                NameChange *change,
                                 uint32_t *replyp);
-
-void name_registry_release_all_names(NameRegistry *registry, Peer *peer);
 
 static inline NameEntry *name_entry_ref(NameEntry *entry) {
         if (entry)
