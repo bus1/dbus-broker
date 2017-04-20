@@ -19,7 +19,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
-#include "sasl.h"
+#include "dbus/sasl.h"
 #include "util/error.h"
 
 static void sasl_split(const char *input, size_t n_input,

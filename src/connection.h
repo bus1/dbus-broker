@@ -7,7 +7,7 @@
 #include <c-list.h>
 #include <stdlib.h>
 #include <sys/types.h>
-#include "sasl.h"
+#include "dbus/sasl.h"
 #include "util/dispatch.h"
 
 typedef struct Connection Connection;

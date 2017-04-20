@@ -4,7 +4,7 @@
 
 #include <c-macro.h>
 #include <stdlib.h>
-#include "sasl.h"
+#include "dbus/sasl.h"
 
 static void test_setup(void) {
         SASLServer sasl;
