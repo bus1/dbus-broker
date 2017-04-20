@@ -81,11 +81,27 @@ static void test_setup(void) {
 
         r = sd_bus_message_get_type(message2, &type);
         assert(r >= 0);
-        assert(type = SD_BUS_MESSAGE_METHOD_CALL);
+        assert(type == SD_BUS_MESSAGE_SIGNAL);
 
         r = sd_bus_message_get_cookie(message2, &cookie2);
         assert(r >= 0);
-        assert(cookie1 == cookie2);
+        assert(cookie2 == (uint32_t)-1);
+
+        sd_bus_message_unref(message2);
+
+        r = sd_bus_wait(bus2, -1);
+        assert(r == 1);
+
+        r = sd_bus_process(bus2, &message2);
+        assert(r > 0);
+
+        r = sd_bus_message_get_type(message2, &type);
+        assert(r >= 0);
+        assert(type == SD_BUS_MESSAGE_METHOD_CALL);
+
+        r = sd_bus_message_get_cookie(message2, &cookie2);
+        assert(r >= 0);
+        assert(cookie2 == cookie1);
 
         r = pthread_kill(thread, SIGTERM);
         assert(r == 0);

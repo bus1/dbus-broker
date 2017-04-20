@@ -235,13 +235,96 @@ static void driver_write_reply_header(CDVar *var, Peer *peer, uint32_t serial, c
         c_dvar_write(var, ">)])");
 }
 
-static int driver_notify_name_lost(Peer *peer, const char *name) {
-        /* XXX */
-        return 0;
+static void driver_write_unicast_signal_header(CDVar *var, Peer *peer, const char *member, const char *signature) {
+        c_dvar_write(var, "(yyyyuu[(y<s>)(y<",
+                     c_dvar_is_big_endian(var) ? 'B' : 'l', DBUS_MESSAGE_TYPE_SIGNAL, DBUS_HEADER_FLAG_NO_REPLY_EXPECTED, 1, 0, (uint32_t)-1,
+                     DBUS_MESSAGE_FIELD_SENDER, c_dvar_type_s, "org.freedesktop.DBus",
+                     DBUS_MESSAGE_FIELD_DESTINATION, c_dvar_type_s);
+        driver_dvar_write_unique_name(var, peer);
+        c_dvar_write(var, ">)(y<o>)(y<s>)(y<s>)(y<g>)])",
+                     DBUS_MESSAGE_FIELD_PATH, c_dvar_type_o, "/org/freedesktop/DBus",
+                     DBUS_MESSAGE_FIELD_INTERFACE, c_dvar_type_s, "org.freedesktop.DBus",
+                     DBUS_MESSAGE_FIELD_MEMBER, c_dvar_type_s, member,
+                     DBUS_MESSAGE_FIELD_SIGNATURE, c_dvar_type_g, signature);
 }
 
 static int driver_notify_name_acquired(Peer *peer, const char *name) {
-        /* XXX */
+        static const CDVarType type[] = {
+                C_DVAR_T_INIT(
+                        DRIVER_T_MESSAGE(
+                                C_DVAR_T_TUPLE1(
+                                        C_DVAR_T_s
+                                )
+                        )
+                )
+        };
+        _c_cleanup_(c_dvar_freep) CDVar *var = NULL;
+        _c_cleanup_(message_unrefp) Message *message = NULL;
+        void *data;
+        size_t n_data;
+        int r;
+
+        r = c_dvar_new(&var);
+        if (r)
+                return error_origin(r);
+
+        c_dvar_begin_write(var, type);
+        c_dvar_write(var, "(");
+        driver_write_unicast_signal_header(var, peer, "NameAcquired", "s");
+        c_dvar_write(var, "(s)", name);
+        c_dvar_write(var, ")");
+        r = c_dvar_end_write(var, &data, &n_data);
+        if (r)
+                return error_origin(r);
+
+        r = message_new_outgoing(&message, data, n_data);
+        if (r)
+                return error_fold(r);
+
+        r = connection_queue_message(&peer->connection, message);
+        if (r)
+                return error_fold(r);
+
+        return 0;
+}
+
+static int driver_notify_name_lost(Peer *peer, const char *name) {
+        static const CDVarType type[] = {
+                C_DVAR_T_INIT(
+                        DRIVER_T_MESSAGE(
+                                C_DVAR_T_TUPLE1(
+                                        C_DVAR_T_s
+                                )
+                        )
+                )
+        };
+        _c_cleanup_(c_dvar_freep) CDVar *var = NULL;
+        _c_cleanup_(message_unrefp) Message *message = NULL;
+        void *data;
+        size_t n_data;
+        int r;
+
+        r = c_dvar_new(&var);
+        if (r)
+                return error_origin(r);
+
+        c_dvar_begin_write(var, type);
+        c_dvar_write(var, "(");
+        driver_write_unicast_signal_header(var, peer, "NameLost", "s");
+        c_dvar_write(var, "(s)", name);
+        c_dvar_write(var, ")");
+        r = c_dvar_end_write(var, &data, &n_data);
+        if (r)
+                return error_origin(r);
+
+        r = message_new_outgoing(&message, data, n_data);
+        if (r)
+                return error_fold(r);
+
+        r = connection_queue_message(&peer->connection, message);
+        if (r)
+                return error_fold(r);
+
         return 0;
 }
 
