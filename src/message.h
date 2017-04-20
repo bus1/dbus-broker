@@ -18,6 +18,7 @@ enum {
         _MESSAGE_E_SUCCESS,
 
         MESSAGE_E_CORRUPT_HEADER,
+        MESSAGE_E_TOO_LARGE,
 };
 
 struct MessageHeader {

@@ -47,7 +47,7 @@ static void test_size(void) {
 
         hdr.n_body = 128UL * 1024UL * 1024UL - sizeof(MessageHeader) + 1UL;
         r = message_new_incoming(&m, hdr);
-        assert(r == MESSAGE_E_CORRUPT_HEADER);
+        assert(r == MESSAGE_E_TOO_LARGE);
 
         hdr.n_fields = 8;
         hdr.n_body = 128UL * 1024UL * 1024UL - sizeof(MessageHeader) - 8;
@@ -58,7 +58,7 @@ static void test_size(void) {
         hdr.n_fields = 8 + 1;
         hdr.n_body = 128UL * 1024UL * 1024UL - sizeof(MessageHeader) - 8;
         r = message_new_incoming(&m, hdr);
-        assert(r == MESSAGE_E_CORRUPT_HEADER);
+        assert(r == MESSAGE_E_TOO_LARGE);
 }
 
 int main(int argc, char **argv) {

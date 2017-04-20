@@ -54,7 +54,7 @@ int message_new_incoming(Message **messagep, MessageHeader header) {
 
         n_data = c_align8(n_header) + n_body;
         if (n_data > MESSAGE_SIZE_MAX)
-                return MESSAGE_E_CORRUPT_HEADER;
+                return MESSAGE_E_TOO_LARGE;
 
         r = message_new(&message, (header.endian == 'B'), n_data);
         if (r)
