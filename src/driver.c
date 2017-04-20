@@ -13,6 +13,7 @@
 #include "dbus/socket.h"
 #include "dbus-protocol.h"
 #include "driver.h"
+#include "match.h"
 #include "peer.h"
 #include "util/error.h"
 
@@ -339,7 +340,67 @@ static int driver_notify_name_lost(Peer *peer, const char *name) {
 }
 
 static int driver_notify_name_owner_changed(Bus *bus, const char *name, Peer *old_owner, Peer *new_owner) {
-        /* XXX */
+        MatchFilter filter = {
+                .type = DBUS_MESSAGE_TYPE_SIGNAL,
+                .interface = "org.freedesktop.DBus",
+                .member = "NameOwnerChanged",
+                .path = "/org/freedesktop/DBus",
+        };
+        static const CDVarType type[] = {
+                C_DVAR_T_INIT(
+                        DRIVER_T_MESSAGE(
+                                C_DVAR_T_TUPLE3(
+                                        C_DVAR_T_s,
+                                        C_DVAR_T_s,
+                                        C_DVAR_T_s
+                                )
+                        )
+                )
+        };
+        _c_cleanup_(c_dvar_freep) CDVar *var = NULL;
+        _c_cleanup_(message_unrefp) Message *message = NULL;
+        MatchRule *rule;
+        void *data;
+        size_t n_data;
+        int r;
+
+        r = c_dvar_new(&var);
+        if (r)
+                return error_origin(r);
+
+        c_dvar_begin_write(var, type);
+        c_dvar_write(var, "(");
+        driver_write_signal_header(var, NULL, "NameOwnerChanged", "sss");
+        c_dvar_write(var, "(s", name);
+        driver_dvar_write_unique_name(var, old_owner);
+        driver_dvar_write_unique_name(var, new_owner);
+        c_dvar_write(var, ")");
+        c_dvar_write(var, ")");
+        r = c_dvar_end_write(var, &data, &n_data);
+        if (r)
+                return error_origin(r);
+
+        r = message_new_outgoing(&message, data, n_data);
+        if (r)
+                return error_fold(r);
+
+        filter.args[0] = name;
+        filter.argpaths[0] = name;
+        /* XXX: also hook up the old and new owner names */
+
+        for (rule = match_rule_next(&bus->wildcard_matches, NULL, &filter); rule; match_rule_next(&bus->wildcard_matches, rule, &filter)) {
+
+                r = connection_queue_message(&rule->peer->connection, message);
+                if (r)
+                        return error_fold(r);
+        }
+
+        for (rule = match_rule_next(&bus->driver_matches, NULL, &filter); rule; match_rule_next(&bus->driver_matches, rule, &filter)) {
+
+                r = connection_queue_message(&rule->peer->connection, message);
+                if (r)
+                        return error_fold(r);
+        }
 
         return 0;
 }
