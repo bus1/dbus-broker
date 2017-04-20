@@ -557,7 +557,18 @@ static int driver_method_list_names(Peer *peer, CDVar *in_v, CDVar *out_v, NameC
         for (CRBNode *n = c_rbtree_first(&peer->bus->names.entries); n; n = c_rbnode_next(n)) {
                 NameEntry *entry = c_container_of(n, NameEntry, rb);
 
+                if (!name_entry_is_owned(entry))
+                        continue;
+
                 c_dvar_write(out_v, "s", entry->name);
+        }
+        for (CRBNode *n = c_rbtree_first(&peer->bus->peers.peers); n; n = c_rbnode_next(n)) {
+                Peer *p = c_container_of(n, Peer, rb);
+
+                if (!peer_is_registered(p))
+                        continue;
+
+                driver_dvar_write_unique_name(out_v, p);
         }
         c_dvar_write(out_v, ")");
 

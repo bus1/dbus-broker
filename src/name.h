@@ -64,6 +64,8 @@ bool name_owner_is_primary(NameOwner *owner);
 int name_entry_get(NameEntry **entryp, NameRegistry *registry, const char *name);
 void name_entry_free(_Atomic unsigned long *n_refs, void *userpointer);
 
+bool name_entry_is_owned(NameEntry *entry);
+
 NameEntry *name_registry_find_entry(NameRegistry *registry, const char *name);
 Peer *name_registry_resolve_name(NameRegistry *registry, const char *name);
 

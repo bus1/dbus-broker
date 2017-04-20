@@ -202,6 +202,10 @@ void name_entry_free(_Atomic unsigned long *n_refs, void *userpointer) {
         free(entry);
 }
 
+bool name_entry_is_owned(NameEntry *entry) {
+        return !c_list_is_empty(&entry->owners);
+}
+
 static int name_entry_compare(CRBTree *tree, void *k, CRBNode *rb) {
         NameEntry *entry = c_container_of(rb, NameEntry, rb);
         char *name = k;
