@@ -322,7 +322,7 @@ static int driver_method_request_name(Peer *peer, CDVar *in_v, CDVar *out_v) {
                 reply = DBUS_REQUEST_NAME_REPLY_IN_QUEUE;
         else if (r == NAME_E_EXISTS)
                 reply = DBUS_REQUEST_NAME_REPLY_EXISTS;
-        else if (r = NAME_E_ALREADY_OWNER)
+        else if (r == NAME_E_ALREADY_OWNER)
                 reply = DBUS_REQUEST_NAME_REPLY_ALREADY_OWNER;
         else
                 return error_fold(r);
