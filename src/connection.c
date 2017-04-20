@@ -230,6 +230,26 @@ int connection_dequeue(Connection *connection, Message **messagep) {
 }
 
 /**
+ * connection_queue() - XXX
+ */
+int connection_queue(Connection *connection, SocketBuffer *skb) {
+        socket_queue(&connection->socket, skb);
+
+        dispatch_file_select(&connection->socket_file, EPOLLOUT);
+        return 0;
+}
+
+/**
+ * connection_queu_many() - XXX
+ */
+int connection_queue_many(Connection *connection, CList *skbs) {
+        socket_queue_many(&connection->socket, skbs);
+
+        dispatch_file_select(&connection->socket_file, EPOLLOUT);
+        return 0;
+}
+
+/**
  * connection_queue_message() - XXX
  */
 int connection_queue_message(Connection *connection, Message *message) {
