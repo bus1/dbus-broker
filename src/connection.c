@@ -17,17 +17,17 @@ static int connection_dispatch_line(Connection *connection, DispatchFile *file, 
         int r;
 
         if (connection->server) {
-                r = sasl_server_dispatch(&connection->sasl_server, input, n_input, &output, &n_output);
+                r = sasl_server_dispatch(&connection->sasl.server, input, n_input, &output, &n_output);
                 if (r)
                         return error_fold(r);
 
-                connection->authenticated = sasl_server_is_done(&connection->sasl_server);
+                connection->authenticated = sasl_server_is_done(&connection->sasl.server);
         } else {
-                r = sasl_client_dispatch(&connection->sasl_client, input, n_input, &output, &n_output);
+                r = sasl_client_dispatch(&connection->sasl.client, input, n_input, &output, &n_output);
                 if (r)
                         return error_fold(r);
 
-                connection->authenticated = sasl_client_is_done(&connection->sasl_client);
+                connection->authenticated = sasl_client_is_done(&connection->sasl.client);
         }
 
         if (output && n_output) {
@@ -133,11 +133,11 @@ int connection_init(Connection *connection, DispatchFile *file, int fd, bool ser
         connection->server = server;
 
         if (server) {
-                sasl_server_init(&connection->sasl_server, uid, guid);
+                sasl_server_init(&connection->sasl.server, uid, guid);
         } else {
-                sasl_client_init(&connection->sasl_client);
+                sasl_client_init(&connection->sasl.client);
 
-                r = sasl_client_dispatch(&connection->sasl_client, NULL, 0, &request, &n_request);
+                r = sasl_client_dispatch(&connection->sasl.client, NULL, 0, &request, &n_request);
                 if (r)
                         return error_fold(r);
 
@@ -156,8 +156,8 @@ int connection_init(Connection *connection, DispatchFile *file, int fd, bool ser
  */
 void connection_deinit(Connection *connection) {
         if (connection->server)
-                sasl_server_deinit(&connection->sasl_server);
+                sasl_server_deinit(&connection->sasl.server);
         else
-                sasl_client_deinit(&connection->sasl_client);
+                sasl_client_deinit(&connection->sasl.client);
         connection->socket = socket_free(connection->socket);
 }

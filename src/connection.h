@@ -17,10 +17,11 @@ typedef struct Socket Socket;
 struct Connection {
         bool authenticated : 1;
         bool server : 1;
+
         union {
-                SASLClient sasl_client;
-                SASLServer sasl_server;
-        };
+                SASLServer server;
+                SASLClient client;
+        } sasl;
 
         Socket *socket;
 };
