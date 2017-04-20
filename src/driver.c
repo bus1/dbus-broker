@@ -246,12 +246,20 @@ static int driver_notify_name_acquired(Peer *peer, const char *name) {
 }
 
 static int driver_notify_name_owner_changed(const char *name, Peer *old_owner, Peer *new_owner) {
+        char unique_name[strlen(":1.") + C_DECIMAL_MAX(uint64_t) + 1];
         int r;
 
         assert(old_owner || new_owner);
         assert(name || !old_owner || !new_owner);
 
-        /* XXX: in case name is not given, generate it from the calling peer */
+        if (!name) {
+                Peer *peer = new_owner ? : new_owner;
+
+                r = snprintf(unique_name, sizeof(unique_name), ":1.%"PRIu64, peer->id);
+                assert(r >= 0 && r < sizeof(unique_name));
+
+                name = unique_name;
+        }
 
         if (old_owner) {
                 r = driver_notify_name_lost(old_owner, name);
