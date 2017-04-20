@@ -53,7 +53,7 @@ void sasl_client_init(SASLClient *sasl) {
 }
 
 void sasl_client_deinit(SASLClient *sasl) {
-        /* nothing to do */
+        *sasl = (SASLClient){};
 }
 
 int sasl_client_dispatch(SASLClient *sasl, const char *input, size_t n_input, const char **outputp, size_t *n_outputp) {
