@@ -20,6 +20,7 @@
 #include <string.h>
 #include <sys/types.h>
 #include "sasl.h"
+#include "util/error.h"
 
 static void sasl_split(const char *input, size_t n_input,
                        const char **cmd, size_t *n_cmd,
@@ -116,8 +117,7 @@ int sasl_client_dispatch(SASLClient *sasl, const char *input, size_t n_input, co
                 break;
 
         default:
-                assert(0);
-                return -ENOTRECOVERABLE;
+                return error_origin(-ENOTRECOVERABLE);
         }
 
         return 0;
@@ -248,8 +248,7 @@ int sasl_server_dispatch(SASLServer *sasl, const char *input, size_t n_input, co
                 break;
 
         default:
-                assert(0);
-                return -ENOTRECOVERABLE;
+                return error_origin(-ENOTRECOVERABLE);
         }
 
         return 0;
