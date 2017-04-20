@@ -284,5 +284,5 @@ Peer *name_registry_resolve_name(NameRegistry *registry, const char *name) {
 
         owner = c_list_first_entry(&entry->owners, NameOwner, entry_link);
 
-        return owner->peer;
+        return owner ? owner->peer : NULL;
 }
