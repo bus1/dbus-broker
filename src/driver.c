@@ -10,10 +10,10 @@
 #include <sys/epoll.h>
 #include "bus.h"
 #include "dbus/message.h"
+#include "dbus/socket.h"
 #include "dbus-protocol.h"
 #include "driver.h"
 #include "peer.h"
-#include "socket.h"
 #include "util/error.h"
 
 typedef struct DriverMethod DriverMethod;

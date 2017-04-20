@@ -7,7 +7,7 @@
 #include <sys/epoll.h>
 #include <sys/types.h>
 #include "connection.h"
-#include "socket.h"
+#include "dbus/socket.h"
 #include "util/dispatch.h"
 #include "util/error.h"
 

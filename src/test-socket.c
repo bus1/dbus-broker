@@ -7,7 +7,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include "dbus/message.h"
-#include "socket.h"
+#include "dbus/socket.h"
 
 static void test_setup(void) {
         _c_cleanup_(socket_freep) Socket *server = NULL, *client = NULL;
