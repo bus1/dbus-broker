@@ -21,27 +21,61 @@
 #include "reply.h"
 #include "user.h"
 #include "util/dispatch.h"
+#include "util/error.h"
 #include "util/fdlist.h"
 
 static int peer_forward_method_call(Peer *sender, const char *destination, uint32_t serial, Message *message) {
+        _c_cleanup_(socket_buffer_freep) SocketBuffer *skb = NULL;
         _c_cleanup_(reply_slot_freep) ReplySlot *slot = NULL;
-        Peer *receiver;
+        NameEntry *receiver_name;
+        Peer *receiver_peer;
         int r;
 
-        receiver = bus_find_peer_by_name(sender->bus, destination);
-        if (!receiver)
-                return -EBADMSG;
+        r = socket_buffer_new_message(&skb, message);
+        if (r)
+                return error_fold(r);
 
-        if (!(message->header->flags & DBUS_HEADER_FLAG_NO_REPLY_EXPECTED)) {
-                r = reply_slot_new(&slot, &receiver->replies_outgoing, sender, serial);
-                if (r < 0)
-                        return r;
+        if (*destination != ':') {
+                NameOwner *owner;
+
+                receiver_name = name_registry_find_entry(&sender->bus->names, destination);
+                if (!receiver_name)
+                        return -EBADMSG;
+
+                owner = c_list_first_entry(&receiver_name->owners, NameOwner, entry_link);
+                if (!owner) {
+                        if (!receiver_name->activatable)
+                                return -EBADMSG;
+
+                        /* XXX: request activation and register reply object */
+                        c_list_link_tail(&receiver_name->pending_skbs, &skb->link);
+                        skb = NULL;
+                        slot = NULL;
+                        return 0;
+                } else {
+                        receiver_peer = owner->peer;
+                }
+        } else {
+                uint64_t id;
+
+                r = peer_id_from_unique_name(destination, &id);
+                if (r)
+                        return error_trace(r);
+
+                receiver_peer = peer_registry_find_peer(&sender->bus->peers, id);
+                if (!receiver_peer)
+                        return -EBADMSG;
         }
 
-        r = connection_queue_message(&receiver->connection, message);
-        if (r)
-                return (r > 0) ? -ENOTRECOVERABLE : r;
+        if (!(message->header->flags & DBUS_HEADER_FLAG_NO_REPLY_EXPECTED)) {
+                r = reply_slot_new(&slot, &receiver_peer->replies_outgoing, sender, serial);
+                if (r)
+                        return error_fold(r);
+        }
 
+        connection_queue(&receiver_peer->connection, skb);
+
+        skb = NULL;
         slot = NULL;
 
         return 0;

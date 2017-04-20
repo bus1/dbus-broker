@@ -44,7 +44,12 @@ struct NameOwner {
 struct NameEntry {
         _Atomic unsigned long n_refs;
         NameRegistry *registry;
+
+        bool activatable : 1;
+        CList pending_skbs;
+
         MatchRegistry matches;
+
         CList owners;
         CRBNode rb;
         const char name[];

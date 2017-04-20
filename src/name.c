@@ -108,6 +108,12 @@ static int name_owner_update(NameOwner *owner, uint32_t flags, NameChange *chang
                 change->new_owner = owner->peer;
                 change->old_owner = NULL;
 
+                /* queue pending messages */
+                if (entry->activatable) {
+                        connection_queue_many(&owner->peer->connection, &entry->pending_skbs);
+                        entry->pending_skbs = (CList)C_LIST_INIT(entry->pending_skbs);
+                }
+
                 /* @owner cannot already be linked */
                 c_list_link_front(&entry->owners, &owner->entry_link);
                 owner->flags = flags;
@@ -181,6 +187,7 @@ static int name_entry_new(NameEntry **entryp, NameRegistry *registry, const char
 
         entry->n_refs = C_REF_INIT;
         entry->registry = registry;
+        entry->pending_skbs = (CList)C_LIST_INIT(entry->pending_skbs);
         match_registry_init(&entry->matches);
         c_rbtree_add(&registry->entries, parent, slot, &entry->rb);
         entry->owners = (CList)C_LIST_INIT(entry->owners);
@@ -193,6 +200,7 @@ static int name_entry_new(NameEntry **entryp, NameRegistry *registry, const char
 void name_entry_free(_Atomic unsigned long *n_refs, void *userpointer) {
         NameEntry *entry = c_container_of(n_refs, NameEntry, n_refs);
 
+        assert(c_list_is_empty(&entry->pending_skbs));
         assert(c_list_is_empty(&entry->owners));
 
         c_rbtree_remove(&entry->registry->entries, &entry->rb);
