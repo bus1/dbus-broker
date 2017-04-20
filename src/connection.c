@@ -31,7 +31,7 @@ static int connection_dispatch_line(Connection *connection, DispatchFile *file, 
         }
 
         if (output && n_output) {
-                r = socket_queue_line(connection->socket, output, n_output);
+                r = socket_queue_line(&connection->socket, output, n_output);
                 if (r)
                         return error_fold(r);
 
@@ -46,7 +46,7 @@ int connection_dispatch_read(Connection *connection, DispatchFile *file, Message
         size_t n_input;
         int r;
 
-        r = socket_read(connection->socket);
+        r = socket_read(&connection->socket);
         if (!r) {
                 /* kernel event handled, interest did not change */
                 dispatch_file_clear(file, EPOLLIN);
@@ -60,7 +60,7 @@ int connection_dispatch_read(Connection *connection, DispatchFile *file, Message
 
         if (_c_unlikely_(!connection->authenticated)) {
                 do {
-                        r = socket_read_line(connection->socket, &input, &n_input);
+                        r = socket_read_line(&connection->socket, &input, &n_input);
                         if (r)
                                 return error_fold(r);
 
@@ -75,7 +75,7 @@ int connection_dispatch_read(Connection *connection, DispatchFile *file, Message
                 } while (!connection->authenticated);
         }
 
-        r = socket_read_message(connection->socket, messagep);
+        r = socket_read_message(&connection->socket, messagep);
         if (r)
                 return error_fold(r);
 
@@ -88,7 +88,7 @@ int connection_dispatch_read(Connection *connection, DispatchFile *file, Message
 int connection_dispatch_write(Connection *connection, DispatchFile *file) {
         int r;
 
-        r = socket_write(connection->socket);
+        r = socket_write(&connection->socket);
         if (!r) {
                 /* kernel event handled, interest did not change */
                 dispatch_file_clear(file, EPOLLOUT);
@@ -109,7 +109,7 @@ int connection_dispatch_write(Connection *connection, DispatchFile *file) {
 int connection_queue_message(Connection *connection, DispatchFile *file, Message *message) {
         int r;
 
-        r = socket_queue_message(connection->socket, message);
+        r = socket_queue_message(&connection->socket, message);
         if (r)
                 return error_fold(r);
 
@@ -126,7 +126,7 @@ int connection_init(Connection *connection, DispatchFile *file, int fd, bool ser
         size_t n_request;
         int r;
 
-        r = socket_new(&connection->socket, fd, server);
+        r = socket_init(&connection->socket, fd, server);
         if (r < 0)
                 return error_fold(r);
 
@@ -141,7 +141,7 @@ int connection_init(Connection *connection, DispatchFile *file, int fd, bool ser
                 if (r)
                         return error_fold(r);
 
-                r = socket_queue_line(connection->socket, request, n_request);
+                r = socket_queue_line(&connection->socket, request, n_request);
                 if (r)
                         return error_fold(r);
 
@@ -159,5 +159,5 @@ void connection_deinit(Connection *connection) {
                 sasl_server_deinit(&connection->sasl.server);
         else
                 sasl_client_deinit(&connection->sasl.client);
-        connection->socket = socket_free(connection->socket);
+        socket_deinit(&connection->socket);
 }

@@ -8,26 +8,25 @@
 #include <stdlib.h>
 #include <sys/types.h>
 #include "dbus/sasl.h"
+#include "dbus/socket.h"
 #include "util/dispatch.h"
 
 typedef struct Connection Connection;
 typedef struct Message Message;
-typedef struct Socket Socket;
 
 struct Connection {
-        bool authenticated : 1;
-        bool server : 1;
-
+        Socket socket;
         union {
                 SASLServer server;
                 SASLClient client;
         } sasl;
 
-        Socket *socket;
+        bool authenticated : 1;
+        bool server : 1;
 };
 
 #define CONNECTION_NULL(_x) {                                                           \
-                .dispatch_file = (DispatchFile)DISPATCH_FILE_NULL((_x).dispatch_file)   \
+                .socket = SOCKET_NULL((_x).socket),                                     \
         }
 
 int connection_init(Connection *connection, DispatchFile *file, int fd, bool server, uid_t uid, const char *guid);

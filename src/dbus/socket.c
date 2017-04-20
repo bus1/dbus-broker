@@ -133,13 +133,11 @@ static bool socket_buffer_consume(SocketBuffer *buffer, size_t n) {
         return socket_buffer_is_consumed(buffer);
 }
 
-int socket_new(Socket **socketp, int fd, bool server) {
-        _c_cleanup_(socket_freep) Socket *socket = NULL;
-
-        socket = calloc(1, sizeof(*socket));
-        if (!socket)
-                return error_origin(-ENOMEM);
-
+/**
+ * socket_init() - XXX
+ */
+int socket_init(Socket *socket, int fd, bool server) {
+        *socket = (Socket){};
         socket->fd = fd;
         socket->server = server;
         socket->in.data_size = SOCKET_DATA_PREALLOC;
@@ -149,28 +147,23 @@ int socket_new(Socket **socketp, int fd, bool server) {
         if (!socket->in.data)
                 return error_origin(-ENOMEM);
 
-        *socketp = socket;
-        socket = NULL;
         return 0;
 }
 
-Socket *socket_free(Socket *socket) {
+/**
+ * socket_deinit() - XXX
+ */
+void socket_deinit(Socket *socket) {
         SocketBuffer *buffer;
-
-        if (!socket)
-                return NULL;
 
         socket->fd = c_close(socket->fd);
 
         while ((buffer = c_list_first_entry(&socket->out.queue, SocketBuffer, link)))
                 socket_buffer_free(buffer);
 
-        message_unref(socket->in.pending_message);
-        fdlist_free(socket->in.fds);
-        free(socket->in.data);
-        free(socket);
-
-        return NULL;
+        socket->in.pending_message = message_unref(socket->in.pending_message);
+        socket->in.fds = fdlist_free(socket->in.fds);
+        socket->in.data = c_free(socket->in.data);
 }
 
 /**

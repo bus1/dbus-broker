@@ -35,6 +35,8 @@ enum {
         SOCKET_E_CORRUPT_MESSAGE,
 };
 
+/* socket buffer */
+
 struct SocketBuffer {
         CList link;
 
@@ -45,6 +47,13 @@ struct SocketBuffer {
         struct iovec *writer;
         struct iovec vecs[];
 };
+
+int socket_buffer_new_message(SocketBuffer **bufferp, Message *message);
+SocketBuffer *socket_buffer_free(SocketBuffer *buffer);
+
+C_DEFINE_CLEANUP(SocketBuffer *, socket_buffer_free);
+
+/* socket IO */
 
 struct Socket {
         int fd;
@@ -69,17 +78,13 @@ struct Socket {
         } out;
 };
 
-/* socket buffer */
+#define SOCKET_NULL(_x) {                                               \
+                .fd = -1,                                               \
+                .out.queue = C_LIST_INIT((_x).out.queue),               \
+        }
 
-int socket_buffer_new_message(SocketBuffer **bufferp, Message *message);
-SocketBuffer *socket_buffer_free(SocketBuffer *buffer);
-
-C_DEFINE_CLEANUP(SocketBuffer *, socket_buffer_free);
-
-/* socket IO */
-
-int socket_new(Socket **socketp, int fd, bool server);
-Socket *socket_free(Socket *socket);
+int socket_init(Socket *socket, int fd, bool server);
+void socket_deinit(Socket *socket);
 
 int socket_read_line(Socket *socket, const char **linep, size_t *np);
 int socket_read_message(Socket *socket, Message **messagep);
@@ -91,8 +96,6 @@ int socket_queue_message(Socket *socket, Message *message);
 
 int socket_read(Socket *socket);
 int socket_write(Socket *socket);
-
-C_DEFINE_CLEANUP(Socket *, socket_free);
 
 /* inline helpers */
 
