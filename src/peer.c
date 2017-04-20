@@ -366,6 +366,7 @@ int peer_new(Peer **peerp,
         user->n_peers --;
 
         peer->bus = bus;
+        peer->connection = (Connection)CONNECTION_NULL(peer->connection);
         c_rbnode_init(&peer->rb);
         peer->user = user;
         user = NULL;

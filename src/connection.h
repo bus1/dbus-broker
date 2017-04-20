@@ -27,6 +27,8 @@ struct Connection {
 
 #define CONNECTION_NULL(_x) {                                                           \
                 .socket = SOCKET_NULL((_x).socket),                                     \
+                .sasl.server = SASL_SERVER_NULL,                                        \
+                .server = false,                                                        \
         }
 
 int connection_init(Connection *connection, DispatchFile *file, int fd, bool server, uid_t uid, const char *guid);

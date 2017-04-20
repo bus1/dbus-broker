@@ -32,6 +32,8 @@ struct SASLClient {
         unsigned int state;
 };
 
+#define SASL_CLIENT_NULL {}
+
 void sasl_client_init(SASLClient *sasl);
 void sasl_client_deinit(SASLClient *sasl);
 
@@ -52,6 +54,8 @@ struct SASLServer {
         uid_t uid;
         char ok_response[sizeof("OK 0123456789abcdef0123456789abdcef") - 1];
 };
+
+#define SASL_SERVER_NULL {}
 
 void sasl_server_init(SASLServer *sasl, uid_t uid, const char *guid);
 void sasl_server_deinit(SASLServer *sasl);
