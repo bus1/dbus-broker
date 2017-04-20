@@ -44,10 +44,10 @@ static void test_sasl_exchange(Bus *bus, char *sasl_client, char *sasl_server) {
         r = send(pair[1], sasl_client, strlen(sasl_client), 0);
         assert(r == strlen(sasl_client));
 
-        r = peer_dispatch(&peer->dispatch_file, EPOLLIN);
+        r = peer_dispatch(&peer->connection.socket_file, EPOLLIN);
         assert(r >= 0);
 
-        r = peer_dispatch(&peer->dispatch_file, EPOLLOUT);
+        r = peer_dispatch(&peer->connection.socket_file, EPOLLOUT);
         assert(r >= 0);
 
         r = recv(pair[1], buffer, sizeof(buffer), 0);

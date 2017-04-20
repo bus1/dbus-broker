@@ -24,7 +24,6 @@ struct Peer {
         Bus *bus;
 
         Connection connection;
-        DispatchFile dispatch_file;
         bool registered : 1;
 
         UserEntry *user;

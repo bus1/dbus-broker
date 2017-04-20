@@ -753,7 +753,7 @@ static int driver_handle_method(const DriverMethod *method, Peer *peer, uint32_t
         if (r)
                 return error_fold(r);
 
-        r = connection_queue_message(&peer->connection, &peer->dispatch_file, message_out);
+        r = connection_queue_message(&peer->connection, message_out);
         if (r)
                 return error_fold(r);
 

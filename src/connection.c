@@ -8,10 +8,122 @@
 #include <sys/types.h>
 #include "connection.h"
 #include "dbus/socket.h"
+#include "user.h"
 #include "util/dispatch.h"
 #include "util/error.h"
 
-static int connection_dispatch_line(Connection *connection, DispatchFile *file, const char *input, size_t n_input) {
+static int connection_init(Connection *connection,
+                           bool server,
+                           DispatchContext *dispatch_ctx,
+                           CList *dispatch_list,
+                           DispatchFn dispatch_fn,
+                           UserEntry *user,
+                           int fd) {
+        int r;
+
+        *connection = (Connection)CONNECTION_NULL(*connection);
+        connection->user = user_entry_ref(user);
+
+        r = socket_init(&connection->socket, fd, server);
+        if (r)
+                return error_fold(r);
+
+        r = dispatch_file_init(&connection->socket_file,
+                               dispatch_ctx,
+                               dispatch_list,
+                               dispatch_fn,
+                               fd,
+                               EPOLLHUP | EPOLLERR | EPOLLIN | EPOLLOUT);
+        if (r)
+                return error_fold(r);
+
+        return 0;
+}
+
+/**
+ * connection_init_server() - XXX
+ */
+int connection_init_server(Connection *connection,
+                           DispatchContext *dispatch_ctx,
+                           CList *dispatch_list,
+                           DispatchFn dispatch_fn,
+                           UserEntry *user,
+                           const char *guid,
+                           int fd) {
+        _c_cleanup_(connection_deinitp) Connection *c = connection;
+        int r;
+
+        r = connection_init(c,
+                            true,
+                            dispatch_ctx,
+                            dispatch_list,
+                            dispatch_fn,
+                            user,
+                            fd);
+        if (r)
+                return error_trace(r);
+
+        c->server = true;
+        sasl_server_init(&c->sasl.server, user->uid, guid);
+        c = NULL;
+        return 0;
+}
+
+/**
+ * connection_init_client() - XXX
+ */
+int connection_init_client(Connection *connection,
+                           DispatchContext *dispatch_ctx,
+                           CList *dispatch_list,
+                           DispatchFn dispatch_fn,
+                           UserEntry *user,
+                           int fd) {
+        _c_cleanup_(connection_deinitp) Connection *c = connection;
+        const char *request;
+        size_t n_request;
+        int r;
+
+        r = connection_init(c,
+                            false,
+                            dispatch_ctx,
+                            dispatch_list,
+                            dispatch_fn,
+                            user,
+                            fd);
+        if (r)
+                return error_trace(r);
+
+        c->server = false;
+        sasl_client_init(&c->sasl.client);
+
+        r = sasl_client_dispatch(&c->sasl.client, NULL, 0, &request, &n_request);
+        if (r)
+                return error_fold(r);
+
+        r = socket_queue_line(&c->socket, request, n_request);
+        if (r)
+                return error_fold(r);
+
+        dispatch_file_select(&c->socket_file, EPOLLOUT);
+
+        c = NULL;
+        return 0;
+}
+
+/**
+ * connection_deinit() - XXX
+ */
+void connection_deinit(Connection *connection) {
+        if (connection->server)
+                sasl_server_deinit(&connection->sasl.server);
+        else
+                sasl_client_deinit(&connection->sasl.client);
+        dispatch_file_deinit(&connection->socket_file);
+        socket_deinit(&connection->socket);
+        connection->user = user_entry_unref(connection->user);
+}
+
+static int connection_dispatch_line(Connection *connection, const char *input, size_t n_input) {
         const char *output = NULL;
         size_t n_output = 0;
         int r;
@@ -35,13 +147,13 @@ static int connection_dispatch_line(Connection *connection, DispatchFile *file, 
                 if (r)
                         return error_fold(r);
 
-                dispatch_file_select(file, EPOLLOUT);
+                dispatch_file_select(&connection->socket_file, EPOLLOUT);
         }
 
         return 0;
 }
 
-int connection_dispatch_read(Connection *connection, DispatchFile *file, Message **messagep) {
+int connection_dispatch_read(Connection *connection, Message **messagep) {
         const char *input;
         size_t n_input;
         int r;
@@ -49,10 +161,10 @@ int connection_dispatch_read(Connection *connection, DispatchFile *file, Message
         r = socket_read(&connection->socket);
         if (!r) {
                 /* kernel event handled, interest did not change */
-                dispatch_file_clear(file, EPOLLIN);
+                dispatch_file_clear(&connection->socket_file, EPOLLIN);
         } else if (r == SOCKET_E_LOST_INTEREST) {
                 /* kernel event unknown, interest lost */
-                dispatch_file_deselect(file, EPOLLIN);
+                dispatch_file_deselect(&connection->socket_file, EPOLLIN);
         } else if (r != SOCKET_E_PREEMPTED) {
                 /* XXX: we should catch SOCKET_E_RESET here */
                 return error_fold(r);
@@ -65,11 +177,11 @@ int connection_dispatch_read(Connection *connection, DispatchFile *file, Message
                                 return error_fold(r);
 
                         if (!input) {
-                                dispatch_file_clear(file, EPOLLIN);
+                                dispatch_file_clear(&connection->socket_file, EPOLLIN);
                                 return 0;
                         }
 
-                        r = connection_dispatch_line(connection, file, input, n_input);
+                        r = connection_dispatch_line(connection, input, n_input);
                         if (r)
                                 return (r > 0) ? r : error_fold(r);
                 } while (!connection->authenticated);
@@ -80,21 +192,21 @@ int connection_dispatch_read(Connection *connection, DispatchFile *file, Message
                 return error_fold(r);
 
         if (!*messagep)
-                dispatch_file_clear(file, EPOLLIN);
+                dispatch_file_clear(&connection->socket_file, EPOLLIN);
 
         return 0;
 }
 
-int connection_dispatch_write(Connection *connection, DispatchFile *file) {
+int connection_dispatch_write(Connection *connection) {
         int r;
 
         r = socket_write(&connection->socket);
         if (!r) {
                 /* kernel event handled, interest did not change */
-                dispatch_file_clear(file, EPOLLOUT);
+                dispatch_file_clear(&connection->socket_file, EPOLLOUT);
         } else if (r == SOCKET_E_LOST_INTEREST) {
                 /* kernel event unknown, interest lost */
-                dispatch_file_deselect(file, EPOLLOUT);
+                dispatch_file_deselect(&connection->socket_file, EPOLLOUT);
         } else if (r != SOCKET_E_PREEMPTED) {
                 /* XXX: we should catch SOCKET_E_RESET here */
                 return error_fold(r);
@@ -106,58 +218,13 @@ int connection_dispatch_write(Connection *connection, DispatchFile *file) {
 /**
  * connection_queue_message() - XXX
  */
-int connection_queue_message(Connection *connection, DispatchFile *file, Message *message) {
+int connection_queue_message(Connection *connection, Message *message) {
         int r;
 
         r = socket_queue_message(&connection->socket, message);
         if (r)
                 return error_fold(r);
 
-        dispatch_file_select(file, EPOLLOUT);
-
+        dispatch_file_select(&connection->socket_file, EPOLLOUT);
         return 0;
-}
-
-/**
- * connection_init() - XXX
- */
-int connection_init(Connection *connection, DispatchFile *file, int fd, bool server, uid_t uid, const char *guid) {
-        const char *request;
-        size_t n_request;
-        int r;
-
-        r = socket_init(&connection->socket, fd, server);
-        if (r < 0)
-                return error_fold(r);
-
-        connection->server = server;
-
-        if (server) {
-                sasl_server_init(&connection->sasl.server, uid, guid);
-        } else {
-                sasl_client_init(&connection->sasl.client);
-
-                r = sasl_client_dispatch(&connection->sasl.client, NULL, 0, &request, &n_request);
-                if (r)
-                        return error_fold(r);
-
-                r = socket_queue_line(&connection->socket, request, n_request);
-                if (r)
-                        return error_fold(r);
-
-                dispatch_file_select(file, EPOLLOUT);
-        }
-
-        return 0;
-}
-
-/**
- * connection_deinit() - XXX
- */
-void connection_deinit(Connection *connection) {
-        if (connection->server)
-                sasl_server_deinit(&connection->sasl.server);
-        else
-                sasl_client_deinit(&connection->sasl.client);
-        socket_deinit(&connection->socket);
 }
