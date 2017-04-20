@@ -251,24 +251,21 @@ int peer_dispatch(DispatchFile *file, uint32_t mask) {
         int r;
 
         if (mask & EPOLLIN) {
-                /*
-                 * Dispatch at most 32 messages before going back into poll. This is meant
-                 * to be an (arbitrarily chosen) compromise between not going into poll for
-                 * every message, but not allowing dispatching of any one peer to hog the
-                 * daemon.
-                 */
-                for (unsigned int i = 0; i < 32; ++i) {
-                        _c_cleanup_(message_unrefp) Message *message = NULL;
+                r = connection_dispatch_read(&peer->connection);
+                if (r)
+                        return r;
 
-                        r = connection_dispatch_read(&peer->connection, &message);
-                        if (r < 0)
+                for (;;) {
+                        _c_cleanup_(message_unrefp) Message *m = NULL;
+
+                        r = connection_dequeue(&peer->connection, &m);
+                        if (r)
                                 return r;
-
-                        if (!message)
+                        if (!m)
                                 break;
 
-                        r = peer_dispatch_message(peer, message);
-                        if (r < 0)
+                        r = peer_dispatch_message(peer, m);
+                        if (r)
                                 return r;
                 }
         }

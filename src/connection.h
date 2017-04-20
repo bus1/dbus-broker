@@ -26,6 +26,7 @@ struct Connection {
 
         bool server : 1;
         bool authenticated : 1;
+        bool hup : 1;
 };
 
 #define CONNECTION_NULL(_x) {                                           \
@@ -50,9 +51,10 @@ int connection_init_client(Connection *connection,
                            int fd);
 void connection_deinit(Connection *connection);
 
-int connection_queue_message(Connection *connection, Message *message);
-
-int connection_dispatch_read(Connection *connection, Message **messagep);
+int connection_dispatch_read(Connection *connection);
 int connection_dispatch_write(Connection *connection);
+
+int connection_dequeue(Connection *connection, Message **messagep);
+int connection_queue_message(Connection *connection, Message *message);
 
 C_DEFINE_CLEANUP(Connection *, connection_deinit);

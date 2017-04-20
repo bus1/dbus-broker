@@ -7,6 +7,7 @@
 #include <sys/epoll.h>
 #include <sys/types.h>
 #include "connection.h"
+#include "dbus/message.h"
 #include "dbus/socket.h"
 #include "user.h"
 #include "util/dispatch.h"
@@ -153,7 +154,7 @@ static int connection_dispatch_line(Connection *connection, const char *input, s
         return 0;
 }
 
-int connection_dispatch_read(Connection *connection, Message **messagep) {
+int connection_dispatch_read(Connection *connection) {
         const char *input;
         size_t n_input;
         int r;
@@ -173,26 +174,14 @@ int connection_dispatch_read(Connection *connection, Message **messagep) {
         if (_c_unlikely_(!connection->authenticated)) {
                 do {
                         r = socket_read_line(&connection->socket, &input, &n_input);
-                        if (r)
+                        if (r || !input)
                                 return error_fold(r);
-
-                        if (!input) {
-                                dispatch_file_clear(&connection->socket_file, EPOLLIN);
-                                return 0;
-                        }
 
                         r = connection_dispatch_line(connection, input, n_input);
                         if (r)
                                 return (r > 0) ? r : error_fold(r);
                 } while (!connection->authenticated);
         }
-
-        r = socket_read_message(&connection->socket, messagep);
-        if (r)
-                return error_fold(r);
-
-        if (!*messagep)
-                dispatch_file_clear(&connection->socket_file, EPOLLIN);
 
         return 0;
 }
@@ -210,6 +199,24 @@ int connection_dispatch_write(Connection *connection) {
         } else if (r != SOCKET_E_PREEMPTED) {
                 /* XXX: we should catch SOCKET_E_RESET here */
                 return error_fold(r);
+        }
+
+        return 0;
+}
+
+/**
+ * connection_dequeue() - XXX
+ */
+int connection_dequeue(Connection *connection, Message **messagep) {
+        int r;
+
+        if (_c_likely_(!connection->hup)) {
+                r = socket_read_message(&connection->socket, messagep);
+                if (r <= 0)
+                        return r;
+
+                *messagep = message_unref(*messagep);
+                /* XXX: HUP @connection */
         }
 
         return 0;
