@@ -328,7 +328,14 @@ static int driver_notify_name_lost(Peer *peer, const char *name) {
         return 0;
 }
 
-static int driver_notify_name_owner_changed(const char *name, Peer *old_owner, Peer *new_owner) {
+static int driver_notify_name_owner_changed(Bus *bus, const char *name, Peer *old_owner, Peer *new_owner) {
+        /* XXX */
+
+        return 0;
+}
+
+static int driver_name_owner_changed(const char *name, Peer *old_owner, Peer *new_owner) {
+        Peer *peer = new_owner ? : new_owner;
         char unique_name[strlen(":1.") + C_DECIMAL_MAX(uint64_t) + 1];
         int r;
 
@@ -336,8 +343,6 @@ static int driver_notify_name_owner_changed(const char *name, Peer *old_owner, P
         assert(name || !old_owner || !new_owner);
 
         if (!name) {
-                Peer *peer = new_owner ? : new_owner;
-
                 r = snprintf(unique_name, sizeof(unique_name), ":1.%"PRIu64, peer->id);
                 assert(r >= 0 && r < sizeof(unique_name));
 
@@ -350,13 +355,15 @@ static int driver_notify_name_owner_changed(const char *name, Peer *old_owner, P
                         return error_trace(r);
         }
 
+        r = driver_notify_name_owner_changed(peer->bus, name, old_owner, new_owner);
+        if (r)
+                return error_trace(r);
+
         if (new_owner) {
                 r = driver_notify_name_acquired(new_owner, name);
                 if (r)
                         return error_trace(r);
         }
-
-        /* XXX: send name owner changed signal */
 
         return 0;
 }
@@ -823,7 +830,7 @@ static int driver_handle_method(const DriverMethod *method, Peer *peer, uint32_t
                 return error_fold(r);
 
         if (change.name || change.old_owner || change.new_owner) {
-                r = driver_notify_name_owner_changed(change.name ? change.name->name : NULL, change.old_owner, change.new_owner);
+                r = driver_name_owner_changed(change.name ? change.name->name : NULL, change.old_owner, change.new_owner);
                 if (r)
                         return error_trace(r);
 
@@ -918,14 +925,14 @@ int driver_goodbye(Peer *peer, bool silent) {
                 name_change_init(&change);
                 name_owner_release(owner, &change);
                 if (!silent && change.name)
-                        r = driver_notify_name_owner_changed(change.name->name, change.old_owner, change.new_owner);
+                        r = driver_name_owner_changed(change.name->name, change.old_owner, change.new_owner);
                 name_change_deinit(&change);
                 if (r)
                         return error_fold(r);
         }
 
         if (!silent) {
-                r = driver_notify_name_owner_changed(NULL, peer, NULL);
+                r = driver_name_owner_changed(NULL, peer, NULL);
                 if (r)
                         return error_trace(r);
         }
