@@ -576,7 +576,24 @@ static int driver_method_list_names(Peer *peer, CDVar *in_v, CDVar *out_v, NameC
 }
 
 static int driver_method_list_activatable_names(Peer *peer, CDVar *in_v, CDVar *out_v, NameChange *change) {
-        /* XXX */
+        int r;
+
+        c_dvar_read(in_v, "()");
+
+        r = c_dvar_end_read(in_v);
+        if (r)
+                return error_origin(r);
+
+        c_dvar_write(out_v, "(");
+        for (CRBNode *n = c_rbtree_first(&peer->bus->names.entries); n; n = c_rbnode_next(n)) {
+                NameEntry *entry = c_container_of(n, NameEntry, rb);
+
+                if (!entry->activatable)
+                        continue;
+
+                c_dvar_write(out_v, "s", entry->name);
+        }
+        c_dvar_write(out_v, ")");
 
         return 0;
 }
