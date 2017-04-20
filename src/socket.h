@@ -17,6 +17,7 @@ typedef struct SocketBuffer SocketBuffer;
 #define SOCKET_LINE_MAX (16UL * 1024UL) /* taken from dbus-daemon(1) */
 #define SOCKET_FD_MAX (253UL) /* taken from kernel SCM_MAX_FD */
 #define SOCKET_MMSG_MAX (16) /* XXX */
+#define SOCKET_DATA_PREALLOC (2UL * 1024UL) /* XXX */
 
 enum {
         _SOCKET_E_SUCCESS,
