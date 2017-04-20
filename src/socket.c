@@ -142,10 +142,9 @@ int socket_new(Socket **socketp, int fd, bool server) {
 
         socket->fd = fd;
         socket->server = server;
-
+        socket->in.data_size = SOCKET_DATA_PREALLOC;
         socket->out.queue = (CList)C_LIST_INIT(socket->out.queue);
 
-        socket->in.data_size = SOCKET_DATA_PREALLOC;
         socket->in.data = malloc(socket->in.data_size);
         if (!socket->in.data)
                 return error_origin(-ENOMEM);
