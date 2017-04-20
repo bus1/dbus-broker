@@ -52,7 +52,7 @@ static int socket_buffer_new_line(SocketBuffer **bufferp, size_t n) {
 
         r = socket_buffer_new(&buffer, 1, c_max(n, SOCKET_LINE_PREALLOC));
         if (r)
-                return r;
+                return error_trace(r);
 
         buffer->vecs[0] = (struct iovec){ socket_buffer_get_base(buffer), 0 };
 
@@ -66,7 +66,7 @@ int socket_buffer_new_message(SocketBuffer **bufferp, Message *message) {
 
         r = socket_buffer_new(&buffer, C_ARRAY_SIZE(message->vecs), 0);
         if (r)
-                return r;
+                return error_trace(r);
 
         buffer->message = message_ref(message);
         memcpy(buffer->vecs, message->vecs, sizeof(message->vecs));
@@ -267,7 +267,11 @@ int socket_read_message(Socket *socket, Message **messagep) {
                 memcpy(&header, socket->in.data + socket->in.data_start, n);
 
                 r = message_new_incoming(&msg, header);
-                if (r)
+                if (r == MESSAGE_E_CORRUPT_HEADER)
+                        return SOCKET_E_CORRUPT_MESSAGE;
+                else if (r == MESSAGE_E_TOO_LARGE)
+                        return SOCKET_E_OVERLONG_MESSAGE;
+                else if (r)
                         return error_fold(r);
 
                 n_data -= n;

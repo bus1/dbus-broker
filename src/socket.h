@@ -31,6 +31,8 @@ enum {
         SOCKET_E_OVERLONG_LINE,
         SOCKET_E_SPLIT_FDS,
         SOCKET_E_NO_NULL_BYTE,
+        SOCKET_E_OVERLONG_MESSAGE,
+        SOCKET_E_CORRUPT_MESSAGE,
 };
 
 struct SocketBuffer {
