@@ -19,6 +19,8 @@ struct Connection {
         UserEntry *user;
         Socket socket;
         DispatchFile socket_file;
+        CList *hup_list;
+        CList hup_link;
         union {
                 SASLServer server;
                 SASLClient client;
@@ -32,6 +34,7 @@ struct Connection {
 #define CONNECTION_NULL(_x) {                                           \
                 .socket = SOCKET_NULL((_x).socket),                     \
                 .socket_file = DISPATCH_FILE_NULL((_x).socket_file),    \
+                .hup_link = C_LIST_INIT((_x).hup_link),                 \
                 .sasl.client = SASL_CLIENT_NULL,                        \
                 .server = false,                                        \
         }
@@ -39,6 +42,7 @@ struct Connection {
 int connection_init_server(Connection *connection,
                            DispatchContext *dispatch_ctx,
                            CList *dispatch_list,
+                           CList *dispatch_hup,
                            DispatchFn dispatch_fn,
                            UserEntry *user,
                            const char *guid,
@@ -46,6 +50,7 @@ int connection_init_server(Connection *connection,
 int connection_init_client(Connection *connection,
                            DispatchContext *dispatch_ctx,
                            CList *dispatch_list,
+                           CList *dispatch_hup,
                            DispatchFn dispatch_fn,
                            UserEntry *user,
                            int fd);

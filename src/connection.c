@@ -17,6 +17,7 @@ static int connection_init(Connection *connection,
                            bool server,
                            DispatchContext *dispatch_ctx,
                            CList *dispatch_list,
+                           CList *dispatch_hup,
                            DispatchFn dispatch_fn,
                            UserEntry *user,
                            int fd) {
@@ -24,6 +25,7 @@ static int connection_init(Connection *connection,
 
         *connection = (Connection)CONNECTION_NULL(*connection);
         connection->user = user_entry_ref(user);
+        connection->hup_list = dispatch_hup;
 
         r = socket_init(&connection->socket, fd, server);
         if (r)
@@ -47,6 +49,7 @@ static int connection_init(Connection *connection,
 int connection_init_server(Connection *connection,
                            DispatchContext *dispatch_ctx,
                            CList *dispatch_list,
+                           CList *dispatch_hup,
                            DispatchFn dispatch_fn,
                            UserEntry *user,
                            const char *guid,
@@ -58,6 +61,7 @@ int connection_init_server(Connection *connection,
                             true,
                             dispatch_ctx,
                             dispatch_list,
+                            dispatch_hup,
                             dispatch_fn,
                             user,
                             fd);
@@ -76,6 +80,7 @@ int connection_init_server(Connection *connection,
 int connection_init_client(Connection *connection,
                            DispatchContext *dispatch_ctx,
                            CList *dispatch_list,
+                           CList *dispatch_hup,
                            DispatchFn dispatch_fn,
                            UserEntry *user,
                            int fd) {
@@ -88,6 +93,7 @@ int connection_init_client(Connection *connection,
                             false,
                             dispatch_ctx,
                             dispatch_list,
+                            dispatch_hup,
                             dispatch_fn,
                             user,
                             fd);
@@ -119,6 +125,7 @@ void connection_deinit(Connection *connection) {
                 sasl_server_deinit(&connection->sasl.server);
         else
                 sasl_client_deinit(&connection->sasl.client);
+        c_list_unlink_init(&connection->hup_link);
         dispatch_file_deinit(&connection->socket_file);
         socket_deinit(&connection->socket);
         connection->user = user_entry_unref(connection->user);
