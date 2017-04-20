@@ -6,7 +6,7 @@
 #include <stdlib.h>
 #include <sys/types.h>
 #include <sys/socket.h>
-#include "message.h"
+#include "dbus/message.h"
 #include "socket.h"
 
 static void test_setup(void) {

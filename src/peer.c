@@ -12,10 +12,10 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include "bus.h"
+#include "dbus/message.h"
 #include "dbus-protocol.h"
 #include "driver.h"
 #include "match.h"
-#include "message.h"
 #include "peer.h"
 #include "reply.h"
 #include "socket.h"

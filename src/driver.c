@@ -9,9 +9,9 @@
 #include <stdlib.h>
 #include <sys/epoll.h>
 #include "bus.h"
+#include "dbus/message.h"
 #include "dbus-protocol.h"
 #include "driver.h"
-#include "message.h"
 #include "peer.h"
 #include "socket.h"
 #include "util/error.h"

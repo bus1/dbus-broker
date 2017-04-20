@@ -20,7 +20,7 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <sys/un.h>
-#include "message.h"
+#include "dbus/message.h"
 #include "socket.h"
 #include "util/error.h"
 #include "util/fdlist.h"

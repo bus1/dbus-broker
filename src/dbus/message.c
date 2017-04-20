@@ -6,7 +6,7 @@
 #include <c-ref.h>
 #include <endian.h>
 #include <stdlib.h>
-#include "message.h"
+#include "dbus/message.h"
 #include "util/fdlist.h"
 #include "util/error.h"
 
