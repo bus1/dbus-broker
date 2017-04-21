@@ -84,7 +84,7 @@ test('Utility File-Desciptor Lists', test_fdlist)
 test_match = executable('test-match', ['test-match.c'], dependencies: libdbus_broker_dep)
 test('D-Bus Match Handling', test_match)
 
-test_message = executable('test-message', ['test-message.c'], dependencies: libdbus_broker_dep)
+test_message = executable('test-message', ['dbus/test-message.c'], dependencies: libdbus_broker_dep)
 test('D-Bus Message Abstraction', test_message)
 
 test_name = executable('test-name', ['test-name.c'], dependencies: libdbus_broker_dep)
@@ -93,10 +93,10 @@ test('Name Registry', test_name)
 test_peer = executable('test-peer', ['test-peer.c'], dependencies: libdbus_broker_dep)
 test('Peer Handling', test_peer)
 
-test_sasl = executable('test-sasl', ['test-sasl.c'], dependencies: libdbus_broker_dep)
+test_sasl = executable('test-sasl', ['dbus/test-sasl.c'], dependencies: libdbus_broker_dep)
 test('D-Bus SASL Parser', test_sasl)
 
-test_socket = executable('test-socket', ['test-socket.c'], dependencies: libdbus_broker_dep)
+test_socket = executable('test-socket', ['dbus/test-socket.c'], dependencies: libdbus_broker_dep)
 test('D-Bus Socket Abstraction', test_socket)
 
 test_user = executable('test-user', ['test-user.c'], dependencies: libdbus_broker_dep)
