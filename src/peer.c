@@ -252,7 +252,7 @@ static int peer_dispatch_message(Peer *peer, Message *message) {
         }
 
         if (_c_unlikely_(c_string_equal(destination, "org.freedesktop.DBus")))
-                return driver_dispatch_interface(peer, serial, interface, member, path, signature, message);
+                return driver_dispatch(peer, serial, interface, member, path, signature, message);
 
         /* XXX: append sender */
 

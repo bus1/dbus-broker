@@ -440,6 +440,49 @@ static int driver_name_owner_changed(const char *name, Peer *old_owner, Peer *ne
         return 0;
 }
 
+static int driver_send_error(Peer *peer, uint32_t serial, const char *error) {
+        static const CDVarType type[] = {
+                C_DVAR_T_INIT(
+                        DRIVER_T_MESSAGE(
+                                C_DVAR_T_TUPLE0
+                        )
+                )
+        };
+        _c_cleanup_(c_dvar_freep) CDVar *var = NULL;
+        _c_cleanup_(message_unrefp) Message *message = NULL;
+        void *data;
+        size_t n_data;
+        int r;
+
+        r = c_dvar_new(&var);
+        if (r)
+                return error_origin(r);
+
+        c_dvar_begin_write(var, type);
+        c_dvar_write(var, "(yyyyuu[(y<u>)(y<s>)(y<s>)(y<",
+                     c_dvar_is_big_endian(var) ? 'B' : 'l', DBUS_MESSAGE_TYPE_ERROR, DBUS_HEADER_FLAG_NO_REPLY_EXPECTED, 1, 0, (uint32_t)-1,
+                     DBUS_MESSAGE_FIELD_REPLY_SERIAL, c_dvar_type_u, serial,
+                     DBUS_MESSAGE_FIELD_SENDER, c_dvar_type_s, "org.freedesktop.DBus",
+                     DBUS_MESSAGE_FIELD_ERROR_NAME, c_dvar_type_s, error,
+                     DBUS_MESSAGE_FIELD_DESTINATION, c_dvar_type_s);
+        driver_dvar_write_unique_name(var, peer);
+        c_dvar_write(var, ">)])");
+
+        r = c_dvar_end_write(var, &data, &n_data);
+        if (r)
+                return error_origin(r);
+
+        r = message_new_outgoing(&message, data, n_data);
+        if (r)
+                return error_fold(r);
+
+        r = connection_queue_message(&peer->connection, message);
+        if (r)
+                return error_fold(r);
+
+        return 0;
+}
+
 static int driver_end_read(CDVar *var) {
         int r;
 
@@ -1010,21 +1053,59 @@ static int driver_dispatch_method(Peer *peer, uint32_t serial, const char *metho
         return DRIVER_E_UNEXPECTED_METHOD;
 }
 
-int driver_dispatch_interface(Peer *peer,
-                              uint32_t serial,
-                              const char *interface,
-                              const char *member,
-                              const char *path,
-                              const char *signature,
-                              Message *message) {
-        if (message->header->type != DBUS_MESSAGE_TYPE_METHOD_CALL)
-                /* XXX: ignore */
-                return DRIVER_E_UNEXPECTED_MESSAGE_TYPE;
-
+static int driver_dispatch_interface(Peer *peer, uint32_t serial, const char *interface, const char *member, const char *path, const char *signature, Message *message) {
         if (interface && _c_unlikely_(strcmp(interface, "org.freedesktop.DBus") != 0))
                 return DRIVER_E_UNEXPECTED_INTERFACE;
 
         return driver_dispatch_method(peer, serial, member, path, signature, message);
+}
+
+int driver_dispatch(Peer *peer, uint32_t serial, const char *interface, const char *member, const char *path, const char *signature, Message *message) {
+        int r;
+
+        if (message->header->type != DBUS_MESSAGE_TYPE_METHOD_CALL)
+                /* ignore */
+                return 0;
+
+        r = driver_dispatch_interface(peer, serial, interface, member, path, signature, message);
+        switch (r) {
+        case DRIVER_E_INVALID_MESSAGE:
+        case DRIVER_E_PEER_NOT_REGISTERED:
+                return DRIVER_E_DISCONNECT;
+        case DRIVER_E_PEER_ALREADY_REGISTERED:
+                r = driver_send_error(peer, serial, "org.freedesktop.DBus.Error.Failed");
+                break;
+        case DRIVER_E_UNEXPECTED_PATH:
+                r = driver_send_error(peer, serial, "org.freedesktop.DBus.Error.AccessDenied");
+                break;
+        case DRIVER_E_UNEXPECTED_INTERFACE:
+                r = driver_send_error(peer, serial, "org.freedesktop.DBus.Error.UnknownInterface");
+                break;
+        case DRIVER_E_UNEXPECTED_METHOD:
+                r = driver_send_error(peer, serial, "org.freedesktop.DBus.Error.UnknownMethod");
+                break;
+        case DRIVER_E_UNEXPECTED_SIGNATURE:
+                r = driver_send_error(peer, serial, "org.freedesktop.DBus.Error.InvalidArgs");
+                break;
+        case DRIVER_E_PEER_NOT_FOUND:
+        case DRIVER_E_NAME_NOT_FOUND:
+        case DRIVER_E_NAME_OWNER_NOT_FOUND:
+                r = driver_send_error(peer, serial, "org.freedesktop.DBus.Error.NameHasNoOwner");
+                break;
+        case DRIVER_E_NAME_RESERVED:
+                r = driver_send_error(peer, serial, "org.freedesktop.DBus.Error.InvalidArgs");
+                break;
+        case DRIVER_E_ADT_NOT_SUPPORTED:
+                r = driver_send_error(peer, serial, "org.freedesktop.DBus.Error.AdtAuditDataUnknown");
+                break;
+        case DRIVER_E_SELINUX_NOT_SUPPORTED:
+                r = driver_send_error(peer, serial, "org.freedesktop.DBus.Error.SELinuxSecurityContextUnknown");
+                break;
+        default:
+                break;
+        }
+
+        return error_trace(r);
 }
 
 int driver_goodbye(Peer *peer, bool silent) {
