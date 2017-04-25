@@ -39,6 +39,8 @@ void sasl_client_deinit(SASLClient *sasl);
 
 int sasl_client_dispatch(SASLClient *sasl, const char *input, size_t n_input, const char **outputp, size_t *n_outputp);
 
+C_DEFINE_CLEANUP(SASLClient *, sasl_client_deinit);
+
 /* server */
 
 enum {
@@ -62,6 +64,8 @@ void sasl_server_init(SASLServer *sasl, uid_t uid, const char *guid);
 void sasl_server_deinit(SASLServer *sasl);
 
 int sasl_server_dispatch(SASLServer *sasl, const char *input, size_t n_input, const char **outputp, size_t *n_outputp);
+
+C_DEFINE_CLEANUP(SASLServer *, sasl_server_deinit);
 
 /* inline helpers */
 

@@ -6,100 +6,172 @@
 #include <stdlib.h>
 #include "dbus/sasl.h"
 
-static void test_setup(void) {
-        SASLServer sasl;
+static void test_server_setup(void) {
+        _c_cleanup_(sasl_server_deinit) SASLServer sasl = SASL_SERVER_NULL;
 
-        sasl_server_init(&sasl, 1, "123456789abcdef");
+        sasl_server_init(&sasl, 1, "0123456789abcdef");
         sasl_server_deinit(&sasl);
+
+        sasl_server_init(&sasl, 0, "0123456789abcdef");
 }
 
-static void assert_dispatch(SASLServer *sasl, const char *in, const char *out, int ret) {
-        const char *reply = NULL;
-        size_t n_reply = 0;
+static void test_client_setup(void) {
+        _c_cleanup_(sasl_client_deinit) SASLClient sasl = SASL_CLIENT_NULL;
+
+        sasl_client_init(&sasl);
+        sasl_client_deinit(&sasl);
+
+        sasl_client_init(&sasl);
+}
+
+static void test_server_conversations(void) {
+        static const char *requests[] = {
+                /* test mechanism discovery */
+                NULL,
+                "\0AUTH",
+
+                /* test basic EXTERNAL authentication */
+                NULL,
+                "\0AUTH EXTERNAL 31",
+                "BEGIN",
+
+                /* test EXTERNAL with invalid uid and retry */
+                NULL,
+                "\0AUTH EXTERNAL 30",
+                "AUTH EXTERNAL 31",
+                "BEGIN",
+
+                /* test EXTERNAL with separate DATA */
+                NULL,
+                "\0AUTH EXTERNAL",
+                "DATA 31",
+                "BEGIN",
+
+                /* test EXTERNAL with wrong DATA and retry */
+                NULL,
+                "\0AUTH EXTERNAL",
+                "DATA 30",
+                "AUTH EXTERNAL",
+                "DATA 31",
+                "BEGIN",
+
+                /* test EXTERNAL with anonymous DATA */
+                NULL,
+                "\0AUTH EXTERNAL",
+                "DATA",
+                "BEGIN",
+
+                /* test common fast-path */
+                NULL,
+                "\0AUTH EXTERNAL",
+                "DATA",
+                "NEGOTIATE_UNIX_FD",
+                "BEGIN",
+
+                /* end */
+                NULL,
+        };
+        static const char *replies[] = {
+                NULL,
+                "REJECTED EXTERNAL",
+
+                NULL,
+                "OK 30313233343536373839616263646566",
+                NULL,
+
+                NULL,
+                "REJECTED EXTERNAL",
+                "OK 30313233343536373839616263646566",
+                NULL,
+
+                NULL,
+                "DATA",
+                "OK 30313233343536373839616263646566",
+                NULL,
+
+                NULL,
+                "DATA",
+                "REJECTED EXTERNAL",
+                "DATA",
+                "OK 30313233343536373839616263646566",
+                NULL,
+
+                NULL,
+                "DATA",
+                "OK 30313233343536373839616263646566",
+                NULL,
+
+                NULL,
+                "DATA",
+                "OK 30313233343536373839616263646566",
+                "AGREE_UNIX_FD",
+                NULL,
+
+                NULL,
+        };
+        _c_cleanup_(sasl_server_deinit) SASLServer sasl = SASL_SERVER_NULL;
+        const char *reply;
+        size_t n_reply;
+        size_t i;
         int r;
 
-        r = sasl_server_dispatch(sasl, in, strlen(in + 1) + 1, &reply, &n_reply);
-        assert(r == ret);
-        if (r == 0) {
-                if (out) {
-                        assert(n_reply == strlen(out));
-                        assert(strcmp(reply, out) == 0);
+        assert(C_ARRAY_SIZE(requests) == C_ARRAY_SIZE(replies));
+
+        for (i = 0; i < C_ARRAY_SIZE(requests); ++i) {
+                if (requests[i]) {
+                        reply = NULL;
+                        n_reply = 0;
+
+                        r = sasl_server_dispatch(&sasl,
+                                                 requests[i],
+                                                 strlen(requests[i] + 1) + 1,
+                                                 &reply,
+                                                 &n_reply);
+                        assert(!r);
+
+                        if (replies[i]) {
+                                assert(n_reply == strlen(replies[i]));
+                                assert(strcmp(reply, replies[i]) == 0);
+                        } else {
+                                assert(!n_reply);
+                                assert(!reply);
+                                assert(sasl_server_is_done(&sasl));
+                        }
                 } else {
-                        assert(!n_reply);
-                        assert(!reply);
-                        assert(sasl_server_is_done(sasl));
+                        assert(!replies[i]);
+                        sasl_server_deinit(&sasl);
+                        sasl_server_init(&sasl, 1, "0123456789abcdef");
                 }
         }
 }
 
-/* discover the available mechanisms */
-static void test_discover(void) {
-        SASLServer sasl;
+static void test_client_run(void) {
+        _c_cleanup_(sasl_client_deinit) SASLClient sasl = SASL_CLIENT_NULL;
+        const char *output;
+        size_t n_output;
+        int r;
 
-        sasl_server_init(&sasl, 1, "0123456789abcdef");
+        sasl_client_init(&sasl);
 
-        assert_dispatch(&sasl, "\0AUTH", "REJECTED EXTERNAL", 0);
+        r = sasl_client_dispatch(&sasl, NULL, 0, &output, &n_output);
+        assert(!r);
+        assert(n_output == 46);
+        assert(!memcmp(output, "\0AUTH EXTERNAL\r\nDATA\r\nNEGOTIATE_UNIX_FD\r\nBEGIN", 46));
 
-        sasl_server_deinit(&sasl);
-}
+        r = sasl_client_dispatch(&sasl, "DATA", 4, &output, &n_output);
+        assert(!r && !n_output && !output);
+        r = sasl_client_dispatch(&sasl, "OK 30313233343536373839616263646566", 35, &output, &n_output);
+        assert(!r && !n_output && !output);
+        r = sasl_client_dispatch(&sasl, "AGREE_UNIX_FD", 13, &output, &n_output);
+        assert(!r && !n_output && !output);
 
-/* test external */
-static void test_external(void) {
-        SASLServer sasl;
-
-        sasl_server_init(&sasl, 1, "0123456789abcdef");
-
-        assert_dispatch(&sasl, "\0AUTH EXTERNAL 31", "OK 30313233343536373839616263646566", 0);
-        assert_dispatch(&sasl, "BEGIN", NULL, 0);
-
-        sasl_server_deinit(&sasl);
-}
-
-/* verify that authentiacitng with the wrong uid fails, but retrying succeeds */
-static void test_external_invalid(void) {
-        SASLServer sasl;
-
-        sasl_server_init(&sasl, 1, "0123456789abcdef");
-
-        assert_dispatch(&sasl, "\0AUTH EXTERNAL 30", "REJECTED EXTERNAL", 0);
-        assert_dispatch(&sasl, "AUTH EXTERNAL 31", "OK 30313233343536373839616263646566", 0);
-        assert_dispatch(&sasl, "BEGIN", NULL, 0);
-
-        sasl_server_deinit(&sasl);
-}
-
-/* do not supply a uid, but allow the system to use the one it has */
-static void test_external_no_data(void) {
-        SASLServer sasl;
-
-        sasl_server_init(&sasl, 1, "0123456789abcdef");
-
-        assert_dispatch(&sasl, "\0AUTH EXTERNAL", "DATA", 0);
-        assert_dispatch(&sasl, "DATA", "OK 30313233343536373839616263646566", 0);
-        assert_dispatch(&sasl, "BEGIN", NULL, 0);
-
-        sasl_server_deinit(&sasl);
-}
-
-/* external and negotiate fds, this is the common case */
-static void test_external_fds(void) {
-        SASLServer sasl;
-
-        sasl_server_init(&sasl, 1, "0123456789abcdef");
-
-        assert_dispatch(&sasl, "\0AUTH EXTERNAL 31", "OK 30313233343536373839616263646566", 0);
-        assert_dispatch(&sasl, "NEGOTIATE_UNIX_FD", "AGREE_UNIX_FD", 0);
-        assert_dispatch(&sasl, "BEGIN", NULL, 0);
-
-        sasl_server_deinit(&sasl);
+        assert(sasl_client_is_done(&sasl));
 }
 
 int main(int argc, char **argv) {
-        test_setup();
-        test_discover();
-        test_external();
-        test_external_invalid();
-        test_external_no_data();
-        test_external_fds();
+        test_server_setup();
+        test_client_setup();
+        test_server_conversations();
+        test_client_run();
         return 0;
 }
