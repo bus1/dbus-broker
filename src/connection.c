@@ -128,7 +128,7 @@ static void connection_hangup(Connection *connection) {
  */
 int connection_start(Connection *connection) {
         uint32_t events = EPOLLHUP | EPOLLIN;
-        const char *request = NULL;
+        const char *request;
         size_t n_request;
         int r;
 
@@ -180,8 +180,8 @@ int connection_dispatch(Connection *connection, uint32_t event) {
 }
 
 static int connection_feed_sasl(Connection *connection, const char *input, size_t n_input) {
-        const char *output = NULL;
-        size_t n_output = 0;
+        const char *output;
+        size_t n_output;
         int r;
 
         assert(!connection->authenticated);
@@ -200,7 +200,7 @@ static int connection_feed_sasl(Connection *connection, const char *input, size_
                 connection->authenticated = sasl_client_is_done(&connection->sasl.client);
         }
 
-        if (output && n_output) {
+        if (output) {
                 r = socket_queue_line(&connection->socket, output, n_output);
                 if (r)
                         return error_fold(r);

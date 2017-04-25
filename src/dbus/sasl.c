@@ -64,8 +64,8 @@ int sasl_client_dispatch(SASLClient *sasl, const char *input, size_t n_input, co
                 "NEGOTIATE_UNIX_FD\r\n"
                 "BEGIN"
         };
-        const char *cmd, *arg;
-        size_t n_cmd, n_arg;
+        const char *cmd, *arg, *output = NULL;
+        size_t n_cmd, n_arg, n_output = 0;
 
         sasl_split(input, n_input, &cmd, &n_cmd, &arg, &n_arg);
 
@@ -74,8 +74,8 @@ int sasl_client_dispatch(SASLClient *sasl, const char *input, size_t n_input, co
                 if (cmd)
                         return SASL_E_PROTOCOL_VIOLATION;
 
-                *outputp = request;
-                *n_outputp = sizeof(request) - 1;
+                output = request;
+                n_output = sizeof(request) - 1;
 
                 sasl->state = SASL_CLIENT_STATE_AUTH;
                 break;
@@ -120,6 +120,8 @@ int sasl_client_dispatch(SASLClient *sasl, const char *input, size_t n_input, co
                 return error_origin(-ENOTRECOVERABLE);
         }
 
+        *outputp = output;
+        *n_outputp = n_output;
         return 0;
 }
 
@@ -242,6 +244,8 @@ int sasl_server_dispatch(SASLServer *sasl, const char *input, size_t n_input, co
                         *n_outputp = strlen("AGREE_UNIX_FD");
                         sasl->state = SASL_SERVER_STATE_NEGOTIATED_FDS;
                 } else if (n_cmd == strlen("BEGIN") && !strncmp(cmd, "BEGIN", n_cmd) && !n_arg) {
+                        *outputp = NULL;
+                        *n_outputp = 0;
                         sasl->state = SASL_SERVER_STATE_DONE;
                 } else if ((n_cmd == strlen("ERROR") && !strncmp(cmd, "ERROR", n_cmd)) ||
                            (n_cmd == strlen("CANCEL") && !strncmp(cmd, "CANCEL", n_cmd) && !n_arg)) {
