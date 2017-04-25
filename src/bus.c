@@ -59,7 +59,9 @@ static int bus_accept(DispatchFile *file, uint32_t events) {
                 return r;
         fd = -1;
 
-        peer_start(peer);
+        r = peer_start(peer);
+        if (r)
+                return r;
 
         peer = NULL;
         return 0;
@@ -80,7 +82,6 @@ int bus_new(Bus **busp,
         sigemptyset(&mask);
         sigaddset(&mask, SIGTERM);
         sigaddset(&mask, SIGINT);
-        sigprocmask(SIG_BLOCK, &mask, NULL);
         signal_fd = signalfd(-1, &mask, SFD_NONBLOCK|SFD_CLOEXEC);
         if (signal_fd < 0)
                 return -errno;
@@ -176,12 +177,18 @@ static int bus_dispatch(Bus *bus) {
 }
 
 int bus_run(Bus *bus) {
+        sigset_t mask;
         int r;
+
+        sigemptyset(&mask);
+        sigaddset(&mask, SIGTERM);
+        sigaddset(&mask, SIGINT);
+        sigprocmask(SIG_BLOCK, &mask, NULL);
 
         for (;;) {
                 r = dispatch_context_poll(&bus->dispatcher, c_list_is_empty(&bus->ready_list) ? -1 : 0);
                 if (r < 0)
-                        return r;
+                        goto exit;
 
                 r = bus_dispatch(bus);
                 if (r)
@@ -189,9 +196,13 @@ int bus_run(Bus *bus) {
         }
 
         if (r != DISPATCH_E_EXIT)
-                return BUS_E_FAILURE;
+                r = BUS_E_FAILURE;
+        else
+                r = 0;
 
-        return 0;
+exit:
+        sigprocmask(SIG_UNBLOCK, &mask, NULL);
+        return r;
 }
 
 Peer *bus_find_peer_by_name(Bus *bus, const char *name) {
