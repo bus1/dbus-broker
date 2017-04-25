@@ -22,6 +22,7 @@ typedef int (*DriverMethodFn) (Peer *peer, CDVar *var_in, CDVar *var_out, NameCh
 
 struct DriverMethod {
         const char *name;
+        const char *path;
         DriverMethodFn fn;
         const CDVarType *in;
         const CDVarType *out;
@@ -216,14 +217,14 @@ static void driver_dvar_write_signature_out(CDVar *var, const CDVarType *type) {
 
 static int driver_dvar_verify_signature_in(const CDVarType *type, const char *signature) {
         if (type->length - 2 != strlen(signature))
-                return DRIVER_E_INVALID_SIGNATURE;
+                return DRIVER_E_UNEXPECTED_SIGNATURE;
 
         assert(type[0].element == '(');
         assert(type[type->length - 1].element == ')');
 
         for (unsigned int i = 1; i < type->length - 1; i++)
                 if (signature[i - 1] != type[i].element)
-                        return DRIVER_E_INVALID_SIGNATURE;
+                        return DRIVER_E_UNEXPECTED_SIGNATURE;
 
         return 0;
 }
@@ -439,6 +440,20 @@ static int driver_name_owner_changed(const char *name, Peer *old_owner, Peer *ne
         return 0;
 }
 
+static int driver_end_read(CDVar *var) {
+        int r;
+
+        r = c_dvar_end_read(var);
+        switch (r) {
+        case C_DVAR_E_CORRUPT_DATA:
+        case C_DVAR_E_OUT_OF_BOUNDS:
+        case C_DVAR_E_TYPE_MISMATCH:
+                return DRIVER_E_INVALID_MESSAGE;
+        default:
+                return error_origin(r);
+        }
+}
+
 static int driver_method_hello(Peer *peer, CDVar *in_v, CDVar *out_v, NameChange *change) {
         int r;
 
@@ -448,9 +463,9 @@ static int driver_method_hello(Peer *peer, CDVar *in_v, CDVar *out_v, NameChange
         /* verify the input argument */
         c_dvar_read(in_v, "()");
 
-        r = c_dvar_end_read(in_v);
+        r = driver_end_read(in_v);
         if (r)
-                return error_origin(r);
+                return error_trace(r);
 
         /* write the output message */
         c_dvar_write(out_v, "(");
@@ -472,9 +487,9 @@ static int driver_method_request_name(Peer *peer, CDVar *in_v, CDVar *out_v, Nam
 
         c_dvar_read(in_v, "(su)", &name, &flags);
 
-        r = c_dvar_end_read(in_v);
+        r = driver_end_read(in_v);
         if (r)
-                return error_origin(r);
+                return error_trace(r);
 
         if (strcmp(name, "org.freedesktop.DBus") == 0)
                 return DRIVER_E_NAME_RESERVED;
@@ -503,9 +518,9 @@ static int driver_method_release_name(Peer *peer, CDVar *in_v, CDVar *out_v, Nam
 
         c_dvar_read(in_v, "(s)", &name);
 
-        r = c_dvar_end_read(in_v);
+        r = driver_end_read(in_v);
         if (r)
-                return error_origin(r);
+                return error_trace(r);
 
         if (strcmp(name, "org.freedesktop.DBus") == 0)
                 return DRIVER_E_NAME_RESERVED;
@@ -533,9 +548,9 @@ static int driver_method_list_queued_owners(Peer *peer, CDVar *in_v, CDVar *out_
 
         c_dvar_read(in_v, "(s)", &name);
 
-        r = c_dvar_end_read(in_v);
+        r = driver_end_read(in_v);
         if (r)
-                return error_origin(r);
+                return error_trace(r);
 
         entry = name_registry_find_entry(&peer->bus->names, name);
         if (!entry)
@@ -555,9 +570,9 @@ static int driver_method_list_names(Peer *peer, CDVar *in_v, CDVar *out_v, NameC
 
         c_dvar_read(in_v, "()");
 
-        r = c_dvar_end_read(in_v);
+        r = driver_end_read(in_v);
         if (r)
-                return error_origin(r);
+                return error_trace(r);
 
         c_dvar_write(out_v, "([");
         c_dvar_write(out_v, "s", "org.freedesktop.DBus");
@@ -587,9 +602,9 @@ static int driver_method_list_activatable_names(Peer *peer, CDVar *in_v, CDVar *
 
         c_dvar_read(in_v, "()");
 
-        r = c_dvar_end_read(in_v);
+        r = driver_end_read(in_v);
         if (r)
-                return error_origin(r);
+                return error_trace(r);
 
         c_dvar_write(out_v, "([");
         for (CRBNode *n = c_rbtree_first(&peer->bus->names.entries); n; n = c_rbnode_next(n)) {
@@ -612,9 +627,9 @@ static int driver_method_name_has_owner(Peer *peer, CDVar *in_v, CDVar *out_v, N
 
         c_dvar_read(in_v, "(s)", &name);
 
-        r = c_dvar_end_read(in_v);
+        r = driver_end_read(in_v);
         if (r)
-                return error_origin(r);
+                return error_trace(r);
 
         if (strcmp(name, "org.freedesktop.DBus") == 0) {
                 c_dvar_write(out_v, "(b)", true);
@@ -646,9 +661,9 @@ static int driver_method_get_name_owner(Peer *peer, CDVar *in_v, CDVar *out_v, N
 
         c_dvar_read(in_v, "(s)", &name);
 
-        r = c_dvar_end_read(in_v);
+        r = driver_end_read(in_v);
         if (r)
-                return error_origin(r);
+                return error_trace(r);
 
         c_dvar_write(out_v, "(");
 
@@ -674,9 +689,9 @@ static int driver_method_get_connection_unix_user(Peer *peer, CDVar *in_v, CDVar
 
         c_dvar_read(in_v, "(s)", &name);
 
-        r = c_dvar_end_read(in_v);
+        r = driver_end_read(in_v);
         if (r)
-                return error_origin(r);
+                return error_trace(r);
 
         connection = bus_find_peer_by_name(peer->bus, name);
         if (!connection)
@@ -694,9 +709,9 @@ static int driver_method_get_connection_unix_process_id(Peer *peer, CDVar *in_v,
 
         c_dvar_read(in_v, "(s)", &name);
 
-        r = c_dvar_end_read(in_v);
+        r = driver_end_read(in_v);
         if (r)
-                return error_origin(r);
+                return error_trace(r);
 
         connection = bus_find_peer_by_name(peer->bus, name);
         if (!connection)
@@ -714,9 +729,9 @@ static int driver_method_get_connection_credentials(Peer *peer, CDVar *in_v, CDV
 
         c_dvar_read(in_v, "(s)", &name);
 
-        r = c_dvar_end_read(in_v);
+        r = driver_end_read(in_v);
         if (r)
-                return error_origin(r);
+                return error_trace(r);
 
         connection = bus_find_peer_by_name(peer->bus, name);
         if (!connection)
@@ -748,9 +763,7 @@ static int driver_method_get_connection_credentials(Peer *peer, CDVar *in_v, CDV
 }
 
 static int driver_method_get_adt_audit_session_data(Peer *peer, CDVar *in_v, CDVar *out_v, NameChange *change) {
-        /* XXX */
-
-        return 0;
+        return DRIVER_E_ADT_NOT_SUPPORTED;
 }
 
 static int driver_method_get_connection_selinux_security_context(Peer *peer, CDVar *in_v, CDVar *out_v, NameChange *change) {
@@ -766,16 +779,16 @@ static int driver_method_get_connection_selinux_security_context(Peer *peer, CDV
 
         c_dvar_read(in_v, "(s)", &name);
 
-        r = c_dvar_end_read(in_v);
+        r = driver_end_read(in_v);
         if (r)
-                return error_origin(r);
+                return error_trace(r);
 
         connection = bus_find_peer_by_name(peer->bus, name);
         if (!connection)
                 return DRIVER_E_PEER_NOT_FOUND;
 
         if (!connection->seclabel)
-                return DRIVER_E_METHOD_NOT_SUPPORTED;
+                return DRIVER_E_SELINUX_NOT_SUPPORTED;
 
         /*
          * Unlike the "LinuxSecurityLabel", this call does not include a
@@ -793,9 +806,9 @@ static int driver_method_add_match(Peer *peer, CDVar *in_v, CDVar *out_v, NameCh
 
         c_dvar_read(in_v, "(s)", &rule_string);
 
-        r = c_dvar_end_read(in_v);
+        r = driver_end_read(in_v);
         if (r)
-                return error_origin(r);
+                return error_trace(r);
 
         r = match_rule_new(&rule, peer, rule_string);
         if (r)
@@ -842,9 +855,9 @@ static int driver_method_remove_match(Peer *peer, CDVar *in_v, CDVar *out_v, Nam
 
         c_dvar_read(in_v, "(s)", &rule_string);
 
-        r = c_dvar_end_read(in_v);
+        r = driver_end_read(in_v);
         if (r)
-                return error_origin(r);
+                return error_trace(r);
 
         r = match_rule_get(&rule, peer, rule_string);
         if (r)
@@ -867,9 +880,9 @@ static int driver_method_get_id(Peer *peer, CDVar *in_v, CDVar *out_v, NameChang
         /* verify the input argument */
         c_dvar_read(in_v, "()");
 
-        r = c_dvar_end_read(in_v);
+        r = driver_end_read(in_v);
         if (r)
-                return error_origin(r);
+                return error_trace(r);
 
         /* write the output message */
         c_string_to_hex(peer->bus->guid, sizeof(peer->bus->guid), buffer);
@@ -884,7 +897,7 @@ static int driver_method_become_monitor(Peer *peer, CDVar *in_v, CDVar *out_v, N
         return 0;
 }
 
-static int driver_handle_method(const DriverMethod *method, Peer *peer, uint32_t serial, const char *signature_in, Message *message_in) {
+static int driver_handle_method(const DriverMethod *method, Peer *peer, const char *path, uint32_t serial, const char *signature_in, Message *message_in) {
         _c_cleanup_(c_dvar_freep) CDVar *var_in = NULL, *var_out = NULL;
         _c_cleanup_(message_unrefp) Message *message_out = NULL;
         NameChange change = {};
@@ -893,9 +906,12 @@ static int driver_handle_method(const DriverMethod *method, Peer *peer, uint32_t
         int r;
 
         /*
-         * Verify the input signature and prepare the input & output variants
-         * for input parsing and output marshaling.
+         * Verify the path and the input signature and prepare the
+         * input & output variants for input parsing and output marshaling.
          */
+
+        if (method->path && strcmp(path, method->path) != 0)
+                return DRIVER_E_UNEXPECTED_PATH;
 
         r = driver_dvar_verify_signature_in(method->in, signature_in);
         if (r)
@@ -915,7 +931,7 @@ static int driver_handle_method(const DriverMethod *method, Peer *peer, uint32_t
         /*
          * Write the generic reply-header and then call into the method-handler
          * of the specific driver method. Note that the driver-methods are
-         * responsible to call c_dvar_end_read(var_in), to verify all read data
+         * responsible to call driver_end_read(var_in), to verify all read data
          * was correct.
          */
 
@@ -958,27 +974,27 @@ static int driver_handle_method(const DriverMethod *method, Peer *peer, uint32_t
         return 0;
 }
 
-static int driver_dispatch_method(Peer *peer, uint32_t serial, const char *method, const char *signature, Message *message) {
+static int driver_dispatch_method(Peer *peer, uint32_t serial, const char *method, const char *path, const char *signature, Message *message) {
         static const DriverMethod methods[] = {
-                { "Hello",                                      driver_method_hello,                                            c_dvar_type_unit,       driver_type_out_s },
-                { "RequestName",                                driver_method_request_name,                                     driver_type_in_su,      driver_type_out_u },
-                { "ReleaseName",                                driver_method_release_name,                                     driver_type_in_s,       driver_type_out_u },
-                { "ListQueuedOwners",                           driver_method_list_queued_owners,                               driver_type_in_s,       driver_type_out_as },
-                { "ListNames",                                  driver_method_list_names,                                       c_dvar_type_unit,       driver_type_out_as },
-                { "ListActivatableNames",                       driver_method_list_activatable_names,                           c_dvar_type_unit,       driver_type_out_as },
-                { "NameHasOwner",                               driver_method_name_has_owner,                                   driver_type_in_s,       driver_type_out_b },
-                { "StartServiceByName",                         driver_method_start_service_by_name,                            driver_type_in_s,       driver_type_out_u },
-                { "UpdateActivationEnvironment",                driver_method_update_activation_environment,                    driver_type_in_apss,    driver_type_out_unit },
-                { "GetNameOwner",                               driver_method_get_name_owner,                                   driver_type_in_s,       driver_type_out_s },
-                { "GetConnectionUnixUser",                      driver_method_get_connection_unix_user,                         driver_type_in_s,       driver_type_out_u },
-                { "GetConnectionUnixProcessID",                 driver_method_get_connection_unix_process_id,                   driver_type_in_s,       driver_type_out_u },
-                { "GetConnectionCredentials",                   driver_method_get_connection_credentials,                       driver_type_in_s,       driver_type_out_apsv },
-                { "GetAdtAuditSessionData",                     driver_method_get_adt_audit_session_data,                       driver_type_in_s,       driver_type_out_ab },
-                { "GetConnectionSELinuxSecurityContext",        driver_method_get_connection_selinux_security_context,          driver_type_in_s,       driver_type_out_ab },
-                { "AddMatch",                                   driver_method_add_match,                                        driver_type_in_s,       driver_type_out_unit },
-                { "RemoveMatch",                                driver_method_remove_match,                                     driver_type_in_s,       driver_type_out_unit },
-                { "GetId",                                      driver_method_get_id,                                           c_dvar_type_unit,       driver_type_out_s },
-                { "BecomeMonitor",                              driver_method_become_monitor,                                   driver_type_in_asu,     driver_type_out_unit },
+                { "Hello",                                      NULL,                           driver_method_hello,                                            c_dvar_type_unit,       driver_type_out_s },
+                { "RequestName",                                NULL,                           driver_method_request_name,                                     driver_type_in_su,      driver_type_out_u },
+                { "ReleaseName",                                NULL,                           driver_method_release_name,                                     driver_type_in_s,       driver_type_out_u },
+                { "ListQueuedOwners",                           NULL,                           driver_method_list_queued_owners,                               driver_type_in_s,       driver_type_out_as },
+                { "ListNames",                                  NULL,                           driver_method_list_names,                                       c_dvar_type_unit,       driver_type_out_as },
+                { "ListActivatableNames",                       NULL,                           driver_method_list_activatable_names,                           c_dvar_type_unit,       driver_type_out_as },
+                { "NameHasOwner",                               NULL,                           driver_method_name_has_owner,                                   driver_type_in_s,       driver_type_out_b },
+                { "StartServiceByName",                         NULL,                           driver_method_start_service_by_name,                            driver_type_in_s,       driver_type_out_u },
+                { "UpdateActivationEnvironment",                "/org/freedesktop/DBus",        driver_method_update_activation_environment,                    driver_type_in_apss,    driver_type_out_unit },
+                { "GetNameOwner",                               NULL,                           driver_method_get_name_owner,                                   driver_type_in_s,       driver_type_out_s },
+                { "GetConnectionUnixUser",                      NULL,                           driver_method_get_connection_unix_user,                         driver_type_in_s,       driver_type_out_u },
+                { "GetConnectionUnixProcessID",                 NULL,                           driver_method_get_connection_unix_process_id,                   driver_type_in_s,       driver_type_out_u },
+                { "GetConnectionCredentials",                   NULL,                           driver_method_get_connection_credentials,                       driver_type_in_s,       driver_type_out_apsv },
+                { "GetAdtAuditSessionData",                     NULL,                           driver_method_get_adt_audit_session_data,                       driver_type_in_s,       driver_type_out_ab },
+                { "GetConnectionSELinuxSecurityContext",        NULL,                           driver_method_get_connection_selinux_security_context,          driver_type_in_s,       driver_type_out_ab },
+                { "AddMatch",                                   NULL,                           driver_method_add_match,                                        driver_type_in_s,       driver_type_out_unit },
+                { "RemoveMatch",                                NULL,                           driver_method_remove_match,                                     driver_type_in_s,       driver_type_out_unit },
+                { "GetId",                                      NULL,                           driver_method_get_id,                                           c_dvar_type_unit,       driver_type_out_s },
+                { "BecomeMonitor",                              "/org/freedesktop/DBus",        driver_method_become_monitor,                                   driver_type_in_asu,     driver_type_out_unit },
         };
 
         if (_c_unlikely_(!peer_is_registered(peer)) && strcmp(method, "Hello") != 0)
@@ -988,10 +1004,10 @@ static int driver_dispatch_method(Peer *peer, uint32_t serial, const char *metho
                 if (strcmp(methods[i].name, method) != 0)
                         continue;
 
-                return driver_handle_method(&methods[i], peer, serial, signature, message);
+                return driver_handle_method(&methods[i], peer, path, serial, signature, message);
         }
 
-        return DRIVER_E_INVALID_METHOD;
+        return DRIVER_E_UNEXPECTED_METHOD;
 }
 
 int driver_dispatch_interface(Peer *peer,
@@ -1002,14 +1018,13 @@ int driver_dispatch_interface(Peer *peer,
                               const char *signature,
                               Message *message) {
         if (message->header->type != DBUS_MESSAGE_TYPE_METHOD_CALL)
-                return DRIVER_E_INVALID_MESSAGE;
+                /* XXX: ignore */
+                return DRIVER_E_UNEXPECTED_MESSAGE_TYPE;
 
         if (interface && _c_unlikely_(strcmp(interface, "org.freedesktop.DBus") != 0))
-                return DRIVER_E_INVALID_INTERFACE;
+                return DRIVER_E_UNEXPECTED_INTERFACE;
 
-        /* XXX: verify path only for privileged calls */
-
-        return driver_dispatch_method(peer, serial, member, signature, message);
+        return driver_dispatch_method(peer, serial, member, path, signature, message);
 }
 
 int driver_goodbye(Peer *peer, bool silent) {
