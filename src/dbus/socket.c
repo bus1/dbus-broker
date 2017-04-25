@@ -150,10 +150,9 @@ static void socket_discard_output(Socket *socket) {
 /**
  * socket_init() - XXX
  */
-int socket_init(Socket *socket, int fd, bool server) {
+int socket_init(Socket *socket, int fd) {
         *socket = (Socket){};
         socket->fd = fd;
-        socket->server = server;
         socket->in.data_size = SOCKET_DATA_PREALLOC;
         socket->out.queue = (CList)C_LIST_INIT(socket->out.queue);
 
@@ -209,16 +208,6 @@ int socket_dequeue_line(Socket *socket, const char **linep, size_t *np) {
         size_t n;
 
         assert(!socket->lines_done);
-
-        /* skip the very first byte of the stream, which must be 0 */
-        if (_c_unlikely_(!socket->null_byte_done) && socket->server &&
-            socket->in.data_pos < socket->in.data_end) {
-                if (socket->in.data[socket->in.data_pos] != '\0')
-                        return SOCKET_E_NO_NULL_BYTE;
-
-                socket->in.data_start = ++socket->in.data_pos;
-                socket->null_byte_done = true;
-        }
 
         /*
          * Advance our cursor byte by byte and look for an end-of-line. We
@@ -352,10 +341,6 @@ int socket_queue_line(Socket *socket, const char *line_in, size_t n) {
         if (_c_unlikely_(socket->hup_out))
                 return 0;
 
-        /* when acting as a client, the first byte of the first line must be null */
-        if (_c_unlikely_(!socket->server && !socket->null_byte_done))
-                ++n;
-
         buffer = c_list_last_entry(&socket->out.queue, SocketBuffer, link);
         if (!buffer || n + strlen("\r\n") > socket_buffer_get_line_space(buffer)) {
                 r = socket_buffer_new_line(&buffer, n + strlen("\r\n"));
@@ -366,14 +351,6 @@ int socket_queue_line(Socket *socket, const char *line_in, size_t n) {
         }
 
         socket_buffer_get_line_cursor(buffer, &line_out, &pos);
-
-        if (_c_unlikely_(!socket->server && !socket->null_byte_done)) {
-                *line_out = '\0';
-                ++(line_out);
-                ++(*pos);
-                --n;
-                socket->null_byte_done = true;
-        }
 
         memcpy(line_out, line_in, n);
         line_out += n;

@@ -18,7 +18,7 @@ static void assert_dispatch(SASLServer *sasl, const char *in, const char *out, i
         size_t n_reply = 0;
         int r;
 
-        r = sasl_server_dispatch(sasl, in, strlen(in), &reply, &n_reply);
+        r = sasl_server_dispatch(sasl, in, strlen(in + 1) + 1, &reply, &n_reply);
         assert(r == ret);
         if (r == 0) {
                 if (out) {
@@ -38,7 +38,7 @@ static void test_discover(void) {
 
         sasl_server_init(&sasl, 1, "0123456789abcdef");
 
-        assert_dispatch(&sasl, "AUTH", "REJECTED EXTERNAL", 0);
+        assert_dispatch(&sasl, "\0AUTH", "REJECTED EXTERNAL", 0);
 
         sasl_server_deinit(&sasl);
 }
@@ -49,7 +49,7 @@ static void test_external(void) {
 
         sasl_server_init(&sasl, 1, "0123456789abcdef");
 
-        assert_dispatch(&sasl, "AUTH EXTERNAL 31", "OK 30313233343536373839616263646566", 0);
+        assert_dispatch(&sasl, "\0AUTH EXTERNAL 31", "OK 30313233343536373839616263646566", 0);
         assert_dispatch(&sasl, "BEGIN", NULL, 0);
 
         sasl_server_deinit(&sasl);
@@ -61,7 +61,7 @@ static void test_external_invalid(void) {
 
         sasl_server_init(&sasl, 1, "0123456789abcdef");
 
-        assert_dispatch(&sasl, "AUTH EXTERNAL 30", "REJECTED EXTERNAL", 0);
+        assert_dispatch(&sasl, "\0AUTH EXTERNAL 30", "REJECTED EXTERNAL", 0);
         assert_dispatch(&sasl, "AUTH EXTERNAL 31", "OK 30313233343536373839616263646566", 0);
         assert_dispatch(&sasl, "BEGIN", NULL, 0);
 
@@ -74,7 +74,7 @@ static void test_external_no_data(void) {
 
         sasl_server_init(&sasl, 1, "0123456789abcdef");
 
-        assert_dispatch(&sasl, "AUTH EXTERNAL", "DATA", 0);
+        assert_dispatch(&sasl, "\0AUTH EXTERNAL", "DATA", 0);
         assert_dispatch(&sasl, "DATA", "OK 30313233343536373839616263646566", 0);
         assert_dispatch(&sasl, "BEGIN", NULL, 0);
 
@@ -87,7 +87,7 @@ static void test_external_fds(void) {
 
         sasl_server_init(&sasl, 1, "0123456789abcdef");
 
-        assert_dispatch(&sasl, "AUTH EXTERNAL 31", "OK 30313233343536373839616263646566", 0);
+        assert_dispatch(&sasl, "\0AUTH EXTERNAL 31", "OK 30313233343536373839616263646566", 0);
         assert_dispatch(&sasl, "NEGOTIATE_UNIX_FD", "AGREE_UNIX_FD", 0);
         assert_dispatch(&sasl, "BEGIN", NULL, 0);
 

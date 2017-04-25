@@ -59,7 +59,7 @@ void sasl_client_deinit(SASLClient *sasl) {
 
 int sasl_client_dispatch(SASLClient *sasl, const char *input, size_t n_input, const char **outputp, size_t *n_outputp) {
         static const char request[] = {
-                "AUTH EXTERNAL\r\n"
+                "\0AUTH EXTERNAL\r\n"
                 "DATA\r\n"
                 "NEGOTIATE_UNIX_FD\r\n"
                 "BEGIN"
@@ -159,7 +159,7 @@ static void sasl_server_handle_data(SASLServer *sasl, const char *input, size_t 
         if (failed) {
                 *outputp = "REJECTED EXTERNAL";
                 *n_outputp = strlen("REJECTED EXTERNAL");
-                sasl->state = SASL_SERVER_STATE_INIT;
+                sasl->state = SASL_SERVER_STATE_AUTH;
         } else {
                 *outputp = sasl->ok_response;
                 *n_outputp = sizeof(sasl->ok_response);
@@ -183,7 +183,7 @@ static void sasl_server_handle_auth(SASLServer *sasl, const char *input, size_t 
         } else {
                 *outputp = "REJECTED EXTERNAL";
                 *n_outputp = strlen("REJECTED EXTERNAL");
-                sasl->state = SASL_SERVER_STATE_INIT;
+                sasl->state = SASL_SERVER_STATE_AUTH;
         }
 }
 
@@ -195,12 +195,20 @@ int sasl_server_dispatch(SASLServer *sasl, const char *input, size_t n_input, co
 
         switch (sasl->state) {
         case SASL_SERVER_STATE_INIT:
+                /* first byte must be the zero-byte */
+                if (n_cmd < 1 || *cmd)
+                        return SASL_E_PROTOCOL_VIOLATION;
+
+                --n_cmd;
+                ++cmd;
+                /* fallthrough */
+        case SASL_SERVER_STATE_AUTH:
                 if (n_cmd == strlen("AUTH") && !strncmp(cmd, "AUTH", n_cmd)) {
                         sasl_server_handle_auth(sasl, arg, n_arg, outputp, n_outputp);
                 } else if (n_cmd == strlen("ERROR") && !strncmp(cmd, "ERROR", n_cmd)) {
                         *outputp = "REJECTED EXTERNAL";
                         *n_outputp = strlen("REJECTED EXTERNAL");
-                        sasl->state = SASL_SERVER_STATE_INIT;
+                        sasl->state = SASL_SERVER_STATE_AUTH;
                 } else if (n_cmd == strlen("BEGIN") && !strncmp(cmd, "BEGIN", n_cmd) && !n_arg) {
                         return SASL_E_PROTOCOL_VIOLATION;
                 } else {
@@ -217,7 +225,7 @@ int sasl_server_dispatch(SASLServer *sasl, const char *input, size_t n_input, co
                            (n_cmd == strlen("CANCEL") && !strncmp(cmd, "CANCEL", n_cmd) && !n_arg)) {
                         *outputp = "REJECTED EXTERNAL";
                         *n_outputp = strlen("REJECTED EXTERNAL");
-                        sasl->state = SASL_SERVER_STATE_INIT;
+                        sasl->state = SASL_SERVER_STATE_AUTH;
                 } else if (n_cmd == strlen("BEGIN") && !strncmp(cmd, "BEGIN", n_cmd) && !n_arg) {
                         return SASL_E_PROTOCOL_VIOLATION;
                 } else {
@@ -239,7 +247,7 @@ int sasl_server_dispatch(SASLServer *sasl, const char *input, size_t n_input, co
                            (n_cmd == strlen("CANCEL") && !strncmp(cmd, "CANCEL", n_cmd) && !n_arg)) {
                         *outputp = "REJECTED EXTERNAL";
                         *n_outputp = strlen("REJECTED EXTERNAL");
-                        sasl->state = SASL_SERVER_STATE_INIT;
+                        sasl->state = SASL_SERVER_STATE_AUTH;
                 } else {
                         *outputp = "ERROR";
                         *n_outputp = strlen("ERROR");

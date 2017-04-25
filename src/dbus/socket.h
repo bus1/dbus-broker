@@ -58,9 +58,7 @@ C_DEFINE_CLEANUP(SocketBuffer *, socket_buffer_free);
 
 struct Socket {
         int fd;
-        bool server : 1;
 
-        bool null_byte_done : 1;
         bool lines_done : 1;
         bool hup_in : 1;
         bool hup_out : 1;
@@ -86,7 +84,7 @@ struct Socket {
                 .out.queue = C_LIST_INIT((_x).out.queue),               \
         }
 
-int socket_init(Socket *socket, int fd, bool server);
+int socket_init(Socket *socket, int fd);
 void socket_deinit(Socket *socket);
 
 int socket_dequeue_line(Socket *socket, const char **linep, size_t *np);

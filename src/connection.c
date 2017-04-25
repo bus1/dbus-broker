@@ -14,7 +14,6 @@
 #include "util/error.h"
 
 static int connection_init(Connection *connection,
-                           bool server,
                            DispatchContext *dispatch_ctx,
                            CList *dispatch_list,
                            CList *dispatch_hup,
@@ -27,7 +26,7 @@ static int connection_init(Connection *connection,
         connection->user = user_entry_ref(user);
         connection->hup_list = dispatch_hup;
 
-        r = socket_init(&connection->socket, fd, server);
+        r = socket_init(&connection->socket, fd);
         if (r)
                 return error_fold(r);
 
@@ -58,7 +57,6 @@ int connection_init_server(Connection *connection,
         int r;
 
         r = connection_init(c,
-                            true,
                             dispatch_ctx,
                             dispatch_list,
                             dispatch_hup,
@@ -88,7 +86,6 @@ int connection_init_client(Connection *connection,
         int r;
 
         r = connection_init(c,
-                            false,
                             dispatch_ctx,
                             dispatch_list,
                             dispatch_hup,

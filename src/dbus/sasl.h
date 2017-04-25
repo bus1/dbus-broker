@@ -44,6 +44,7 @@ int sasl_client_dispatch(SASLClient *sasl, const char *input, size_t n_input, co
 enum {
         SASL_SERVER_STATE_INIT,
         SASL_SERVER_STATE_DONE,
+        SASL_SERVER_STATE_AUTH,
         SASL_SERVER_STATE_CHALLENGE,
         SASL_SERVER_STATE_AUTHENTICATED,
         SASL_SERVER_STATE_NEGOTIATED_FDS,
