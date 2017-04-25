@@ -476,6 +476,9 @@ static int driver_method_request_name(Peer *peer, CDVar *in_v, CDVar *out_v, Nam
         if (r)
                 return error_origin(r);
 
+        if (strcmp(name, "org.freedesktop.DBus") == 0)
+                return DRIVER_E_NAME_RESERVED;
+
         r = name_registry_request_name(&peer->bus->names, peer, name, flags, change);
         if (r == 0)
                 reply = DBUS_REQUEST_NAME_REPLY_PRIMARY_OWNER;
@@ -503,6 +506,9 @@ static int driver_method_release_name(Peer *peer, CDVar *in_v, CDVar *out_v, Nam
         r = c_dvar_end_read(in_v);
         if (r)
                 return error_origin(r);
+
+        if (strcmp(name, "org.freedesktop.DBus") == 0)
+                return DRIVER_E_NAME_RESERVED;
 
         r = name_registry_release_name(&peer->bus->names, peer, name, change);
         if (r == 0)
@@ -536,10 +542,10 @@ static int driver_method_list_queued_owners(Peer *peer, CDVar *in_v, CDVar *out_
                 return DRIVER_E_NAME_NOT_FOUND;
 
         /* XXX: verify if the actual owner should be included */
-        c_dvar_write(out_v, "(");
+        c_dvar_write(out_v, "([");
         c_list_for_each_entry(owner, &entry->owners, entry_link)
                 driver_dvar_write_unique_name(out_v, owner->peer);
-        c_dvar_write(out_v, ")");
+        c_dvar_write(out_v, "])");
 
         return 0;
 }
@@ -553,7 +559,8 @@ static int driver_method_list_names(Peer *peer, CDVar *in_v, CDVar *out_v, NameC
         if (r)
                 return error_origin(r);
 
-        c_dvar_write(out_v, "(");
+        c_dvar_write(out_v, "([");
+        c_dvar_write(out_v, "s", "org.freedesktop.DBus");
         for (CRBNode *n = c_rbtree_first(&peer->bus->names.entries); n; n = c_rbnode_next(n)) {
                 NameEntry *entry = c_container_of(n, NameEntry, rb);
 
@@ -570,7 +577,7 @@ static int driver_method_list_names(Peer *peer, CDVar *in_v, CDVar *out_v, NameC
 
                 driver_dvar_write_unique_name(out_v, p);
         }
-        c_dvar_write(out_v, ")");
+        c_dvar_write(out_v, "])");
 
         return 0;
 }
@@ -584,7 +591,7 @@ static int driver_method_list_activatable_names(Peer *peer, CDVar *in_v, CDVar *
         if (r)
                 return error_origin(r);
 
-        c_dvar_write(out_v, "(");
+        c_dvar_write(out_v, "([");
         for (CRBNode *n = c_rbtree_first(&peer->bus->names.entries); n; n = c_rbnode_next(n)) {
                 NameEntry *entry = c_container_of(n, NameEntry, rb);
 
@@ -593,7 +600,7 @@ static int driver_method_list_activatable_names(Peer *peer, CDVar *in_v, CDVar *
 
                 c_dvar_write(out_v, "s", entry->name);
         }
-        c_dvar_write(out_v, ")");
+        c_dvar_write(out_v, "])");
 
         return 0;
 }
@@ -609,9 +616,13 @@ static int driver_method_name_has_owner(Peer *peer, CDVar *in_v, CDVar *out_v, N
         if (r)
                 return error_origin(r);
 
-        connection = bus_find_peer_by_name(peer->bus, name);
+        if (strcmp(name, "org.freedesktop.DBus") == 0) {
+                c_dvar_write(out_v, "(b)", true);
+        } else {
+                connection = bus_find_peer_by_name(peer->bus, name);
 
-        c_dvar_write(out_v, "(b)", !!connection);
+                c_dvar_write(out_v, "(b)", !!connection);
+        }
 
         return 0;
 }
@@ -639,11 +650,19 @@ static int driver_method_get_name_owner(Peer *peer, CDVar *in_v, CDVar *out_v, N
         if (r)
                 return error_origin(r);
 
-        owner = name_registry_resolve_name(&peer->bus->names, name);
-        if (!owner)
-                return DRIVER_E_NAME_OWNER_NOT_FOUND;
+        c_dvar_write(out_v, "(");
 
-        driver_dvar_write_unique_name(out_v, owner);
+        if (strcmp(name, "org.freedesktop.DBus") == 0) {
+                c_dvar_write(out_v, "org.freedesktop.DBus");
+        } else {
+                owner = name_registry_resolve_name(&peer->bus->names, name);
+                if (!owner)
+                        return DRIVER_E_NAME_OWNER_NOT_FOUND;
+
+                driver_dvar_write_unique_name(out_v, owner);
+        }
+
+        c_dvar_write(out_v, ")");
 
         return 0;
 }
@@ -988,7 +1007,7 @@ int driver_dispatch_interface(Peer *peer,
         if (interface && _c_unlikely_(strcmp(interface, "org.freedesktop.DBus") != 0))
                 return DRIVER_E_INVALID_INTERFACE;
 
-        /* XXX: path ? */
+        /* XXX: verify path only for privileged calls */
 
         return driver_dispatch_method(peer, serial, member, signature, message);
 }
