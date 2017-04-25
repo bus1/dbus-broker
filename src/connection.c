@@ -135,8 +135,6 @@ int connection_start(Connection *connection) {
         assert(socket_is_running(&connection->socket));
 
         if (!connection->server) {
-                events |= EPOLLOUT;
-
                 r = sasl_client_dispatch(&connection->sasl.client, NULL, 0, &request, &n_request);
                 if (r)
                         return error_fold(r);
@@ -145,6 +143,8 @@ int connection_start(Connection *connection) {
                         r = socket_queue_line(&connection->socket, request, n_request);
                         if (r)
                                 return error_fold(r);
+
+                        events |= EPOLLOUT;
                 }
         }
 
