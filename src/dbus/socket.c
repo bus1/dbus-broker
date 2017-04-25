@@ -17,6 +17,7 @@
 #include <c-list.h>
 #include <c-macro.h>
 #include <stdlib.h>
+#include <sys/epoll.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <sys/un.h>
@@ -133,6 +134,19 @@ static bool socket_buffer_consume(SocketBuffer *buffer, size_t n) {
         return socket_buffer_is_consumed(buffer);
 }
 
+static void socket_discard_input(Socket *socket) {
+        socket->in.data_pos = socket->in.data_end;
+        socket->in.pending_message = message_unref(socket->in.pending_message);
+        socket->in.fds = fdlist_free(socket->in.fds);
+}
+
+static void socket_discard_output(Socket *socket) {
+        SocketBuffer *buffer;
+
+        while ((buffer = c_list_first_entry(&socket->out.queue, SocketBuffer, link)))
+                socket_buffer_free(buffer);
+}
+
 /**
  * socket_init() - XXX
  */
@@ -154,22 +168,43 @@ int socket_init(Socket *socket, int fd, bool server) {
  * socket_deinit() - XXX
  */
 void socket_deinit(Socket *socket) {
-        SocketBuffer *buffer;
+        socket_discard_input(socket);
+        socket_discard_output(socket);
 
-        socket->fd = c_close(socket->fd);
+        assert(c_list_is_empty(&socket->out.queue));
+        assert(!socket->in.pending_message);
+        assert(!socket->in.fds);
 
-        while ((buffer = c_list_first_entry(&socket->out.queue, SocketBuffer, link)))
-                socket_buffer_free(buffer);
-
-        socket->in.pending_message = message_unref(socket->in.pending_message);
-        socket->in.fds = fdlist_free(socket->in.fds);
         socket->in.data = c_free(socket->in.data);
+        socket->fd = c_close(socket->fd);
+}
+
+static void socket_hangup_input(Socket *socket) {
+        /*
+         * A read-side hangup is detected when recv(2) returns EOF or failure.
+         * In that case, we stop reading data from the socket, but still
+         * dispatch all pending input. Hence, we don't discard input buffers.
+         */
+        socket->hup_in = true;
+}
+
+static void socket_hangup_output(Socket *socket) {
+        /*
+         * A write-side hangup is detected when send(2) or recv(2) fail. In
+         * that case, we cannot ever continue writing data to the socket, even
+         * though there might still be data to read.
+         * We always discard our output buffers, since the remote peer
+         * disconnected asynchronously, and there is no way for us to avoid
+         * data loss.
+         */
+        socket->hup_out = true;
+        socket_discard_output(socket);
 }
 
 /**
- * socket_read_line() - XXX
+ * socket_dequeue_line() - XXX
  */
-int socket_read_line(Socket *socket, const char **linep, size_t *np) {
+int socket_dequeue_line(Socket *socket, const char **linep, size_t *np) {
         char *line;
         size_t n;
 
@@ -231,13 +266,13 @@ int socket_read_line(Socket *socket, const char **linep, size_t *np) {
 
         *linep = NULL;
         *np = 0;
-        return 0;
+        return _c_unlikely_(socket->hup_in) ? SOCKET_E_EOF : 0;
 }
 
 /**
- * socket_read_message() - XXX
+ * socket_dequeue() - XXX
  */
-int socket_read_message(Socket *socket, Message **messagep) {
+int socket_dequeue(Socket *socket, Message **messagep) {
         MessageHeader header;
         Message *msg;
         size_t n, n_data;
@@ -254,7 +289,7 @@ int socket_read_message(Socket *socket, Message **messagep) {
                 if (_c_unlikely_(n_data < n)) {
                         socket->in.data_pos = socket->in.data_end;
                         *messagep = NULL;
-                        return 0;
+                        return _c_unlikely_(socket->hup_in) ? SOCKET_E_EOF : 0;
                 }
 
                 memcpy(&header, socket->in.data + socket->in.data_start, n);
@@ -294,34 +329,13 @@ int socket_read_message(Socket *socket, Message **messagep) {
         if (msg->n_copied >= msg->n_data) {
                 *messagep = msg;
                 socket->in.pending_message = NULL;
+                r = 0;
         } else {
                 *messagep = NULL;
+                r = _c_unlikely_(socket->hup_in) ? SOCKET_E_EOF : 0;
         }
 
-        return 0;
-}
-
-/**
- * socket_queue() - XXX
- */
-void socket_queue(Socket *socket, SocketBuffer *buffer) {
-        if (_c_unlikely_(!socket->lines_done))
-                socket->lines_done = true;
-
-        assert(buffer->message);
-        assert(!c_list_is_linked(&buffer->link));
-
-        c_list_link_tail(&socket->out.queue, &buffer->link);
-}
-
-/**
- * socket_queue_many() - XXX
- */
-void socket_queue_many(Socket *socket, CList *list) {
-        if (_c_unlikely_(!socket->lines_done))
-                socket->lines_done = true;
-
-        c_list_splice(&socket->out.queue, list);
+        return r;
 }
 
 /**
@@ -334,6 +348,9 @@ int socket_queue_line(Socket *socket, const char *line_in, size_t n) {
         int r;
 
         assert(!socket->lines_done);
+
+        if (_c_unlikely_(socket->hup_out))
+                return 0;
 
         /* when acting as a client, the first byte of the first line must be null */
         if (_c_unlikely_(!socket->server && !socket->null_byte_done))
@@ -369,22 +386,35 @@ int socket_queue_line(Socket *socket, const char *line_in, size_t n) {
 }
 
 /**
- * socket_queue_message() - XXX
+ * socket_queue() - XXX
  */
-int socket_queue_message(Socket *socket, Message *message) {
-        SocketBuffer *buffer;
-        int r;
+void socket_queue(Socket *socket, SocketBuffer *buffer) {
+        if (_c_unlikely_(!socket->lines_done))
+                socket->lines_done = true;
 
-        r = socket_buffer_new_message(&buffer, message);
-        if (r)
-                return error_fold(r);
+        assert(buffer->message);
+        assert(!c_list_is_linked(&buffer->link));
 
-        socket_queue(socket, buffer);
+        c_list_link_tail(&socket->out.queue, &buffer->link);
 
-        return 0;
+        if (_c_unlikely_(socket->hup_out))
+                socket_discard_output(socket);
 }
 
-static int socket_recvmsg(int fd, void *buffer, size_t *from, size_t *to, FDList **fdsp) {
+/**
+ * socket_queue_many() - XXX
+ */
+void socket_queue_many(Socket *socket, CList *list) {
+        if (_c_unlikely_(!socket->lines_done))
+                socket->lines_done = true;
+
+        c_list_splice(&socket->out.queue, list);
+
+        if (_c_unlikely_(socket->hup_out))
+                socket_discard_output(socket);
+}
+
+static int socket_recvmsg(Socket *socket, void *buffer, size_t *from, size_t *to, FDList **fdsp) {
         union {
                 struct cmsghdr cmsg;
                 char buffer[CMSG_SPACE(sizeof(int) * SOCKET_FD_MAX)];
@@ -407,10 +437,11 @@ static int socket_recvmsg(int fd, void *buffer, size_t *from, size_t *to, FDList
                 .msg_controllen = sizeof(control),
         };
 
-        l = recvmsg(fd, &msg, MSG_DONTWAIT | MSG_CMSG_CLOEXEC);
-        if (_c_unlikely_(!l))
-                return SOCKET_E_RESET;
-        if (_c_unlikely_(l < 0)) {
+        l = recvmsg(socket->fd, &msg, MSG_DONTWAIT | MSG_CMSG_CLOEXEC);
+        if (_c_unlikely_(!l)) {
+                socket_hangup_input(socket);
+                return SOCKET_E_LOST_INTEREST;
+        } else if (_c_unlikely_(l < 0)) {
                 switch (errno) {
                 case EAGAIN:
                         return 0;
@@ -427,7 +458,9 @@ static int socket_recvmsg(int fd, void *buffer, size_t *from, size_t *to, FDList
                 case EREMOTEIO:
                 case ESHUTDOWN:
                 case ETIMEDOUT:
-                        return SOCKET_E_RESET;
+                        socket_hangup_input(socket);
+                        socket_hangup_output(socket);
+                        return SOCKET_E_LOST_INTEREST;
                 }
 
                 return error_origin(-errno);
@@ -471,14 +504,12 @@ error:
         return r;
 }
 
-/**
- * socket_read() - XXX
- */
-int socket_read(Socket *socket) {
+static int socket_dispatch_read(Socket *socket) {
         Message *msg = socket->in.pending_message;
         void *p;
 
-        assert(!socket_has_input(socket));
+        if (_c_unlikely_(socket_has_input(socket)))
+                return 0;
 
         /*
          * Always shift the input buffer. In case of the line-parser this
@@ -501,7 +532,7 @@ int socket_read(Socket *socket) {
          * reduce the number of calls into the kernel.
          */
         if (_c_unlikely_(msg && msg->n_data - msg->n_copied >= socket->in.data_size - socket->in.data_end))
-                return socket_recvmsg(socket->fd,
+                return socket_recvmsg(socket,
                                       msg->data,
                                       &msg->n_copied,
                                       &msg->n_data,
@@ -547,17 +578,14 @@ int socket_read(Socket *socket) {
          * reason to resort to recvmmsg() (which would be non-trivial, anyway,
          * since we would need multiple input buffers).
          */
-        return socket_recvmsg(socket->fd,
+        return socket_recvmsg(socket,
                               socket->in.data,
                               &socket->in.data_end,
                               &socket->in.data_size,
                               &socket->in.fds);
 }
 
-/**
- * socket_write() - XXX
- */
-int socket_write(Socket *socket) {
+static int socket_dispatch_write(Socket *socket) {
         SocketBuffer *buffer, *safe;
         struct mmsghdr msgs[SOCKET_MMSG_MAX];
         struct msghdr *msg;
@@ -607,7 +635,8 @@ int socket_write(Socket *socket) {
                 case EREMOTEIO:
                 case ESHUTDOWN:
                 case ETIMEDOUT:
-                        return SOCKET_E_RESET;
+                        socket_hangup_output(socket);
+                        return SOCKET_E_LOST_INTEREST;
                 }
 
                 return error_origin(-errno);
@@ -625,5 +654,55 @@ int socket_write(Socket *socket) {
         }
         assert(i == n_msgs);
 
-        return c_list_is_empty(&socket->out.queue) ? SOCKET_E_LOST_INTEREST : 0;
+        if (c_list_is_empty(&socket->out.queue)) {
+                if (_c_unlikely_(socket->hup_in))
+                        socket_hangup_output(socket);
+                return SOCKET_E_LOST_INTEREST;
+        }
+
+        return 0;
+}
+
+/**
+ * socket_dispatch() - XXX
+ */
+int socket_dispatch(Socket *socket, uint32_t event) {
+        int r = SOCKET_E_LOST_INTEREST;
+
+        switch (event) {
+        case EPOLLIN:
+                if (!socket->hup_in) {
+                        r = socket_dispatch_read(socket);
+                        if (r < 0)
+                                return r;
+                }
+                break;
+        case EPOLLOUT:
+                if (!socket->hup_out) {
+                        r = socket_dispatch_write(socket);
+                        if (r < 0)
+                                return r;
+                }
+                break;
+        case EPOLLHUP:
+                socket_hangup_output(socket);
+                break;
+        }
+
+        return socket_is_running(socket) ? r : SOCKET_E_RESET;
+}
+
+/**
+ * socket_close() - close both communication directions
+ * @socket:                     socket to operate on
+ *
+ * This closes both communication directions on the socket immediately. This
+ * discards all pending data, which will be lost irrecoverably.
+ */
+void socket_close(Socket *socket) {
+        socket_hangup_input(socket);
+        socket_hangup_output(socket);
+        socket_discard_input(socket);
+        socket_discard_output(socket);
+        socket->fd = c_close(socket->fd);
 }

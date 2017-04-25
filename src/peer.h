@@ -52,7 +52,7 @@ Peer *peer_free(Peer *peer);
 
 int peer_dispatch(DispatchFile *file, uint32_t mask);
 
-void peer_start(Peer *peer);
+int peer_start(Peer *peer);
 void peer_stop(Peer *peer);
 
 void peer_register(Peer *peer);

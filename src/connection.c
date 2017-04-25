@@ -36,7 +36,7 @@ static int connection_init(Connection *connection,
                                dispatch_list,
                                dispatch_fn,
                                fd,
-                               EPOLLIN | EPOLLOUT);
+                               EPOLLHUP | EPOLLIN | EPOLLOUT);
         if (r)
                 return error_fold(r);
 
@@ -85,8 +85,6 @@ int connection_init_client(Connection *connection,
                            UserEntry *user,
                            int fd) {
         _c_cleanup_(connection_deinitp) Connection *c = connection;
-        const char *request;
-        size_t n_request;
         int r;
 
         r = connection_init(c,
@@ -102,17 +100,6 @@ int connection_init_client(Connection *connection,
 
         c->server = false;
         sasl_client_init(&c->sasl.client);
-
-        r = sasl_client_dispatch(&c->sasl.client, NULL, 0, &request, &n_request);
-        if (r)
-                return error_fold(r);
-
-        r = socket_queue_line(&c->socket, request, n_request);
-        if (r)
-                return error_fold(r);
-
-        dispatch_file_select(&c->socket_file, EPOLLOUT);
-
         c = NULL;
         return 0;
 }
@@ -131,10 +118,76 @@ void connection_deinit(Connection *connection) {
         connection->user = user_entry_unref(connection->user);
 }
 
-static int connection_dispatch_line(Connection *connection, const char *input, size_t n_input) {
+static void connection_hangup(Connection *connection) {
+        connection->hangup = true;
+        if (!socket_is_running(&connection->socket))
+                dispatch_file_deselect(&connection->socket_file, EPOLLHUP | EPOLLIN | EPOLLOUT);
+        if (!c_list_is_linked(&connection->hup_link))
+                c_list_link_tail(connection->hup_list, &connection->hup_link);
+}
+
+/**
+ * connection_start() - XXX
+ */
+int connection_start(Connection *connection) {
+        uint32_t events = EPOLLHUP | EPOLLIN;
+        const char *request = NULL;
+        size_t n_request;
+        int r;
+
+        assert(socket_is_running(&connection->socket));
+
+        if (!connection->server) {
+                events |= EPOLLOUT;
+
+                r = sasl_client_dispatch(&connection->sasl.client, NULL, 0, &request, &n_request);
+                if (r)
+                        return error_fold(r);
+
+                if (request) {
+                        r = socket_queue_line(&connection->socket, request, n_request);
+                        if (r)
+                                return error_fold(r);
+                }
+        }
+
+        dispatch_file_select(&connection->socket_file, events);
+        return 0;
+}
+
+/**
+ * connection_stop() - XXX
+ */
+void connection_stop(Connection *connection) {
+        socket_close(&connection->socket);
+        connection_hangup(connection);
+}
+
+/**
+ * connection_dispatch() - XXX
+ */
+int connection_dispatch(Connection *connection, uint32_t event) {
+        int r;
+
+        r = socket_dispatch(&connection->socket, event);
+        if (!r)
+                dispatch_file_clear(&connection->socket_file, event);
+        else if (r == SOCKET_E_LOST_INTEREST)
+                dispatch_file_deselect(&connection->socket_file, event);
+        else if (r == SOCKET_E_RESET)
+                connection_hangup(connection);
+        else if (r != SOCKET_E_PREEMPTED)
+                return error_fold(r);
+
+        return 0;
+}
+
+static int connection_feed_sasl(Connection *connection, const char *input, size_t n_input) {
         const char *output = NULL;
         size_t n_output = 0;
         int r;
+
+        assert(!connection->authenticated);
 
         if (connection->server) {
                 r = sasl_server_dispatch(&connection->sasl.server, input, n_input, &output, &n_output);
@@ -161,71 +214,51 @@ static int connection_dispatch_line(Connection *connection, const char *input, s
         return 0;
 }
 
-int connection_dispatch_read(Connection *connection) {
-        const char *input;
-        size_t n_input;
-        int r;
-
-        r = socket_read(&connection->socket);
-        if (!r) {
-                /* kernel event handled, interest did not change */
-                dispatch_file_clear(&connection->socket_file, EPOLLIN);
-        } else if (r == SOCKET_E_LOST_INTEREST) {
-                /* kernel event unknown, interest lost */
-                dispatch_file_deselect(&connection->socket_file, EPOLLIN);
-        } else if (r != SOCKET_E_PREEMPTED) {
-                /* XXX: we should catch SOCKET_E_RESET here */
-                return error_fold(r);
-        }
-
-        if (_c_unlikely_(!connection->authenticated)) {
-                do {
-                        r = socket_read_line(&connection->socket, &input, &n_input);
-                        if (r || !input)
-                                return error_fold(r);
-
-                        r = connection_dispatch_line(connection, input, n_input);
-                        if (r)
-                                return (r > 0) ? r : error_fold(r);
-                } while (!connection->authenticated);
-        }
-
-        return 0;
-}
-
-int connection_dispatch_write(Connection *connection) {
-        int r;
-
-        r = socket_write(&connection->socket);
-        if (!r) {
-                /* kernel event handled, interest did not change */
-                dispatch_file_clear(&connection->socket_file, EPOLLOUT);
-        } else if (r == SOCKET_E_LOST_INTEREST) {
-                /* kernel event unknown, interest lost */
-                dispatch_file_deselect(&connection->socket_file, EPOLLOUT);
-        } else if (r != SOCKET_E_PREEMPTED) {
-                /* XXX: we should catch SOCKET_E_RESET here */
-                return error_fold(r);
-        }
-
-        return 0;
-}
-
 /**
  * connection_dequeue() - XXX
  */
 int connection_dequeue(Connection *connection, Message **messagep) {
+        const char *input;
+        size_t n_input;
         int r;
 
-        if (_c_likely_(!connection->hup)) {
-                r = socket_read_message(&connection->socket, messagep);
-                if (r <= 0)
-                        return r;
+        if (_c_unlikely_(!connection->authenticated)) {
+                do {
+                        r = socket_dequeue_line(&connection->socket, &input, &n_input);
+                        if (r || !input) {
+                                if (r > 0) {
+                                        /* XXX: distinguish the different errors? */
+                                        connection_hangup(connection);
+                                        *messagep = NULL;
+                                        r = 0;
+                                }
+                                return error_fold(r);
+                        }
 
-                *messagep = message_unref(*messagep);
-                /* XXX: HUP @connection */
+                        r = connection_feed_sasl(connection, input, n_input);
+                        if (r)
+                                return error_trace(r);
+                } while (!connection->authenticated);
         }
 
+        r = socket_dequeue(&connection->socket, messagep);
+        if (r > 0) {
+                /* XXX: distinguish the different errors? */
+                connection_hangup(connection);
+                *messagep = NULL;
+                r = 0;
+        }
+
+        return r;
+}
+
+/**
+ * connection_queue_many() - XXX
+ */
+int connection_queue_many(Connection *connection, CList *skbs) {
+        socket_queue_many(&connection->socket, skbs);
+        if (socket_has_output(&connection->socket))
+                dispatch_file_select(&connection->socket_file, EPOLLOUT);
         return 0;
 }
 
@@ -233,32 +266,31 @@ int connection_dequeue(Connection *connection, Message **messagep) {
  * connection_queue() - XXX
  */
 int connection_queue(Connection *connection, SocketBuffer *skb) {
-        socket_queue(&connection->socket, skb);
+        CList list = C_LIST_INIT(list);
+        int r;
 
-        dispatch_file_select(&connection->socket_file, EPOLLOUT);
-        return 0;
-}
+        c_list_link_tail(&list, &skb->link);
+        r = connection_queue_many(connection, &list);
+        if (r)
+                c_list_unlink_init(&skb->link);
 
-/**
- * connection_queu_many() - XXX
- */
-int connection_queue_many(Connection *connection, CList *skbs) {
-        socket_queue_many(&connection->socket, skbs);
-
-        dispatch_file_select(&connection->socket_file, EPOLLOUT);
-        return 0;
+        return error_fold(r);
 }
 
 /**
  * connection_queue_message() - XXX
  */
 int connection_queue_message(Connection *connection, Message *message) {
+        SocketBuffer *skb;
         int r;
 
-        r = socket_queue_message(&connection->socket, message);
+        r = socket_buffer_new_message(&skb, message);
         if (r)
                 return error_fold(r);
 
-        dispatch_file_select(&connection->socket_file, EPOLLOUT);
-        return 0;
+        r = connection_queue(connection, skb);
+        if (r)
+                socket_buffer_free(skb);
+
+        return error_fold(r);
 }

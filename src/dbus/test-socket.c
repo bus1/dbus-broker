@@ -4,6 +4,7 @@
 
 #include <c-macro.h>
 #include <stdlib.h>
+#include <sys/epoll.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include "dbus/message.h"
@@ -35,7 +36,7 @@ static void test_line(void) {
         r = socket_init(&server, pair[1], true);
         assert(r == 0);
 
-        r = socket_read_line(&server, &line, &n_bytes);
+        r = socket_dequeue_line(&server, &line, &n_bytes);
         assert(!r && !line);
 
         r = socket_queue_line(&client, test, strlen(test));
@@ -44,28 +45,29 @@ static void test_line(void) {
         r = socket_queue_line(&client, test, strlen(test));
         assert(r == 0);
 
-        r = socket_write(&client);
+        r = socket_dispatch(&client, EPOLLOUT);
         assert(r == SOCKET_E_LOST_INTEREST);
-        r = socket_read(&server);
+        r = socket_dispatch(&server, EPOLLIN);
         assert(!r);
 
-        r = socket_read_line(&server, &line, &n_bytes);
+        r = socket_dequeue_line(&server, &line, &n_bytes);
         assert(!r && line);
         assert(n_bytes == strlen(test));
         assert(memcmp(test, line, n_bytes) == 0);
 
-        r = socket_read_line(&server, &line, &n_bytes);
+        r = socket_dequeue_line(&server, &line, &n_bytes);
         assert(!r && line);
         assert(n_bytes == strlen(test));
         assert(memcmp(test, line, n_bytes) == 0);
 
-        r = socket_read_line(&server, &line, &n_bytes);
+        r = socket_dequeue_line(&server, &line, &n_bytes);
         assert(!r && !line);
 }
 
 static void test_message(void) {
         _c_cleanup_(socket_deinit) Socket client = SOCKET_NULL(client), server = SOCKET_NULL(server);
         _c_cleanup_(message_unrefp) Message *message1 = NULL, *message2 = NULL;
+        SocketBuffer *skb;
         MessageHeader header = {
                 .endian = 'l',
         };
@@ -80,21 +82,23 @@ static void test_message(void) {
         r = socket_init(&server, pair[1], true);
         assert(r == 0);
 
-        r = socket_read_message(&server, &message2);
+        r = socket_dequeue(&server, &message2);
         assert(!r && !message2);
 
         r = message_new_incoming(&message1, header);
         assert(r == 0);
 
-        r = socket_queue_message(&client, message1);
-        assert(r == 0);
-
-        r = socket_write(&client);
-        assert(r == SOCKET_E_LOST_INTEREST);
-        r = socket_read(&server);
+        r = socket_buffer_new_message(&skb, message1);
         assert(!r);
 
-        r = socket_read_message(&server, &message2);
+        socket_queue(&client, skb);
+
+        r = socket_dispatch(&client, EPOLLOUT);
+        assert(r == SOCKET_E_LOST_INTEREST);
+        r = socket_dispatch(&server, EPOLLIN);
+        assert(!r);
+
+        r = socket_dequeue(&server, &message2);
         assert(!r && message2);
 
         assert(memcmp(message1->header, message2->header, sizeof(header)) == 0);

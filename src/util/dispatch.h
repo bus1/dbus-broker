@@ -67,6 +67,10 @@ int dispatch_context_poll(DispatchContext *ctx, int timeout);
 
 /* inline helpers */
 
+static inline bool dispatch_file_is_ready(DispatchFile *file, uint32_t mask) {
+        return (file->events & mask) == mask;
+}
+
 static inline int dispatch_file_call(DispatchFile *file) {
         return file->fn(file, file->events & file->user_mask);
 }

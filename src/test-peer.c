@@ -38,16 +38,19 @@ static void test_sasl_exchange(Bus *bus, char *sasl_client, char *sasl_server) {
         r = peer_new(&peer, bus, pair[0]);
         assert(r >= 0);
 
+        r = peer_start(peer);
+        assert(!r);
+
         r = send(pair[1], "\0", 1, 0);
         assert(r >= 0);
 
         r = send(pair[1], sasl_client, strlen(sasl_client), 0);
         assert(r == strlen(sasl_client));
 
-        r = peer_dispatch(&peer->connection.socket_file, EPOLLIN);
-        assert(r >= 0);
+        r = dispatch_context_poll(&bus->dispatcher, 0);
+        assert(!r);
 
-        r = peer_dispatch(&peer->connection.socket_file, EPOLLOUT);
+        r = peer_dispatch(&peer->connection.socket_file, EPOLLIN | EPOLLOUT);
         assert(r >= 0);
 
         r = recv(pair[1], buffer, sizeof(buffer), 0);

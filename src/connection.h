@@ -27,8 +27,9 @@ struct Connection {
         } sasl;
 
         bool server : 1;
+        bool hangup : 1;
+        bool lingering : 1;
         bool authenticated : 1;
-        bool hup : 1;
 };
 
 #define CONNECTION_NULL(_x) {                                           \
@@ -56,8 +57,9 @@ int connection_init_client(Connection *connection,
                            int fd);
 void connection_deinit(Connection *connection);
 
-int connection_dispatch_read(Connection *connection);
-int connection_dispatch_write(Connection *connection);
+int connection_start(Connection *connection);
+void connection_stop(Connection *connection);
+int connection_dispatch(Connection *connection, uint32_t events);
 
 int connection_dequeue(Connection *connection, Message **messagep);
 int connection_queue(Connection *connection, SocketBuffer *skb);
@@ -65,3 +67,9 @@ int connection_queue_many(Connection *connection, CList *skbs);
 int connection_queue_message(Connection *connection, Message *message);
 
 C_DEFINE_CLEANUP(Connection *, connection_deinit);
+
+/* inline helpers */
+
+static inline bool connection_is_running(Connection *connection) {
+        return socket_is_running(&connection->socket);
+}

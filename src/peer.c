@@ -284,29 +284,35 @@ int peer_dispatch(DispatchFile *file, uint32_t mask) {
         Peer *peer = c_container_of(file, Peer, connection.socket_file);
         int r;
 
-        if (mask & EPOLLIN) {
-                r = connection_dispatch_read(&peer->connection);
+        if (dispatch_file_is_ready(file, EPOLLIN)) {
+                r = connection_dispatch(&peer->connection, EPOLLIN);
                 if (r)
                         return r;
-
-                for (;;) {
-                        _c_cleanup_(message_unrefp) Message *m = NULL;
-
-                        r = connection_dequeue(&peer->connection, &m);
-                        if (r)
-                                return r;
-                        if (!m)
-                                break;
-
-                        r = peer_dispatch_message(peer, m);
-                        if (r)
-                                return r;
-                }
         }
 
-        if (mask & EPOLLOUT) {
-                r = connection_dispatch_write(&peer->connection);
-                if (r < 0)
+        if (dispatch_file_is_ready(file, EPOLLHUP)) {
+                r = connection_dispatch(&peer->connection, EPOLLHUP);
+                if (r)
+                        return r;
+        }
+
+        for (;;) {
+                _c_cleanup_(message_unrefp) Message *m = NULL;
+
+                r = connection_dequeue(&peer->connection, &m);
+                if (r)
+                        return r;
+                if (!m)
+                        break;
+
+                r = peer_dispatch_message(peer, m);
+                if (r)
+                        return r;
+        }
+
+        if (dispatch_file_is_ready(file, EPOLLOUT)) {
+                r = connection_dispatch(&peer->connection, EPOLLOUT);
+                if (r)
                         return r;
         }
 
@@ -460,12 +466,12 @@ Peer *peer_free(Peer *peer) {
         return NULL;
 }
 
-void peer_start(Peer *peer) {
-        return dispatch_file_select(&peer->connection.socket_file, EPOLLIN);
+int peer_start(Peer *peer) {
+        return error_fold(connection_start(&peer->connection));
 }
 
 void peer_stop(Peer *peer) {
-        return dispatch_file_deselect(&peer->connection.socket_file, EPOLLIN);
+        connection_stop(&peer->connection);
 }
 
 void peer_register(Peer *peer) {

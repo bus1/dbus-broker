@@ -28,6 +28,7 @@ enum {
 
         /* socket errors */
         SOCKET_E_RESET,
+        SOCKET_E_EOF,
         SOCKET_E_OVERLONG_LINE,
         SOCKET_E_SPLIT_FDS,
         SOCKET_E_NO_NULL_BYTE,
@@ -61,6 +62,8 @@ struct Socket {
 
         bool null_byte_done : 1;
         bool lines_done : 1;
+        bool hup_in : 1;
+        bool hup_out : 1;
 
         struct SocketIn {
                 char *data;
@@ -86,16 +89,17 @@ struct Socket {
 int socket_init(Socket *socket, int fd, bool server);
 void socket_deinit(Socket *socket);
 
-int socket_read_line(Socket *socket, const char **linep, size_t *np);
-int socket_read_message(Socket *socket, Message **messagep);
+int socket_dequeue_line(Socket *socket, const char **linep, size_t *np);
+int socket_dequeue(Socket *socket, Message **messagep);
 
+int socket_queue_line(Socket *socket, const char *line, size_t n);
 void socket_queue(Socket *socket, SocketBuffer *buffer);
 void socket_queue_many(Socket *socket, CList *list);
-int socket_queue_line(Socket *socket, const char *line, size_t n);
-int socket_queue_message(Socket *socket, Message *message);
 
-int socket_read(Socket *socket);
-int socket_write(Socket *socket);
+int socket_dispatch(Socket *socket, uint32_t event);
+void socket_close(Socket *socket);
+
+C_DEFINE_CLEANUP(Socket *, socket_deinit);
 
 /* inline helpers */
 
@@ -105,4 +109,8 @@ static inline bool socket_has_input(Socket *socket) {
 
 static inline bool socket_has_output(Socket *socket) {
         return !c_list_is_empty(&socket->out.queue);
+}
+
+static inline bool socket_is_running(Socket *socket) {
+        return !socket->hup_out || !socket->hup_in || socket_has_input(socket);
 }
