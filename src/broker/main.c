@@ -34,9 +34,7 @@ static int parse_argv(int argc, char *argv[]) {
                 { "controller",         required_argument,      NULL,   ARG_CONTROLLER          },
                 {}
         };
-        unsigned long vul;
-        char *end;
-        int c;
+        int r, c;
 
         while ((c = getopt_long(argc, argv, "hv", options, NULL)) >= 0) {
                 switch (c) {
@@ -52,7 +50,10 @@ static int parse_argv(int argc, char *argv[]) {
                         main_arg_verbose = true;
                         break;
 
-                case ARG_CONTROLLER:
+                case ARG_CONTROLLER: {
+                        unsigned long vul;
+                        char *end;
+
                         errno = 0;
                         vul = strtoul(optarg, &end, 10);
                         if (errno != 0 || *end || optarg == end || vul > INT_MAX) {
@@ -62,6 +63,7 @@ static int parse_argv(int argc, char *argv[]) {
 
                         main_arg_controller = vul;
                         break;
+                }
 
                 case '?':
                         /* getopt_long() prints warning */
@@ -76,6 +78,25 @@ static int parse_argv(int argc, char *argv[]) {
         if (optind != argc) {
                 fprintf(stderr, "%s: invalid arguments -- '%s'\n", program_invocation_name, argv[optind]);
                 return MAIN_FAILED;
+        }
+
+        /*
+         * Verify that the controller-fd exists. Preferably, we would not care
+         * and simply fail when it is used. However, the FD-number might be
+         * used by one of our other FDs (signalfd, epollfd, ...), and thus we
+         * might trigger assertions on their behavior, which we better avoid.
+         */
+        {
+                char path[sizeof("/proc/self/fd/") + C_DECIMAL_MAX(int)];
+
+                r = snprintf(path, sizeof(path), "/proc/self/fd/%d", main_arg_controller);
+                assert(r < sizeof(path));
+
+                r = access(path, F_OK);
+                if (r < 0) {
+                        fprintf(stderr, "%s: bad controller file-descriptor -- '%d'\n", program_invocation_name, main_arg_controller);
+                        return MAIN_FAILED;
+                }
         }
 
         return 0;
