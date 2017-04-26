@@ -151,130 +151,54 @@ static int peer_forward_broadcast(Peer *sender, const char *interface, const cha
 }
 
 static int peer_dispatch_message(Peer *peer, Message *message) {
-        static const CDVarType type[] = {
-                C_DVAR_T_INIT(
-                        C_DVAR_T_TUPLE7(
-                                C_DVAR_T_y,
-                                C_DVAR_T_y,
-                                C_DVAR_T_y,
-                                C_DVAR_T_y,
-                                C_DVAR_T_u,
-                                C_DVAR_T_u,
-                                C_DVAR_T_ARRAY(
-                                        C_DVAR_T_TUPLE2(
-                                                C_DVAR_T_y,
-                                                C_DVAR_T_v
-                                        )
-                                )
-                        )
-                ), /* (yyyyuua(yv)) */
-        };
-        _c_cleanup_(c_dvar_freep) CDVar *v = NULL;
-        const char *path = NULL,
-                   *interface = NULL,
-                   *member = NULL,
-                   *error_name = NULL,
-                   *destination = NULL,
-                   *sender = NULL,
-                   *signature = "";
-        uint32_t serial = 0, reply_serial = 0, n_fds = 0;
-        uint8_t field;
+        MessageMetadata metadata;
         int r;
 
-        /*
-         * XXX: Rather than allocating @v, we should use its static versions on the stack,
-         *      once provided by c-dvar.
-         */
-
-        r = c_dvar_new(&v);
+        r = message_parse_metadata(message, &metadata);
         if (r)
-                return (r > 0) ? -ENOTRECOVERABLE : r;
+                return error_fold(r); /* XXX: >0 should result in disconnect */
 
-        c_dvar_begin_read(v, message->big_endian, type, message->header, message->n_header);
-
-        c_dvar_read(v, "(yyyyuu[", NULL, NULL, NULL, NULL, NULL, &serial);
-
-        while (c_dvar_more(v)) {
-                /*
-                 * XXX: What should we do on duplicates?
-                 */
-
-                c_dvar_read(v, "(y", &field);
-
-                switch (field) {
-                case DBUS_MESSAGE_FIELD_INVALID:
-                        return -EBADMSG;
-                case DBUS_MESSAGE_FIELD_PATH:
-                        c_dvar_read(v, "<o>)", c_dvar_type_o, &path);
-                        break;
-                case DBUS_MESSAGE_FIELD_INTERFACE:
-                        c_dvar_read(v, "<s>)", c_dvar_type_s, &interface);
-                        break;
-                case DBUS_MESSAGE_FIELD_MEMBER:
-                        c_dvar_read(v, "<s>)", c_dvar_type_s, &member);
-                        break;
-                case DBUS_MESSAGE_FIELD_ERROR_NAME:
-                        c_dvar_read(v, "<s>)", c_dvar_type_s, &error_name);
-                        break;
-                case DBUS_MESSAGE_FIELD_REPLY_SERIAL:
-                        c_dvar_read(v, "<u>)", c_dvar_type_u, &reply_serial);
-                        break;
-                case DBUS_MESSAGE_FIELD_DESTINATION:
-                        c_dvar_read(v, "<s>)", c_dvar_type_s, &destination);
-                        break;
-                case DBUS_MESSAGE_FIELD_SENDER:
-                        /* XXX: check with dbus-daemon(1) on what to do */
-                        c_dvar_read(v, "<s>)", c_dvar_type_s, &sender);
-                        break;
-                case DBUS_MESSAGE_FIELD_SIGNATURE:
-                        c_dvar_read(v, "<g>)", c_dvar_type_g, &signature);
-                        break;
-                case DBUS_MESSAGE_FIELD_UNIX_FDS:
-                        c_dvar_read(v, "<u>)", c_dvar_type_u, &n_fds);
-                        break;
-                default:
-                        c_dvar_skip(v, "v)");
-                        break;
-                }
-        }
-
-        c_dvar_read(v, "])");
-
-        r = c_dvar_end_read(v);
-        if (r)
-                return (r > 0) ? -EBADMSG : r;
-
-        if (message->fds) {
-                if (_c_unlikely_(n_fds > fdlist_count(message->fds)))
-                        return -EBADMSG;
-
-                fdlist_truncate(message->fds, n_fds);
-        }
-
-        if (_c_unlikely_(c_string_equal(destination, "org.freedesktop.DBus")))
-                return driver_dispatch(peer, serial, interface, member, path, signature, message);
+        if (_c_unlikely_(c_string_equal(metadata.fields.destination, "org.freedesktop.DBus")))
+                return driver_dispatch(peer,
+                                       metadata.header.serial,
+                                       metadata.fields.interface,
+                                       metadata.fields.member,
+                                       metadata.fields.path,
+                                       metadata.fields.signature,
+                                       message);
 
         /* XXX: append sender */
 
         if (message->header->type != DBUS_MESSAGE_TYPE_METHOD_CALL)
                 message->header->flags |= DBUS_HEADER_FLAG_NO_REPLY_EXPECTED;
 
-        if (!destination) {
-                if (message->header->type != DBUS_MESSAGE_TYPE_SIGNAL)
+        if (!metadata.fields.destination) {
+                if (metadata.header.type != DBUS_MESSAGE_TYPE_SIGNAL)
                         return -EBADMSG;
 
-                return peer_forward_broadcast(peer, interface, member, path, signature, message);
+                return peer_forward_broadcast(peer,
+                                              metadata.fields.interface,
+                                              metadata.fields.member,
+                                              metadata.fields.path,
+                                              metadata.fields.signature,
+                                              message);
         }
 
         /* XXX: verify message contents */
 
-        switch (message->header->type) {
+        switch (metadata.header.type) {
         case DBUS_MESSAGE_TYPE_SIGNAL:
         case DBUS_MESSAGE_TYPE_METHOD_CALL:
-                return peer_forward_method_call(peer, destination, serial, message);
+                return peer_forward_method_call(peer,
+                                                metadata.fields.destination,
+                                                metadata.header.serial,
+                                                message);
         case DBUS_MESSAGE_TYPE_METHOD_RETURN:
         case DBUS_MESSAGE_TYPE_ERROR:
-                return peer_forward_reply(peer, destination, reply_serial, message);
+                return peer_forward_reply(peer,
+                                          metadata.fields.destination,
+                                          metadata.fields.reply_serial,
+                                          message);
         }
 
         return 0;

@@ -1062,6 +1062,9 @@ static int driver_dispatch_interface(Peer *peer, uint32_t serial, const char *in
 int driver_dispatch(Peer *peer, uint32_t serial, const char *interface, const char *member, const char *path, const char *signature, Message *message) {
         int r;
 
+        /* no signature implies empty signature */
+        signature = signature ?: "";
+
         if (message->header->type != DBUS_MESSAGE_TYPE_METHOD_CALL)
                 /* ignore */
                 return 0;
