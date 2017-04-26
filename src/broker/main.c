@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include "main.h"
 #include "manager.h"
+#include "util/error.h"
 
 int main_arg_controller = 3;
 bool main_arg_verbose = false;
@@ -70,8 +71,7 @@ static int parse_argv(int argc, char *argv[]) {
                         return MAIN_FAILED;
 
                 default:
-                        assert(0);
-                        return -EINVAL;
+                        return error_origin(-EINVAL);
                 }
         }
 
@@ -107,10 +107,10 @@ static int run(void) {
         int r;
 
         r = manager_new(&manager, main_arg_controller);
-        if (r)
-                return r;
+        if (!r)
+                r = manager_run(manager);
 
-        return manager_run(manager);
+        return error_trace(r);
 }
 
 int main(int argc, char **argv) {
@@ -123,6 +123,7 @@ int main(int argc, char **argv) {
         r = run();
 
 exit:
+        r = error_trace(r);
         if (r < 0 && main_arg_verbose)
                 fprintf(stderr, "Exiting due to fatal error: %d\n", r);
         return (r == 0 || r == MAIN_EXIT) ? 0 : 1;

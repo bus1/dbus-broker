@@ -157,7 +157,7 @@ static int manager_dispatch(Manager *manager) {
                         r = MAIN_EXIT;
                 else if (r == DISPATCH_E_FAILURE)
                         r = MAIN_FAILED;
-                else if (r != 0)
+                else
                         r = error_fold(r);
         }
 
@@ -181,5 +181,5 @@ int manager_run(Manager *manager) {
 
         sigprocmask(SIG_SETMASK, &sigold, NULL);
 
-        return r;
+        return error_trace(r);
 }
