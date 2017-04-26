@@ -167,7 +167,7 @@ int message_parse_metadata(Message *message, MessageMetadata *metadata) {
         if (r)
                 return error_fold(r);
 
-        c_dvar_begin_read(v, message->big_endian, type, message->header, message->n_header);
+        c_dvar_begin_read(v, message->big_endian, type, 1, message->header, message->n_header);
 
         /*
          * Validate static header fields. Byte-order and body-length are part

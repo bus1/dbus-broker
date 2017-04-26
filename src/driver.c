@@ -280,7 +280,7 @@ static int driver_notify_name_acquired(Peer *peer, const char *name) {
         if (r)
                 return error_origin(r);
 
-        c_dvar_begin_write(var, type);
+        c_dvar_begin_write(var, type, 1);
         c_dvar_write(var, "(");
         driver_write_signal_header(var, peer, "NameAcquired", "s");
         c_dvar_write(var, "(s)", name);
@@ -320,7 +320,7 @@ static int driver_notify_name_lost(Peer *peer, const char *name) {
         if (r)
                 return error_origin(r);
 
-        c_dvar_begin_write(var, type);
+        c_dvar_begin_write(var, type, 1);
         c_dvar_write(var, "(");
         driver_write_signal_header(var, peer, "NameLost", "s");
         c_dvar_write(var, "(s)", name);
@@ -369,7 +369,7 @@ static int driver_notify_name_owner_changed(Bus *bus, const char *name, Peer *ol
         if (r)
                 return error_origin(r);
 
-        c_dvar_begin_write(var, type);
+        c_dvar_begin_write(var, type, 1);
         c_dvar_write(var, "(");
         driver_write_signal_header(var, NULL, "NameOwnerChanged", "sss");
         c_dvar_write(var, "(s", name);
@@ -458,7 +458,7 @@ static int driver_send_error(Peer *peer, uint32_t serial, const char *error) {
         if (r)
                 return error_origin(r);
 
-        c_dvar_begin_write(var, type);
+        c_dvar_begin_write(var, type, 1);
         c_dvar_write(var, "((yyyyuu[(y<u>)(y<s>)(y<s>)(y<",
                      c_dvar_is_big_endian(var) ? 'B' : 'l', DBUS_MESSAGE_TYPE_ERROR, DBUS_HEADER_FLAG_NO_REPLY_EXPECTED, 1, 0, (uint32_t)-1,
                      DBUS_MESSAGE_FIELD_REPLY_SERIAL, c_dvar_type_u, serial,
@@ -967,8 +967,8 @@ static int driver_handle_method(const DriverMethod *method, Peer *peer, const ch
         if (r)
                 return error_origin(r);
 
-        c_dvar_begin_read(var_in, message_in->big_endian, method->in, message_in->body, message_in->n_body);
-        c_dvar_begin_write(var_out, method->out);
+        c_dvar_begin_read(var_in, message_in->big_endian, method->in, 1, message_in->body, message_in->n_body);
+        c_dvar_begin_write(var_out, method->out, 1);
 
         /*
          * Write the generic reply-header and then call into the method-handler
