@@ -6,6 +6,8 @@
 #include <getopt.h>
 #include <limits.h>
 #include <stdlib.h>
+#include <sys/socket.h>
+#include <sys/types.h>
 #include "main.h"
 #include "manager.h"
 #include "util/error.h"
@@ -87,14 +89,22 @@ static int parse_argv(int argc, char *argv[]) {
          * might trigger assertions on their behavior, which we better avoid.
          */
         {
-                char path[sizeof("/proc/self/fd/") + C_DECIMAL_MAX(int)];
+                socklen_t n;
+                int v1, v2;
 
-                r = snprintf(path, sizeof(path), "/proc/self/fd/%d", main_arg_controller);
-                assert(r < sizeof(path));
+                n = sizeof(v1);
+                r = getsockopt(main_arg_controller, SOL_SOCKET, SO_DOMAIN, &v1, &n);
+                n = sizeof(v2);
+                r = r ?: getsockopt(main_arg_controller, SOL_SOCKET, SO_TYPE, &v2, &n);
 
-                r = access(path, F_OK);
                 if (r < 0) {
-                        fprintf(stderr, "%s: bad controller file-descriptor -- '%d'\n", program_invocation_name, main_arg_controller);
+                        if (errno != EBADF && errno != ENOTSOCK)
+                                return error_origin(-errno);
+
+                        fprintf(stderr, "%s: controller file-descriptor not a socket -- '%d'\n", program_invocation_name, main_arg_controller);
+                        return MAIN_FAILED;
+                } else if (v1 != AF_UNIX || v2 != SOCK_STREAM) {
+                        fprintf(stderr, "%s: socket type of controller file-descriptor not supported -- '%d'\n", program_invocation_name, main_arg_controller);
                         return MAIN_FAILED;
                 }
         }
