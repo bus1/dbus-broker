@@ -29,6 +29,7 @@ enum {
     DBUS_MESSAGE_TYPE_METHOD_RETURN = 2,
     DBUS_MESSAGE_TYPE_ERROR         = 3,
     DBUS_MESSAGE_TYPE_SIGNAL        = 4,
+    _DBUS_MESSAGE_TYPE_N,
 };
 
 enum {
@@ -42,6 +43,7 @@ enum {
     DBUS_MESSAGE_FIELD_SENDER       = 7,
     DBUS_MESSAGE_FIELD_SIGNATURE    = 8,
     DBUS_MESSAGE_FIELD_UNIX_FDS     = 9,
+    _DBUS_MESSAGE_FIELD_N,
 };
 
 enum {
