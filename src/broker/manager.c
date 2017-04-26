@@ -11,6 +11,7 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include "connection.h"
+#include "dbus/message.h"
 #include "main.h"
 #include "manager.h"
 #include "user.h"
@@ -52,7 +53,46 @@ static int manager_dispatch_signals(DispatchFile *file, uint32_t events) {
         return DISPATCH_E_EXIT;
 }
 
+static int manager_dispatch_controller_message(Manager *manager, Message *m) {
+        return 0;
+}
+
 static int manager_dispatch_controller(DispatchFile *file, uint32_t events) {
+        Manager *manager = c_container_of(file, Manager, controller.socket_file);
+        int r;
+
+        if (dispatch_file_is_ready(file, EPOLLIN)) {
+                r = connection_dispatch(&manager->controller, EPOLLIN);
+                if (r)
+                        return error_fold(r);
+        }
+
+        if (dispatch_file_is_ready(file, EPOLLHUP)) {
+                r = connection_dispatch(&manager->controller, EPOLLHUP);
+                if (r)
+                        return error_fold(r);
+        }
+
+        for (;;) {
+                _c_cleanup_(message_unrefp) Message *m = NULL;
+
+                r = connection_dequeue(&manager->controller, &m);
+                if (r)
+                        return error_fold(r);
+                if (!m)
+                        break;
+
+                r = manager_dispatch_controller_message(manager, m);
+                if (r)
+                        return error_trace(r);
+        }
+
+        if (dispatch_file_is_ready(file, EPOLLOUT)) {
+                r = connection_dispatch(&manager->controller, EPOLLOUT);
+                if (r)
+                        return error_fold(r);
+        }
+
         return 0;
 }
 
