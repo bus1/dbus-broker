@@ -270,22 +270,18 @@ static int driver_notify_name_acquired(Peer *peer, const char *name) {
                         )
                 )
         };
-        _c_cleanup_(c_dvar_freep) CDVar *var = NULL;
+        _c_cleanup_(c_dvar_deinitp) CDVar var = CDVAR_NULL;
         _c_cleanup_(message_unrefp) Message *message = NULL;
         void *data;
         size_t n_data;
         int r;
 
-        r = c_dvar_new(&var);
-        if (r)
-                return error_origin(r);
-
-        c_dvar_begin_write(var, type, 1);
-        c_dvar_write(var, "(");
-        driver_write_signal_header(var, peer, "NameAcquired", "s");
-        c_dvar_write(var, "(s)", name);
-        c_dvar_write(var, ")");
-        r = c_dvar_end_write(var, &data, &n_data);
+        c_dvar_begin_write(&var, type, 1);
+        c_dvar_write(&var, "(");
+        driver_write_signal_header(&var, peer, "NameAcquired", "s");
+        c_dvar_write(&var, "(s)", name);
+        c_dvar_write(&var, ")");
+        r = c_dvar_end_write(&var, &data, &n_data);
         if (r)
                 return error_origin(r);
 
@@ -310,22 +306,18 @@ static int driver_notify_name_lost(Peer *peer, const char *name) {
                         )
                 )
         };
-        _c_cleanup_(c_dvar_freep) CDVar *var = NULL;
+        _c_cleanup_(c_dvar_deinitp) CDVar var = CDVAR_NULL;
         _c_cleanup_(message_unrefp) Message *message = NULL;
         void *data;
         size_t n_data;
         int r;
 
-        r = c_dvar_new(&var);
-        if (r)
-                return error_origin(r);
-
-        c_dvar_begin_write(var, type, 1);
-        c_dvar_write(var, "(");
-        driver_write_signal_header(var, peer, "NameLost", "s");
-        c_dvar_write(var, "(s)", name);
-        c_dvar_write(var, ")");
-        r = c_dvar_end_write(var, &data, &n_data);
+        c_dvar_begin_write(&var, type, 1);
+        c_dvar_write(&var, "(");
+        driver_write_signal_header(&var, peer, "NameLost", "s");
+        c_dvar_write(&var, "(s)", name);
+        c_dvar_write(&var, ")");
+        r = c_dvar_end_write(&var, &data, &n_data);
         if (r)
                 return error_origin(r);
 
@@ -358,26 +350,22 @@ static int driver_notify_name_owner_changed(Bus *bus, const char *name, Peer *ol
                         )
                 )
         };
-        _c_cleanup_(c_dvar_freep) CDVar *var = NULL;
+        _c_cleanup_(c_dvar_deinitp) CDVar var = CDVAR_NULL;
         _c_cleanup_(message_unrefp) Message *message = NULL;
         MatchRule *rule;
         void *data;
         size_t n_data;
         int r;
 
-        r = c_dvar_new(&var);
-        if (r)
-                return error_origin(r);
-
-        c_dvar_begin_write(var, type, 1);
-        c_dvar_write(var, "(");
-        driver_write_signal_header(var, NULL, "NameOwnerChanged", "sss");
-        c_dvar_write(var, "(s", name);
-        driver_dvar_write_unique_name(var, old_owner);
-        driver_dvar_write_unique_name(var, new_owner);
-        c_dvar_write(var, ")");
-        c_dvar_write(var, ")");
-        r = c_dvar_end_write(var, &data, &n_data);
+        c_dvar_begin_write(&var, type, 1);
+        c_dvar_write(&var, "(");
+        driver_write_signal_header(&var, NULL, "NameOwnerChanged", "sss");
+        c_dvar_write(&var, "(s", name);
+        driver_dvar_write_unique_name(&var, old_owner);
+        driver_dvar_write_unique_name(&var, new_owner);
+        c_dvar_write(&var, ")");
+        c_dvar_write(&var, ")");
+        r = c_dvar_end_write(&var, &data, &n_data);
         if (r)
                 return error_origin(r);
 
@@ -448,27 +436,23 @@ static int driver_send_error(Peer *peer, uint32_t serial, const char *error) {
                         )
                 )
         };
-        _c_cleanup_(c_dvar_freep) CDVar *var = NULL;
+        _c_cleanup_(c_dvar_deinitp) CDVar var = CDVAR_NULL;
         _c_cleanup_(message_unrefp) Message *message = NULL;
         void *data;
         size_t n_data;
         int r;
 
-        r = c_dvar_new(&var);
-        if (r)
-                return error_origin(r);
-
-        c_dvar_begin_write(var, type, 1);
-        c_dvar_write(var, "((yyyyuu[(y<u>)(y<s>)(y<s>)(y<",
-                     c_dvar_is_big_endian(var) ? 'B' : 'l', DBUS_MESSAGE_TYPE_ERROR, DBUS_HEADER_FLAG_NO_REPLY_EXPECTED, 1, 0, (uint32_t)-1,
+        c_dvar_begin_write(&var, type, 1);
+        c_dvar_write(&var, "((yyyyuu[(y<u>)(y<s>)(y<s>)(y<",
+                     c_dvar_is_big_endian(&var) ? 'B' : 'l', DBUS_MESSAGE_TYPE_ERROR, DBUS_HEADER_FLAG_NO_REPLY_EXPECTED, 1, 0, (uint32_t)-1,
                      DBUS_MESSAGE_FIELD_REPLY_SERIAL, c_dvar_type_u, serial,
                      DBUS_MESSAGE_FIELD_SENDER, c_dvar_type_s, "org.freedesktop.DBus",
                      DBUS_MESSAGE_FIELD_ERROR_NAME, c_dvar_type_s, error,
                      DBUS_MESSAGE_FIELD_DESTINATION, c_dvar_type_s);
-        driver_dvar_write_unique_name(var, peer);
-        c_dvar_write(var, ">)])())");
+        driver_dvar_write_unique_name(&var, peer);
+        c_dvar_write(&var, ">)])())");
 
-        r = c_dvar_end_write(var, &data, &n_data);
+        r = c_dvar_end_write(&var, &data, &n_data);
         if (r)
                 return error_origin(r);
 
@@ -940,7 +924,7 @@ static int driver_method_become_monitor(Peer *peer, CDVar *in_v, CDVar *out_v, N
 }
 
 static int driver_handle_method(const DriverMethod *method, Peer *peer, const char *path, uint32_t serial, const char *signature_in, Message *message_in) {
-        _c_cleanup_(c_dvar_freep) CDVar *var_in = NULL, *var_out = NULL;
+        _c_cleanup_(c_dvar_deinitp) CDVar var_in = CDVAR_NULL, var_out = CDVAR_NULL;
         _c_cleanup_(message_unrefp) Message *message_out = NULL;
         NameChange change = {};
         void *data;
@@ -959,16 +943,8 @@ static int driver_handle_method(const DriverMethod *method, Peer *peer, const ch
         if (r)
                 return error_trace(r);
 
-        r = c_dvar_new(&var_in);
-        if (r)
-                return error_origin(r);
-
-        r = c_dvar_new(&var_out);
-        if (r)
-                return error_origin(r);
-
-        c_dvar_begin_read(var_in, message_in->big_endian, method->in, 1, message_in->body, message_in->n_body);
-        c_dvar_begin_write(var_out, method->out, 1);
+        c_dvar_begin_read(&var_in, message_in->big_endian, method->in, 1, message_in->body, message_in->n_body);
+        c_dvar_begin_write(&var_out, method->out, 1);
 
         /*
          * Write the generic reply-header and then call into the method-handler
@@ -977,14 +953,14 @@ static int driver_handle_method(const DriverMethod *method, Peer *peer, const ch
          * was correct.
          */
 
-        c_dvar_write(var_out, "(");
-        driver_write_reply_header(var_out, peer, serial, method->out);
+        c_dvar_write(&var_out, "(");
+        driver_write_reply_header(&var_out, peer, serial, method->out);
 
-        r = method->fn(peer, var_in, var_out, &change);
+        r = method->fn(peer, &var_in, &var_out, &change);
         if (r)
                 return error_trace(r);
 
-        c_dvar_write(var_out, ")");
+        c_dvar_write(&var_out, ")");
 
         /*
          * The message was correctly handled and the reply is serialized in
@@ -993,7 +969,7 @@ static int driver_handle_method(const DriverMethod *method, Peer *peer, const ch
          * no point in reverting the operation on failure.
          */
 
-        r = c_dvar_end_write(var_out, &data, &n_data);
+        r = c_dvar_end_write(&var_out, &data, &n_data);
         if (r)
                 return error_origin(r);
 

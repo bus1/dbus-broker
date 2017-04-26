@@ -155,19 +155,14 @@ int message_parse_metadata(Message *message, MessageMetadata *metadata) {
                         )
                 ), /* (yyyyuua(yv)) */
         };
-        _c_cleanup_(c_dvar_freep) CDVar *v = NULL;
+        _c_cleanup_(c_dvar_deinitp) CDVar v = CDVAR_NULL;
         unsigned int mask;
         uint8_t field;
         int r;
 
         *metadata = (MessageMetadata){};
 
-        /* XXX: this should be static on the stack */
-        r = c_dvar_new(&v);
-        if (r)
-                return error_fold(r);
-
-        c_dvar_begin_read(v, message->big_endian, type, 1, message->header, message->n_header);
+        c_dvar_begin_read(&v, message->big_endian, type, 1, message->header, message->n_header);
 
         /*
          * Validate static header fields. Byte-order and body-length are part
@@ -182,7 +177,7 @@ int message_parse_metadata(Message *message, MessageMetadata *metadata) {
          *       Anything but 0 is accepted.
          */
 
-        c_dvar_read(v, "(yyyyuu[",
+        c_dvar_read(&v, "(yyyyuu[",
                     NULL,
                     &metadata->header.type,
                     &metadata->header.flags,
@@ -208,11 +203,11 @@ int message_parse_metadata(Message *message, MessageMetadata *metadata) {
          * validity.
          */
 
-        while (c_dvar_more(v)) {
-                c_dvar_read(v, "(y", &field);
+        while (c_dvar_more(&v)) {
+                c_dvar_read(&v, "(y", &field);
 
                 if (field >= _DBUS_MESSAGE_FIELD_N) {
-                        c_dvar_skip(v, "v)");
+                        c_dvar_skip(&v, "v)");
                         continue;
                 }
 
@@ -226,7 +221,7 @@ int message_parse_metadata(Message *message, MessageMetadata *metadata) {
                         return MESSAGE_E_INVALID_HEADER;
 
                 case DBUS_MESSAGE_FIELD_PATH:
-                        c_dvar_read(v, "<o>)", c_dvar_type_o, &metadata->fields.path);
+                        c_dvar_read(&v, "<o>)", c_dvar_type_o, &metadata->fields.path);
 
                         if (!strcmp(metadata->fields.path, "/org/freedesktop/DBus/Local"))
                                 return MESSAGE_E_INVALID_HEADER;
@@ -234,7 +229,7 @@ int message_parse_metadata(Message *message, MessageMetadata *metadata) {
                         break;
 
                 case DBUS_MESSAGE_FIELD_INTERFACE:
-                        c_dvar_read(v, "<s>)", c_dvar_type_s, &metadata->fields.interface);
+                        c_dvar_read(&v, "<s>)", c_dvar_type_s, &metadata->fields.interface);
 
                         if (!strcmp(metadata->fields.interface, "org.freedesktop.DBus.Local"))
                                 return MESSAGE_E_INVALID_HEADER;
@@ -244,37 +239,37 @@ int message_parse_metadata(Message *message, MessageMetadata *metadata) {
                         break;
 
                 case DBUS_MESSAGE_FIELD_MEMBER:
-                        c_dvar_read(v, "<s>)", c_dvar_type_s, &metadata->fields.member);
+                        c_dvar_read(&v, "<s>)", c_dvar_type_s, &metadata->fields.member);
                         /* XXX: invalid members are rejected */
                         break;
 
                 case DBUS_MESSAGE_FIELD_ERROR_NAME:
-                        c_dvar_read(v, "<s>)", c_dvar_type_s, &metadata->fields.error_name);
+                        c_dvar_read(&v, "<s>)", c_dvar_type_s, &metadata->fields.error_name);
                         /* XXX: Invalid error-names are rejected */
                         break;
 
                 case DBUS_MESSAGE_FIELD_REPLY_SERIAL:
-                        c_dvar_read(v, "<u>)", c_dvar_type_u, &metadata->fields.reply_serial);
+                        c_dvar_read(&v, "<u>)", c_dvar_type_u, &metadata->fields.reply_serial);
                         if (!metadata->fields.reply_serial)
                                 return MESSAGE_E_INVALID_HEADER;
                         break;
 
                 case DBUS_MESSAGE_FIELD_DESTINATION:
-                        c_dvar_read(v, "<s>)", c_dvar_type_s, &metadata->fields.destination);
+                        c_dvar_read(&v, "<s>)", c_dvar_type_s, &metadata->fields.destination);
                         /* XXX: Invalid bus-names are rejected */
                         break;
 
                 case DBUS_MESSAGE_FIELD_SENDER:
-                        c_dvar_read(v, "<s>)", c_dvar_type_s, &metadata->fields.sender);
+                        c_dvar_read(&v, "<s>)", c_dvar_type_s, &metadata->fields.sender);
                         /* XXX: Invalid bus-names are rejected */
                         break;
 
                 case DBUS_MESSAGE_FIELD_SIGNATURE:
-                        c_dvar_read(v, "<g>)", c_dvar_type_g, &metadata->fields.signature);
+                        c_dvar_read(&v, "<g>)", c_dvar_type_g, &metadata->fields.signature);
                         break;
 
                 case DBUS_MESSAGE_FIELD_UNIX_FDS:
-                        c_dvar_read(v, "<u>)", c_dvar_type_u, &metadata->fields.unix_fds);
+                        c_dvar_read(&v, "<u>)", c_dvar_type_u, &metadata->fields.unix_fds);
 
                         if (metadata->fields.unix_fds > fdlist_count(message->fds))
                                 return MESSAGE_E_INVALID_HEADER;
@@ -321,9 +316,9 @@ int message_parse_metadata(Message *message, MessageMetadata *metadata) {
          * will be told here.
          */
 
-        c_dvar_read(v, "])");
+        c_dvar_read(&v, "])");
 
-        r = c_dvar_end_read(v);
+        r = c_dvar_end_read(&v);
         if (r > 0)
                 return MESSAGE_E_INVALID_HEADER;
         else if (r)
