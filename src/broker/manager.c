@@ -65,7 +65,6 @@ int manager_new(Manager **managerp) {
         sigemptyset(&sigmask);
         sigaddset(&sigmask, SIGTERM);
         sigaddset(&sigmask, SIGINT);
-        sigprocmask(SIG_BLOCK, &sigmask, NULL);
 
         manager->signals_fd = signalfd(-1, &sigmask, SFD_CLOEXEC | SFD_NONBLOCK);
         if (manager->signals_fd < 0)
@@ -127,11 +126,20 @@ static int manager_dispatch(Manager *manager) {
 }
 
 int manager_run(Manager *manager) {
+        sigset_t signew, sigold;
         int r;
+
+        sigemptyset(&signew);
+        sigaddset(&signew, SIGTERM);
+        sigaddset(&signew, SIGINT);
+
+        sigprocmask(SIG_BLOCK, &signew, &sigold);
 
         do {
                 r = manager_dispatch(manager);
         } while (!r);
+
+        sigprocmask(SIG_SETMASK, &sigold, NULL);
 
         return r;
 }
