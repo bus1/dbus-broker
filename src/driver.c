@@ -1112,15 +1112,6 @@ int driver_goodbye(Peer *peer, bool silent) {
         CRBNode *node, *next;
         int r;
 
-        for (node = c_rbtree_first_postorder(&peer->replies_outgoing.slots), next = c_rbnode_next_postorder(node);
-             node;
-             node = next, next = c_rbnode_next_postorder(node)) {
-                ReplySlot *slot = c_container_of(node, ReplySlot, rb);
-
-                /* XXX: synthesize reply */
-                reply_slot_free(slot);
-        }
-
         for (node = c_rbtree_first_postorder(&peer->match_rules), next = c_rbnode_next_postorder(node);
              node;
              node = next, next = c_rbnode_next_postorder(node)) {
@@ -1151,6 +1142,20 @@ int driver_goodbye(Peer *peer, bool silent) {
                         return error_trace(r);
         }
         peer_unregister(peer);
+
+        for (node = c_rbtree_first_postorder(&peer->replies_outgoing.slots), next = c_rbnode_next_postorder(node);
+             node;
+             node = next, next = c_rbnode_next_postorder(node)) {
+                ReplySlot *slot = c_container_of(node, ReplySlot, rb);
+
+                if (!silent) {
+                        r = driver_send_error(slot->sender, slot->serial, "org.freedesktop.DBus.Error.NoReply");
+                        if (r)
+                                return error_trace(r);
+                }
+
+                reply_slot_free(slot);
+        }
 
         return 0;
 }
