@@ -106,8 +106,8 @@ static int match_rule_keys_assign(MatchRuleKeys *keys, const char *key, const ch
                         keys->filter.type = DBUS_MESSAGE_TYPE_SIGNAL;
                 else if (strcmp(value, "method_call") == 0)
                         keys->filter.type = DBUS_MESSAGE_TYPE_METHOD_CALL;
-                else if (strcmp(value, "method_reply") == 0)
-                        keys->filter.type = DBUS_MESSAGE_TYPE_METHOD_REPLY;
+                else if (strcmp(value, "method_return") == 0)
+                        keys->filter.type = DBUS_MESSAGE_TYPE_METHOD_RETURN;
                 else if (strcmp(value, "error") == 0)
                         keys->filter.type = DBUS_MESSAGE_TYPE_ERROR;
                 else

@@ -231,7 +231,7 @@ static int driver_dvar_verify_signature_in(const CDVarType *type, const char *si
 
 static void driver_write_reply_header(CDVar *var, Peer *peer, uint32_t serial, const CDVarType *type) {
         c_dvar_write(var, "(yyyyuu[(y<u>)(y<s>)(y<",
-                     c_dvar_is_big_endian(var) ? 'B' : 'l', DBUS_MESSAGE_TYPE_METHOD_REPLY, DBUS_HEADER_FLAG_NO_REPLY_EXPECTED, 1, 0, (uint32_t)-1,
+                     c_dvar_is_big_endian(var) ? 'B' : 'l', DBUS_MESSAGE_TYPE_METHOD_RETURN, DBUS_HEADER_FLAG_NO_REPLY_EXPECTED, 1, 0, (uint32_t)-1,
                      DBUS_MESSAGE_FIELD_REPLY_SERIAL, c_dvar_type_u, serial,
                      DBUS_MESSAGE_FIELD_SENDER, c_dvar_type_s, "org.freedesktop.DBus",
                      DBUS_MESSAGE_FIELD_DESTINATION, c_dvar_type_s);

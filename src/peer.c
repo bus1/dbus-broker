@@ -272,7 +272,7 @@ static int peer_dispatch_message(Peer *peer, Message *message) {
         case DBUS_MESSAGE_TYPE_SIGNAL:
         case DBUS_MESSAGE_TYPE_METHOD_CALL:
                 return peer_forward_method_call(peer, destination, serial, message);
-        case DBUS_MESSAGE_TYPE_METHOD_REPLY:
+        case DBUS_MESSAGE_TYPE_METHOD_RETURN:
         case DBUS_MESSAGE_TYPE_ERROR:
                 return peer_forward_reply(peer, destination, reply_serial, message);
         }
