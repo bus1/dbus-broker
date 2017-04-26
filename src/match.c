@@ -6,7 +6,7 @@
 #include <c-macro.h>
 #include <c-rbtree.h>
 #include <c-string.h>
-#include "dbus-protocol.h"
+#include "dbus/protocol.h"
 #include "match.h"
 #include "peer.h"
 #include "user.h"

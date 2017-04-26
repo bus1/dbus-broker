@@ -8,8 +8,8 @@
 #include <c-ref.h>
 #include <endian.h>
 #include <stdlib.h>
-#include "dbus-protocol.h"
 #include "dbus/message.h"
+#include "dbus/protocol.h"
 #include "util/fdlist.h"
 #include "util/error.h"
 

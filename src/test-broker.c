@@ -10,7 +10,7 @@
 #include <sys/un.h>
 #include <systemd/sd-bus.h>
 #include <systemd/sd-id128.h>
-#include "dbus-protocol.h"
+#include "dbus/protocol.h"
 #include "test.h"
 
 static sd_bus *connect_bus(struct sockaddr_un *address, socklen_t addrlen) {

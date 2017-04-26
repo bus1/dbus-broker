@@ -13,8 +13,8 @@
 #include <sys/types.h>
 #include "bus.h"
 #include "dbus/message.h"
+#include "dbus/protocol.h"
 #include "dbus/socket.h"
-#include "dbus-protocol.h"
 #include "driver.h"
 #include "match.h"
 #include "peer.h"

@@ -6,7 +6,7 @@
 #include <stdlib.h>
 #include <sys/socket.h>
 #include "bus.h"
-#include "dbus-protocol.h"
+#include "dbus/protocol.h"
 #include "name.h"
 #include "peer.h"
 #include "user.h"
