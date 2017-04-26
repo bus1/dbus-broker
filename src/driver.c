@@ -599,7 +599,6 @@ static int driver_method_list_queued_owners(Peer *peer, CDVar *in_v, CDVar *out_
         if (!entry)
                 return DRIVER_E_NAME_NOT_FOUND;
 
-        /* XXX: verify if the actual owner should be included */
         c_dvar_write(out_v, "([");
         c_list_for_each_entry(owner, &entry->owners, entry_link)
                 driver_dvar_write_unique_name(out_v, owner->peer);

@@ -187,6 +187,7 @@ static int name_entry_new(NameEntry **entryp, NameRegistry *registry, const char
 
         entry->n_refs = C_REF_INIT;
         entry->registry = registry;
+        entry->activatable = false;
         entry->pending_skbs = (CList)C_LIST_INIT(entry->pending_skbs);
         match_registry_init(&entry->matches);
         c_rbtree_add(&registry->entries, parent, slot, &entry->rb);
