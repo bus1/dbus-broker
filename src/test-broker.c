@@ -124,6 +124,13 @@ static void test_driver_names(sd_bus *bus1, sd_bus *bus2) {
         r = sd_bus_get_unique_name(bus2, &unique_name2);
         assert(r >= 0);
 
+        /* get the owner of a non-existent name */
+        r = sd_bus_call_method(bus1, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus", "GetNameOwner", &error, &reply,
+                               "s", "com.example.foobar");
+        assert(r < 0);
+        assert(strcmp(error.name, "org.freedesktop.DBus.Error.NameHasNoOwner") == 0);
+        sd_bus_error_free(&error);
+
         /* grab a well-known name */
         r = sd_bus_call_method(bus1, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus", "RequestName", &error, &reply,
                                "su", "com.example.foobar", 0);

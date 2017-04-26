@@ -459,14 +459,14 @@ static int driver_send_error(Peer *peer, uint32_t serial, const char *error) {
                 return error_origin(r);
 
         c_dvar_begin_write(var, type);
-        c_dvar_write(var, "(yyyyuu[(y<u>)(y<s>)(y<s>)(y<",
+        c_dvar_write(var, "((yyyyuu[(y<u>)(y<s>)(y<s>)(y<",
                      c_dvar_is_big_endian(var) ? 'B' : 'l', DBUS_MESSAGE_TYPE_ERROR, DBUS_HEADER_FLAG_NO_REPLY_EXPECTED, 1, 0, (uint32_t)-1,
                      DBUS_MESSAGE_FIELD_REPLY_SERIAL, c_dvar_type_u, serial,
                      DBUS_MESSAGE_FIELD_SENDER, c_dvar_type_s, "org.freedesktop.DBus",
                      DBUS_MESSAGE_FIELD_ERROR_NAME, c_dvar_type_s, error,
                      DBUS_MESSAGE_FIELD_DESTINATION, c_dvar_type_s);
         driver_dvar_write_unique_name(var, peer);
-        c_dvar_write(var, ">)])");
+        c_dvar_write(var, ">)])())");
 
         r = c_dvar_end_write(var, &data, &n_data);
         if (r)
