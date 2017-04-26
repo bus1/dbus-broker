@@ -106,7 +106,7 @@ static int run(void) {
         _c_cleanup_(manager_freep) Manager *manager = NULL;
         int r;
 
-        r = manager_new(&manager);
+        r = manager_new(&manager, main_arg_controller);
         if (r)
                 return r;
 

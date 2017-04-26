@@ -9,7 +9,7 @@
 
 typedef struct Manager Manager;
 
-int manager_new(Manager **managerp);
+int manager_new(Manager **managerp, int controller_fd);
 Manager *manager_free(Manager *manager);
 
 int manager_run(Manager *manager);

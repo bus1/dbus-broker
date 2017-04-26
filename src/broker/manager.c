@@ -8,17 +8,25 @@
 #include <stdlib.h>
 #include <sys/epoll.h>
 #include <sys/signalfd.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include "connection.h"
 #include "main.h"
 #include "manager.h"
+#include "user.h"
 #include "util/dispatch.h"
 #include "util/error.h"
 
 struct Manager {
+        UserRegistry users;
         DispatchContext dispatcher;
         CList dispatcher_list;
+        CList dispatcher_hup;
 
         int signals_fd;
         DispatchFile signals_file;
+
+        Connection controller;
 };
 
 static int manager_dispatch_signals(DispatchFile *file, uint32_t events) {
@@ -44,19 +52,33 @@ static int manager_dispatch_signals(DispatchFile *file, uint32_t events) {
         return DISPATCH_E_EXIT;
 }
 
-int manager_new(Manager **managerp) {
+static int manager_dispatch_controller(DispatchFile *file, uint32_t events) {
+        return 0;
+}
+
+int manager_new(Manager **managerp, int controller_fd) {
         _c_cleanup_(manager_freep) Manager *manager = NULL;
+        _c_cleanup_(user_entry_unrefp) UserEntry *user = NULL;
+        struct ucred ucred;
+        socklen_t z_ucred;
         sigset_t sigmask;
         int r;
+
+        r = getsockopt(controller_fd, SOL_SOCKET, SO_PEERCRED, &ucred, &z_ucred);
+        if (r < 0)
+                return error_origin(-errno);
 
         manager = calloc(1, sizeof(*manager));
         if (!manager)
                 return error_origin(-ENOMEM);
 
+        user_registry_init(&manager->users, 16 * 1024 * 1024, 128, 128, 128, 128);
         manager->dispatcher = (DispatchContext)DISPATCH_CONTEXT_NULL;
         manager->dispatcher_list = (CList)C_LIST_INIT(manager->dispatcher_list);
+        manager->dispatcher_hup = (CList)C_LIST_INIT(manager->dispatcher_hup);
         manager->signals_fd = -1;
         manager->signals_file = (DispatchFile)DISPATCH_FILE_NULL(manager->signals_file);
+        manager->controller = (Connection)CONNECTION_NULL(manager->controller);
 
         r = dispatch_context_init(&manager->dispatcher);
         if (r)
@@ -79,6 +101,21 @@ int manager_new(Manager **managerp) {
         if (r)
                 return error_fold(r);
 
+        r = user_registry_ref_entry(&manager->users, &user, ucred.uid);
+        if (r)
+                return error_fold(r);
+
+        r = connection_init_server(&manager->controller,
+                                   &manager->dispatcher,
+                                   &manager->dispatcher_list,
+                                   &manager->dispatcher_hup,
+                                   manager_dispatch_controller,
+                                   user,
+                                   "0123456789abcdef",
+                                   controller_fd);
+        if (r)
+                return error_fold(r);
+
         dispatch_file_select(&manager->signals_file, EPOLLIN);
 
         *managerp = manager;
@@ -90,10 +127,13 @@ Manager *manager_free(Manager *manager) {
         if (!manager)
                 return NULL;
 
+        connection_deinit(&manager->controller);
         dispatch_file_deinit(&manager->signals_file);
         c_close(manager->signals_fd);
+        assert(c_list_is_empty(&manager->dispatcher_hup));
         assert(c_list_is_empty(&manager->dispatcher_list));
         dispatch_context_deinit(&manager->dispatcher);
+        user_registry_deinit(&manager->users);
         free(manager);
 
         return NULL;
