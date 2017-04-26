@@ -237,6 +237,27 @@ int name_entry_get(NameEntry **entryp, NameRegistry *registry, const char *name)
         return 0;
 }
 
+int name_entry_set_activatable(NameRegistry *registry, const char *name, bool activatable) {
+        _c_cleanup_(name_entry_unrefp) NameEntry *entry = NULL;
+        int r;
+
+        r = name_entry_get(&entry, registry, name);
+        if (r)
+                return error_trace(r);
+
+        if (entry->activatable == activatable)
+                return 0;
+
+        entry->activatable = activatable;
+
+        if (activatable)
+                name_entry_ref(entry);
+        else
+                name_entry_unref(entry);
+
+        return 0;
+}
+
 void name_registry_init(NameRegistry *registry) {
         *registry = (NameRegistry) {};
 }
