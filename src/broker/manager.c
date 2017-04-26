@@ -139,8 +139,21 @@ Manager *manager_free(Manager *manager) {
         return NULL;
 }
 
+static int manager_hangup(Manager *manager, Connection *connection) {
+        /*
+         * A hangup on the controller causes a shutdown of the broker. However,
+         * we always flush out all pending output buffers, before we exit.
+         * Hence, we wait until the controller-connection is fully done.
+         */
+        if (connection == &manager->controller)
+                return connection_is_running(connection) ? 0 : MAIN_EXIT;
+
+        return 0;
+}
+
 static int manager_dispatch(Manager *manager) {
         CList processed = (CList)C_LIST_INIT(processed);
+        Connection *connection;
         DispatchFile *file;
         int r;
 
@@ -148,18 +161,51 @@ static int manager_dispatch(Manager *manager) {
         if (r)
                 return error_fold(r);
 
-        while (!r && (file = c_list_first_entry(&manager->dispatcher_list, DispatchFile, ready_link))) {
-                c_list_unlink(&file->ready_link);
-                c_list_link_tail(&processed, &file->ready_link);
+        do {
+                while (!r && (connection = c_list_first_entry(&manager->dispatcher_hup, Connection, hup_link))) {
+                        c_list_unlink_init(&connection->hup_link);
+                        r = error_trace(manager_hangup(manager, connection));
+                }
 
-                r = dispatch_file_call(file);
-                if (r == DISPATCH_E_EXIT)
-                        r = MAIN_EXIT;
-                else if (r == DISPATCH_E_FAILURE)
-                        r = MAIN_FAILED;
-                else
-                        r = error_fold(r);
-        }
+                while (!r &&
+                       c_list_is_empty(&manager->dispatcher_hup) &&
+                       (file = c_list_first_entry(&manager->dispatcher_list, DispatchFile, ready_link))) {
+
+                        /*
+                         * Whenever we dispatch an entry, we first move it into
+                         * a separate list, so if it modifies itself or others,
+                         * it will not corrupt our list iterator.
+                         *
+                         * Then we call into is dispatcher, so it can handle
+                         * the I/O events. The dispatchers can use MAIN_EXIT or
+                         * MAIN_FAILURE to exit the main-loop. Everything else
+                         * is treated as fatal.
+                         *
+                         * Additionally to this ready-list, we have a
+                         * hangup-list, which is a high-priority list. Whenever
+                         * a dispatcher needs to disconnect its current
+                         * connection, or any remote connection, it can put
+                         * those on the hangup-list, and they are guaranteed to
+                         * be handled next, before we continue with the normal
+                         * ready-list.
+                         * This is needed to avoid generating
+                         * disconnect-signals from deep code-paths all over the
+                         * place. We instead always defer the disconnect
+                         * handling to the hangup-list.
+                         */
+
+                        c_list_unlink(&file->ready_link);
+                        c_list_link_tail(&processed, &file->ready_link);
+
+                        r = dispatch_file_call(file);
+                        if (r == DISPATCH_E_EXIT)
+                                r = MAIN_EXIT;
+                        else if (r == DISPATCH_E_FAILURE)
+                                r = MAIN_FAILED;
+                        else
+                                r = error_fold(r);
+                }
+        } while (!r);
 
         c_list_splice(&manager->dispatcher_list, &processed);
         return r;
