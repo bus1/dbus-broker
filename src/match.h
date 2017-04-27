@@ -68,6 +68,10 @@ int match_rule_get(MatchRule **rulep, Peer *peer, const char *rule_string);
 
 MatchRule *match_rule_next(MatchRegistry *registry, MatchRule *rule, MatchFilter *filter);
 
+#define MATCH_REGISTRY_INIT(_x) {                       \
+                .rules = (CList)C_LIST_INIT((_x).rules) \
+        }
+
 void match_registry_init(MatchRegistry *registry);
 void match_registry_deinit(MatchRegistry *registry);
 

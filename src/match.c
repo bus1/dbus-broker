@@ -363,7 +363,7 @@ MatchRule *match_rule_next(MatchRegistry *registry, MatchRule *rule, MatchFilter
 }
 
 void match_registry_init(MatchRegistry *registry) {
-        registry->rules = (CList)C_LIST_INIT(registry->rules);
+        *registry = (MatchRegistry)MATCH_REGISTRY_INIT(*registry);
 }
 
 void match_registry_deinit(MatchRegistry *registry) {

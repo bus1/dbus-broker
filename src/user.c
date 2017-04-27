@@ -89,9 +89,7 @@ C_DEFINE_CLEANUP(UserUsage *, user_usage_unref);
  * This initializes a new charge object.
  */
 void user_charge_init(UserCharge *charge) {
-        charge->usage = NULL;
-        charge->n_bytes = 0;
-        charge->n_fds = 0;
+        *charge = (UserCharge){};
 }
 
 /**
@@ -304,12 +302,7 @@ void user_registry_init(UserRegistry *registry,
                         unsigned int max_peers,
                         unsigned int max_names,
                         unsigned int max_matches) {
-        *registry = (UserRegistry) {};
-        registry->max_bytes = max_bytes;
-        registry->max_fds = max_fds;
-        registry->max_peers = max_peers;
-        registry->max_names = max_names;
-        registry->max_matches = max_matches;
+        *registry = (UserRegistry)USER_REGISTRY_INIT(max_bytes, max_fds, max_peers, max_names, max_matches);
 }
 
 /**
@@ -319,14 +312,11 @@ void user_registry_init(UserRegistry *registry,
  * This destroys the user registry, previously initialized via user_registry_init().
  * All user elements instantiated from the registry must have been destroyed
  * before the registry is deinitialized.
- *
- * If @registry is NULL, this is a no-op.
  */
 void user_registry_deinit(UserRegistry *registry) {
-        if (!registry)
-                return;
-
         assert(!registry->users.root);
+
+        *registry = (UserRegistry){};
 }
 
 /**

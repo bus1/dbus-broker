@@ -97,6 +97,14 @@ int user_entry_charge(UserEntry *entry,
 
 /* registry */
 
+#define USER_REGISTRY_INIT(_bytes, _fds, _peers, _names, _matches) {    \
+                .max_bytes = _bytes,                                    \
+                .max_fds = _fds,                                        \
+                .max_peers = _peers,                                    \
+                .max_names = _names,                                    \
+                .max_matches = _matches,                                \
+        }
+
 void user_registry_init(UserRegistry *registry,
                         unsigned int max_bytes,
                         unsigned int max_fds,
