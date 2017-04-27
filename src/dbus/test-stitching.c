@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include "dbus/message.h"
 #include "dbus/protocol.h"
+#include "dbus/unique-name.h"
 
 static const CDVarType test_message_type[] = {
         C_DVAR_T_INIT(
@@ -134,6 +135,7 @@ static void test_stitching(void) {
         Message *message;
         size_t i, n;
         char *from, *to;
+        uint64_t id;
         int r;
 
         /*
@@ -152,7 +154,7 @@ static void test_stitching(void) {
                 assert(from);
                 memset(from, '1', n);
                 from[0] = ':';
-                from[1] = '0';
+                from[1] = '1';
                 from[2] = '.';
                 from[n] = 0;
 
@@ -161,12 +163,15 @@ static void test_stitching(void) {
                 assert(to);
                 memset(to, '2', n);
                 to[0] = ':';
-                to[1] = '0';
+                to[1] = '1';
                 to[2] = '.';
                 to[n] = 0;
 
+                r = unique_name_to_id(to, &id);
+                assert(!r);
+
                 message = test_new_message(i % 13, from, i / 17, NULL);
-                r = message_stitch_sender(message, to);
+                r = message_stitch_sender(message, id);
                 assert(!r);
                 test_assert_message(message, i % 13, to, i / 17);
                 message_unref(message);

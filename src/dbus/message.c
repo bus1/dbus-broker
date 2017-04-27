@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include "dbus/message.h"
 #include "dbus/protocol.h"
+#include "dbus/unique-name.h"
 #include "util/fdlist.h"
 #include "util/error.h"
 
@@ -25,6 +26,7 @@ static int message_new(Message **messagep, bool big_endian, size_t n_extra) {
         message->n_refs = C_REF_INIT;
         message->big_endian = big_endian;
         message->allocated_data = false;
+        message->sender_id = UNIQUE_NAME_ID_INVALID;
         message->fds = NULL;
         message->n_data = 0;
         message->n_copied = 0;
@@ -357,7 +359,7 @@ int message_parse_metadata(Message *message, MessageMetadata *metadata) {
 /**
  * message_stitch_sender() - stitch in new sender field
  * @message:                    message to operate on
- * @sender:                     sender to stitch in
+ * @sender_id:                  sender id to stitch in
  *
  * When the broker forwards messages, it needs to fill in the sender-field
  * reliably. Unfortunately, this requires modifying the fields-array of the
@@ -377,7 +379,8 @@ int message_parse_metadata(Message *message, MessageMetadata *metadata) {
  *
  * Return: 0 on success, negative error code on failure.
  */
-int message_stitch_sender(Message *message, const char *sender) {
+int message_stitch_sender(Message *message, uint64_t sender_id) {
+        char sender[UNIQUE_NAME_STRING_MAX];
         size_t n, n_stitch, n_field, n_sender;
         uint8_t *stitch;
         void *end, *field;
@@ -390,6 +393,13 @@ int message_stitch_sender(Message *message, const char *sender) {
         assert(message->parsed);
         assert(!message->vecs[1].iov_base && !message->vecs[1].iov_len);
         assert(!message->vecs[2].iov_base && !message->vecs[2].iov_len);
+
+        /*
+         * Convert the sender id to a unique name. This should never fail on
+         * a valid sender id.
+         */
+        unique_name_from_id(sender, sender_id);
+        message->sender_id = sender_id;
 
         /*
          * Calculate string, field, and buffer lengths. We need to possibly cut

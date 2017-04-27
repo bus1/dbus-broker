@@ -30,6 +30,8 @@ struct Message {
         bool allocated_data : 1;
         bool parsed : 1;
 
+        uint64_t sender_id;
+
         FDList *fds;
 
         size_t n_data;
@@ -81,7 +83,7 @@ int message_new_outgoing(Message **messagep, void *data, size_t n_data);
 void message_free(_Atomic unsigned long *n_refs, void *userdata);
 
 int message_parse_metadata(Message *message, MessageMetadata *metadata);
-int message_stitch_sender(Message *message, const char *sender);
+int message_stitch_sender(Message *message, uint64_t sender_id);
 
 /* inline helpers */
 
