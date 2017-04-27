@@ -20,7 +20,7 @@ void unique_name_from_id(char *name, uint64_t id) {
         assert(id != UNIQUE_NAME_ID_INVALID);
 
         r = snprintf(name, UNIQUE_NAME_STRING_MAX, ":1.%"PRIu64, id);
-        assert(r >= 0 && r < UNIQUE_NAME_ID_INVALID);
+        assert(r >= 0 && r < UNIQUE_NAME_STRING_MAX);
 }
 
 /**
