@@ -99,5 +99,8 @@ test('D-Bus SASL Parser', test_sasl)
 test_socket = executable('test-socket', ['dbus/test-socket.c'], dependencies: libdbus_broker_dep)
 test('D-Bus Socket Abstraction', test_socket)
 
+test_stitching = executable('test-stitching', ['dbus/test-stitching.c'], dependencies: libdbus_broker_dep)
+test('Message Sender Stitching', test_stitching)
+
 test_user = executable('test-user', ['test-user.c'], dependencies: libdbus_broker_dep)
 test('User Accounting', test_user)

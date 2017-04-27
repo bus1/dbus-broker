@@ -33,6 +33,7 @@ static int message_new(Message **messagep, bool big_endian, size_t n_extra) {
         message->data = NULL;
         message->header = NULL;
         message->body = NULL;
+        message->sender = NULL;
 
         *messagep = message;
         message = NULL;
@@ -73,7 +74,8 @@ int message_new_incoming(Message **messagep, MessageHeader header) {
         message->body = message->data + c_align8(n_header);
         message->vecs[0] = (struct iovec){ message->header, c_align8(n_header) };
         message->vecs[1] = (struct iovec){ NULL, 0 };
-        message->vecs[2] = (struct iovec){ message->body, n_body };
+        message->vecs[2] = (struct iovec){ NULL, 0 };
+        message->vecs[3] = (struct iovec){ message->body, n_body };
 
         message->n_copied += sizeof(header);
         memcpy(message->data, &header, sizeof(header));
@@ -116,7 +118,8 @@ int message_new_outgoing(Message **messagep, void *data, size_t n_data) {
         message->body = message->data + c_align8(n_header);
         message->vecs[0] = (struct iovec){ message->header, c_align8(n_header) };
         message->vecs[1] = (struct iovec){ NULL, 0 };
-        message->vecs[2] = (struct iovec){ message->body, n_body };
+        message->vecs[2] = (struct iovec){ NULL, 0 };
+        message->vecs[3] = (struct iovec){ message->body, n_body };
 
         *messagep = message;
         message = NULL;
@@ -130,6 +133,7 @@ void message_free(_Atomic unsigned long *n_refs, void *userdata) {
         if (message->allocated_data)
                 free(message->data);
         fdlist_free(message->fds);
+        free(message->vecs[2].iov_base);
         free(message);
 }
 
@@ -262,6 +266,9 @@ int message_parse_metadata(Message *message, MessageMetadata *metadata) {
                 case DBUS_MESSAGE_FIELD_SENDER:
                         c_dvar_read(&v, "<s>)", c_dvar_type_s, &metadata->fields.sender);
                         /* XXX: Invalid bus-names are rejected */
+
+                        /* cache sender in case it needs to be stitched out */
+                        message->sender = (void *)metadata->fields.sender;
                         break;
 
                 case DBUS_MESSAGE_FIELD_SIGNATURE:
@@ -325,6 +332,10 @@ int message_parse_metadata(Message *message, MessageMetadata *metadata) {
                 return error_fold(r);
 
         /*
+         * XXX: Validate padding between header and body!
+         */
+
+        /*
          * XXX: Validate body!
          */
 
@@ -338,6 +349,162 @@ int message_parse_metadata(Message *message, MessageMetadata *metadata) {
          */
         if (message->fds)
                 fdlist_truncate(message->fds, metadata->fields.unix_fds);
+
+        message->parsed = true;
+        return 0;
+}
+
+/**
+ * message_stitch_sender() - stitch in new sender field
+ * @message:                    message to operate on
+ * @sender:                     sender to stitch in
+ *
+ * When the broker forwards messages, it needs to fill in the sender-field
+ * reliably. Unfortunately, this requires modifying the fields-array of the
+ * D-Bus header. Since we do not want to re-write the entire array, we allow
+ * some stitching magic here to happen.
+ *
+ * This means, we use some nice properties of tuple-arrays in the D-Bus
+ * marshalling (namely, they're 8-byte aligned, thus statically discverable
+ * when we know the offset), and simply cut out the existing sender field and
+ * append a new one.
+ *
+ * This function must not be called more than once on any message (it will
+ * throw a fatal error). Furthermore, this will cut the message in parts, such
+ * that it is no longer readable linearly. However, none of the fields are
+ * relocated nor overwritten. That is, any cached pointer stays valid, though
+ * maybe no longer part of the actual message.
+ *
+ * Return: 0 on success, negative error code on failure.
+ */
+int message_stitch_sender(Message *message, const char *sender) {
+        size_t n, n_stitch, n_field, n_sender;
+        uint8_t *stitch;
+        void *end, *field;
+
+        /*
+         * Must not be called more than once. We reserve the 2 iovecs between
+         * the original header and body to stitch the sender field. The caller
+         * must have parsed the metadata before.
+         */
+        assert(message->parsed);
+        assert(!message->vecs[1].iov_base && !message->vecs[1].iov_len);
+        assert(!message->vecs[2].iov_base && !message->vecs[2].iov_len);
+
+        /*
+         * Calculate string, field, and buffer lengths. We need to possibly cut
+         * out a `(yv)' and insert another one at the end. See the D-Bus
+         * marshalling for details, but shortly this means:
+         *
+         *     - Tuples are always 8-byte aligned. Hence, we can reliably
+         *       calculate field offsets.
+         *
+         *     - A string-field needs `1 + 3 + 4 + n + 1' bytes:
+         *
+         *         - length of 'y':                 1
+         *         - length of 'v':                 3 + 4 + n + 1
+         *           - type 'g' needs:
+         *             - size field byte:           1
+         *             - type string 's':           1
+         *             - zero termination:          1
+         *           - sender string needs:
+         *             - alignment to 4:            0
+         *             - size field int:            4
+         *             - sender string:             n
+         *             - zero termination:          1
+         */
+        n_sender = strlen(sender);
+        n_field = 1 + 3 + 4 + n_sender + 1;
+        n_stitch = c_align8(n_field);
+
+        /*
+         * Strings in D-Bus are limited to 32bit in length (excluding the zero
+         * termination). Since sender-names must be valid bus-names, they're
+         * even limited to 8bit. Hence, we can safely assert on the sender
+         * length.
+         */
+        assert(n_sender <= UINT32_MAX);
+
+        /*
+         * Allocate buffer to put in a header-field of type `(yv)'. We
+         * pre-allocate the buffer here, so we cannot fail later on when we
+         * partially modified the message.
+         */
+        stitch = malloc(n_stitch);
+        if (!stitch)
+                return error_origin(-ENOMEM);
+
+        if (message->sender) {
+                /*
+                 * If @message already has a sender field, we need to remove it
+                 * first, so we can append the correct sender. The message
+                 * parser cached the start of a possible sender field as
+                 * @message->sender (pointing to the start of the sender
+                 * string!). Hence, calculate the offset to its surrounding
+                 * field and cut it out.
+                 * See above for size-calculations of `(yv)' fields.
+                 */
+                n = strlen(message->sender);
+                end = (void *)message->header + c_align8(message->n_header);
+                field = message->sender - (1 + 3 + 4);
+
+                assert(message->sender >= (void *)message->header);
+                assert(message->sender + n + 1 <= end);
+
+                /* fold remaining fields into following vector */
+                message->vecs[1].iov_base = field + c_align8(1 + 3 + 4 + n + 1);
+                message->vecs[1].iov_len = message->vecs[0].iov_len;
+                message->vecs[1].iov_len -= message->vecs[1].iov_base - message->vecs[0].iov_base;
+
+                /* cut field from previous vector */
+                message->vecs[0].iov_len = field - message->vecs[0].iov_base;
+
+                /*
+                 * @message->n_header as well as @message->header->n_fields are
+                 * screwed here, but fixed up below.
+                 *
+                 * Note that we cannot fix them here, since we can only
+                 * calculate them if we actually append data. Otherwise, we
+                 * cannot know the length of the last field, and as such cannot
+                 * subtract the trailing padding.
+                 */
+        }
+
+        /*
+         * Now that any possible sender field was cut out, we can append the
+         * new sender field at the end. The 3rd iovec is reserved for that
+         * purpose, and it is de-allocated during message teardown.
+         */
+
+        message->vecs[2].iov_base = stitch;
+        message->vecs[2].iov_len = n_stitch;
+
+        /* fill in `(yv)' with sender and padding */
+        stitch[0] = DBUS_MESSAGE_FIELD_SENDER;
+        stitch[1] = 1;
+        stitch[2] = 's';
+        stitch[3] = 0;
+        if (message->big_endian)
+                *(uint32_t *)&stitch[4] = htobe32(n_sender);
+        else
+                *(uint32_t *)&stitch[4] = htole32(n_sender);
+        memcpy(stitch + 8, sender, n_sender + 1);
+        memset(stitch + 8 + n_sender + 1, 0, n_stitch - n_field);
+
+        /*
+         * After we cut the previous sender field and inserted the new, adjust
+         * all the size-counters in the message again.
+         */
+
+        message->n_header = message->vecs[0].iov_len +
+                            message->vecs[1].iov_len +
+                            n_field;
+        message->n_data = c_align8(message->n_header) + message->n_body;
+
+        if (message->big_endian)
+                message->header->n_fields = htobe32(message->n_header - sizeof(*message->header));
+        else
+                message->header->n_fields = htole32(message->n_header - sizeof(*message->header));
 
         return 0;
 }
