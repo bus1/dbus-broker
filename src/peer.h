@@ -58,8 +58,6 @@ void peer_stop(Peer *peer);
 void peer_register(Peer *peer);
 void peer_unregister(Peer *peer);
 
-int peer_id_from_unique_name(const char *name, uint64_t *idp);
-
 void peer_registry_init(PeerRegistry *registry);
 void peer_registry_deinit(PeerRegistry *registry);
 void peer_registry_flush(PeerRegistry *registry);

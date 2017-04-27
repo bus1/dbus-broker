@@ -12,6 +12,7 @@
 #include "dbus/message.h"
 #include "dbus/protocol.h"
 #include "dbus/socket.h"
+#include "dbus/unique-name.h"
 #include "driver.h"
 #include "match.h"
 #include "peer.h"
@@ -171,16 +172,14 @@ static void driver_write_bytes(CDVar *var, char *bytes, size_t n_bytes) {
 }
 
 static void driver_dvar_write_unique_name(CDVar *var, Peer *peer) {
-        char unique_name[strlen(":1.") + C_DECIMAL_MAX(uint64_t) + 1];
-        int r;
+        char unique_name[UNIQUE_NAME_STRING_MAX];
 
         if (!peer) {
                 c_dvar_write(var, "s", "");
                 return;
         }
 
-        r = snprintf(unique_name, sizeof(unique_name), ":1.%"PRIu64, peer->id);
-        assert(r >= 0 && r < sizeof(unique_name));
+        unique_name_from_id(unique_name, peer->id);
 
         c_dvar_write(var, "s", unique_name);
 }
@@ -396,16 +395,14 @@ static int driver_notify_name_owner_changed(Bus *bus, const char *name, Peer *ol
 
 static int driver_name_owner_changed(const char *name, Peer *old_owner, Peer *new_owner) {
         Peer *peer = new_owner ? : new_owner;
-        char unique_name[strlen(":1.") + C_DECIMAL_MAX(uint64_t) + 1];
+        char unique_name[UNIQUE_NAME_STRING_MAX];
         int r;
 
         assert(old_owner || new_owner);
         assert(name || !old_owner || !new_owner);
 
         if (!name) {
-                r = snprintf(unique_name, sizeof(unique_name), ":1.%"PRIu64, peer->id);
-                assert(r >= 0 && r < sizeof(unique_name));
-
+                unique_name_from_id(unique_name, peer->id);
                 name = unique_name;
         }
 
@@ -846,7 +843,7 @@ static int driver_method_add_match(Peer *peer, CDVar *in_v, CDVar *out_v, NameCh
                 Peer *sender;
                 uint64_t id;
 
-                r = peer_id_from_unique_name(rule->keys.sender, &id);
+                r = unique_name_to_id(rule->keys.sender, &id);
                 if (r)
                         return error_fold(r);
 

@@ -10,6 +10,7 @@ libdbus_broker_private = static_library(
                 'dbus/message.c',
                 'dbus/sasl.c',
                 'dbus/socket.c',
+                'dbus/unique-name.c',
                 'driver.c',
                 'match.c',
                 'name.c',
@@ -101,6 +102,9 @@ test('D-Bus Socket Abstraction', test_socket)
 
 test_stitching = executable('test-stitching', ['dbus/test-stitching.c'], dependencies: libdbus_broker_dep)
 test('Message Sender Stitching', test_stitching)
+
+test_unique_name = executable('test-unique-name', ['dbus/test-unique-name.c'], dependencies: libdbus_broker_dep)
+test('Unique Name Handling', test_unique_name)
 
 test_user = executable('test-user', ['test-user.c'], dependencies: libdbus_broker_dep)
 test('User Accounting', test_user)

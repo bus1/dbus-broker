@@ -15,6 +15,7 @@
 #include "dbus/message.h"
 #include "dbus/protocol.h"
 #include "dbus/socket.h"
+#include "dbus/unique-name.h"
 #include "driver.h"
 #include "match.h"
 #include "peer.h"
@@ -64,7 +65,7 @@ static int peer_forward_method_call(Peer *sender, const char *destination, uint3
         } else {
                 uint64_t id;
 
-                r = peer_id_from_unique_name(destination, &id);
+                r = unique_name_to_id(destination, &id);
                 if (r)
                         return error_trace(r);
 
@@ -92,7 +93,7 @@ static int peer_forward_reply(Peer *sender, const char *destination, uint32_t re
         uint64_t id;
         int r;
 
-        r = peer_id_from_unique_name(destination, &id);
+        r = unique_name_to_id(destination, &id);
         if (r < 0)
                 return r;
 
@@ -447,24 +448,4 @@ Peer *peer_registry_find_peer(PeerRegistry *registry, uint64_t id) {
         peer = c_rbtree_find_entry(&registry->peers, peer_compare, &id, Peer, rb);
 
         return peer->registered ? peer : NULL;
-}
-
-int peer_id_from_unique_name(const char *name, uint64_t *idp) {
-        uint64_t id;
-        char *end;
-
-        if (strlen(name) < strlen(":1."))
-                return -EINVAL;
-
-        name += strlen(":1.");
-
-        errno = 0;
-        id = strtoull(name, &end, 10);
-        if (errno != 0)
-                return -errno;
-        if (*end || name == end)
-                return -EINVAL;
-
-        *idp = id;
-        return 0;
 }

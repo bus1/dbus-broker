@@ -9,6 +9,7 @@
 #include <sys/signalfd.h>
 #include <sys/socket.h>
 #include "bus.h"
+#include "dbus/unique-name.h"
 #include "driver.h"
 #include "match.h"
 #include "name.h"
@@ -213,7 +214,7 @@ Peer *bus_find_peer_by_name(Bus *bus, const char *name) {
         } else {
                 uint64_t id;
 
-                r = peer_id_from_unique_name(name, &id);
+                r = unique_name_to_id(name, &id);
                 if (r < 0)
                         return NULL;
 
