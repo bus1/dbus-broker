@@ -270,7 +270,7 @@ static int driver_notify_name_acquired(Peer *peer, const char *name) {
                         )
                 )
         };
-        _c_cleanup_(c_dvar_deinitp) CDVar var = CDVAR_NULL;
+        _c_cleanup_(c_dvar_deinitp) CDVar var = C_DVAR_INIT;
         _c_cleanup_(message_unrefp) Message *message = NULL;
         void *data;
         size_t n_data;
@@ -306,7 +306,7 @@ static int driver_notify_name_lost(Peer *peer, const char *name) {
                         )
                 )
         };
-        _c_cleanup_(c_dvar_deinitp) CDVar var = CDVAR_NULL;
+        _c_cleanup_(c_dvar_deinitp) CDVar var = C_DVAR_INIT;
         _c_cleanup_(message_unrefp) Message *message = NULL;
         void *data;
         size_t n_data;
@@ -350,7 +350,7 @@ static int driver_notify_name_owner_changed(Bus *bus, const char *name, Peer *ol
                         )
                 )
         };
-        _c_cleanup_(c_dvar_deinitp) CDVar var = CDVAR_NULL;
+        _c_cleanup_(c_dvar_deinitp) CDVar var = C_DVAR_INIT;
         _c_cleanup_(message_unrefp) Message *message = NULL;
         MatchRule *rule;
         void *data;
@@ -436,7 +436,7 @@ static int driver_send_error(Peer *peer, uint32_t serial, const char *error) {
                         )
                 )
         };
-        _c_cleanup_(c_dvar_deinitp) CDVar var = CDVAR_NULL;
+        _c_cleanup_(c_dvar_deinitp) CDVar var = C_DVAR_INIT;
         _c_cleanup_(message_unrefp) Message *message = NULL;
         void *data;
         size_t n_data;
@@ -924,7 +924,7 @@ static int driver_method_become_monitor(Peer *peer, CDVar *in_v, CDVar *out_v, N
 }
 
 static int driver_handle_method(const DriverMethod *method, Peer *peer, const char *path, uint32_t serial, const char *signature_in, Message *message_in) {
-        _c_cleanup_(c_dvar_deinitp) CDVar var_in = CDVAR_NULL, var_out = CDVAR_NULL;
+        _c_cleanup_(c_dvar_deinitp) CDVar var_in = C_DVAR_INIT, var_out = C_DVAR_INIT;
         _c_cleanup_(message_unrefp) Message *message_out = NULL;
         NameChange change = {};
         void *data;

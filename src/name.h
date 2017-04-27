@@ -47,6 +47,7 @@ struct NameEntry {
 
         bool activatable : 1;
         CList pending_skbs;
+        ReplyRegistry replies_outgoing;
 
         MatchRegistry matches;
 

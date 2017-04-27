@@ -155,7 +155,7 @@ int message_parse_metadata(Message *message, MessageMetadata *metadata) {
                         )
                 ), /* (yyyyuua(yv)) */
         };
-        _c_cleanup_(c_dvar_deinitp) CDVar v = CDVAR_NULL;
+        _c_cleanup_(c_dvar_deinitp) CDVar v = C_DVAR_INIT;
         unsigned int mask;
         uint8_t field;
         int r;

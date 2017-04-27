@@ -47,8 +47,14 @@ static int peer_forward_method_call(Peer *sender, const char *destination, uint3
                         if (!receiver_name->activatable)
                                 return -EBADMSG;
 
-                        /* XXX: request activation and register reply object */
+                        r = reply_slot_new(&slot, &receiver_name->replies_outgoing, sender, serial);
+                        if (r)
+                                return error_fold(r);
+
                         c_list_link_tail(&receiver_name->pending_skbs, &skb->link);
+
+                        /* XXX: request activation */
+
                         skb = NULL;
                         slot = NULL;
                         return 0;
@@ -183,8 +189,6 @@ static int peer_dispatch_message(Peer *peer, Message *message) {
                                               metadata.fields.signature,
                                               message);
         }
-
-        /* XXX: verify message contents */
 
         switch (metadata.header.type) {
         case DBUS_MESSAGE_TYPE_SIGNAL:
