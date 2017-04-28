@@ -25,6 +25,8 @@ enum {
         NAME_E_IN_QUEUE,
         NAME_E_EXISTS,
         NAME_E_ALREADY_OWNER,
+
+        NAME_E_NOT_ACTIVATABLE,
 };
 
 struct NameChange {
@@ -72,6 +74,8 @@ void name_entry_free(_Atomic unsigned long *n_refs, void *userpointer);
 
 bool name_entry_is_owned(NameEntry *entry);
 int name_entry_set_activatable(NameRegistry *registry, const char *name, bool activatable);
+
+int name_entry_queue_message(NameEntry *entry, Message *message);
 
 NameEntry *name_registry_find_entry(NameRegistry *registry, const char *name);
 Peer *name_registry_resolve_name(NameRegistry *registry, const char *name);

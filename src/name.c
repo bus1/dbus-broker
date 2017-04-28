@@ -8,6 +8,7 @@
 #include <c-list.h>
 #include <stdlib.h>
 #include "dbus/protocol.h"
+#include "dbus/socket.h"
 #include "driver.h"
 #include "name.h"
 #include "user.h"
@@ -257,6 +258,22 @@ int name_entry_set_activatable(NameRegistry *registry, const char *name, bool ac
                 name_entry_ref(entry);
         else
                 name_entry_unref(entry);
+
+        return 0;
+}
+
+int name_entry_queue_message(NameEntry *entry, Message *message) {
+        _c_cleanup_(socket_buffer_freep) SocketBuffer *skb = NULL;
+        int r;
+
+        if (!entry->activatable)
+                return NAME_E_NOT_ACTIVATABLE;
+
+        r = socket_buffer_new_message(&skb, message);
+        if (r)
+                return error_fold(r);
+
+        c_list_link_tail(&entry->pending_skbs, &skb->link);
 
         return 0;
 }
