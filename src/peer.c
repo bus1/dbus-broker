@@ -25,42 +25,49 @@
 #include "util/error.h"
 #include "util/fdlist.h"
 
-static int peer_forward_method_call(Peer *sender, const char *destination, uint32_t serial, Message *message) {
-        _c_cleanup_(socket_buffer_freep) SocketBuffer *skb = NULL;
+int peer_queue_message(Peer *receiver, Peer *sender, uint32_t serial, Message *message) {
         _c_cleanup_(reply_slot_freep) ReplySlot *slot = NULL;
-        NameEntry *receiver_name;
-        Peer *receiver_peer;
         int r;
 
-        r = socket_buffer_new_message(&skb, message);
+        if ((message->header->type == DBUS_MESSAGE_TYPE_METHOD_CALL) &&
+            !(message->header->flags & DBUS_HEADER_FLAG_NO_REPLY_EXPECTED)) {
+                /* XXX: handle duplicate serial numbers */
+                r = reply_slot_new(&slot, &receiver->replies_outgoing, sender, serial);
+                if (r)
+                        return error_fold(r);
+        }
+
+        r = connection_queue_message(&receiver->connection, message);
         if (r)
                 return error_fold(r);
 
+        slot = NULL;
+        return 0;
+}
+
+static int peer_forward_unicast(Peer *sender, const char *destination, uint32_t serial, Message *message) {
+        Peer *receiver;
+        int r;
+
         if (*destination != ':') {
+                NameEntry *name;
                 NameOwner *owner;
 
-                receiver_name = name_registry_find_entry(&sender->bus->names, destination);
-                if (!receiver_name)
+                name = name_registry_find_entry(&sender->bus->names, destination);
+                if (!name)
                         return -EBADMSG;
 
-                owner = c_list_first_entry(&receiver_name->owners, NameOwner, entry_link);
+                owner = c_list_first_entry(&name->owners, NameOwner, entry_link);
                 if (!owner) {
-                        if (!receiver_name->activatable)
-                                return -EBADMSG;
-
-                        r = reply_slot_new(&slot, &receiver_name->replies_outgoing, sender, serial);
+                        r = name_entry_queue_message(name, message);
                         if (r)
                                 return error_fold(r);
 
-                        c_list_link_tail(&receiver_name->pending_skbs, &skb->link);
+                        /* XXX: activate name */
 
-                        /* XXX: request activation */
-
-                        skb = NULL;
-                        slot = NULL;
                         return 0;
                 } else {
-                        receiver_peer = owner->peer;
+                        receiver = owner->peer;
                 }
         } else {
                 uint64_t id;
@@ -69,21 +76,14 @@ static int peer_forward_method_call(Peer *sender, const char *destination, uint3
                 if (r)
                         return error_trace(r);
 
-                receiver_peer = peer_registry_find_peer(&sender->bus->peers, id);
-                if (!receiver_peer)
+                receiver = peer_registry_find_peer(&sender->bus->peers, id);
+                if (!receiver)
                         return -EBADMSG;
         }
 
-        if (!(message->header->flags & DBUS_HEADER_FLAG_NO_REPLY_EXPECTED)) {
-                r = reply_slot_new(&slot, &receiver_peer->replies_outgoing, sender, serial);
-                if (r)
-                        return error_fold(r);
-        }
-
-        connection_queue(&receiver_peer->connection, skb);
-
-        skb = NULL;
-        slot = NULL;
+        r = peer_queue_message(receiver, sender, serial, message);
+        if (r)
+                return error_trace(r);
 
         return 0;
 }
@@ -194,10 +194,10 @@ static int peer_dispatch_message(Peer *peer, Message *message) {
         switch (metadata.header.type) {
         case DBUS_MESSAGE_TYPE_SIGNAL:
         case DBUS_MESSAGE_TYPE_METHOD_CALL:
-                return peer_forward_method_call(peer,
-                                                metadata.fields.destination,
-                                                metadata.header.serial,
-                                                message);
+                return peer_forward_unicast(peer,
+                                            metadata.fields.destination,
+                                            metadata.header.serial,
+                                            message);
         case DBUS_MESSAGE_TYPE_METHOD_RETURN:
         case DBUS_MESSAGE_TYPE_ERROR:
                 return peer_forward_reply(peer,
