@@ -109,12 +109,6 @@ static int name_owner_update(NameOwner *owner, uint32_t flags, NameChange *chang
                 change->new_owner = owner->peer;
                 change->old_owner = NULL;
 
-                /* queue pending messages */
-                if (entry->activatable) {
-                        connection_queue_many(&owner->peer->connection, &entry->pending_skbs);
-                        entry->pending_skbs = (CList)C_LIST_INIT(entry->pending_skbs);
-                }
-
                 /* @owner cannot already be linked */
                 c_list_link_front(&entry->owners, &owner->entry_link);
                 owner->flags = flags;

@@ -425,6 +425,27 @@ static int driver_name_owner_changed(const char *name, Peer *old_owner, Peer *ne
         return 0;
 }
 
+static int driver_name_activated(NameEntry *name, Peer *receiver) {
+        SocketBuffer *skb, *safe;
+        int r;
+
+        c_list_for_each_entry_safe(skb, safe, &name->pending_skbs, link) {
+                Message *message = skb->message;
+                Peer *sender;
+
+                sender = peer_registry_find_peer(&receiver->bus->peers, message->sender_id);
+
+                r = peer_queue_message(receiver, sender, message_read_serial(message), message);
+                if (r)
+                        /* XXX: handle errors and reply */
+                        return error_fold(r);
+
+                socket_buffer_free(skb);
+        }
+
+        return 0;
+}
+
 static int driver_send_error(Peer *peer, uint32_t serial, const char *error) {
         static const CDVarType type[] = {
                 C_DVAR_T_INIT(
@@ -982,6 +1003,12 @@ static int driver_handle_method(const DriverMethod *method, Peer *peer, const ch
                 r = driver_name_owner_changed(change.name ? change.name->name : NULL, change.old_owner, change.new_owner);
                 if (r)
                         return error_trace(r);
+
+                if (change.name && change.new_owner) {
+                        r = driver_name_activated(change.name, change.new_owner);
+                        if (r)
+                                return error_trace(r);
+                }
 
                 name_change_deinit(&change);
         }
