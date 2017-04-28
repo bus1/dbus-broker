@@ -16,7 +16,7 @@ enum {
 };
 
 #define UNIQUE_NAME_ID_INVALID (ULLONG_MAX)
-#define UNIQUE_NAME_STRING_MAX (3 + C_DECIMAL_MAX(uint64_t) + 1)
+#define UNIQUE_NAME_STRING_MAX (3 + C_DECIMAL_MAX(uint64_t))
 
 void unique_name_from_id(char *name, uint64_t id);
 int unique_name_to_id(const char *name, uint64_t *idp);

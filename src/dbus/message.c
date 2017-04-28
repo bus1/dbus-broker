@@ -380,7 +380,7 @@ int message_parse_metadata(Message *message, MessageMetadata *metadata) {
  * Return: 0 on success, negative error code on failure.
  */
 int message_stitch_sender(Message *message, uint64_t sender_id) {
-        char sender[UNIQUE_NAME_STRING_MAX];
+        char sender[UNIQUE_NAME_STRING_MAX + 1];
         size_t n, n_stitch, n_field, n_sender;
         uint8_t *stitch;
         void *end, *field;

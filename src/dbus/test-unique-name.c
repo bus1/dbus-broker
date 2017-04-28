@@ -6,7 +6,7 @@
 #include "dbus/unique-name.h"
 
 static void test_basic(void) {
-        char name[UNIQUE_NAME_STRING_MAX];
+        char name[UNIQUE_NAME_STRING_MAX + 1];
         uint64_t id = UNIQUE_NAME_ID_INVALID;
         int r;
 

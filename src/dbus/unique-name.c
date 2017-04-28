@@ -11,16 +11,16 @@
  * @name                string buffer to write to
  * @id                  id to generate name from
  *
- * @name must be at least UNIQUE_NAME_STRING_MAX and @id must not be
- * UNIQUE_NAME_ID_INVALID.
+ * @name must be at least UNIQUE_NAME_STRING_MAX + 1 and @id must
+ * not be UNIQUE_NAME_ID_INVALID.
  */
 void unique_name_from_id(char *name, uint64_t id) {
         int r;
 
         assert(id != UNIQUE_NAME_ID_INVALID);
 
-        r = snprintf(name, UNIQUE_NAME_STRING_MAX, ":1.%"PRIu64, id);
-        assert(r >= 0 && r < UNIQUE_NAME_STRING_MAX);
+        r = snprintf(name, UNIQUE_NAME_STRING_MAX + 1, ":1.%"PRIu64, id);
+        assert(r >= 0 && r < UNIQUE_NAME_STRING_MAX + 1);
 }
 
 /**

@@ -172,7 +172,7 @@ static void driver_write_bytes(CDVar *var, char *bytes, size_t n_bytes) {
 }
 
 static void driver_dvar_write_unique_name(CDVar *var, Peer *peer) {
-        char unique_name[UNIQUE_NAME_STRING_MAX];
+        char unique_name[UNIQUE_NAME_STRING_MAX + 1];
 
         if (!peer) {
                 c_dvar_write(var, "s", "");
@@ -395,7 +395,7 @@ static int driver_notify_name_owner_changed(Bus *bus, const char *name, Peer *ol
 
 static int driver_name_owner_changed(const char *name, Peer *old_owner, Peer *new_owner) {
         Peer *peer = new_owner ? : new_owner;
-        char unique_name[UNIQUE_NAME_STRING_MAX];
+        char unique_name[UNIQUE_NAME_STRING_MAX + 1];
         int r;
 
         assert(old_owner || new_owner);
