@@ -105,4 +105,14 @@ static inline Message *message_unref(Message *message) {
         return NULL;
 }
 
+/**
+ * message_read_serial() - XXX
+ */
+static inline uint32_t message_read_serial(Message *message) {
+        if (_c_likely_(!message->big_endian))
+                return le32toh(message->header->serial);
+        else
+                return be32toh(message->header->serial);
+}
+
 C_DEFINE_CLEANUP(Message *, message_unref);
