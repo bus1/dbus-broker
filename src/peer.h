@@ -20,6 +20,15 @@ typedef struct PeerRegistry PeerRegistry;
 typedef struct Socket Socket;
 typedef struct UserEntry UserEntry;
 
+enum {
+        _PEER_E_SUCCESS,
+
+        PEER_E_DESTINATION_UNKNOWN,
+        PEER_E_UNEXPECTED_REPLY,
+        PEER_E_UNEXPECTED_MESSAGE_TYPE,
+        PEER_E_QUOTA,
+};
+
 struct Peer {
         Bus *bus;
 

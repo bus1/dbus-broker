@@ -15,6 +15,7 @@
 #include "name.h"
 #include "user.h"
 #include "util/dispatch.h"
+#include "util/error.h"
 
 static int bus_signal(DispatchFile *file, uint32_t events) {
         Bus *bus = c_container_of(file, Bus, signal_file);
@@ -52,17 +53,17 @@ static int bus_accept(DispatchFile *file, uint32_t events) {
                         /* ignore pending errors on the new socket */
                         return 0;
                 }
-                return -errno;
+                return error_origin(-errno);
         }
 
         r = peer_new(&peer, bus, fd);
-        if (r < 0)
-                return r;
+        if (r)
+                return error_fold(r);
         fd = -1;
 
         r = peer_start(peer);
         if (r)
-                return r;
+                return error_fold(r);
 
         peer = NULL;
         return 0;
@@ -85,11 +86,11 @@ int bus_new(Bus **busp,
         sigaddset(&mask, SIGINT);
         signal_fd = signalfd(-1, &mask, SFD_NONBLOCK|SFD_CLOEXEC);
         if (signal_fd < 0)
-                return -errno;
+                return error_origin(-errno);
 
         bus = calloc(1, sizeof(*bus));
         if (!bus)
-                return -ENOMEM;
+                return error_origin(-ENOMEM);
 
         bus->ready_list = (CList)C_LIST_INIT(bus->ready_list);
         bus->hup_list = (CList)C_LIST_INIT(bus->hup_list);
@@ -106,8 +107,8 @@ int bus_new(Bus **busp,
         bus->accept_file = (DispatchFile)DISPATCH_FILE_NULL(bus->accept_file);
 
         r = dispatch_context_init(&bus->dispatcher);
-        if (r < 0)
-                return r;
+        if (r)
+                return error_fold(r);
 
         r = dispatch_file_init(&bus->accept_file,
                                &bus->dispatcher,
@@ -115,8 +116,8 @@ int bus_new(Bus **busp,
                                bus_accept,
                                bus->accept_fd,
                                EPOLLIN);
-        if (r < 0)
-                return r;
+        if (r)
+                return error_fold(r);
 
         dispatch_file_select(&bus->accept_file, EPOLLIN);
 
@@ -126,8 +127,8 @@ int bus_new(Bus **busp,
                                bus_signal,
                                bus->signal_fd,
                                EPOLLIN);
-        if (r < 0)
-                return r;
+        if (r)
+                return error_fold(r);
 
         dispatch_file_select(&bus->signal_file, EPOLLIN);
 
@@ -174,7 +175,7 @@ static int bus_dispatch(Bus *bus) {
 
         c_list_splice(&bus->ready_list, &list);
 
-        return r;
+        return error_trace(r);
 }
 
 int bus_run(Bus *bus) {
@@ -188,7 +189,7 @@ int bus_run(Bus *bus) {
 
         for (;;) {
                 r = dispatch_context_poll(&bus->dispatcher, c_list_is_empty(&bus->ready_list) ? -1 : 0);
-                if (r < 0)
+                if (r)
                         goto exit;
 
                 r = bus_dispatch(bus);
@@ -196,16 +197,17 @@ int bus_run(Bus *bus) {
                         break;
         }
 
-        if (r != DISPATCH_E_EXIT)
-                r = BUS_E_FAILURE;
-        else
+        if (r == DISPATCH_E_EXIT)
                 r = 0;
+        else
+                r = error_fold(r);
 
 exit:
         sigprocmask(SIG_UNBLOCK, &mask, NULL);
         return r;
 }
 
+/* XXX: use proper return codes */
 Peer *bus_find_peer_by_name(Bus *bus, const char *name) {
         int r;
 

@@ -56,7 +56,7 @@ static int peer_forward_unicast(Peer *sender, const char *destination, uint32_t 
 
                 name = name_registry_find_entry(&sender->bus->names, destination);
                 if (!name)
-                        return -EBADMSG;
+                        return PEER_E_DESTINATION_UNKNOWN;
 
                 owner = c_list_first_entry(&name->owners, NameOwner, entry_link);
                 if (!owner) {
@@ -79,7 +79,7 @@ static int peer_forward_unicast(Peer *sender, const char *destination, uint32_t 
 
                 receiver = peer_registry_find_peer(&sender->bus->peers, id);
                 if (!receiver)
-                        return -EBADMSG;
+                        return PEER_E_DESTINATION_UNKNOWN;
         }
 
         r = peer_queue_message(receiver, sender, serial, message);
@@ -95,16 +95,16 @@ static int peer_forward_reply(Peer *sender, const char *destination, uint32_t re
         int r;
 
         r = unique_name_to_id(destination, &id);
-        if (r < 0)
-                return r;
+        if (r)
+                return error_fold(r);
 
         slot = reply_slot_get_by_id(&sender->replies_outgoing, id, reply_serial);
         if (!slot)
-                return -EBADMSG;
+                return PEER_E_UNEXPECTED_REPLY;
 
         r = connection_queue_message(&slot->sender->connection, message);
         if (r)
-                return (r > 0) ? -ENOTRECOVERABLE : r;
+                return error_fold(r);
 
         reply_slot_free(slot);
 
@@ -119,7 +119,7 @@ static int peer_forward_broadcast_to_matches(MatchRegistry *matches, MatchFilter
 
                 r = connection_queue_message(&rule->peer->connection, message);
                 if (r)
-                        return (r > 0) ? -ENOTRECOVERABLE : r;
+                        return error_fold(r);
         }
 
         return 0;
@@ -138,7 +138,7 @@ static int peer_forward_broadcast(Peer *sender, const char *interface, const cha
 
         r = peer_forward_broadcast_to_matches(&sender->bus->wildcard_matches, &filter, message);
         if (r < 0)
-                return r;
+                return error_trace(r);
 
         for (CRBNode *node = c_rbtree_first(&sender->names); node; c_rbnode_next(node)) {
                 NameOwner *owner = c_container_of(node, NameOwner, rb);
@@ -147,13 +147,13 @@ static int peer_forward_broadcast(Peer *sender, const char *interface, const cha
                         continue;
 
                 r = peer_forward_broadcast_to_matches(&owner->entry->matches, &filter, message);
-                if (r < 0)
-                        return r;
+                if (r)
+                        return error_trace(r);
         }
 
         r = peer_forward_broadcast_to_matches(&sender->matches, &filter, message);
         if (r < 0)
-                return r;
+                return error_trace(r);
 
         return 0;
 }
@@ -167,13 +167,13 @@ static int peer_dispatch_message(Peer *peer, Message *message) {
                 return error_fold(r); /* XXX: >0 should result in disconnect */
 
         if (_c_unlikely_(c_string_equal(metadata.fields.destination, "org.freedesktop.DBus")))
-                return driver_dispatch(peer,
-                                       metadata.header.serial,
-                                       metadata.fields.interface,
-                                       metadata.fields.member,
-                                       metadata.fields.path,
-                                       metadata.fields.signature,
-                                       message);
+                return error_fold(driver_dispatch(peer,
+                                                  metadata.header.serial,
+                                                  metadata.fields.interface,
+                                                  metadata.fields.member,
+                                                  metadata.fields.path,
+                                                  metadata.fields.signature,
+                                                  message));
 
         /* XXX: append sender */
 
@@ -182,29 +182,29 @@ static int peer_dispatch_message(Peer *peer, Message *message) {
 
         if (!metadata.fields.destination) {
                 if (metadata.header.type != DBUS_MESSAGE_TYPE_SIGNAL)
-                        return -EBADMSG;
+                        return PEER_E_UNEXPECTED_MESSAGE_TYPE;
 
-                return peer_forward_broadcast(peer,
-                                              metadata.fields.interface,
-                                              metadata.fields.member,
-                                              metadata.fields.path,
-                                              metadata.fields.signature,
-                                              message);
+                return error_trace(peer_forward_broadcast(peer,
+                                                          metadata.fields.interface,
+                                                          metadata.fields.member,
+                                                          metadata.fields.path,
+                                                          metadata.fields.signature,
+                                                          message));
         }
 
         switch (metadata.header.type) {
         case DBUS_MESSAGE_TYPE_SIGNAL:
         case DBUS_MESSAGE_TYPE_METHOD_CALL:
-                return peer_forward_unicast(peer,
-                                            metadata.fields.destination,
-                                            metadata.header.serial,
-                                            message);
+                return error_trace(peer_forward_unicast(peer,
+                                                        metadata.fields.destination,
+                                                        metadata.header.serial,
+                                                        message));
         case DBUS_MESSAGE_TYPE_METHOD_RETURN:
         case DBUS_MESSAGE_TYPE_ERROR:
-                return peer_forward_reply(peer,
-                                          metadata.fields.destination,
-                                          metadata.fields.reply_serial,
-                                          message);
+                return error_trace(peer_forward_reply(peer,
+                                                      metadata.fields.destination,
+                                                      metadata.fields.reply_serial,
+                                                      message));
         }
 
         return 0;
@@ -217,13 +217,13 @@ int peer_dispatch(DispatchFile *file, uint32_t mask) {
         if (dispatch_file_is_ready(file, EPOLLIN)) {
                 r = connection_dispatch(&peer->connection, EPOLLIN);
                 if (r)
-                        return r;
+                        return error_fold(r);
         }
 
         if (dispatch_file_is_ready(file, EPOLLHUP)) {
                 r = connection_dispatch(&peer->connection, EPOLLHUP);
                 if (r)
-                        return r;
+                        return error_fold(r);
         }
 
         for (;;) {
@@ -231,19 +231,19 @@ int peer_dispatch(DispatchFile *file, uint32_t mask) {
 
                 r = connection_dequeue(&peer->connection, &m);
                 if (r)
-                        return r;
+                        return error_fold(r);
                 if (!m)
                         break;
 
                 r = peer_dispatch_message(peer, m);
                 if (r)
-                        return r;
+                        return error_fold(r);
         }
 
         if (dispatch_file_is_ready(file, EPOLLOUT)) {
                 r = connection_dispatch(&peer->connection, EPOLLOUT);
                 if (r)
-                        return r;
+                        return error_fold(r);
         }
 
         return 0;
@@ -257,7 +257,7 @@ static int peer_get_peersec(int fd, char **labelp, size_t *lenp) {
 
         label = malloc(len + 1);
         if (!label)
-                return -ENOMEM;
+                return error_origin(-ENOMEM);
 
         for (;;) {
                 r = getsockopt(fd, SOL_SOCKET, SO_PEERSEC, label, &len);
@@ -276,7 +276,7 @@ static int peer_get_peersec(int fd, char **labelp, size_t *lenp) {
 
                 l = realloc(label, len + 1);
                 if (!l)
-                        return -ENOMEM;
+                        return error_origin(-ENOMEM);
 
                 label = l;
         }
@@ -313,22 +313,22 @@ int peer_new(Peer **peerp,
 
         r = getsockopt(fd, SOL_SOCKET, SO_PEERCRED, &ucred, &socklen);
         if (r < 0)
-                return -errno;
+                return error_origin(-errno);
 
         r = user_registry_ref_entry(&bus->users, &user, ucred.uid);
         if (r < 0)
-                return r;
+                return error_fold(r);
 
         if (user->n_peers < 1)
-                return -EDQUOT;
+                return PEER_E_QUOTA;
 
         r = peer_get_peersec(fd, &seclabel, &n_seclabel);
         if (r < 0)
-                return r;
+                return error_trace(r);
 
         peer = calloc(1, sizeof(*peer));
         if (!peer)
-                return -ENOMEM;
+                return error_origin(-ENOMEM);
 
         user->n_peers --;
 
@@ -354,7 +354,7 @@ int peer_new(Peer **peerp,
                                    bus->guid,
                                    fd);
         if (r < 0)
-                return r;
+                return error_fold(r);
 
         peer->id = bus->peers.ids++;
         slot = c_rbtree_find_slot(&bus->peers.peers, peer_compare, &peer->id, &parent);
@@ -443,6 +443,7 @@ void peer_registry_flush(PeerRegistry *registry) {
         }
 }
 
+/* XXX: proper return codes */
 Peer *peer_registry_find_peer(PeerRegistry *registry, uint64_t id) {
         Peer *peer;
 
