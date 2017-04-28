@@ -175,7 +175,9 @@ static int peer_dispatch_message(Peer *peer, Message *message) {
                                                   metadata.fields.signature,
                                                   message));
 
-        /* XXX: append sender */
+        r = message_stitch_sender(message, peer->id);
+        if (r)
+                return error_fold(r);
 
         if (!metadata.fields.destination) {
                 if (metadata.header.type != DBUS_MESSAGE_TYPE_SIGNAL)
