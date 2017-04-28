@@ -378,19 +378,6 @@ void socket_queue(Socket *socket, SocketBuffer *buffer) {
                 socket_discard_output(socket);
 }
 
-/**
- * socket_queue_many() - XXX
- */
-void socket_queue_many(Socket *socket, CList *list) {
-        if (_c_unlikely_(!socket->lines_done))
-                socket->lines_done = true;
-
-        c_list_splice(&socket->out.queue, list);
-
-        if (_c_unlikely_(socket->hup_out))
-                socket_discard_output(socket);
-}
-
 static int socket_recvmsg(Socket *socket, void *buffer, size_t *from, size_t *to, FDList **fdsp) {
         union {
                 struct cmsghdr cmsg;

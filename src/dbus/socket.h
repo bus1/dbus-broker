@@ -92,7 +92,6 @@ int socket_dequeue(Socket *socket, Message **messagep);
 
 int socket_queue_line(Socket *socket, const char *line, size_t n);
 void socket_queue(Socket *socket, SocketBuffer *buffer);
-void socket_queue_many(Socket *socket, CList *list);
 
 int socket_dispatch(Socket *socket, uint32_t event);
 void socket_close(Socket *socket);

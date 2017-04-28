@@ -250,28 +250,14 @@ int connection_dequeue(Connection *connection, Message **messagep) {
 }
 
 /**
- * connection_queue_many() - XXX
- */
-int connection_queue_many(Connection *connection, CList *skbs) {
-        socket_queue_many(&connection->socket, skbs);
-        if (socket_has_output(&connection->socket))
-                dispatch_file_select(&connection->socket_file, EPOLLOUT);
-        return 0;
-}
-
-/**
  * connection_queue() - XXX
  */
 int connection_queue(Connection *connection, SocketBuffer *skb) {
-        CList list = C_LIST_INIT(list);
-        int r;
+        socket_queue(&connection->socket, skb);
+        if (socket_has_output(&connection->socket))
+                dispatch_file_select(&connection->socket_file, EPOLLOUT);
 
-        c_list_link_tail(&list, &skb->link);
-        r = connection_queue_many(connection, &list);
-        if (r)
-                c_list_unlink_init(&skb->link);
-
-        return error_fold(r);
+        return 0;
 }
 
 /**
