@@ -177,9 +177,6 @@ static int peer_dispatch_message(Peer *peer, Message *message) {
 
         /* XXX: append sender */
 
-        if (message->header->type != DBUS_MESSAGE_TYPE_METHOD_CALL)
-                message->header->flags |= DBUS_HEADER_FLAG_NO_REPLY_EXPECTED;
-
         if (!metadata.fields.destination) {
                 if (metadata.header.type != DBUS_MESSAGE_TYPE_SIGNAL)
                         return PEER_E_UNEXPECTED_MESSAGE_TYPE;
