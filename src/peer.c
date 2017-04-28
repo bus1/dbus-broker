@@ -29,7 +29,8 @@ int peer_queue_message(Peer *receiver, Peer *sender, uint32_t serial, Message *m
         _c_cleanup_(reply_slot_freep) ReplySlot *slot = NULL;
         int r;
 
-        if ((message->header->type == DBUS_MESSAGE_TYPE_METHOD_CALL) &&
+        if (sender &&
+            (message->header->type == DBUS_MESSAGE_TYPE_METHOD_CALL) &&
             !(message->header->flags & DBUS_HEADER_FLAG_NO_REPLY_EXPECTED)) {
                 /* XXX: handle duplicate serial numbers */
                 r = reply_slot_new(&slot, &receiver->replies_outgoing, sender, serial);
