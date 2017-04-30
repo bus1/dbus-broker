@@ -135,8 +135,10 @@ static bool socket_buffer_consume(SocketBuffer *buffer, size_t n) {
 }
 
 static void socket_discard_input(Socket *socket) {
-        socket->in.data_pos = socket->in.data_end;
-        socket->in.pending_message = message_unref(socket->in.pending_message);
+        if (socket->lines_done)
+                socket->in.pending_message = message_unref(socket->in.pending_message);
+        else
+                socket->in.line_cursor = socket->in.data_end;
         socket->in.fds = fdlist_free(socket->in.fds);
 }
 
@@ -171,8 +173,9 @@ void socket_deinit(Socket *socket) {
         socket_discard_output(socket);
 
         assert(c_list_is_empty(&socket->out.queue));
-        assert(!socket->in.pending_message);
         assert(!socket->in.fds);
+        if (socket->lines_done)
+                assert(!socket->in.pending_message);
 
         socket->in.data = c_free(socket->in.data);
         socket->fd = c_close(socket->fd);
@@ -213,7 +216,7 @@ int socket_dequeue_line(Socket *socket, const char **linep, size_t *np) {
          * Advance our cursor byte by byte and look for an end-of-line. We
          * remember the parser position, so no byte is ever parsed twice.
          */
-        for ( ; socket->in.data_pos < socket->in.data_end; ++socket->in.data_pos) {
+        for ( ; socket->in.line_cursor < socket->in.data_end; ++socket->in.line_cursor) {
                 /*
                  * We are at the end of the socket buffer, hence we must
                  * consume any possible FD array that we recveived alongside
@@ -225,7 +228,7 @@ int socket_dequeue_line(Socket *socket, const char **linep, size_t *np) {
                  * and the DBus spec clearly states that no extension shall
                  * pass FDs during authentication.
                  */
-                if (_c_unlikely_(socket->in.data_pos + 1 == socket->in.data_end && socket->in.fds))
+                if (_c_unlikely_(socket->in.line_cursor + 1 == socket->in.data_end && socket->in.fds))
                         socket->in.fds = fdlist_free(socket->in.fds);
 
                 /*
@@ -235,15 +238,15 @@ int socket_dequeue_line(Socket *socket, const char **linep, size_t *np) {
                  * and return a direct pointer into the buffer. The pointer is
                  * only valid until the next call into this Socket object.
                  */
-                if (socket->in.data_pos > 0 &&
-                    socket->in.data[socket->in.data_pos] == '\n' &&
-                    socket->in.data[socket->in.data_pos - 1] == '\r') {
+                if (socket->in.line_cursor > 0 &&
+                    socket->in.data[socket->in.line_cursor] == '\n' &&
+                    socket->in.data[socket->in.line_cursor - 1] == '\r') {
                         /* remember start and length without \r\n */
                         line = socket->in.data + socket->in.data_start;
-                        n = socket->in.data_pos - socket->in.data_start - 1;
+                        n = socket->in.line_cursor - socket->in.data_start - 1;
 
                         /* forward iterator */
-                        socket->in.data_start = ++socket->in.data_pos;
+                        socket->in.data_start = ++socket->in.line_cursor;
 
                         /* replace \r by safety NUL and return to caller */
                         line[n] = 0;
@@ -267,8 +270,11 @@ int socket_dequeue(Socket *socket, Message **messagep) {
         size_t n, n_data;
         int r;
 
-        if (_c_unlikely_(!socket->lines_done))
+        if (_c_unlikely_(!socket->lines_done)) {
+                assert(socket->in.line_cursor == socket->in.data_start);
                 socket->lines_done = true;
+                socket->in.pending_message = NULL;
+        }
 
         msg = socket->in.pending_message;
         n_data = socket->in.data_end - socket->in.data_start;
@@ -276,7 +282,6 @@ int socket_dequeue(Socket *socket, Message **messagep) {
         if (!msg) {
                 n = sizeof(MessageHeader);
                 if (_c_unlikely_(n_data < n)) {
-                        socket->in.data_pos = socket->in.data_end;
                         *messagep = NULL;
                         return _c_unlikely_(socket->hup_in) ? SOCKET_E_EOF : 0;
                 }
@@ -293,7 +298,6 @@ int socket_dequeue(Socket *socket, Message **messagep) {
 
                 n_data -= n;
                 socket->in.data_start += n;
-                socket->in.data_pos = socket->in.data_start;
                 socket->in.pending_message = msg;
         }
 
@@ -303,7 +307,6 @@ int socket_dequeue(Socket *socket, Message **messagep) {
 
                 n_data -= n;
                 socket->in.data_start += n;
-                socket->in.data_pos = socket->in.data_start;
                 msg->n_copied += n;
         }
 
@@ -366,8 +369,11 @@ int socket_queue_line(Socket *socket, const char *line_in, size_t n) {
  * socket_queue() - XXX
  */
 void socket_queue(Socket *socket, SocketBuffer *buffer) {
-        if (_c_unlikely_(!socket->lines_done))
+        if (_c_unlikely_(!socket->lines_done)) {
+                assert(socket->in.line_cursor == socket->in.data_start);
                 socket->lines_done = true;
+                socket->in.pending_message = NULL;
+        }
 
         assert(buffer->message);
         assert(!c_list_is_linked(&buffer->link));
@@ -483,8 +489,9 @@ static int socket_dispatch_read(Socket *socket) {
         memmove(socket->in.data,
                 socket->in.data + socket->in.data_start,
                 socket->in.data_end - socket->in.data_start);
+        if (_c_unlikely_(!socket->lines_done))
+                socket->in.line_cursor -= socket->in.data_start;
         socket->in.data_end -= socket->in.data_start;
-        socket->in.data_pos -= socket->in.data_start;
         socket->in.data_start = 0;
 
         if (_c_unlikely_(socket->in.data_size <= socket->in.data_end)) {
@@ -513,7 +520,7 @@ static int socket_dispatch_read(Socket *socket) {
                 socket->in.data = p;
                 socket->in.data_size = SOCKET_LINE_MAX;
                 socket->in.data_end -= socket->in.data_start;
-                socket->in.data_pos -= socket->in.data_start;
+                socket->in.line_cursor -= socket->in.data_start;
                 socket->in.data_start = 0;
         } else if (_c_likely_(socket->lines_done)) {
                 Message *msg = socket->in.pending_message;

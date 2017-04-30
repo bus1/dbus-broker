@@ -7,9 +7,9 @@
 #include <c-list.h>
 #include <c-macro.h>
 #include <stdlib.h>
+#include "dbus/message.h"
 
 typedef struct FDList FDList;
-typedef struct Message Message;
 typedef struct Socket Socket;
 typedef struct SocketBuffer SocketBuffer;
 
@@ -67,10 +67,13 @@ struct Socket {
                 size_t data_size;
                 size_t data_start;
                 size_t data_end;
-                size_t data_pos;
 
                 FDList *fds;
-                Message *pending_message;
+
+                union {
+                        size_t line_cursor;
+                        Message *pending_message;
+                };
         } in;
 
         struct SocketOut {
@@ -100,7 +103,10 @@ C_DEFINE_CLEANUP(Socket *, socket_deinit);
 /* inline helpers */
 
 static inline bool socket_has_input(Socket *socket) {
-        return socket->in.data_pos < socket->in.data_end;
+        if (_c_unlikely_(!socket->lines_done))
+                return socket->in.line_cursor < socket->in.data_end;
+        else
+                return socket->in.data_end - socket->in.data_start >= sizeof(MessageHeader);
 }
 
 static inline bool socket_has_output(Socket *socket) {
