@@ -469,7 +469,6 @@ error:
 }
 
 static int socket_dispatch_read(Socket *socket) {
-        Message *msg = socket->in.pending_message;
         void *p;
 
         if (_c_unlikely_(socket_has_input(socket)))
@@ -488,29 +487,17 @@ static int socket_dispatch_read(Socket *socket) {
         socket->in.data_pos -= socket->in.data_start;
         socket->in.data_start = 0;
 
-        /*
-         * If there is a pending message, we try to shortcut the input buffer
-         * for overlong payloads. This avoids copying the message twice, at the
-         * cost of being unable to receive multiple messages at once. Hence, if
-         * messages are small, we prefer the round via the input buffer so we
-         * reduce the number of calls into the kernel.
-         */
-        if (_c_unlikely_(msg && msg->n_data - msg->n_copied >= socket->in.data_size - socket->in.data_end))
-                return socket_recvmsg(socket,
-                                      msg->data,
-                                      &msg->n_copied,
-                                      &msg->n_data,
-                                      &msg->fds);
-
-        /*
-         * In case our input buffer is full, we need to resize it. This can
-         * only happen for the line-reader, since messages leave as most 16
-         * bytes behind (size of a single header).
-         * The line-reader, however, parses the entire line into the input
-         * buffer. Hence, in case the normal buffer size is exceeded, we
-         * re-allocate once to the maximum.
-         */
         if (_c_unlikely_(socket->in.data_size <= socket->in.data_end)) {
+                /*
+                 * In case our input buffer is full, we need to resize it. This can
+                 * only happen for the line-reader, since messages leave as most 16
+                 * bytes behind (size of a single header).
+                 * The line-reader, however, parses the entire line into the input
+                 * buffer. Hence, in case the normal buffer size is exceeded, we
+                 * re-allocate once to the maximum.
+                 */
+                assert(!socket->lines_done);
+
                 if (socket->in.data_size >= SOCKET_LINE_MAX)
                         return SOCKET_E_OVERLONG_LINE;
 
@@ -528,6 +515,23 @@ static int socket_dispatch_read(Socket *socket) {
                 socket->in.data_end -= socket->in.data_start;
                 socket->in.data_pos -= socket->in.data_start;
                 socket->in.data_start = 0;
+        } else if (_c_likely_(socket->lines_done)) {
+                Message *msg = socket->in.pending_message;
+
+                if (_c_unlikely_(msg && msg->n_data - msg->n_copied >= socket->in.data_size - socket->in.data_end)) {
+                        /*
+                         * If there is a pending message, we try to shortcut the input buffer
+                         * for overlong payloads. This avoids copying the message twice, at the
+                         * cost of being unable to receive multiple messages at once. Hence, if
+                         * messages are small, we prefer the round via the input buffer so we
+                         * reduce the number of calls into the kernel.
+                         */
+                        return socket_recvmsg(socket,
+                                              msg->data,
+                                              &msg->n_copied,
+                                              &msg->n_data,
+                                              &msg->fds);
+                }
         }
 
         /*
