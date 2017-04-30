@@ -384,7 +384,7 @@ void socket_queue(Socket *socket, SocketBuffer *buffer) {
                 socket_discard_output(socket);
 }
 
-static int socket_recvmsg(Socket *socket, void *buffer, size_t *from, size_t *to, FDList **fdsp) {
+static int socket_recvmsg(Socket *socket, void *buffer, size_t n_buffer, size_t *from, size_t *to, FDList **fdsp) {
         union {
                 struct cmsghdr cmsg;
                 char buffer[CMSG_SPACE(sizeof(int) * SOCKET_FD_MAX)];
@@ -396,11 +396,12 @@ static int socket_recvmsg(Socket *socket, void *buffer, size_t *from, size_t *to
         ssize_t l;
 
         assert(*to > *from);
+        assert(n_buffer <= *to);
 
         msg = (struct msghdr){
                 .msg_iov = &(struct iovec){
                         .iov_base = buffer + *from,
-                        .iov_len = *to - *from,
+                        .iov_len = c_min(*to - *from, n_buffer),
                 },
                 .msg_iovlen = 1,
                 .msg_control = &control,
@@ -535,6 +536,7 @@ static int socket_dispatch_read(Socket *socket) {
                          */
                         return socket_recvmsg(socket,
                                               msg->data,
+                                              msg->n_data,
                                               &msg->n_copied,
                                               &msg->n_data,
                                               &msg->fds);
@@ -543,8 +545,7 @@ static int socket_dispatch_read(Socket *socket) {
 
         /*
          * Read more data into the input buffer, and store the file-descriptors
-         * in the buffer as well. We always ask the kernel to fill the entire
-         * input buffer, so we get as much data as possible.
+         * in the buffer as well.
          *
          * Note that the kernel always breaks recvmsg() calls after an SKB with
          * file-descriptor payload. Hence, this could be improvded with
@@ -555,6 +556,7 @@ static int socket_dispatch_read(Socket *socket) {
          */
         return socket_recvmsg(socket,
                               socket->in.data,
+                              SOCKET_DATA_PREALLOC,
                               &socket->in.data_end,
                               &socket->in.data_size,
                               &socket->in.fds);
