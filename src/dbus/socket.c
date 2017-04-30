@@ -155,7 +155,7 @@ static void socket_discard_output(Socket *socket) {
 int socket_init(Socket *socket, int fd) {
         *socket = (Socket){};
         socket->fd = fd;
-        socket->in.data_size = SOCKET_DATA_PREALLOC;
+        socket->in.data_size = SOCKET_DATA_RECV_MAX;
         socket->out.queue = (CList)C_LIST_INIT(socket->out.queue);
 
         socket->in.data = malloc(socket->in.data_size);
@@ -556,7 +556,7 @@ static int socket_dispatch_read(Socket *socket) {
          */
         return socket_recvmsg(socket,
                               socket->in.data,
-                              SOCKET_DATA_PREALLOC,
+                              SOCKET_DATA_RECV_MAX,
                               &socket->in.data_end,
                               &socket->in.data_size,
                               &socket->in.fds);
