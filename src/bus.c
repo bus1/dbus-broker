@@ -94,6 +94,7 @@ int bus_new(Bus **busp,
 
         bus->ready_list = (CList)C_LIST_INIT(bus->ready_list);
         bus->hup_list = (CList)C_LIST_INIT(bus->hup_list);
+        bus->listener_list = (CList)C_LIST_INIT(bus->listener_list);
         bus->accept_fd = accept_fd;
         bus->signal_fd = signal_fd;
         signal_fd = -1;
