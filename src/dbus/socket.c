@@ -483,9 +483,11 @@ static int socket_dispatch_read(Socket *socket) {
 
         /*
          * Always shift the input buffer. In case of the line-parser this
-         * should never happen since partial lines are only left behind in rare
-         * scenarios. And for the message-parser, there can be at most one
-         * message header left behind (16 bytes).
+         * should never happen in normal operation: the only way to leave
+         * behinda partial line is by filling the whole buffer, in that case
+         * at most SOCKET_DATA_RECV_MAX bytes need to be moved. And for the
+         * message-parser, there can be at most one message header left
+         * behind (16 bytes).
          */
         memmove(socket->in.data,
                 socket->in.data + socket->in.data_start,
