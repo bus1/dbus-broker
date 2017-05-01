@@ -8,7 +8,7 @@
  * message-based buffers for DBus transactions.
  *
  * The first line (if any) of a SASL exchange sent from a client to a server
- * must be prepended with a null byte. The wrapper handles this internally.
+ * must be prepended with a null byte, which the caller must take care of.
  *
  * Note that once the first real DBus message was read, you must not use the
  * line-helpers, anymore!
