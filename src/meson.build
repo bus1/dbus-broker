@@ -20,6 +20,7 @@ libdbus_broker_private = static_library(
                 'util/error.c',
                 'util/dispatch.c',
                 'util/fdlist.c',
+                'util/metrics.c',
         ],
         c_args: [
                 '-fvisibility=hidden',
@@ -42,6 +43,7 @@ libdbus_broker_dep = declare_dependency(
                 dep_clist,
                 dep_crbtree,
                 dep_csundry,
+                dep_math,
         ],
         version: meson.project_version(),
 )

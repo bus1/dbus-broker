@@ -8,6 +8,7 @@
 #include <c-macro.h>
 #include <c-ref.h>
 #include <stdlib.h>
+#include "metrics.h"
 
 enum {
         _DISPATCH_E_SUCCESS,
@@ -27,6 +28,7 @@ struct DispatchFile {
         CList *ready_list;
         CList ready_link;
         DispatchFn fn;
+        Metrics metrics;
 
         int fd;
         uint32_t user_mask;
@@ -46,6 +48,8 @@ int dispatch_file_init(DispatchFile *file,
                        int fd,
                        uint32_t mask);
 void dispatch_file_deinit(DispatchFile *file);
+
+int dispatch_file_call(DispatchFile *file);
 
 void dispatch_file_select(DispatchFile *file, uint32_t mask);
 void dispatch_file_deselect(DispatchFile *file, uint32_t mask);
@@ -69,8 +73,4 @@ int dispatch_context_poll(DispatchContext *ctx, int timeout);
 
 static inline bool dispatch_file_is_ready(DispatchFile *file, uint32_t mask) {
         return (file->events & mask) == mask;
-}
-
-static inline int dispatch_file_call(DispatchFile *file) {
-        return file->fn(file, file->events & file->user_mask);
 }

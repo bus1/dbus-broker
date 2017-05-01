@@ -168,7 +168,7 @@ static int bus_dispatch(Bus *bus) {
                 c_list_unlink(&file->ready_link);
                 c_list_link_tail(&list, &file->ready_link);
 
-                r = file->fn(file, file->user_mask & file->events);
+                r = dispatch_file_call(file);
                 if (r)
                         break;
         }
