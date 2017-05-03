@@ -115,18 +115,10 @@ void connection_deinit(Connection *connection) {
         connection->user = user_entry_unref(connection->user);
 }
 
-static void connection_hangup(Connection *connection) {
-        connection->hangup = true;
-        if (!socket_is_running(&connection->socket))
-                dispatch_file_deselect(&connection->socket_file, EPOLLHUP | EPOLLIN | EPOLLOUT);
-        if (!c_list_is_linked(&connection->hup_link))
-                c_list_link_tail(connection->hup_list, &connection->hup_link);
-}
-
 /**
- * connection_start() - XXX
+ * connection_open() - XXX
  */
-int connection_start(Connection *connection) {
+int connection_open(Connection *connection) {
         uint32_t events = EPOLLHUP | EPOLLIN;
         const char *request;
         size_t n_request;
@@ -153,11 +145,18 @@ int connection_start(Connection *connection) {
 }
 
 /**
- * connection_stop() - XXX
+ * connection_shutdown() - XXX
  */
-void connection_stop(Connection *connection) {
+void connection_shutdown(Connection *connection) {
+        socket_shutdown(&connection->socket);
+}
+
+/**
+ * connection_close() - XXX
+ */
+void connection_close(Connection *connection) {
+        dispatch_file_deselect(&connection->socket_file, EPOLLHUP | EPOLLIN | EPOLLOUT);
         socket_close(&connection->socket);
-        connection_hangup(connection);
 }
 
 /**
@@ -171,8 +170,6 @@ int connection_dispatch(Connection *connection, uint32_t event) {
                 dispatch_file_clear(&connection->socket_file, event);
         else if (r == SOCKET_E_LOST_INTEREST)
                 dispatch_file_deselect(&connection->socket_file, event);
-        else if (r == SOCKET_E_RESET)
-                connection_hangup(connection);
         else if (r != SOCKET_E_PREEMPTED)
                 return error_fold(r);
 
@@ -188,13 +185,17 @@ static int connection_feed_sasl(Connection *connection, const char *input, size_
 
         if (connection->server) {
                 r = sasl_server_dispatch(&connection->sasl.server, input, n_input, &output, &n_output);
-                if (r)
+                if (r > 0)
+                        return CONNECTION_E_RESET;
+                else if (r < 0)
                         return error_fold(r);
 
                 connection->authenticated = sasl_server_is_done(&connection->sasl.server);
         } else {
                 r = sasl_client_dispatch(&connection->sasl.client, input, n_input, &output, &n_output);
-                if (r)
+                if (r > 0)
+                        return CONNECTION_E_RESET;
+                else if (r < 0)
                         return error_fold(r);
 
                 connection->authenticated = sasl_client_is_done(&connection->sasl.client);
@@ -222,14 +223,15 @@ int connection_dequeue(Connection *connection, Message **messagep) {
         if (_c_unlikely_(!connection->authenticated)) {
                 do {
                         r = socket_dequeue_line(&connection->socket, &input, &n_input);
-                        if (r || !input) {
-                                if (r > 0) {
-                                        /* XXX: distinguish the different errors? */
-                                        connection_hangup(connection);
-                                        *messagep = NULL;
-                                        r = 0;
-                                }
+                        if (r == SOCKET_E_RESET)
+                                return CONNECTION_E_RESET;
+                        else if (r == SOCKET_E_EOF)
+                                return CONNECTION_E_EOF;
+                        else if (r)
                                 return error_fold(r);
+                        else if (!input) {
+                                *messagep = NULL;
+                                return 0;
                         }
 
                         r = connection_feed_sasl(connection, input, n_input);
@@ -239,14 +241,12 @@ int connection_dequeue(Connection *connection, Message **messagep) {
         }
 
         r = socket_dequeue(&connection->socket, messagep);
-        if (r > 0) {
-                /* XXX: distinguish the different errors? */
-                connection_hangup(connection);
-                *messagep = NULL;
-                r = 0;
-        }
-
-        return r;
+        if (r == SOCKET_E_RESET)
+                return CONNECTION_E_RESET;
+        else if (r == SOCKET_E_EOF)
+                return CONNECTION_E_EOF;
+        else
+                return error_fold(r);
 }
 
 /**

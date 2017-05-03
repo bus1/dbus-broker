@@ -238,11 +238,11 @@ Peer *peer_free(Peer *peer) {
 }
 
 int peer_start(Peer *peer) {
-        return error_fold(connection_start(&peer->connection));
+        return error_fold(connection_open(&peer->connection));
 }
 
 void peer_stop(Peer *peer) {
-        connection_stop(&peer->connection);
+        connection_close(&peer->connection);
 }
 
 void peer_register(Peer *peer) {

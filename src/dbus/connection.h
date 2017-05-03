@@ -15,6 +15,13 @@ typedef struct Connection Connection;
 typedef struct Message Message;
 typedef struct UserEntry UserEntry;
 
+enum {
+        _CONNECTION_E_SUCCESS,
+
+        CONNECTION_E_RESET,
+        CONNECTION_E_EOF,
+};
+
 struct Connection {
         UserEntry *user;
         Socket socket;
@@ -57,8 +64,9 @@ int connection_init_client(Connection *connection,
                            int fd);
 void connection_deinit(Connection *connection);
 
-int connection_start(Connection *connection);
-void connection_stop(Connection *connection);
+int connection_open(Connection *connection);
+void connection_shutdown(Connection *connection);
+void connection_close(Connection *connection);
 int connection_dispatch(Connection *connection, uint32_t events);
 
 int connection_dequeue(Connection *connection, Message **messagep);
