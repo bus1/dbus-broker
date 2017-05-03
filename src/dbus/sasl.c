@@ -151,10 +151,10 @@ static void sasl_server_handle_data(SASLServer *sasl, const char *input, size_t 
          */
         if (n_input) {
                 n = snprintf(uidbuf, sizeof(uidbuf), "%" PRIu32, sasl->uid);
-                assert(n >= 0 && n < sizeof(uidbuf));
+                assert(n >= 0 && (size_t)n < sizeof(uidbuf));
 
                 c_string_to_hex(uidbuf, n, hexbuf);
-                if (n_input != 2 * n || memcmp(input, hexbuf, 2 * n))
+                if (n_input != 2 * (size_t)n || memcmp(input, hexbuf, 2 * n))
                         failed = true;
         }
 

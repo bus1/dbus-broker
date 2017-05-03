@@ -589,7 +589,7 @@ static int socket_dispatch_write(Socket *socket) {
                 }
                 msg->msg_flags = 0;
 
-                if (++n_msgs >= C_ARRAY_SIZE(msgs))
+                if (++n_msgs >= (ssize_t)C_ARRAY_SIZE(msgs))
                         break;
         }
 

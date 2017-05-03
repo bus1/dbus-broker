@@ -45,7 +45,7 @@ static void test_sasl_exchange(Bus *bus, char *sasl_client, char *sasl_server) {
         assert(r >= 0);
 
         r = send(pair[1], sasl_client, strlen(sasl_client), 0);
-        assert(r == strlen(sasl_client));
+        assert(r == (ssize_t)strlen(sasl_client));
 
         r = dispatch_context_poll(&bus->dispatcher, 0);
         assert(!r);
@@ -54,7 +54,7 @@ static void test_sasl_exchange(Bus *bus, char *sasl_client, char *sasl_server) {
         assert(r >= 0);
 
         r = recv(pair[1], buffer, sizeof(buffer), 0);
-        assert(r == strlen(sasl_server));
+        assert(r == (ssize_t)strlen(sasl_server));
         assert(memcmp(buffer, sasl_server, r) == 0);
 }
 

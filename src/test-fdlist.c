@@ -37,7 +37,7 @@ static void test_dummy(void) {
                 assert(fdlist_count(l) == i);
 
                 for (j = 0; j < i; ++j)
-                        assert(fdlist_get(l, j) == C_ARRAY_SIZE(dummies) - j - 1);
+                        assert((size_t)fdlist_get(l, j) == C_ARRAY_SIZE(dummies) - j - 1);
 
                 l = fdlist_free(l);
         }

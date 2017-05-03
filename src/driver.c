@@ -215,13 +215,13 @@ static void driver_dvar_write_signature_out(CDVar *var, const CDVarType *type) {
 }
 
 static int driver_dvar_verify_signature_in(const CDVarType *type, const char *signature) {
-        if (type->length - 2 != strlen(signature))
+        if (type->length != strlen(signature) + 2)
                 return DRIVER_E_UNEXPECTED_SIGNATURE;
 
         assert(type[0].element == '(');
         assert(type[type->length - 1].element == ')');
 
-        for (unsigned int i = 1; i < type->length - 1; i++)
+        for (unsigned int i = 1; i + 1 < type->length; i++)
                 if (signature[i - 1] != type[i].element)
                         return DRIVER_E_UNEXPECTED_SIGNATURE;
 
