@@ -641,8 +641,6 @@ static int socket_dispatch_write(Socket *socket) {
                         socket_hangup_output(socket);
                 }
 
-                if (_c_unlikely_(socket->hup_in))
-                        socket_hangup_output(socket);
                 return SOCKET_E_LOST_INTEREST;
         }
 
