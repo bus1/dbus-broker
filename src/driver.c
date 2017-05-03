@@ -499,7 +499,7 @@ static int driver_notify_name_owner_changed(Bus *bus, const char *name, Peer *ol
 }
 
 static int driver_name_owner_changed(const char *name, Peer *old_owner, Peer *new_owner) {
-        Peer *peer = new_owner ? : new_owner;
+        Peer *peer = new_owner ? : old_owner;
         char unique_name[UNIQUE_NAME_STRING_MAX + 1];
         int r;
 
