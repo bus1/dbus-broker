@@ -295,6 +295,7 @@ void peer_registry_flush(PeerRegistry *registry) {
                         assert(!r); /* can not fail in silent mode */
                 }
 
+                connection_close(&peer->connection);
                 peer_free(peer);
         }
 }
