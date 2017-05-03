@@ -1273,7 +1273,7 @@ static int driver_dispatch_internal(Peer *peer, MessageMetadata *metadata, Messa
                                                         metadata->fields.reply_serial,
                                                         message));
         default:
-                return error_origin(-ENOTRECOVERABLE);
+                return DRIVER_E_UNEXPECTED_MESSAGE_TYPE;
         }
 }
 
@@ -1296,6 +1296,8 @@ int driver_dispatch(Peer *peer, Message *message) {
                 r = driver_send_error(peer, metadata.header.serial, "org.freedesktop.DBus.Error.Failed");
                 break;
         case DRIVER_E_UNEXPECTED_PATH:
+        case DRIVER_E_UNEXPECTED_MESSAGE_TYPE:
+        case DRIVER_E_UNEXPECTED_REPLY:
                 r = driver_send_error(peer, metadata.header.serial, "org.freedesktop.DBus.Error.AccessDenied");
                 break;
         case DRIVER_E_UNEXPECTED_INTERFACE:
@@ -1310,6 +1312,7 @@ int driver_dispatch(Peer *peer, Message *message) {
         case DRIVER_E_PEER_NOT_FOUND:
         case DRIVER_E_NAME_NOT_FOUND:
         case DRIVER_E_NAME_OWNER_NOT_FOUND:
+        case DRIVER_E_DESTINATION_NOT_FOUND:
                 r = driver_send_error(peer, metadata.header.serial, "org.freedesktop.DBus.Error.NameHasNoOwner");
                 break;
         case DRIVER_E_NAME_RESERVED:
