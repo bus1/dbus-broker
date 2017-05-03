@@ -6,7 +6,7 @@
 #include <stdlib.h>
 #include <sys/epoll.h>
 #include <sys/types.h>
-#include "connection.h"
+#include "dbus/connection.h"
 #include "dbus/message.h"
 #include "dbus/socket.h"
 #include "user.h"

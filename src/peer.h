@@ -8,10 +8,10 @@
 #include <c-rbtree.h>
 #include <stdlib.h>
 #include <sys/types.h>
-#include "connection.h"
+#include "dbus/connection.h"
+#include "dbus/sasl.h"
 #include "match.h"
 #include "reply.h"
-#include "dbus/sasl.h"
 #include "util/dispatch.h"
 
 typedef struct Bus Bus;

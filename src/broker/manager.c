@@ -10,7 +10,7 @@
 #include <sys/signalfd.h>
 #include <sys/socket.h>
 #include <sys/types.h>
-#include "connection.h"
+#include "dbus/connection.h"
 #include "dbus/message.h"
 #include "main.h"
 #include "manager.h"

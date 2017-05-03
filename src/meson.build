@@ -6,7 +6,7 @@ libdbus_broker_private = static_library(
         'dbus-broker-private',
         [
                 'bus.c',
-                'connection.c',
+                'dbus/connection.c',
                 'dbus/message.c',
                 'dbus/sasl.c',
                 'dbus/socket.c',
