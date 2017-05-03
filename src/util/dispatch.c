@@ -9,7 +9,6 @@
 #include <sys/epoll.h>
 #include "dispatch.h"
 #include "error.h"
-#include "metrics.h"
 
 /**
  * dispatch_file_init() - XXX
@@ -41,7 +40,6 @@ int dispatch_file_init(DispatchFile *file,
         file->ready_list = ready_list;
         file->ready_link = (CList)C_LIST_INIT(file->ready_link);
         file->fn = fn;
-        file->metrics = (Metrics)METRICS_INIT;
         file->fd = fd;
         file->user_mask = 0;
         file->kernel_mask = mask;
@@ -66,24 +64,10 @@ void dispatch_file_deinit(DispatchFile *file) {
                 c_list_unlink_init(&file->ready_link);
         }
 
-        metrics_deinit(&file->metrics);
         file->fd = -1;
         file->ready_list = NULL;
         file->fn = NULL;
         file->context = NULL;
-}
-
-/**
- * dispatch_file_call() - XXX
- */
-int dispatch_file_call(DispatchFile *file) {
-        int r;
-
-        metrics_sample_start(&file->metrics);
-        r = file->fn(file, file->events & file->user_mask);
-        metrics_sample_end(&file->metrics);
-
-        return r;
 }
 
 /**

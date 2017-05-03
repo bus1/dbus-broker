@@ -24,6 +24,7 @@
 #include "util/dispatch.h"
 #include "util/error.h"
 #include "util/fdlist.h"
+#include "util/metrics.h"
 
 int peer_queue_message(Peer *receiver, Peer *sender, uint32_t serial, Message *message) {
         _c_cleanup_(reply_slot_freep) ReplySlot *slot = NULL;
@@ -71,7 +72,9 @@ int peer_dispatch(DispatchFile *file, uint32_t mask) {
                 if (!m)
                         break;
 
+                metrics_sample_start(&peer->metrics);
                 r = driver_dispatch(peer, m);
+                metrics_sample_end(&peer->metrics);
                 if (r)
                         return error_fold(r);
         }
@@ -177,6 +180,7 @@ int peer_new(Peer **peerp,
         peer->seclabel = seclabel;
         seclabel = NULL;
         peer->n_seclabel = n_seclabel;
+        peer->metrics = (Metrics)METRICS_INIT;
         match_registry_init(&peer->matches);
         reply_registry_init(&peer->replies_outgoing);
         peer->replies_incoming = (CList)C_LIST_INIT(peer->replies_incoming);
@@ -224,6 +228,7 @@ Peer *peer_free(Peer *peer) {
 
         reply_registry_deinit(&peer->replies_outgoing);
         match_registry_deinit(&peer->matches);
+        metrics_deinit(&peer->metrics);
         connection_deinit(&peer->connection);
         user_entry_unref(peer->user);
         free(peer->seclabel);

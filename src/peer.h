@@ -13,6 +13,7 @@
 #include "match.h"
 #include "reply.h"
 #include "util/dispatch.h"
+#include "util/metrics.h"
 
 typedef struct Bus Bus;
 typedef struct Peer Peer;
@@ -43,6 +44,8 @@ struct Peer {
 
         CList replies_incoming;
         CRBTree match_rules;
+
+        Metrics metrics;
 
         CRBNode rb;
         uint64_t id;
