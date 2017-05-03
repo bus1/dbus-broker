@@ -59,6 +59,7 @@ struct Socket {
         int fd;
 
         bool lines_done : 1;
+        bool shutdown : 1;
         bool hup_in : 1;
         bool hup_out : 1;
 
@@ -96,6 +97,7 @@ int socket_queue_line(Socket *socket, const char *line, size_t n);
 void socket_queue(Socket *socket, SocketBuffer *buffer);
 
 int socket_dispatch(Socket *socket, uint32_t event);
+void socket_shutdown(Socket *socket);
 void socket_close(Socket *socket);
 
 C_DEFINE_CLEANUP(Socket *, socket_deinit);

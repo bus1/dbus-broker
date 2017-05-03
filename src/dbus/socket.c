@@ -341,7 +341,7 @@ int socket_queue_line(Socket *socket, const char *line_in, size_t n) {
 
         assert(!socket->lines_done);
 
-        if (_c_unlikely_(socket->hup_out))
+        if (_c_unlikely_(socket->hup_out || socket->shutdown))
                 return 0;
 
         buffer = c_list_last_entry(&socket->out.queue, SocketBuffer, link);
@@ -378,10 +378,10 @@ void socket_queue(Socket *socket, SocketBuffer *buffer) {
         assert(buffer->message);
         assert(!c_list_is_linked(&buffer->link));
 
-        c_list_link_tail(&socket->out.queue, &buffer->link);
-
-        if (_c_unlikely_(socket->hup_out))
-                socket_discard_output(socket);
+        if (_c_unlikely_(socket->hup_out || socket->shutdown))
+                socket_buffer_free(buffer);
+        else
+                c_list_link_tail(&socket->out.queue, &buffer->link);
 }
 
 static int socket_recvmsg(Socket *socket, void *buffer, size_t n_buffer, size_t *from, size_t *to, FDList **fdsp) {
@@ -568,7 +568,7 @@ static int socket_dispatch_write(Socket *socket) {
         SocketBuffer *buffer, *safe;
         struct mmsghdr msgs[SOCKET_MMSG_MAX];
         struct msghdr *msg;
-        int i, n_msgs;
+        int r, i, n_msgs;
 
         n_msgs = 0;
         c_list_for_each_entry(buffer, &socket->out.queue, link) {
@@ -634,6 +634,13 @@ static int socket_dispatch_write(Socket *socket) {
         assert(i == n_msgs);
 
         if (c_list_is_empty(&socket->out.queue)) {
+                if (_c_unlikely_(socket->shutdown)) {
+                        r = shutdown(socket->fd, SHUT_WR);
+                        assert(r >= 0);
+
+                        socket_hangup_output(socket);
+                }
+
                 if (_c_unlikely_(socket->hup_in))
                         socket_hangup_output(socket);
                 return SOCKET_E_LOST_INTEREST;
@@ -669,6 +676,26 @@ int socket_dispatch(Socket *socket, uint32_t event) {
         }
 
         return socket_is_running(socket) ? r : SOCKET_E_RESET;
+}
+
+/**
+ * socket_shutdown() - disallow further queueing on the socket
+ *
+ * This dissalows further queuing on the socket, but still flushes out the
+ * pending socket buffers to the kernel. Once all pending output has been
+ * sent the remote end is notified of the shutdown.
+ */
+void socket_shutdown(Socket *socket) {
+        int r;
+
+        socket->shutdown = true;
+
+        if (!socket_has_output(socket)) {
+                r = shutdown(socket->fd, SHUT_WR);
+                assert(r >= 0);
+
+                socket_hangup_output(socket);
+        }
 }
 
 /**
