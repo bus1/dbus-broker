@@ -164,118 +164,6 @@ static const CDVarType driver_type_out_apsv[] = {
         )
 };
 
-static int driver_forward_unicast(Peer *sender, const char *destination, uint32_t serial, Message *message) {
-        Peer *receiver;
-        int r;
-
-        if (*destination != ':') {
-                NameEntry *name;
-                NameOwner *owner;
-
-                name = name_registry_find_entry(&sender->bus->names, destination);
-                if (!name)
-                        return DRIVER_E_DESTINATION_NOT_FOUND;
-
-                owner = c_list_first_entry(&name->owners, NameOwner, entry_link);
-                if (!owner) {
-                        r = name_entry_queue_message(name, message);
-                        if (r)
-                                return error_fold(r);
-
-                        /* XXX: activate name */
-
-                        return 0;
-                } else {
-                        receiver = owner->peer;
-                }
-        } else {
-                uint64_t id;
-
-                r = unique_name_to_id(destination, &id);
-                if (r)
-                        return error_trace(r);
-
-                receiver = peer_registry_find_peer(&sender->bus->peers, id);
-                if (!receiver)
-                        return DRIVER_E_DESTINATION_NOT_FOUND;
-        }
-
-        r = peer_queue_message(receiver, sender, serial, message);
-        if (r)
-                return error_fold(r);
-
-        return 0;
-}
-
-static int driver_forward_reply(Peer *sender, const char *destination, uint32_t reply_serial, Message *message) {
-        ReplySlot *slot;
-        uint64_t id;
-        int r;
-
-        r = unique_name_to_id(destination, &id);
-        if (r)
-                return error_fold(r);
-
-        slot = reply_slot_get_by_id(&sender->replies_outgoing, id, reply_serial);
-        if (!slot)
-                return DRIVER_E_UNEXPECTED_REPLY;
-
-        r = connection_queue_message(&slot->sender->connection, message);
-        if (r)
-                return error_fold(r);
-
-        reply_slot_free(slot);
-
-        return 0;
-}
-
-static int driver_forward_broadcast_to_matches(MatchRegistry *matches, MatchFilter *filter, Message *message) {
-        MatchRule *rule;
-        int r;
-
-        for (rule = match_rule_next(matches, NULL, filter); rule; match_rule_next(matches, rule, filter)) {
-
-                r = connection_queue_message(&rule->peer->connection, message);
-                if (r)
-                        return error_fold(r);
-        }
-
-        return 0;
-}
-
-static int driver_forward_broadcast(Peer *sender, const char *interface, const char *member, const char *path, const char *siganture, Message *message) {
-        MatchFilter filter = {
-                .type = message->header->type,
-                .interface = interface,
-                .member = member,
-                .path = path,
-        };
-        int r;
-
-        /* XXX: parse the message to verify the marshalling and read out the arguments for filtering */
-
-        r = driver_forward_broadcast_to_matches(&sender->bus->wildcard_matches, &filter, message);
-        if (r < 0)
-                return error_trace(r);
-
-        for (CRBNode *node = c_rbtree_first(&sender->names); node; c_rbnode_next(node)) {
-                NameOwner *owner = c_container_of(node, NameOwner, rb);
-
-                if (!name_owner_is_primary(owner))
-                        continue;
-
-                r = driver_forward_broadcast_to_matches(&owner->entry->matches, &filter, message);
-                if (r)
-                        return error_trace(r);
-        }
-
-        r = driver_forward_broadcast_to_matches(&sender->matches, &filter, message);
-        if (r < 0)
-                return error_trace(r);
-
-        return 0;
-}
-
 static void driver_write_bytes(CDVar *var, char *bytes, size_t n_bytes) {
         c_dvar_write(var, "[");
         for (size_t i = 0; i < n_bytes; ++i)
@@ -371,6 +259,118 @@ static void driver_write_signal_header(CDVar *var, Peer *peer, const char *membe
                      DBUS_MESSAGE_FIELD_SIGNATURE, c_dvar_type_g, signature);
 }
 
+static int driver_send_broadcast_to_matches(MatchRegistry *matches, MatchFilter *filter, Message *message) {
+        MatchRule *rule;
+        int r;
+
+        for (rule = match_rule_next(matches, NULL, filter); rule; match_rule_next(matches, rule, filter)) {
+
+                r = connection_queue_message(&rule->peer->connection, message);
+                if (r)
+                        return error_fold(r);
+        }
+
+        return 0;
+}
+
+static int driver_forward_unicast(Peer *sender, const char *destination, uint32_t serial, Message *message) {
+        Peer *receiver;
+        int r;
+
+        if (*destination != ':') {
+                NameEntry *name;
+                NameOwner *owner;
+
+                name = name_registry_find_entry(&sender->bus->names, destination);
+                if (!name)
+                        return DRIVER_E_DESTINATION_NOT_FOUND;
+
+                owner = c_list_first_entry(&name->owners, NameOwner, entry_link);
+                if (!owner) {
+                        r = name_entry_queue_message(name, message);
+                        if (r)
+                                return error_fold(r);
+
+                        /* XXX: activate name */
+
+                        return 0;
+                } else {
+                        receiver = owner->peer;
+                }
+        } else {
+                uint64_t id;
+
+                r = unique_name_to_id(destination, &id);
+                if (r)
+                        return error_trace(r);
+
+                receiver = peer_registry_find_peer(&sender->bus->peers, id);
+                if (!receiver)
+                        return DRIVER_E_DESTINATION_NOT_FOUND;
+        }
+
+        r = peer_queue_message(receiver, sender, serial, message);
+        if (r)
+                return error_fold(r);
+
+        return 0;
+}
+
+static int driver_forward_reply(Peer *sender, const char *destination, uint32_t reply_serial, Message *message) {
+        ReplySlot *slot;
+        uint64_t id;
+        int r;
+
+        r = unique_name_to_id(destination, &id);
+        if (r)
+                return error_fold(r);
+
+        slot = reply_slot_get_by_id(&sender->replies_outgoing, id, reply_serial);
+        if (!slot)
+                return DRIVER_E_UNEXPECTED_REPLY;
+
+        r = connection_queue_message(&slot->sender->connection, message);
+        if (r)
+                return error_fold(r);
+
+        reply_slot_free(slot);
+
+        return 0;
+}
+
+static int driver_forward_broadcast(Peer *sender, const char *interface, const char *member, const char *path, const char *siganture, Message *message) {
+        MatchFilter filter = {
+                .type = message->header->type,
+                .interface = interface,
+                .member = member,
+                .path = path,
+        };
+        int r;
+
+        /* XXX: parse the message to verify the marshalling and read out the arguments for filtering */
+
+        r = driver_send_broadcast_to_matches(&sender->bus->wildcard_matches, &filter, message);
+        if (r < 0)
+                return error_trace(r);
+
+        for (CRBNode *node = c_rbtree_first(&sender->names); node; c_rbnode_next(node)) {
+                NameOwner *owner = c_container_of(node, NameOwner, rb);
+
+                if (!name_owner_is_primary(owner))
+                        continue;
+
+                r = driver_send_broadcast_to_matches(&owner->entry->matches, &filter, message);
+                if (r)
+                        return error_trace(r);
+        }
+
+        r = driver_send_broadcast_to_matches(&sender->matches, &filter, message);
+        if (r < 0)
+                return error_trace(r);
+
+        return 0;
+}
+
 static int driver_notify_name_acquired(Peer *peer, const char *name) {
         static const CDVarType type[] = {
                 C_DVAR_T_INIT(
@@ -463,7 +463,6 @@ static int driver_notify_name_owner_changed(Bus *bus, const char *name, Peer *ol
         };
         _c_cleanup_(c_dvar_deinitp) CDVar var = C_DVAR_INIT;
         _c_cleanup_(message_unrefp) Message *message = NULL;
-        MatchRule *rule;
         void *data;
         size_t n_data;
         int r;
@@ -488,19 +487,13 @@ static int driver_notify_name_owner_changed(Bus *bus, const char *name, Peer *ol
         filter.argpaths[0] = name;
         /* XXX: also hook up the old and new owner names */
 
-        for (rule = match_rule_next(&bus->wildcard_matches, NULL, &filter); rule; match_rule_next(&bus->wildcard_matches, rule, &filter)) {
+        r = driver_send_broadcast_to_matches(&bus->wildcard_matches, &filter, message);
+        if (r)
 
-                r = connection_queue_message(&rule->peer->connection, message);
-                if (r)
-                        return error_fold(r);
-        }
-
-        for (rule = match_rule_next(&bus->driver_matches, NULL, &filter); rule; match_rule_next(&bus->driver_matches, rule, &filter)) {
-
-                r = connection_queue_message(&rule->peer->connection, message);
-                if (r)
-                        return error_fold(r);
-        }
+                return error_trace(r);
+        r = driver_send_broadcast_to_matches(&bus->driver_matches, &filter, message);
+        if (r)
+                return error_trace(r);
 
         return 0;
 }
