@@ -256,9 +256,16 @@ int socket_dequeue_line(Socket *socket, const char **linep, size_t *np) {
                 }
         }
 
+        if (_c_unlikely_(socket->hup_in)) {
+                if (socket->hup_out)
+                        return SOCKET_E_RESET;
+                else
+                        return SOCKET_E_EOF;
+        }
+
         *linep = NULL;
         *np = 0;
-        return _c_unlikely_(socket->hup_in) ? SOCKET_E_EOF : 0;
+        return 0;
 }
 
 /**
@@ -290,9 +297,9 @@ int socket_dequeue(Socket *socket, Message **messagep) {
 
                 r = message_new_incoming(&msg, header);
                 if (r == MESSAGE_E_CORRUPT_HEADER)
-                        return SOCKET_E_CORRUPT_MESSAGE;
+                        return SOCKET_E_RESET;
                 else if (r == MESSAGE_E_TOO_LARGE)
-                        return SOCKET_E_OVERLONG_MESSAGE;
+                        return SOCKET_E_RESET;
                 else if (r)
                         return error_fold(r);
 
@@ -312,7 +319,7 @@ int socket_dequeue(Socket *socket, Message **messagep) {
 
         if (_c_unlikely_(!n_data && socket->in.fds)) {
                 if (msg->fds)
-                        return SOCKET_E_SPLIT_FDS;
+                        return SOCKET_E_RESET;
 
                 msg->fds = socket->in.fds;
                 socket->in.fds = NULL;
@@ -321,13 +328,18 @@ int socket_dequeue(Socket *socket, Message **messagep) {
         if (msg->n_copied >= msg->n_data) {
                 *messagep = msg;
                 socket->in.pending_message = NULL;
-                r = 0;
-        } else {
-                *messagep = NULL;
-                r = _c_unlikely_(socket->hup_in) ? SOCKET_E_EOF : 0;
+                return 0;
         }
 
-        return r;
+        if (_c_unlikely_(socket->hup_in)) {
+                if (socket->hup_out)
+                        return SOCKET_E_RESET;
+                else
+                        return SOCKET_E_EOF;
+        }
+
+        *messagep = NULL;
+        return 0;
 }
 
 /**
@@ -455,7 +467,10 @@ static int socket_recvmsg(Socket *socket, void *buffer, size_t n_buffer, size_t 
 
         if (_c_unlikely_(n_fds)) {
                 if (_c_unlikely_(*fdsp)) {
-                        r = SOCKET_E_SPLIT_FDS;
+                        /* treat like EPIPE */
+                        socket_hangup_input(socket);
+                        socket_hangup_output(socket);
+                        r = SOCKET_E_LOST_INTEREST;
                         goto error;
                 }
 
@@ -508,8 +523,12 @@ static int socket_dispatch_read(Socket *socket) {
                  */
                 assert(!socket->lines_done);
 
-                if (socket->in.data_size >= SOCKET_LINE_MAX)
-                        return SOCKET_E_OVERLONG_LINE;
+                if (socket->in.data_size >= SOCKET_LINE_MAX) {
+                        /* treat like EPIPE */
+                        socket_hangup_input(socket);
+                        socket_hangup_output(socket);
+                        return SOCKET_E_LOST_INTEREST;
+                }
 
                 p = malloc(SOCKET_LINE_MAX);
                 if (!p)
@@ -670,10 +689,11 @@ int socket_dispatch(Socket *socket, uint32_t event) {
                 break;
         case EPOLLHUP:
                 socket_hangup_output(socket);
+                r = SOCKET_E_PREEMPTED;
                 break;
         }
 
-        return socket_is_running(socket) ? r : SOCKET_E_RESET;
+        return r;
 }
 
 /**

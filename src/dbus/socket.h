@@ -29,10 +29,6 @@ enum {
         /* socket errors */
         SOCKET_E_RESET,
         SOCKET_E_EOF,
-        SOCKET_E_OVERLONG_LINE,
-        SOCKET_E_SPLIT_FDS,
-        SOCKET_E_OVERLONG_MESSAGE,
-        SOCKET_E_CORRUPT_MESSAGE,
 };
 
 /* socket buffer */
