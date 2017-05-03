@@ -67,7 +67,22 @@ int peer_dispatch(DispatchFile *file, uint32_t mask) {
                 _c_cleanup_(message_unrefp) Message *m = NULL;
 
                 r = connection_dequeue(&peer->connection, &m);
-                if (r)
+                if (r == CONNECTION_E_EOF || r == CONNECTION_E_RESET) {
+                        if (peer_is_registered(peer)) {
+                                metrics_sample_start(&peer->metrics);
+                                r = driver_goodbye(peer, false);
+                                metrics_sample_end(&peer->metrics);
+                        }
+
+                        if (r == CONNECTION_E_EOF) {
+                                connection_shutdown(&peer->connection);
+                                break;
+                        } else {
+                                connection_close(&peer->connection);
+                                peer_free(peer);
+                                return 0;
+                        }
+                } else if (r)
                         return error_fold(r);
                 if (!m)
                         break;
