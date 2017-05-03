@@ -728,5 +728,4 @@ void socket_close(Socket *socket) {
         socket_hangup_output(socket);
         socket_discard_input(socket);
         socket_discard_output(socket);
-        socket->fd = c_close(socket->fd);
 }
