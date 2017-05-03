@@ -82,7 +82,7 @@ test('Bus Management', test_bus)
 test_dispatch = executable('test-dispatch', ['util/test-dispatch.c'], dependencies: libdbus_broker_dep)
 test('Event Dispatcher', test_dispatch)
 
-test_fdlist = executable('test-fdlist', ['test-fdlist.c'], dependencies: libdbus_broker_dep)
+test_fdlist = executable('test-fdlist', ['util/test-fdlist.c'], dependencies: libdbus_broker_dep)
 test('Utility File-Desciptor Lists', test_fdlist)
 
 test_match = executable('test-match', ['test-match.c'], dependencies: libdbus_broker_dep)
