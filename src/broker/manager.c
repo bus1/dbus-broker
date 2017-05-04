@@ -22,7 +22,6 @@ struct Manager {
         UserRegistry users;
         DispatchContext dispatcher;
         CList dispatcher_list;
-        CList dispatcher_hup;
 
         int signals_fd;
         DispatchFile signals_file;
@@ -77,7 +76,13 @@ static int manager_dispatch_controller(DispatchFile *file, uint32_t events) {
                 _c_cleanup_(message_unrefp) Message *m = NULL;
 
                 r = connection_dequeue(&manager->controller, &m);
-                if (r)
+                if (r == CONNECTION_E_EOF) {
+                        connection_shutdown(&manager->controller);
+                        break;
+                } else if (r == CONNECTION_E_RESET) {
+                        connection_close(&manager->controller);
+                        return DISPATCH_E_EXIT;
+                } else if (r)
                         return error_fold(r);
                 if (!m)
                         break;
@@ -115,7 +120,6 @@ int manager_new(Manager **managerp, int controller_fd) {
         user_registry_init(&manager->users, 16 * 1024 * 1024, 128, 128, 128, 128);
         manager->dispatcher = (DispatchContext)DISPATCH_CONTEXT_NULL;
         manager->dispatcher_list = (CList)C_LIST_INIT(manager->dispatcher_list);
-        manager->dispatcher_hup = (CList)C_LIST_INIT(manager->dispatcher_hup);
         manager->signals_fd = -1;
         manager->signals_file = (DispatchFile)DISPATCH_FILE_NULL(manager->signals_file);
         manager->controller = (Connection)CONNECTION_NULL(manager->controller);
@@ -148,7 +152,6 @@ int manager_new(Manager **managerp, int controller_fd) {
         r = connection_init_server(&manager->controller,
                                    &manager->dispatcher,
                                    &manager->dispatcher_list,
-                                   &manager->dispatcher_hup,
                                    manager_dispatch_controller,
                                    user,
                                    "0123456789abcdef",
@@ -170,7 +173,6 @@ Manager *manager_free(Manager *manager) {
         connection_deinit(&manager->controller);
         dispatch_file_deinit(&manager->signals_file);
         c_close(manager->signals_fd);
-        assert(c_list_is_empty(&manager->dispatcher_hup));
         assert(c_list_is_empty(&manager->dispatcher_list));
         dispatch_context_deinit(&manager->dispatcher);
         user_registry_deinit(&manager->users);
@@ -179,21 +181,8 @@ Manager *manager_free(Manager *manager) {
         return NULL;
 }
 
-static int manager_hangup(Manager *manager, Connection *connection) {
-        /*
-         * A hangup on the controller causes a shutdown of the broker. However,
-         * we always flush out all pending output buffers, before we exit.
-         * Hence, we wait until the controller-connection is fully done.
-         */
-        if (connection == &manager->controller)
-                return connection_is_running(connection) ? 0 : MAIN_EXIT;
-
-        return 0;
-}
-
 static int manager_dispatch(Manager *manager) {
         CList processed = (CList)C_LIST_INIT(processed);
-        Connection *connection;
         DispatchFile *file;
         int r;
 
@@ -202,14 +191,7 @@ static int manager_dispatch(Manager *manager) {
                 return error_fold(r);
 
         do {
-                while (!r && (connection = c_list_first_entry(&manager->dispatcher_hup, Connection, hup_link))) {
-                        c_list_unlink_init(&connection->hup_link);
-                        r = error_trace(manager_hangup(manager, connection));
-                }
-
-                while (!r &&
-                       c_list_is_empty(&manager->dispatcher_hup) &&
-                       (file = c_list_first_entry(&manager->dispatcher_list, DispatchFile, ready_link))) {
+                while (!r && (file = c_list_first_entry(&manager->dispatcher_list, DispatchFile, ready_link))) {
 
                         /*
                          * Whenever we dispatch an entry, we first move it into
