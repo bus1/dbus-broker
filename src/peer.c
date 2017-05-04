@@ -296,7 +296,6 @@ void peer_registry_flush(PeerRegistry *registry) {
         }
 }
 
-/* XXX: proper return codes */
 Peer *peer_registry_find_peer(PeerRegistry *registry, uint64_t id) {
         Peer *peer;
 

@@ -28,26 +28,24 @@ enum {
 
 struct Peer {
         Bus *bus;
-
-        Connection connection;
-        bool registered : 1;
-
         UserEntry *user;
         pid_t pid;
         char *seclabel;
         size_t n_seclabel;
 
-        MatchRegistry matches;
-        ReplyRegistry replies_outgoing;
-        CRBTree names;
+        uint64_t id;
+        CRBNode rb;
 
-        CList replies_incoming;
+        Connection connection;
+        bool registered : 1;
+
+        CRBTree names;
+        MatchRegistry matches;
         CRBTree match_rules;
+        ReplyRegistry replies_outgoing;
+        CList replies_incoming;
 
         Metrics metrics;
-
-        CRBNode rb;
-        uint64_t id;
 };
 
 struct PeerRegistry {
