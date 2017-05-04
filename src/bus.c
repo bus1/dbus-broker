@@ -93,7 +93,6 @@ int bus_new(Bus **busp,
                 return error_origin(-ENOMEM);
 
         bus->ready_list = (CList)C_LIST_INIT(bus->ready_list);
-        bus->hup_list = (CList)C_LIST_INIT(bus->hup_list);
         bus->listener_list = (CList)C_LIST_INIT(bus->listener_list);
         bus->accept_fd = accept_fd;
         bus->signal_fd = signal_fd;
@@ -145,7 +144,6 @@ Bus *bus_free(Bus *bus) {
         dispatch_file_deinit(&bus->signal_file);
         dispatch_file_deinit(&bus->accept_file);
 
-        assert(c_list_is_empty(&bus->hup_list));
         assert(c_list_is_empty(&bus->ready_list));
 
         dispatch_context_deinit(&bus->dispatcher);

@@ -30,7 +30,6 @@ struct Bus {
         int accept_fd;
         int signal_fd;
         CList ready_list;
-        CList hup_list;
         CList listener_list;
         NameRegistry names;
         UserRegistry users;
