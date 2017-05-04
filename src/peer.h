@@ -61,7 +61,7 @@ int peer_spawn(Peer *peer);
 void peer_register(Peer *peer);
 void peer_unregister(Peer *peer);
 
-int peer_queue_message(Peer *receiver, Peer *sender, uint32_t serial, Message *message);
+int peer_queue_message(Peer *receiver, Peer *sender, Message *message);
 
 void peer_registry_init(PeerRegistry *registry);
 void peer_registry_deinit(PeerRegistry *registry);

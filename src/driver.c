@@ -273,7 +273,7 @@ static int driver_send_broadcast_to_matches(MatchRegistry *matches, MatchFilter 
         return 0;
 }
 
-static int driver_forward_unicast(Peer *sender, const char *destination, uint32_t serial, Message *message) {
+static int driver_forward_unicast(Peer *sender, const char *destination, Message *message) {
         Peer *receiver;
         int r;
 
@@ -309,7 +309,7 @@ static int driver_forward_unicast(Peer *sender, const char *destination, uint32_
                         return DRIVER_E_DESTINATION_NOT_FOUND;
         }
 
-        r = peer_queue_message(receiver, sender, serial, message);
+        r = peer_queue_message(receiver, sender, message);
         if (r)
                 return error_fold(r);
 
@@ -540,7 +540,7 @@ static int driver_name_activated(NameEntry *name, Peer *receiver) {
 
                 sender = peer_registry_find_peer(&receiver->bus->peers, message->sender_id);
 
-                r = peer_queue_message(receiver, sender, message_read_serial(message), message);
+                r = peer_queue_message(receiver, sender, message);
                 if (r)
                         /* XXX: handle errors and reply */
                         return error_fold(r);
@@ -1257,7 +1257,6 @@ static int driver_dispatch_internal(Peer *peer, MessageMetadata *metadata, Messa
         case DBUS_MESSAGE_TYPE_METHOD_CALL:
                 return error_trace(driver_forward_unicast(peer,
                                                           metadata->fields.destination,
-                                                          metadata->header.serial,
                                                           message));
         case DBUS_MESSAGE_TYPE_METHOD_RETURN:
         case DBUS_MESSAGE_TYPE_ERROR:
