@@ -259,6 +259,67 @@ static void driver_write_signal_header(CDVar *var, Peer *peer, const char *membe
                      DBUS_MESSAGE_FIELD_SIGNATURE, c_dvar_type_g, signature);
 }
 
+static int driver_send_error(Peer *peer, uint32_t serial, const char *error) {
+        static const CDVarType type[] = {
+                C_DVAR_T_INIT(
+                        DRIVER_T_MESSAGE(
+                                C_DVAR_T_TUPLE0
+                        )
+                )
+        };
+        _c_cleanup_(c_dvar_deinitp) CDVar var = C_DVAR_INIT;
+        _c_cleanup_(message_unrefp) Message *message = NULL;
+        void *data;
+        size_t n_data;
+        int r;
+
+        c_dvar_begin_write(&var, type, 1);
+        c_dvar_write(&var, "((yyyyuu[(y<u>)(y<s>)(y<s>)(y<",
+                     c_dvar_is_big_endian(&var) ? 'B' : 'l', DBUS_MESSAGE_TYPE_ERROR, DBUS_HEADER_FLAG_NO_REPLY_EXPECTED, 1, 0, (uint32_t)-1,
+                     DBUS_MESSAGE_FIELD_REPLY_SERIAL, c_dvar_type_u, serial,
+                     DBUS_MESSAGE_FIELD_SENDER, c_dvar_type_s, "org.freedesktop.DBus",
+                     DBUS_MESSAGE_FIELD_ERROR_NAME, c_dvar_type_s, error,
+                     DBUS_MESSAGE_FIELD_DESTINATION, c_dvar_type_s);
+        driver_dvar_write_unique_name(&var, peer);
+        c_dvar_write(&var, ">)])())");
+
+        r = c_dvar_end_write(&var, &data, &n_data);
+        if (r)
+                return error_origin(r);
+
+        r = message_new_outgoing(&message, data, n_data);
+        if (r)
+                return error_fold(r);
+
+        r = connection_queue_message(&peer->connection, message);
+        if (r)
+                return error_fold(r);
+
+        return 0;
+}
+
+static int driver_queue_message_on_peer(Peer *receiver, Peer *sender, Message *message) {
+        _c_cleanup_(reply_slot_freep) ReplySlot *slot = NULL;
+        int r;
+
+        if (sender &&
+            (message->header->type == DBUS_MESSAGE_TYPE_METHOD_CALL) &&
+            !(message->header->flags & DBUS_HEADER_FLAG_NO_REPLY_EXPECTED)) {
+                r = reply_slot_new(&slot, &receiver->replies_outgoing, sender, message_read_serial(message));
+                if (r == REPLY_E_EXISTS)
+                        return DRIVER_E_EXPECTED_REPLY_EXISTS;
+                else if (r)
+                        return error_fold(r);
+        }
+
+        r = connection_queue_message(&receiver->connection, message);
+        if (r)
+                return error_fold(r);
+
+        slot = NULL;
+        return 0;
+}
+
 static int driver_send_broadcast_to_matches(MatchRegistry *matches, MatchFilter *filter, Message *message) {
         MatchRule *rule;
         int r;
@@ -309,11 +370,7 @@ static int driver_forward_unicast(Peer *sender, const char *destination, Message
                         return DRIVER_E_DESTINATION_NOT_FOUND;
         }
 
-        r = peer_queue_message(receiver, sender, message);
-        if (r)
-                return error_fold(r);
-
-        return 0;
+        return error_trace(driver_queue_message_on_peer(receiver, sender, message));
 }
 
 static int driver_forward_reply(Peer *sender, const char *destination, uint32_t reply_serial, Message *message) {
@@ -540,52 +597,16 @@ static int driver_name_activated(NameEntry *name, Peer *receiver) {
 
                 sender = peer_registry_find_peer(&receiver->bus->peers, message->sender_id);
 
-                r = peer_queue_message(receiver, sender, message);
-                if (r)
-                        /* XXX: handle errors and reply */
+                r = driver_queue_message_on_peer(receiver, sender, message);
+                if (r) {
+                        if (r == DRIVER_E_EXPECTED_REPLY_EXISTS)
+                                r = driver_send_error(sender, message_read_serial(message), "org.freedesktop.DBus.Error.AccessDenied");
+
                         return error_fold(r);
+                }
 
                 socket_buffer_free(skb);
         }
-
-        return 0;
-}
-
-static int driver_send_error(Peer *peer, uint32_t serial, const char *error) {
-        static const CDVarType type[] = {
-                C_DVAR_T_INIT(
-                        DRIVER_T_MESSAGE(
-                                C_DVAR_T_TUPLE0
-                        )
-                )
-        };
-        _c_cleanup_(c_dvar_deinitp) CDVar var = C_DVAR_INIT;
-        _c_cleanup_(message_unrefp) Message *message = NULL;
-        void *data;
-        size_t n_data;
-        int r;
-
-        c_dvar_begin_write(&var, type, 1);
-        c_dvar_write(&var, "((yyyyuu[(y<u>)(y<s>)(y<s>)(y<",
-                     c_dvar_is_big_endian(&var) ? 'B' : 'l', DBUS_MESSAGE_TYPE_ERROR, DBUS_HEADER_FLAG_NO_REPLY_EXPECTED, 1, 0, (uint32_t)-1,
-                     DBUS_MESSAGE_FIELD_REPLY_SERIAL, c_dvar_type_u, serial,
-                     DBUS_MESSAGE_FIELD_SENDER, c_dvar_type_s, "org.freedesktop.DBus",
-                     DBUS_MESSAGE_FIELD_ERROR_NAME, c_dvar_type_s, error,
-                     DBUS_MESSAGE_FIELD_DESTINATION, c_dvar_type_s);
-        driver_dvar_write_unique_name(&var, peer);
-        c_dvar_write(&var, ">)])())");
-
-        r = c_dvar_end_write(&var, &data, &n_data);
-        if (r)
-                return error_origin(r);
-
-        r = message_new_outgoing(&message, data, n_data);
-        if (r)
-                return error_fold(r);
-
-        r = connection_queue_message(&peer->connection, message);
-        if (r)
-                return error_fold(r);
 
         return 0;
 }
@@ -1290,6 +1311,7 @@ int driver_dispatch(Peer *peer, Message *message) {
         case DRIVER_E_UNEXPECTED_PATH:
         case DRIVER_E_UNEXPECTED_MESSAGE_TYPE:
         case DRIVER_E_UNEXPECTED_REPLY:
+        case DRIVER_E_EXPECTED_REPLY_EXISTS:
                 r = driver_send_error(peer, metadata.header.serial, "org.freedesktop.DBus.Error.AccessDenied");
                 break;
         case DRIVER_E_UNEXPECTED_INTERFACE:

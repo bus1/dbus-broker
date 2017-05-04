@@ -26,27 +26,6 @@
 #include "util/fdlist.h"
 #include "util/metrics.h"
 
-int peer_queue_message(Peer *receiver, Peer *sender, Message *message) {
-        _c_cleanup_(reply_slot_freep) ReplySlot *slot = NULL;
-        int r;
-
-        if (sender &&
-            (message->header->type == DBUS_MESSAGE_TYPE_METHOD_CALL) &&
-            !(message->header->flags & DBUS_HEADER_FLAG_NO_REPLY_EXPECTED)) {
-                /* XXX: handle duplicate serial numbers */
-                r = reply_slot_new(&slot, &receiver->replies_outgoing, sender, message_read_serial(message));
-                if (r)
-                        return error_fold(r);
-        }
-
-        r = connection_queue_message(&receiver->connection, message);
-        if (r)
-                return error_fold(r);
-
-        slot = NULL;
-        return 0;
-}
-
 int peer_dispatch(DispatchFile *file, uint32_t mask) {
         Peer *peer = c_container_of(file, Peer, connection.socket_file);
         int r;
