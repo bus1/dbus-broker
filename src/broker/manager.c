@@ -82,8 +82,10 @@ static int manager_dispatch_controller(DispatchFile *file, uint32_t events) {
                 } else if (r == CONNECTION_E_RESET) {
                         connection_close(&manager->controller);
                         return DISPATCH_E_EXIT;
-                } else if (r)
+                } else if (r) {
                         return error_fold(r);
+                }
+
                 if (!m)
                         break;
 
