@@ -252,12 +252,8 @@ Peer *peer_free(Peer *peer) {
         return NULL;
 }
 
-int peer_start(Peer *peer) {
+int peer_spawn(Peer *peer) {
         return error_fold(connection_open(&peer->connection));
-}
-
-void peer_stop(Peer *peer) {
-        connection_close(&peer->connection);
 }
 
 void peer_register(Peer *peer) {

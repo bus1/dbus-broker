@@ -9,7 +9,6 @@
 #include <stdlib.h>
 #include <sys/types.h>
 #include "dbus/connection.h"
-#include "dbus/sasl.h"
 #include "match.h"
 #include "reply.h"
 #include "util/dispatch.h"
@@ -59,10 +58,7 @@ struct PeerRegistry {
 int peer_new(Peer **peerp, Bus *bus, int fd);
 Peer *peer_free(Peer *peer);
 
-int peer_dispatch(DispatchFile *file, uint32_t mask);
-
-int peer_start(Peer *peer);
-void peer_stop(Peer *peer);
+int peer_spawn(Peer *peer);
 
 void peer_register(Peer *peer);
 void peer_unregister(Peer *peer);

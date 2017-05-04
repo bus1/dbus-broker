@@ -61,7 +61,7 @@ static int bus_accept(DispatchFile *file, uint32_t events) {
                 return error_fold(r);
         fd = -1;
 
-        r = peer_start(peer);
+        r = peer_spawn(peer);
         if (r)
                 return error_fold(r);
 
