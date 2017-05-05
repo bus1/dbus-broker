@@ -35,37 +35,17 @@ static int bus_signal(DispatchFile *file, uint32_t events) {
         return DISPATCH_E_EXIT;
 }
 
-static int bus_accept(DispatchFile *file, uint32_t events) {
-        Bus *bus = c_container_of(file, Bus, accept_file);
-        _c_cleanup_(c_closep) int fd = -1;
-        _c_cleanup_(peer_freep) Peer *peer = NULL;
+static int listener_dispatch(DispatchFile *file, uint32_t events) {
+        Listener *listener = c_container_of(file, Listener, socket_file);
         int r;
 
         if (!(events & EPOLLIN))
                 return 0;
 
-        fd = accept4(bus->accept_fd, NULL, NULL, SOCK_NONBLOCK | SOCK_CLOEXEC);
-        if (fd < 0) {
-                if (errno == EAGAIN) {
-                        dispatch_file_clear(file, EPOLLIN);
-                        return 0;
-                } else if (errno == ECONNRESET || errno == EPERM) {
-                        /* ignore pending errors on the new socket */
-                        return 0;
-                }
-                return error_origin(-errno);
-        }
-
-        r = peer_new(&peer, bus, fd);
-        if (r)
-                return error_fold(r);
-        fd = -1;
-
-        r = peer_spawn(peer);
+        r = listener_accept(listener);
         if (r)
                 return error_fold(r);
 
-        peer = NULL;
         return 0;
 }
 
@@ -92,8 +72,8 @@ int bus_new(Bus **busp,
         if (!bus)
                 return error_origin(-ENOMEM);
 
+        bus->listener = (Listener)LISTENER_NULL(bus->listener);
         bus->listener_list = (CList)C_LIST_INIT(bus->listener_list);
-        bus->accept_fd = accept_fd;
         bus->signal_fd = signal_fd;
         signal_fd = -1;
         match_registry_init(&bus->wildcard_matches);
@@ -103,21 +83,10 @@ int bus_new(Bus **busp,
         user_registry_init(&bus->users, max_bytes, max_fds, max_peers, max_names, max_matches);
         peer_registry_init(&bus->peers);
         bus->dispatcher = (DispatchContext)DISPATCH_CONTEXT_NULL(bus->dispatcher);
-        bus->accept_file = (DispatchFile)DISPATCH_FILE_NULL(bus->accept_file);
 
         r = dispatch_context_init(&bus->dispatcher);
         if (r)
                 return error_fold(r);
-
-        r = dispatch_file_init(&bus->accept_file,
-                               &bus->dispatcher,
-                               bus_accept,
-                               bus->accept_fd,
-                               EPOLLIN);
-        if (r)
-                return error_fold(r);
-
-        dispatch_file_select(&bus->accept_file, EPOLLIN);
 
         r = dispatch_file_init(&bus->signal_file,
                                &bus->dispatcher,
@@ -129,6 +98,12 @@ int bus_new(Bus **busp,
 
         dispatch_file_select(&bus->signal_file, EPOLLIN);
 
+        if (accept_fd >= 0) {
+                r = listener_init_with_fd(&bus->listener, bus, listener_dispatch, accept_fd);
+                if (r)
+                        return error_fold(r);
+        }
+
         *busp = bus;
         bus = NULL;
         return 0;
@@ -138,8 +113,8 @@ Bus *bus_free(Bus *bus) {
         if (!bus)
                 return NULL;
 
+        listener_deinit(&bus->listener);
         dispatch_file_deinit(&bus->signal_file);
-        dispatch_file_deinit(&bus->accept_file);
 
         dispatch_context_deinit(&bus->dispatcher);
         peer_registry_deinit(&bus->peers);

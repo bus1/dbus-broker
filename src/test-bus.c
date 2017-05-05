@@ -10,7 +10,7 @@ static void test_setup(void) {
         _c_cleanup_(bus_freep) Bus *bus = NULL;
         int r;
 
-        r = bus_new(&bus, 0, 1024, 1024, 1024, 1024, 1024);
+        r = bus_new(&bus, -1, 1024, 1024, 1024, 1024, 1024);
         assert(r >= 0);
         assert(bus);
 }

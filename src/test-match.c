@@ -32,7 +32,7 @@ static void test_setup(void) {
         _c_cleanup_(peer_freep) Peer *peer = NULL;
         int pair[2], r;
 
-        r = bus_new(&bus, 0, 1024, 1024, 1024, 1024, 1024);
+        r = bus_new(&bus, -1, 1024, 1024, 1024, 1024, 1024);
         assert(r >= 0);
 
         r = socketpair(AF_UNIX, SOCK_STREAM, 0, pair);

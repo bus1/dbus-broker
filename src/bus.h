@@ -8,6 +8,7 @@
 #include <c-macro.h>
 #include <c-rbtree.h>
 #include <stdlib.h>
+#include "listener.h"
 #include "match.h"
 #include "name.h"
 #include "peer.h"
@@ -25,10 +26,9 @@ typedef struct Bus Bus;
 struct Bus {
         char guid[16];
         DispatchContext dispatcher;
-        DispatchFile accept_file;
         DispatchFile signal_file;
-        int accept_fd;
         int signal_fd;
+        Listener listener;
         CList listener_list;
         NameRegistry names;
         UserRegistry users;
