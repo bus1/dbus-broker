@@ -26,7 +26,7 @@ int listener_init_with_fd(Listener *listener,
 
         r = dispatch_file_init(&l->socket_file,
                                &bus->dispatcher,
-                               &bus->ready_list,
+                               &bus->dispatcher.ready_list,
                                dispatch_fn,
                                socket_fd,
                                EPOLLIN);

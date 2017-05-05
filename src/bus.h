@@ -29,7 +29,6 @@ struct Bus {
         DispatchFile signal_file;
         int accept_fd;
         int signal_fd;
-        CList ready_list;
         CList listener_list;
         NameRegistry names;
         UserRegistry users;

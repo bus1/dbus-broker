@@ -92,7 +92,6 @@ int bus_new(Bus **busp,
         if (!bus)
                 return error_origin(-ENOMEM);
 
-        bus->ready_list = (CList)C_LIST_INIT(bus->ready_list);
         bus->listener_list = (CList)C_LIST_INIT(bus->listener_list);
         bus->accept_fd = accept_fd;
         bus->signal_fd = signal_fd;
@@ -112,7 +111,7 @@ int bus_new(Bus **busp,
 
         r = dispatch_file_init(&bus->accept_file,
                                &bus->dispatcher,
-                               &bus->ready_list,
+                               &bus->dispatcher.ready_list,
                                bus_accept,
                                bus->accept_fd,
                                EPOLLIN);
@@ -123,7 +122,7 @@ int bus_new(Bus **busp,
 
         r = dispatch_file_init(&bus->signal_file,
                                &bus->dispatcher,
-                               &bus->ready_list,
+                               &bus->dispatcher.ready_list,
                                bus_signal,
                                bus->signal_fd,
                                EPOLLIN);
@@ -144,8 +143,6 @@ Bus *bus_free(Bus *bus) {
         dispatch_file_deinit(&bus->signal_file);
         dispatch_file_deinit(&bus->accept_file);
 
-        assert(c_list_is_empty(&bus->ready_list));
-
         dispatch_context_deinit(&bus->dispatcher);
         peer_registry_deinit(&bus->peers);
         user_registry_deinit(&bus->users);
@@ -163,7 +160,7 @@ static int bus_dispatch(Bus *bus) {
         CList list = C_LIST_INIT(list);
         int r = 0;
 
-        while ((file = c_list_first_entry(&bus->ready_list, DispatchFile, ready_link))) {
+        while ((file = c_list_first_entry(&bus->dispatcher.ready_list, DispatchFile, ready_link))) {
                 c_list_unlink(&file->ready_link);
                 c_list_link_tail(&list, &file->ready_link);
 
@@ -172,7 +169,7 @@ static int bus_dispatch(Bus *bus) {
                         break;
         }
 
-        c_list_splice(&bus->ready_list, &list);
+        c_list_splice(&bus->dispatcher.ready_list, &list);
 
         return error_trace(r);
 }
@@ -187,7 +184,7 @@ int bus_run(Bus *bus) {
         sigprocmask(SIG_BLOCK, &mask, NULL);
 
         for (;;) {
-                r = dispatch_context_poll(&bus->dispatcher, c_list_is_empty(&bus->ready_list) ? -1 : 0);
+                r = dispatch_context_poll(&bus->dispatcher, c_list_is_empty(&bus->dispatcher.ready_list) ? -1 : 0);
                 if (r)
                         goto exit;
 
