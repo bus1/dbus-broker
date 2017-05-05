@@ -13,6 +13,7 @@ typedef struct Bus Bus;
 typedef struct Listener Listener;
 
 struct Listener {
+        Bus *bus;
         int socket_fd;
         DispatchFile socket_file;
         CList bus_link;
@@ -31,6 +32,6 @@ int listener_init_with_fd(Listener *listener,
                           DispatchFn dispatch_fn,
                           int socket_fd);
 void listener_deinit(Listener *listener);
-int listener_accept(Listener *listener, int *fdp);
+int listener_accept(Listener *listener);
 
 C_DEFINE_CLEANUP(Listener *, listener_deinit);
