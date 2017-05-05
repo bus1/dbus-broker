@@ -34,9 +34,8 @@ static void q_assert(int s, bool has_in, bool has_out) {
  * its incoming queue.
  */
 static void test_uds_edge(void) {
-        _c_cleanup_(dispatch_context_deinit) DispatchContext c = DISPATCH_CONTEXT_NULL;
+        _c_cleanup_(dispatch_context_deinit) DispatchContext c = DISPATCH_CONTEXT_NULL(c);
         DispatchFile f = DISPATCH_FILE_NULL(f);
-        CList l = C_LIST_INIT(l);
         char b[] = { "foobar" };
         int r, s[2];
 
@@ -48,7 +47,7 @@ static void test_uds_edge(void) {
         r = socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC | SOCK_NONBLOCK, 0, s);
         assert(!r);
 
-        r = dispatch_file_init(&f, &c, &l, NULL, s[0], EPOLLOUT);
+        r = dispatch_file_init(&f, &c, &c.ready_list, NULL, s[0], EPOLLOUT);
         assert(!r);
 
         dispatch_file_select(&f, EPOLLOUT);

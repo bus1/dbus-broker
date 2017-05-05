@@ -113,13 +113,15 @@ void dispatch_file_clear(DispatchFile *file, uint32_t mask) {
  * dispatch_context_init() - XXX
  */
 int dispatch_context_init(DispatchContext *ctxp) {
-        DispatchContext ctx = {};
+        int fd;
 
-        ctx.epoll_fd = epoll_create1(EPOLL_CLOEXEC);
-        if (ctx.epoll_fd < 0)
+        fd = epoll_create1(EPOLL_CLOEXEC);
+        if (fd < 0)
                 return error_origin(-errno);
 
-        *ctxp = ctx;
+        *ctxp = (DispatchContext)DISPATCH_CONTEXT_NULL(*ctxp);
+        ctxp->epoll_fd = fd;
+
         return 0;
 }
 
@@ -128,6 +130,7 @@ int dispatch_context_init(DispatchContext *ctxp) {
  */
 void dispatch_context_deinit(DispatchContext *ctx) {
         assert(!ctx->n_files);
+        assert(c_list_is_empty(&ctx->ready_list));
 
         ctx->epoll_fd = c_close(ctx->epoll_fd);
 }

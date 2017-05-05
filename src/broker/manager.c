@@ -120,7 +120,7 @@ int manager_new(Manager **managerp, int controller_fd) {
                 return error_origin(-ENOMEM);
 
         user_registry_init(&manager->users, 16 * 1024 * 1024, 128, 128, 128, 128);
-        manager->dispatcher = (DispatchContext)DISPATCH_CONTEXT_NULL;
+        manager->dispatcher = (DispatchContext)DISPATCH_CONTEXT_NULL(manager->dispatcher);
         manager->dispatcher_list = (CList)C_LIST_INIT(manager->dispatcher_list);
         manager->signals_fd = -1;
         manager->signals_file = (DispatchFile)DISPATCH_FILE_NULL(manager->signals_file);

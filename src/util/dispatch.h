@@ -54,11 +54,15 @@ void dispatch_file_clear(DispatchFile *file, uint32_t mask);
 /* contexts */
 
 struct DispatchContext {
+        CList ready_list;
         int epoll_fd;
         size_t n_files;
 };
 
-#define DISPATCH_CONTEXT_NULL { .epoll_fd = -1 }
+#define DISPATCH_CONTEXT_NULL(_x) {                             \
+                .ready_list = C_LIST_INIT((_x).ready_list),     \
+                .epoll_fd = -1,                                 \
+        }
 
 int dispatch_context_init(DispatchContext *ctxp);
 void dispatch_context_deinit(DispatchContext *ctx);

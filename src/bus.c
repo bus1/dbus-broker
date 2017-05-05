@@ -103,7 +103,7 @@ int bus_new(Bus **busp,
         name_registry_init(&bus->names);
         user_registry_init(&bus->users, max_bytes, max_fds, max_peers, max_names, max_matches);
         peer_registry_init(&bus->peers);
-        bus->dispatcher = (DispatchContext)DISPATCH_CONTEXT_NULL;
+        bus->dispatcher = (DispatchContext)DISPATCH_CONTEXT_NULL(bus->dispatcher);
         bus->accept_file = (DispatchFile)DISPATCH_FILE_NULL(bus->accept_file);
 
         r = dispatch_context_init(&bus->dispatcher);
