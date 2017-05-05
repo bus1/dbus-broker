@@ -178,7 +178,7 @@ void socket_deinit(Socket *socket) {
                 assert(!socket->in.pending_message);
 
         socket->in.data = c_free(socket->in.data);
-        socket->fd = c_close(socket->fd);
+        socket->fd = -1;
 }
 
 static void socket_hangup_input(Socket *socket) {

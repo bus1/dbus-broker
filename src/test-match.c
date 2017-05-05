@@ -38,7 +38,7 @@ static void test_setup(void) {
         r = socketpair(AF_UNIX, SOCK_STREAM, 0, pair);
         assert(r >= 0);
 
-        r = peer_new(&peer, bus, pair[0]);
+        r = peer_new_with_fd(&peer, bus, pair[0]);
         assert(r >= 0);
 
         /* examples taken from the spec */

@@ -132,7 +132,7 @@ static int peer_compare(CRBTree *tree, void *k, CRBNode *rb) {
 /**
  * peer_new() - XXX
  */
-int peer_new(Peer **peerp,
+int peer_new_with_fd(Peer **peerp,
              Bus *bus,
              int fd) {
         _c_cleanup_(peer_freep) Peer *peer = NULL;
@@ -203,6 +203,7 @@ int peer_new(Peer **peerp,
  */
 Peer *peer_free(Peer *peer) {
         ReplySlot *reply, *safe;
+        int fd;
 
         if (!peer)
                 return NULL;
@@ -218,6 +219,8 @@ Peer *peer_free(Peer *peer) {
 
         c_rbtree_remove_init(&peer->bus->peers.peers, &peer->rb);
 
+        fd = peer->connection.socket.fd;
+
         reply_registry_deinit(&peer->replies_outgoing);
         match_registry_deinit(&peer->matches);
         metrics_deinit(&peer->metrics);
@@ -225,6 +228,8 @@ Peer *peer_free(Peer *peer) {
         user_entry_unref(peer->user);
         free(peer->seclabel);
         free(peer);
+
+        close(fd);
 
         return NULL;
 }

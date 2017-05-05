@@ -53,7 +53,7 @@ struct PeerRegistry {
         uint64_t ids;
 };
 
-int peer_new(Peer **peerp, Bus *bus, int fd);
+int peer_new_with_fd(Peer **peerp, Bus *bus, int fd);
 Peer *peer_free(Peer *peer);
 
 int peer_spawn(Peer *peer);

@@ -26,7 +26,7 @@ static void test_setup(void) {
         r = socketpair(AF_UNIX, SOCK_STREAM, 0, pair);
         assert(r >= 0);
 
-        r = peer_new(&peer, bus, pair[0]);
+        r = peer_new_with_fd(&peer, bus, pair[0]);
         assert(r >= 0);
 
         peer_register(peer);
@@ -72,9 +72,9 @@ static void test_release(void) {
         r = socketpair(AF_UNIX, SOCK_STREAM, 0, pair);
         assert(r >= 0);
 
-        r = peer_new(&peer1, bus, pair[0]);
+        r = peer_new_with_fd(&peer1, bus, pair[0]);
         assert(r >= 0);
-        r = peer_new(&peer2, bus, pair[1]);
+        r = peer_new_with_fd(&peer2, bus, pair[1]);
         assert(r >= 0);
         peer_register(peer1);
         peer_register(peer2);
@@ -122,9 +122,9 @@ static void test_queue(void) {
         r = socketpair(AF_UNIX, SOCK_STREAM, 0, pair);
         assert(r >= 0);
 
-        r = peer_new(&peer1, bus, pair[0]);
+        r = peer_new_with_fd(&peer1, bus, pair[0]);
         assert(r >= 0);
-        r = peer_new(&peer2, bus, pair[1]);
+        r = peer_new_with_fd(&peer2, bus, pair[1]);
         assert(r >= 0);
         peer_register(peer1);
         peer_register(peer2);
