@@ -36,7 +36,6 @@ static int bus_signal(DispatchFile *file, uint32_t events) {
 }
 
 int bus_new(Bus **busp,
-            int accept_fd,
             unsigned int max_bytes,
             unsigned int max_fds,
             unsigned int max_peers,

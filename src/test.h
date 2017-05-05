@@ -13,19 +13,22 @@
 
 static inline void *test_run_bus(void *userdata) {
         Bus *bus;
+        Listener *listener;
         int fd = (intptr_t)userdata, r;
 
-        r = bus_new(&bus, fd, 1024, 1024, 1024, 1024, 1024);
+        r = bus_new(&bus, 1024, 1024, 1024, 1024, 1024);
+        assert(r >= 0);
+
+        r = listener_new_with_fd(&listener, bus, fd);
         assert(r >= 0);
 
         r = bus_run(bus);
         assert(r == 0);
 
         peer_registry_flush(&bus->peers);
-
+        listener_free(listener);
         bus_free(bus);
 
-        close(fd);
         return NULL;
 }
 

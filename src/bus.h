@@ -37,7 +37,6 @@ struct Bus {
 };
 
 int bus_new(Bus **busp,
-            int accept_fd,
             unsigned int max_bytes,
             unsigned int max_fds,
             unsigned int max_peers,
