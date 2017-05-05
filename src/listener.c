@@ -70,6 +70,7 @@ int listener_accept(Listener *listener) {
                          * caller about it.
                          */
                         dispatch_file_clear(&listener->socket_file, EPOLLIN);
+                        return 0;
                 } else {
                         /*
                          * The linux UDS layer does not return pending errors
