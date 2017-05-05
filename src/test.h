@@ -6,15 +6,36 @@
 
 #include <c-macro.h>
 #include <pthread.h>
+#include <signal.h>
 #include <stdlib.h>
-#include <sys/types.h>
+#include <sys/signalfd.h>
 #include <sys/socket.h>
+#include <sys/types.h>
 #include "bus.h"
+#include "util/error.h"
+
+static int test_dispatch_signals(DispatchFile *file, uint32_t events) {
+        struct signalfd_siginfo si;
+        ssize_t l;
+
+        assert(events == EPOLLIN);
+
+        l = read(file->fd, &si, sizeof(si));
+        if (l < 0)
+                return error_origin(-errno);
+
+        assert(l == sizeof(si));
+
+        return DISPATCH_E_EXIT;
+}
 
 static inline void *test_run_bus(void *userdata) {
         Bus *bus;
         Listener *listener;
         int fd = (intptr_t)userdata, r;
+        sigset_t signew, sigold;
+        _c_cleanup_(c_closep) int signals_fd = -1;
+        DispatchFile signals_file;
 
         r = bus_new(&bus, 1024, 1024, 1024, 1024, 1024);
         assert(r >= 0);
@@ -22,9 +43,29 @@ static inline void *test_run_bus(void *userdata) {
         r = listener_new_with_fd(&listener, bus, fd);
         assert(r >= 0);
 
-        r = bus_run(bus);
-        assert(r == 0);
+        sigemptyset(&signew);
+        sigaddset(&signew, SIGTERM);
+        sigaddset(&signew, SIGINT);
 
+        signals_fd = signalfd(-1, &signew, SFD_CLOEXEC | SFD_NONBLOCK);
+        assert(signals_fd >= 0);
+
+        r = dispatch_file_init(&signals_file, &bus->dispatcher, test_dispatch_signals, signals_fd, EPOLLIN);
+        assert(r >= 0);
+
+        dispatch_file_select(&signals_file, EPOLLIN);
+
+        sigprocmask(SIG_BLOCK, &signew, &sigold);
+
+        do {
+                r = dispatch_context_dispatch(&bus->dispatcher);
+                if (r != DISPATCH_E_EXIT && r != DISPATCH_E_FAILURE)
+                        r = error_fold(r);
+        } while (!r);
+
+        sigprocmask(SIG_SETMASK, &sigold, NULL);
+
+        dispatch_file_deinit(&signals_file);
         peer_registry_flush(&bus->peers);
         listener_free(listener);
         bus_free(bus);

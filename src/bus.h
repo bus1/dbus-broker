@@ -26,8 +26,6 @@ typedef struct Bus Bus;
 struct Bus {
         char guid[16];
         DispatchContext dispatcher;
-        DispatchFile signal_file;
-        int signal_fd;
         CList listener_list;
         NameRegistry names;
         UserRegistry users;
@@ -43,8 +41,6 @@ int bus_new(Bus **busp,
             unsigned int max_names,
             unsigned int max_matches);
 Bus *bus_free(Bus *bus);
-
-int bus_run(Bus *bus);
 
 Peer *bus_find_peer_by_name(Bus *bus, const char *name);
 
