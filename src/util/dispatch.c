@@ -169,3 +169,37 @@ int dispatch_context_poll(DispatchContext *ctx, int timeout) {
 
         return 0;
 }
+
+int dispatch_context_dispatch(DispatchContext *ctx) {
+        CList processed = (CList)C_LIST_INIT(processed);
+        DispatchFile *file;
+        int r;
+
+        r = dispatch_context_poll(ctx, c_list_is_empty(&ctx->ready_list) ? -1 : 0);
+        if (r)
+                return error_fold(r);
+
+        while ((file = c_list_first_entry(&ctx->ready_list, DispatchFile, ready_link))) {
+
+                /*
+                 * Whenever we dispatch an entry, we first move it into
+                 * a separate list, so if it modifies itself or others,
+                 * it will not corrupt our list iterator.
+                 *
+                 * Then we call into is dispatcher, so it can handle
+                 * the I/O events. The dispatchers can use DISPATCH_E_EXIT
+                 * or DISPATCH_E_FAILURE to exit the main-loop. Everything
+                 * else is treated as fatal.
+                 */
+
+                c_list_unlink(&file->ready_link);
+                c_list_link_tail(&processed, &file->ready_link);
+
+                r = file->fn(file, file->events & file->user_mask);
+                if (error_trace(r))
+                        break;
+        }
+
+        c_list_splice(&ctx->ready_list, &processed);
+        return r;
+}

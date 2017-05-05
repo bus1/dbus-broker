@@ -178,46 +178,6 @@ Manager *manager_free(Manager *manager) {
         return NULL;
 }
 
-static int manager_dispatch(Manager *manager) {
-        CList processed = (CList)C_LIST_INIT(processed);
-        DispatchFile *file;
-        int r;
-
-        r = dispatch_context_poll(&manager->dispatcher, c_list_is_empty(&manager->dispatcher.ready_list) ? -1 : 0);
-        if (r)
-                return error_fold(r);
-
-        do {
-                while (!r && (file = c_list_first_entry(&manager->dispatcher.ready_list, DispatchFile, ready_link))) {
-
-                        /*
-                         * Whenever we dispatch an entry, we first move it into
-                         * a separate list, so if it modifies itself or others,
-                         * it will not corrupt our list iterator.
-                         *
-                         * Then we call into is dispatcher, so it can handle
-                         * the I/O events. The dispatchers can use DISPATCH_E_EXIT
-                         * or DISPATCH_E_FAILURE to exit the main-loop. Everything
-                         * else is treated as fatal.
-                         */
-
-                        c_list_unlink(&file->ready_link);
-                        c_list_link_tail(&processed, &file->ready_link);
-
-                        r = dispatch_file_call(file);
-                        if (r == DISPATCH_E_EXIT)
-                                r = MAIN_EXIT;
-                        else if (r == DISPATCH_E_FAILURE)
-                                r = MAIN_FAILED;
-                        else
-                                r = error_fold(r);
-                }
-        } while (!r);
-
-        c_list_splice(&manager->dispatcher.ready_list, &processed);
-        return r;
-}
-
 int manager_run(Manager *manager) {
         sigset_t signew, sigold;
         int r;
@@ -229,10 +189,16 @@ int manager_run(Manager *manager) {
         sigprocmask(SIG_BLOCK, &signew, &sigold);
 
         do {
-                r = manager_dispatch(manager);
+                r = dispatch_context_dispatch(&manager->dispatcher);
+                if (r == DISPATCH_E_EXIT)
+                        r = MAIN_EXIT;
+                else if (r == DISPATCH_E_FAILURE)
+                        r = MAIN_FAILED;
+                else
+                        r = error_fold(r);
         } while (!r);
 
         sigprocmask(SIG_SETMASK, &sigold, NULL);
 
-        return error_trace(r);
+        return r;
 }

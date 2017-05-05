@@ -153,25 +153,6 @@ Bus *bus_free(Bus *bus) {
         return NULL;
 }
 
-static int bus_dispatch(Bus *bus) {
-        DispatchFile *file;
-        CList list = C_LIST_INIT(list);
-        int r = 0;
-
-        while ((file = c_list_first_entry(&bus->dispatcher.ready_list, DispatchFile, ready_link))) {
-                c_list_unlink(&file->ready_link);
-                c_list_link_tail(&list, &file->ready_link);
-
-                r = dispatch_file_call(file);
-                if (r)
-                        break;
-        }
-
-        c_list_splice(&bus->dispatcher.ready_list, &list);
-
-        return error_trace(r);
-}
-
 int bus_run(Bus *bus) {
         sigset_t mask;
         int r;
@@ -181,22 +162,16 @@ int bus_run(Bus *bus) {
         sigaddset(&mask, SIGINT);
         sigprocmask(SIG_BLOCK, &mask, NULL);
 
-        for (;;) {
-                r = dispatch_context_poll(&bus->dispatcher, c_list_is_empty(&bus->dispatcher.ready_list) ? -1 : 0);
-                if (r)
-                        goto exit;
-
-                r = bus_dispatch(bus);
-                if (r)
+        do {
+                r = dispatch_context_dispatch(&bus->dispatcher);
+                if (r == DISPATCH_E_EXIT) {
+                        r = 0;
                         break;
-        }
+                }
 
-        if (r == DISPATCH_E_EXIT)
-                r = 0;
-        else
                 r = error_fold(r);
+        } while (!r);
 
-exit:
         sigprocmask(SIG_UNBLOCK, &mask, NULL);
         return r;
 }
