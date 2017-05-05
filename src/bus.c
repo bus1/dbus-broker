@@ -35,20 +35,6 @@ static int bus_signal(DispatchFile *file, uint32_t events) {
         return DISPATCH_E_EXIT;
 }
 
-static int listener_dispatch(DispatchFile *file, uint32_t events) {
-        Listener *listener = c_container_of(file, Listener, socket_file);
-        int r;
-
-        if (!(events & EPOLLIN))
-                return 0;
-
-        r = listener_accept(listener);
-        if (r)
-                return error_fold(r);
-
-        return 0;
-}
-
 int bus_new(Bus **busp,
             int accept_fd,
             unsigned int max_bytes,
@@ -99,7 +85,7 @@ int bus_new(Bus **busp,
         dispatch_file_select(&bus->signal_file, EPOLLIN);
 
         if (accept_fd >= 0) {
-                r = listener_init_with_fd(&bus->listener, bus, listener_dispatch, accept_fd);
+                r = listener_init_with_fd(&bus->listener, bus, accept_fd);
                 if (r)
                         return error_fold(r);
         }

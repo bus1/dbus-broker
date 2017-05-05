@@ -29,9 +29,7 @@ struct Listener {
 
 int listener_init_with_fd(Listener *listener,
                           Bus *bus,
-                          DispatchFn dispatch_fn,
                           int socket_fd);
 void listener_deinit(Listener *listener);
-int listener_accept(Listener *listener);
 
 C_DEFINE_CLEANUP(Listener *, listener_deinit);
