@@ -21,7 +21,6 @@
 struct Manager {
         UserRegistry users;
         DispatchContext dispatcher;
-        CList dispatcher_list;
 
         int signals_fd;
         DispatchFile signals_file;
@@ -121,7 +120,6 @@ int manager_new(Manager **managerp, int controller_fd) {
 
         user_registry_init(&manager->users, 16 * 1024 * 1024, 128, 128, 128, 128);
         manager->dispatcher = (DispatchContext)DISPATCH_CONTEXT_NULL(manager->dispatcher);
-        manager->dispatcher_list = (CList)C_LIST_INIT(manager->dispatcher_list);
         manager->signals_fd = -1;
         manager->signals_file = (DispatchFile)DISPATCH_FILE_NULL(manager->signals_file);
         manager->controller = (Connection)CONNECTION_NULL(manager->controller);
@@ -140,7 +138,7 @@ int manager_new(Manager **managerp, int controller_fd) {
 
         r = dispatch_file_init(&manager->signals_file,
                                &manager->dispatcher,
-                               &manager->dispatcher_list,
+                               &manager->dispatcher.ready_list,
                                manager_dispatch_signals,
                                manager->signals_fd,
                                EPOLLIN);
@@ -153,7 +151,7 @@ int manager_new(Manager **managerp, int controller_fd) {
 
         r = connection_init_server(&manager->controller,
                                    &manager->dispatcher,
-                                   &manager->dispatcher_list,
+                                   &manager->dispatcher.ready_list,
                                    manager_dispatch_controller,
                                    user,
                                    "0123456789abcdef",
@@ -175,7 +173,6 @@ Manager *manager_free(Manager *manager) {
         connection_deinit(&manager->controller);
         dispatch_file_deinit(&manager->signals_file);
         c_close(manager->signals_fd);
-        assert(c_list_is_empty(&manager->dispatcher_list));
         dispatch_context_deinit(&manager->dispatcher);
         user_registry_deinit(&manager->users);
         free(manager);
@@ -188,12 +185,12 @@ static int manager_dispatch(Manager *manager) {
         DispatchFile *file;
         int r;
 
-        r = dispatch_context_poll(&manager->dispatcher, c_list_is_empty(&manager->dispatcher_list) ? -1 : 0);
+        r = dispatch_context_poll(&manager->dispatcher, c_list_is_empty(&manager->dispatcher.ready_list) ? -1 : 0);
         if (r)
                 return error_fold(r);
 
         do {
-                while (!r && (file = c_list_first_entry(&manager->dispatcher_list, DispatchFile, ready_link))) {
+                while (!r && (file = c_list_first_entry(&manager->dispatcher.ready_list, DispatchFile, ready_link))) {
 
                         /*
                          * Whenever we dispatch an entry, we first move it into
@@ -201,21 +198,9 @@ static int manager_dispatch(Manager *manager) {
                          * it will not corrupt our list iterator.
                          *
                          * Then we call into is dispatcher, so it can handle
-                         * the I/O events. The dispatchers can use MAIN_EXIT or
-                         * MAIN_FAILURE to exit the main-loop. Everything else
-                         * is treated as fatal.
-                         *
-                         * Additionally to this ready-list, we have a
-                         * hangup-list, which is a high-priority list. Whenever
-                         * a dispatcher needs to disconnect its current
-                         * connection, or any remote connection, it can put
-                         * those on the hangup-list, and they are guaranteed to
-                         * be handled next, before we continue with the normal
-                         * ready-list.
-                         * This is needed to avoid generating
-                         * disconnect-signals from deep code-paths all over the
-                         * place. We instead always defer the disconnect
-                         * handling to the hangup-list.
+                         * the I/O events. The dispatchers can use DISPATCH_E_EXIT
+                         * or DISPATCH_E_FAILURE to exit the main-loop. Everything
+                         * else is treated as fatal.
                          */
 
                         c_list_unlink(&file->ready_link);
@@ -231,7 +216,7 @@ static int manager_dispatch(Manager *manager) {
                 }
         } while (!r);
 
-        c_list_splice(&manager->dispatcher_list, &processed);
+        c_list_splice(&manager->dispatcher.ready_list, &processed);
         return r;
 }
 
