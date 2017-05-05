@@ -20,16 +20,7 @@ struct Listener {
         CList peer_list;
 };
 
-#define LISTENER_NULL(_x) {                                             \
-                .socket_fd = -1,                                        \
-                .socket_file = DISPATCH_FILE_NULL((_x).socket_file),    \
-                .bus_link = C_LIST_INIT((_x).bus_link),                 \
-                .peer_list = C_LIST_INIT((_x).peer_list),               \
-        }
+int listener_new_with_fd(Listener **listenerp, Bus *bus, int socket_fd);
+Listener *listener_free(Listener *free);
 
-int listener_init_with_fd(Listener *listener,
-                          Bus *bus,
-                          int socket_fd);
-void listener_deinit(Listener *listener);
-
-C_DEFINE_CLEANUP(Listener *, listener_deinit);
+C_DEFINE_CLEANUP(Listener *, listener_free);

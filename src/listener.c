@@ -61,18 +61,23 @@ static int listener_dispatch(DispatchFile *file, uint32_t events) {
 }
 
 /**
- * listener_init_with_fd() - XXX
+ * listener_new_with_fd() - XXX
  */
-int listener_init_with_fd(Listener *listener,
-                          Bus *bus,
-                          int socket_fd) {
-        _c_cleanup_(listener_deinitp) Listener *l = listener;
+int listener_new_with_fd(Listener **listenerp, Bus *bus, int socket_fd) {
+        _c_cleanup_(listener_freep) Listener *listener = NULL;
         int r;
 
-        *l = (Listener)LISTENER_NULL(*l);
+        listener = calloc(1, sizeof(*listener));
+        if (!listener)
+                return error_origin(-ENOMEM);
 
-        l->bus = bus;
-        r = dispatch_file_init(&l->socket_file,
+        listener->bus = bus;
+        listener->socket_fd = -1;
+        listener->socket_file = (DispatchFile)DISPATCH_FILE_NULL(listener->socket_file);
+        listener->bus_link = (CList)C_LIST_INIT(listener->bus_link);
+        listener->peer_list = (CList)C_LIST_INIT(listener->peer_list);
+
+        r = dispatch_file_init(&listener->socket_file,
                                &bus->dispatcher,
                                listener_dispatch,
                                socket_fd,
@@ -80,21 +85,27 @@ int listener_init_with_fd(Listener *listener,
         if (r)
                 return error_fold(r);
 
-        dispatch_file_select(&l->socket_file, EPOLLIN);
-        c_list_link_tail(&bus->listener_list, &l->bus_link);
+        dispatch_file_select(&listener->socket_file, EPOLLIN);
+        c_list_link_tail(&bus->listener_list, &listener->bus_link);
 
-        l->socket_fd = socket_fd;
-        l = NULL;
+        listener->socket_fd = socket_fd;
+        *listenerp = listener;
+        listener = NULL;
         return 0;
 }
 
 /**
- * listener_deinit() - XXX
+ * listener_free() - XXX
  */
-void listener_deinit(Listener *listener) {
+Listener *listener_free(Listener *listener) {
+        if (!listener)
+                return NULL;
+
         assert(c_list_is_empty(&listener->peer_list));
         c_list_unlink_init(&listener->bus_link);
         dispatch_file_deinit(&listener->socket_file);
         listener->socket_fd = c_close(listener->socket_fd);
-        listener->bus = NULL;
+        free(listener);
+
+        return NULL;
 }

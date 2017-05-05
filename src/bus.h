@@ -28,7 +28,6 @@ struct Bus {
         DispatchContext dispatcher;
         DispatchFile signal_file;
         int signal_fd;
-        Listener listener;
         CList listener_list;
         NameRegistry names;
         UserRegistry users;

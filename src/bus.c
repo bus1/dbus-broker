@@ -58,7 +58,6 @@ int bus_new(Bus **busp,
         if (!bus)
                 return error_origin(-ENOMEM);
 
-        bus->listener = (Listener)LISTENER_NULL(bus->listener);
         bus->listener_list = (CList)C_LIST_INIT(bus->listener_list);
         bus->signal_fd = signal_fd;
         signal_fd = -1;
@@ -84,12 +83,6 @@ int bus_new(Bus **busp,
 
         dispatch_file_select(&bus->signal_file, EPOLLIN);
 
-        if (accept_fd >= 0) {
-                r = listener_init_with_fd(&bus->listener, bus, accept_fd);
-                if (r)
-                        return error_fold(r);
-        }
-
         *busp = bus;
         bus = NULL;
         return 0;
@@ -99,7 +92,8 @@ Bus *bus_free(Bus *bus) {
         if (!bus)
                 return NULL;
 
-        listener_deinit(&bus->listener);
+        assert(c_list_is_empty(&bus->listener_list));
+
         dispatch_file_deinit(&bus->signal_file);
 
         dispatch_context_deinit(&bus->dispatcher);
@@ -108,6 +102,7 @@ Bus *bus_free(Bus *bus) {
         name_registry_deinit(&bus->names);
         match_registry_deinit(&bus->driver_matches);
         match_registry_deinit(&bus->wildcard_matches);
+
 
         free(bus);
 
