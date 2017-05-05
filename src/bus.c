@@ -111,7 +111,6 @@ int bus_new(Bus **busp,
 
         r = dispatch_file_init(&bus->accept_file,
                                &bus->dispatcher,
-                               &bus->dispatcher.ready_list,
                                bus_accept,
                                bus->accept_fd,
                                EPOLLIN);
@@ -122,7 +121,6 @@ int bus_new(Bus **busp,
 
         r = dispatch_file_init(&bus->signal_file,
                                &bus->dispatcher,
-                               &bus->dispatcher.ready_list,
                                bus_signal,
                                bus->signal_fd,
                                EPOLLIN);

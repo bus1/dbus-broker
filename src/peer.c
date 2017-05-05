@@ -181,7 +181,6 @@ int peer_new(Peer **peerp,
 
         r = connection_init_server(&peer->connection,
                                    &bus->dispatcher,
-                                   &bus->dispatcher.ready_list,
                                    peer_dispatch,
                                    peer->user,
                                    bus->guid,

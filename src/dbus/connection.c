@@ -15,7 +15,6 @@
 
 static int connection_init(Connection *connection,
                            DispatchContext *dispatch_ctx,
-                           CList *dispatch_list,
                            DispatchFn dispatch_fn,
                            UserEntry *user,
                            int fd) {
@@ -30,7 +29,6 @@ static int connection_init(Connection *connection,
 
         r = dispatch_file_init(&connection->socket_file,
                                dispatch_ctx,
-                               dispatch_list,
                                dispatch_fn,
                                fd,
                                EPOLLHUP | EPOLLIN | EPOLLOUT);
@@ -45,7 +43,6 @@ static int connection_init(Connection *connection,
  */
 int connection_init_server(Connection *connection,
                            DispatchContext *dispatch_ctx,
-                           CList *dispatch_list,
                            DispatchFn dispatch_fn,
                            UserEntry *user,
                            const char *guid,
@@ -55,7 +52,6 @@ int connection_init_server(Connection *connection,
 
         r = connection_init(c,
                             dispatch_ctx,
-                            dispatch_list,
                             dispatch_fn,
                             user,
                             fd);
@@ -73,7 +69,6 @@ int connection_init_server(Connection *connection,
  */
 int connection_init_client(Connection *connection,
                            DispatchContext *dispatch_ctx,
-                           CList *dispatch_list,
                            DispatchFn dispatch_fn,
                            UserEntry *user,
                            int fd) {
@@ -82,7 +77,6 @@ int connection_init_client(Connection *connection,
 
         r = connection_init(c,
                             dispatch_ctx,
-                            dispatch_list,
                             dispatch_fn,
                             user,
                             fd);

@@ -46,14 +46,12 @@ struct Connection {
 
 int connection_init_server(Connection *connection,
                            DispatchContext *dispatch_ctx,
-                           CList *dispatch_list,
                            DispatchFn dispatch_fn,
                            UserEntry *user,
                            const char *guid,
                            int fd);
 int connection_init_client(Connection *connection,
                            DispatchContext *dispatch_ctx,
-                           CList *dispatch_list,
                            DispatchFn dispatch_fn,
                            UserEntry *user,
                            int fd);

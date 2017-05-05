@@ -24,7 +24,6 @@ typedef int (*DispatchFn) (DispatchFile *file, uint32_t events);
 
 struct DispatchFile {
         DispatchContext *context;
-        CList *ready_list;
         CList ready_link;
         DispatchFn fn;
 
@@ -41,7 +40,6 @@ struct DispatchFile {
 
 int dispatch_file_init(DispatchFile *file,
                        DispatchContext *ctx,
-                       CList *ready_list,
                        DispatchFn fn,
                        int fd,
                        uint32_t mask);

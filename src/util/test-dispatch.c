@@ -47,7 +47,7 @@ static void test_uds_edge(void) {
         r = socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC | SOCK_NONBLOCK, 0, s);
         assert(!r);
 
-        r = dispatch_file_init(&f, &c, &c.ready_list, NULL, s[0], EPOLLOUT);
+        r = dispatch_file_init(&f, &c, NULL, s[0], EPOLLOUT);
         assert(!r);
 
         dispatch_file_select(&f, EPOLLOUT);

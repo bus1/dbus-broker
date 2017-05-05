@@ -138,7 +138,6 @@ int manager_new(Manager **managerp, int controller_fd) {
 
         r = dispatch_file_init(&manager->signals_file,
                                &manager->dispatcher,
-                               &manager->dispatcher.ready_list,
                                manager_dispatch_signals,
                                manager->signals_fd,
                                EPOLLIN);
@@ -151,7 +150,6 @@ int manager_new(Manager **managerp, int controller_fd) {
 
         r = connection_init_server(&manager->controller,
                                    &manager->dispatcher,
-                                   &manager->dispatcher.ready_list,
                                    manager_dispatch_controller,
                                    user,
                                    "0123456789abcdef",

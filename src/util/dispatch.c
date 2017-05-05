@@ -15,7 +15,6 @@
  */
 int dispatch_file_init(DispatchFile *file,
                        DispatchContext *ctx,
-                       CList *ready_list,
                        DispatchFn fn,
                        int fd,
                        uint32_t mask) {
@@ -37,7 +36,6 @@ int dispatch_file_init(DispatchFile *file,
                 return error_origin(-errno);
 
         file->context = ctx;
-        file->ready_list = ready_list;
         file->ready_link = (CList)C_LIST_INIT(file->ready_link);
         file->fn = fn;
         file->fd = fd;
@@ -65,7 +63,6 @@ void dispatch_file_deinit(DispatchFile *file) {
         }
 
         file->fd = -1;
-        file->ready_list = NULL;
         file->fn = NULL;
         file->context = NULL;
 }
@@ -79,7 +76,7 @@ void dispatch_file_select(DispatchFile *file, uint32_t mask) {
         file->user_mask |= mask;
         if ((file->user_mask & file->events) &&
             !c_list_is_linked(&file->ready_link))
-                c_list_link_tail(file->ready_list, &file->ready_link);
+                c_list_link_tail(&file->context->ready_list, &file->ready_link);
 }
 
 /**
@@ -167,7 +164,7 @@ int dispatch_context_poll(DispatchContext *ctx, int timeout) {
                 f->events |= e->events & f->kernel_mask;
                 if ((f->events & f->user_mask) &&
                     !c_list_is_linked(&f->ready_link))
-                        c_list_link_tail(f->ready_list, &f->ready_link);
+                        c_list_link_tail(&f->context->ready_list, &f->ready_link);
         }
 
         return 0;
