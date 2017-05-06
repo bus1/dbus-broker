@@ -77,9 +77,6 @@ if dep_systemd.found()
         test('Instance of broker + controller', test_broker)
 endif
 
-test_bus = executable('test-bus', ['test-bus.c'], dependencies: libdbus_broker_dep)
-test('Bus Management', test_bus)
-
 test_dispatch = executable('test-dispatch', ['util/test-dispatch.c'], dependencies: libdbus_broker_dep)
 test('Event Dispatcher', test_dispatch)
 
@@ -94,9 +91,6 @@ test('D-Bus Message Abstraction', test_message)
 
 test_name = executable('test-name', ['test-name.c'], dependencies: libdbus_broker_dep)
 test('Name Registry', test_name)
-
-test_peer = executable('test-peer', ['test-peer.c'], dependencies: libdbus_broker_dep)
-test('Peer Handling', test_peer)
 
 test_sasl = executable('test-sasl', ['dbus/test-sasl.c'], dependencies: libdbus_broker_dep)
 test('D-Bus SASL Parser', test_sasl)
