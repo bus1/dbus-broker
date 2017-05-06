@@ -13,7 +13,6 @@
 #include "name.h"
 #include "peer.h"
 #include "user.h"
-#include "util/dispatch.h"
 
 enum {
         _BUS_E_SUCCESS,
@@ -25,7 +24,6 @@ typedef struct Bus Bus;
 
 struct Bus {
         char guid[16];
-        DispatchContext dispatcher;
         CList listener_list;
         NameRegistry names;
         UserRegistry users;

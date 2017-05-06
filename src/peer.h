@@ -15,6 +15,7 @@
 #include "util/metrics.h"
 
 typedef struct Bus Bus;
+typedef struct DispatchContext DispatchContext;
 typedef struct Peer Peer;
 typedef struct PeerRegistry PeerRegistry;
 typedef struct Socket Socket;
@@ -53,7 +54,7 @@ struct PeerRegistry {
         uint64_t ids;
 };
 
-int peer_new_with_fd(Peer **peerp, Bus *bus, int fd);
+int peer_new_with_fd(Peer **peerp, Bus *bus, DispatchContext *dispatcher, int fd);
 Peer *peer_free(Peer *peer);
 
 int peer_spawn(Peer *peer);

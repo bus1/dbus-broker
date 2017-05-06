@@ -134,6 +134,7 @@ static int peer_compare(CRBTree *tree, void *k, CRBNode *rb) {
  */
 int peer_new_with_fd(Peer **peerp,
              Bus *bus,
+             DispatchContext *dispatcher,
              int fd) {
         _c_cleanup_(peer_freep) Peer *peer = NULL;
         _c_cleanup_(user_entry_unrefp) UserEntry *user = NULL;
@@ -180,7 +181,7 @@ int peer_new_with_fd(Peer **peerp,
         peer->replies_incoming = (CList)C_LIST_INIT(peer->replies_incoming);
 
         r = connection_init_server(&peer->connection,
-                                   &bus->dispatcher,
+                                   dispatcher,
                                    peer_dispatch,
                                    peer->user,
                                    bus->guid,

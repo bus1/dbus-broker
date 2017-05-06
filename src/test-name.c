@@ -10,15 +10,19 @@
 #include "name.h"
 #include "peer.h"
 #include "user.h"
+#include "util/dispatch.h"
 
 static void test_setup(void) {
+        DispatchContext dispatcher = DISPATCH_CONTEXT_NULL(dispatcher);
         _c_cleanup_(bus_freep) Bus *bus = NULL;
-        _c_cleanup_(peer_freep) Peer *peer = NULL;
+        Peer *peer, *p;
         NameChange change;
-        Peer *p;
         int r, pair[2];
 
         name_change_init(&change);
+
+        r = dispatch_context_init(&dispatcher);
+        assert(r >= 0);
 
         r = bus_new(&bus, 1024, 1024, 1024, 1024, 1024);
         assert(r >= 0);
@@ -26,7 +30,7 @@ static void test_setup(void) {
         r = socketpair(AF_UNIX, SOCK_STREAM, 0, pair);
         assert(r >= 0);
 
-        r = peer_new_with_fd(&peer, bus, pair[0]);
+        r = peer_new_with_fd(&peer, bus, &dispatcher, pair[0]);
         assert(r >= 0);
 
         peer_register(peer);
@@ -55,14 +59,20 @@ static void test_setup(void) {
         peer_unregister(peer);
         p = peer_registry_find_peer(&bus->peers, 0);
         assert(p == NULL);
+        peer_free(peer);
+        dispatch_context_deinit(&dispatcher);
         close(pair[1]);
 }
 
 static void test_release(void) {
+        DispatchContext dispatcher = DISPATCH_CONTEXT_NULL(dispatcher);
         _c_cleanup_(bus_freep) Bus *bus = NULL;
-        _c_cleanup_(peer_freep) Peer *peer1 = NULL, *peer2 = NULL;
+        Peer *peer1, *peer2;
         NameChange change;
         int r, pair[2];
+
+        r = dispatch_context_init(&dispatcher);
+        assert(r >= 0);
 
         name_change_init(&change);
 
@@ -72,9 +82,9 @@ static void test_release(void) {
         r = socketpair(AF_UNIX, SOCK_STREAM, 0, pair);
         assert(r >= 0);
 
-        r = peer_new_with_fd(&peer1, bus, pair[0]);
+        r = peer_new_with_fd(&peer1, bus, &dispatcher, pair[0]);
         assert(r >= 0);
-        r = peer_new_with_fd(&peer2, bus, pair[1]);
+        r = peer_new_with_fd(&peer2, bus, &dispatcher, pair[1]);
         assert(r >= 0);
         peer_register(peer1);
         peer_register(peer2);
@@ -104,15 +114,22 @@ static void test_release(void) {
         name_change_deinit(&change);
 
         peer_unregister(peer2);
+        peer_free(peer2);
         peer_unregister(peer1);
+        peer_free(peer1);
+        dispatch_context_deinit(&dispatcher);
 }
 
 static void test_queue(void) {
+        DispatchContext dispatcher = DISPATCH_CONTEXT_NULL(dispatcher);
         _c_cleanup_(bus_freep) Bus *bus = NULL;
-        _c_cleanup_(peer_freep) Peer *peer1 = NULL, *peer2 = NULL;
+        Peer *peer1, *peer2;
         NameChange change;
         Peer *peer;
         int r, pair[2];
+
+        r = dispatch_context_init(&dispatcher);
+        assert(r >= 0);
 
         name_change_init(&change);
 
@@ -122,9 +139,9 @@ static void test_queue(void) {
         r = socketpair(AF_UNIX, SOCK_STREAM, 0, pair);
         assert(r >= 0);
 
-        r = peer_new_with_fd(&peer1, bus, pair[0]);
+        r = peer_new_with_fd(&peer1, bus, &dispatcher, pair[0]);
         assert(r >= 0);
-        r = peer_new_with_fd(&peer2, bus, pair[1]);
+        r = peer_new_with_fd(&peer2, bus, &dispatcher, pair[1]);
         assert(r >= 0);
         peer_register(peer1);
         peer_register(peer2);
@@ -241,7 +258,10 @@ static void test_queue(void) {
         assert(change.new_owner == NULL);
         name_change_deinit(&change);
         peer_unregister(peer2);
+        peer_free(peer2);
         peer_unregister(peer1);
+        peer_free(peer1);
+        dispatch_context_deinit(&dispatcher);
 }
 
 int main(int argc, char **argv) {

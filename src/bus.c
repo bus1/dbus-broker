@@ -11,7 +11,6 @@
 #include "match.h"
 #include "name.h"
 #include "user.h"
-#include "util/dispatch.h"
 #include "util/error.h"
 
 int bus_new(Bus **busp,
@@ -21,7 +20,6 @@ int bus_new(Bus **busp,
             unsigned int max_names,
             unsigned int max_matches) {
         _c_cleanup_(bus_freep) Bus *bus = NULL;
-        int r;
 
         bus = calloc(1, sizeof(*bus));
         if (!bus)
@@ -34,11 +32,6 @@ int bus_new(Bus **busp,
         name_registry_init(&bus->names);
         user_registry_init(&bus->users, max_bytes, max_fds, max_peers, max_names, max_matches);
         peer_registry_init(&bus->peers);
-        bus->dispatcher = (DispatchContext)DISPATCH_CONTEXT_NULL(bus->dispatcher);
-
-        r = dispatch_context_init(&bus->dispatcher);
-        if (r)
-                return error_fold(r);
 
         *busp = bus;
         bus = NULL;
@@ -51,7 +44,6 @@ Bus *bus_free(Bus *bus) {
 
         assert(c_list_is_empty(&bus->listener_list));
 
-        dispatch_context_deinit(&bus->dispatcher);
         peer_registry_deinit(&bus->peers);
         user_registry_deinit(&bus->users);
         name_registry_deinit(&bus->names);

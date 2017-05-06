@@ -42,7 +42,7 @@ static int listener_dispatch(DispatchFile *file, uint32_t events) {
                 }
         }
 
-        r = peer_new_with_fd(&peer, listener->bus, fd);
+        r = peer_new_with_fd(&peer, listener->bus, file->context, fd);
         if (r == PEER_E_QUOTA)
                 /*
                  * The user has too many open connections, simply drop this.
@@ -63,7 +63,7 @@ static int listener_dispatch(DispatchFile *file, uint32_t events) {
 /**
  * listener_new_with_fd() - XXX
  */
-int listener_new_with_fd(Listener **listenerp, Bus *bus, int socket_fd) {
+int listener_new_with_fd(Listener **listenerp, Bus *bus, DispatchContext *dispatcher, int socket_fd) {
         _c_cleanup_(listener_freep) Listener *listener = NULL;
         int r;
 
@@ -78,7 +78,7 @@ int listener_new_with_fd(Listener **listenerp, Bus *bus, int socket_fd) {
         listener->peer_list = (CList)C_LIST_INIT(listener->peer_list);
 
         r = dispatch_file_init(&listener->socket_file,
-                               &bus->dispatcher,
+                               dispatcher,
                                listener_dispatch,
                                socket_fd,
                                EPOLLIN);

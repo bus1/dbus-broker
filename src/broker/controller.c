@@ -18,8 +18,9 @@
 #include "util/error.h"
 #include "util/fdlist.h"
 
+typedef struct DispatchContext DispatchContext;
 typedef struct ControllerMethod ControllerMethod;
-typedef int (*ControllerMethodFn) (Bus *bus, CDVar *var_in, FDList *fds_in, CDVar *var_out);
+typedef int (*ControllerMethodFn) (Bus *bus, DispatchContext *dispatcher, CDVar *var_in, FDList *fds_in, CDVar *var_out);
 
 struct ControllerMethod {
         const char *name;
@@ -183,7 +184,7 @@ static int controller_end_read(CDVar *var) {
         }
 }
 
-static int controller_method_add_listener(Bus *bus, CDVar *in_v, FDList *fds, CDVar *out_v) {
+static int controller_method_add_listener(Bus *bus, DispatchContext *dispatcher, CDVar *in_v, FDList *fds, CDVar *out_v) {
         Listener *listener;
         uint32_t fd_index;
         int r, fd;
@@ -197,7 +198,7 @@ static int controller_method_add_listener(Bus *bus, CDVar *in_v, FDList *fds, CD
         /* XXX: error handling */
         fd = fdlist_get(fds, fd_index);
 
-        r = listener_new_with_fd(&listener, bus, fd);
+        r = listener_new_with_fd(&listener, bus, dispatcher, fd);
         if (r)
                 return error_fold(r);
 
@@ -237,7 +238,7 @@ static int controller_handle_method(const ControllerMethod *method, Bus *bus, Co
         c_dvar_write(&var_out, "(");
         controller_write_reply_header(&var_out, serial, method->out);
 
-        r = method->fn(bus, &var_in, message_in->fds, &var_out);
+        r = method->fn(bus, connection->socket_file.context, &var_in, message_in->fds, &var_out);
         if (r)
                 return error_trace(r);
 

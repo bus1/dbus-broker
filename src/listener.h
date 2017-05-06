@@ -10,6 +10,7 @@
 #include "util/dispatch.h"
 
 typedef struct Bus Bus;
+typedef struct DispatchContext DispatchContext;
 typedef struct Listener Listener;
 
 struct Listener {
@@ -20,7 +21,7 @@ struct Listener {
         CList peer_list;
 };
 
-int listener_new_with_fd(Listener **listenerp, Bus *bus, int socket_fd);
+int listener_new_with_fd(Listener **listenerp, Bus *bus, DispatchContext *dispatcher, int socket_fd);
 Listener *listener_free(Listener *free);
 
 C_DEFINE_CLEANUP(Listener *, listener_free);

@@ -28,9 +28,13 @@ static void test_args(Peer *peer,
 }
 
 static void test_setup(void) {
+        DispatchContext dispatcher = DISPATCH_CONTEXT_NULL(dispatcher);
         _c_cleanup_(bus_freep) Bus *bus = NULL;
-        _c_cleanup_(peer_freep) Peer *peer = NULL;
+        Peer *peer;
         int pair[2], r;
+
+        r = dispatch_context_init(&dispatcher);
+        assert(r >= 0);
 
         r = bus_new(&bus, 1024, 1024, 1024, 1024, 1024);
         assert(r >= 0);
@@ -38,7 +42,7 @@ static void test_setup(void) {
         r = socketpair(AF_UNIX, SOCK_STREAM, 0, pair);
         assert(r >= 0);
 
-        r = peer_new_with_fd(&peer, bus, pair[0]);
+        r = peer_new_with_fd(&peer, bus, &dispatcher, pair[0]);
         assert(r >= 0);
 
         /* examples taken from the spec */
@@ -48,6 +52,8 @@ static void test_setup(void) {
                   "\'", "\\", ",", "\\\\");
 
         close(pair[1]);
+        peer_free(peer);
+        dispatch_context_deinit(&dispatcher);
 }
 
 int main(int argc, char **argv) {
