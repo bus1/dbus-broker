@@ -75,7 +75,7 @@ static inline void *test_run_controller(void *userdata) {
         r = sd_bus_call_method(bus, NULL, "/org/bus1/Controller", "org.bus1.Controller", "AddListener", NULL, NULL, "h", listener_fd);
         assert(r >= 0);
 
-        r = sd_event_run(event, -1);
+        r = sd_event_loop(event);
         assert(r >= 0);
 
         sigprocmask(SIG_SETMASK, &sigold, NULL);
