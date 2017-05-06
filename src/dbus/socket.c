@@ -290,7 +290,15 @@ int socket_dequeue(Socket *socket, Message **messagep) {
                 n = sizeof(MessageHeader);
                 if (_c_unlikely_(n_data < n)) {
                         *messagep = NULL;
-                        return _c_unlikely_(socket->hup_in) ? SOCKET_E_EOF : 0;
+
+                        if (_c_unlikely_(socket->hup_in)) {
+                                if (socket->hup_out)
+                                        return SOCKET_E_RESET;
+                                else
+                                        return SOCKET_E_EOF;
+                        }
+
+                        return 0;
                 }
 
                 memcpy(&header, socket->in.data + socket->in.data_start, n);
