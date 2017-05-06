@@ -190,6 +190,10 @@ int manager_run(Manager *manager) {
 
         sigprocmask(SIG_BLOCK, &signew, &sigold);
 
+        r = connection_open(&manager->controller);
+        if (r)
+                return error_fold(r);
+
         do {
                 r = dispatch_context_dispatch(&manager->dispatcher);
                 if (r == DISPATCH_E_EXIT)
