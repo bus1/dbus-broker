@@ -50,7 +50,7 @@ static void test_setup(void) {
         pthread_t thread;
         int r;
 
-        thread = test_spawn_bus(&address, &addrlen);
+        thread = test_spawn_broker(&address, &addrlen);
 
         bus1 = connect_bus(&address, addrlen);
         bus2 = connect_bus(&address, addrlen);
@@ -180,7 +180,7 @@ static void test_driver(void) {
         pthread_t thread;
         int r;
 
-        thread = test_spawn_bus(&address, &addrlen);
+        thread = test_spawn_broker(&address, &addrlen);
 
         bus1 = connect_bus(&address, addrlen);
         bus2 = connect_bus(&address, addrlen);
