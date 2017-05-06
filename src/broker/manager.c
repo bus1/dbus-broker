@@ -146,6 +146,8 @@ int manager_new(Manager **managerp, int controller_fd) {
         if (r)
                 return error_fold(r);
 
+        dispatch_file_select(&manager->signals_file, EPOLLIN);
+
         r = user_registry_ref_entry(&manager->bus->users, &user, ucred.uid);
         if (r)
                 return error_fold(r);
@@ -158,8 +160,6 @@ int manager_new(Manager **managerp, int controller_fd) {
                                    controller_fd);
         if (r)
                 return error_fold(r);
-
-        dispatch_file_select(&manager->signals_file, EPOLLIN);
 
         *managerp = manager;
         manager = NULL;
