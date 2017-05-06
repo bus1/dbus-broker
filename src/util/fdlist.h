@@ -33,4 +33,14 @@ static inline int fdlist_get(FDList *list, size_t index) {
         return fdlist_data(list)[index];
 }
 
+static inline int fdlist_steal(FDList *list, size_t index) {
+        int fd;
+
+        assert(index < fdlist_count(list));
+        fd = fdlist_data(list)[index];
+        fdlist_data(list)[index] = -1;
+
+        return fd;
+}
+
 C_DEFINE_CLEANUP(FDList *, fdlist_free);
