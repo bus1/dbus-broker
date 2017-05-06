@@ -56,10 +56,20 @@ struct ControllerMethod {
                 _body                                   \
         )
 
-static const CDVarType controller_type_in_h[] = {
+static const CDVarType controller_type_in_oh[] = {
         C_DVAR_T_INIT(
-                C_DVAR_T_TUPLE1(
+                C_DVAR_T_TUPLE2(
+                        C_DVAR_T_o,
                         C_DVAR_T_h
+                )
+        )
+};
+static const CDVarType controller_type_in_osu[] = {
+        C_DVAR_T_INIT(
+                C_DVAR_T_TUPLE3(
+                        C_DVAR_T_o,
+                        C_DVAR_T_s,
+                        C_DVAR_T_u
                 )
         )
 };
@@ -184,16 +194,50 @@ static int controller_end_read(CDVar *var) {
         }
 }
 
-static int controller_method_add_listener(Bus *bus, DispatchContext *dispatcher, CDVar *in_v, FDList *fds, CDVar *out_v) {
-        Listener *listener;
-        uint32_t fd_index;
-        int r, fd;
+static int controller_method_add_name(Bus *bus, DispatchContext *dispatcher, CDVar *in_v, FDList *fds, CDVar *out_v) {
+        _c_cleanup_(name_entry_unrefp) NameEntry *entry = NULL;
+        const char *path, *name;
+        uid_t uid;
+        int r;
 
-        c_dvar_read(in_v, "(h)", &fd_index);
+        c_dvar_read(in_v, "(osu)", &path, &name, &uid);
 
         r = controller_end_read(in_v);
         if (r)
                 return error_trace(r);
+
+        if (strncmp(path, "/org/bus1/DBus/Name/", strlen("/org/bus1/DBus/Name/")) != 0)
+                return CONTROLLER_E_UNEXPECTED_PATH;
+
+        /*
+         * XXX: error out if the name is already activatable, and attach a user object
+         * to it for accounting.
+         */
+        r = name_entry_set_activatable(&bus->names, name, true);
+        if (r)
+                return error_fold(r);
+
+        c_dvar_write(out_v, "()");
+
+        return 0;
+}
+
+static int controller_method_add_listener(Bus *bus, DispatchContext *dispatcher, CDVar *in_v, FDList *fds, CDVar *out_v) {
+        Listener *listener;
+        uint32_t fd_index;
+        const char *path;
+        int r, fd;
+
+        /* XXX: pass in policy */
+
+        c_dvar_read(in_v, "(oh)", &path, &fd_index);
+
+        r = controller_end_read(in_v);
+        if (r)
+                return error_trace(r);
+
+        if (strncmp(path, "/org/bus1/DBus/Listener/", strlen("/org/bus1/DBus/Listener/")) != 0)
+                return CONTROLLER_E_UNEXPECTED_PATH;
 
         /* XXX: error handling */
         fd = fdlist_get(fds, fd_index);
@@ -268,7 +312,8 @@ static int controller_handle_method(const ControllerMethod *method, Bus *bus, Co
 
 static int controller_dispatch_method(Bus *bus, Connection *connection, uint32_t serial, const char *method, const char *path, const char *signature, Message *message) {
         static const ControllerMethod methods[] = {
-                { "AddListener",        controller_method_add_listener,         controller_type_in_h,   controller_type_out_unit },
+                { "AddName",            controller_method_add_name,     controller_type_in_osu, controller_type_out_unit },
+                { "AddListener",        controller_method_add_listener, controller_type_in_oh,  controller_type_out_unit },
         };
 
         for (size_t i = 0; i < C_ARRAY_SIZE(methods); i++) {
@@ -286,10 +331,11 @@ static int controller_dispatch_interface(Bus *bus, Connection *connection, uint3
                 /* XXX: ignore, like in the driver? */
                 return 0;
 
-        if (interface && _c_unlikely_(strcmp(interface, "org.bus1.Controller") != 0))
-                return CONTROLLER_E_UNEXPECTED_INTERFACE;
-        if (_c_unlikely_(strcmp(path, "/org/bus1/Controller") != 0))
+        if (_c_unlikely_(strcmp(path, "/org/bus1/DBus/Controller") != 0))
                 return CONTROLLER_E_UNEXPECTED_PATH;
+
+        if (interface && _c_unlikely_(strcmp(interface, "org.bus1.DBus.Controller") != 0))
+                return CONTROLLER_E_UNEXPECTED_INTERFACE;
 
         return controller_dispatch_method(bus, connection, serial, member, path, signature, message);
 }
