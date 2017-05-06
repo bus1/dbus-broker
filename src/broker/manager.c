@@ -104,7 +104,7 @@ int manager_new(Manager **managerp, int controller_fd) {
         _c_cleanup_(manager_freep) Manager *manager = NULL;
         _c_cleanup_(user_entry_unrefp) UserEntry *user = NULL;
         struct ucred ucred;
-        socklen_t z_ucred;
+        socklen_t z_ucred = sizeof(ucred);
         sigset_t sigmask;
         int r;
 
