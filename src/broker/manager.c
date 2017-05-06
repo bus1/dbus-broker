@@ -12,6 +12,7 @@
 #include <sys/types.h>
 #include "dbus/connection.h"
 #include "dbus/message.h"
+#include "bus.h"
 #include "main.h"
 #include "manager.h"
 #include "user.h"
@@ -19,7 +20,7 @@
 #include "util/error.h"
 
 struct Manager {
-        UserRegistry users;
+        Bus *bus;
         DispatchContext dispatcher;
 
         int signals_fd;
@@ -118,11 +119,15 @@ int manager_new(Manager **managerp, int controller_fd) {
         if (!manager)
                 return error_origin(-ENOMEM);
 
-        user_registry_init(&manager->users, 16 * 1024 * 1024, 128, 128, 128, 128);
+        manager->bus = NULL;
         manager->dispatcher = (DispatchContext)DISPATCH_CONTEXT_NULL(manager->dispatcher);
         manager->signals_fd = -1;
         manager->signals_file = (DispatchFile)DISPATCH_FILE_NULL(manager->signals_file);
         manager->controller = (Connection)CONNECTION_NULL(manager->controller);
+
+        r = bus_new(&manager->bus, 16 * 1024 * 1024, 128, 128, 128, 128);
+        if (r)
+                return error_fold(r);
 
         r = dispatch_context_init(&manager->dispatcher);
         if (r)
@@ -144,7 +149,7 @@ int manager_new(Manager **managerp, int controller_fd) {
         if (r)
                 return error_fold(r);
 
-        r = user_registry_ref_entry(&manager->users, &user, ucred.uid);
+        r = user_registry_ref_entry(&manager->bus->users, &user, ucred.uid);
         if (r)
                 return error_fold(r);
 
@@ -172,7 +177,7 @@ Manager *manager_free(Manager *manager) {
         dispatch_file_deinit(&manager->signals_file);
         c_close(manager->signals_fd);
         dispatch_context_deinit(&manager->dispatcher);
-        user_registry_deinit(&manager->users);
+        bus_free(manager->bus);
         free(manager);
 
         return NULL;
