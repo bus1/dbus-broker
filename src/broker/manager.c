@@ -13,6 +13,7 @@
 #include "dbus/connection.h"
 #include "dbus/message.h"
 #include "bus.h"
+#include "controller.h"
 #include "main.h"
 #include "manager.h"
 #include "user.h"
@@ -52,10 +53,6 @@ static int manager_dispatch_signals(DispatchFile *file, uint32_t events) {
         return DISPATCH_E_EXIT;
 }
 
-static int manager_dispatch_controller_message(Manager *manager, Message *m) {
-        return 0;
-}
-
 static int manager_dispatch_controller(DispatchFile *file, uint32_t events) {
         Manager *manager = c_container_of(file, Manager, controller.socket_file);
         int r;
@@ -89,7 +86,7 @@ static int manager_dispatch_controller(DispatchFile *file, uint32_t events) {
                 if (!m)
                         break;
 
-                r = manager_dispatch_controller_message(manager, m);
+                r = controller_dispatch(manager->bus, &manager->controller, m);
                 if (r)
                         return error_trace(r);
         }
