@@ -86,7 +86,7 @@ static int manager_dispatch_controller(DispatchFile *file, uint32_t events) {
                 if (!m)
                         break;
 
-                r = controller_dispatch(manager->bus, &manager->controller, m);
+                r = controller_dispatch(manager->bus, m);
                 if (r)
                         return error_trace(r);
         }
@@ -125,6 +125,8 @@ int manager_new(Manager **managerp, int controller_fd) {
         r = bus_new(&manager->bus, 16 * 1024 * 1024, 128, 128, 128, 128);
         if (r)
                 return error_fold(r);
+
+        manager->bus->controller = &manager->controller;
 
         r = dispatch_context_init(&manager->dispatcher);
         if (r)

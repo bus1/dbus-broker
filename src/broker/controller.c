@@ -21,7 +21,7 @@
 
 typedef struct DispatchContext DispatchContext;
 typedef struct ControllerMethod ControllerMethod;
-typedef int (*ControllerMethodFn) (Bus *bus, DispatchContext *dispatcher, CDVar *var_in, FDList *fds_in, CDVar *var_out);
+typedef int (*ControllerMethodFn) (Bus *bus, CDVar *var_in, FDList *fds_in, CDVar *var_out);
 
 struct ControllerMethod {
         const char *name;
@@ -195,7 +195,7 @@ static int controller_end_read(CDVar *var) {
         }
 }
 
-static int controller_method_add_name(Bus *bus, DispatchContext *dispatcher, CDVar *in_v, FDList *fds, CDVar *out_v) {
+static int controller_method_add_name(Bus *bus, CDVar *in_v, FDList *fds, CDVar *out_v) {
         Activation *activation;
         const char *path, *name;
         uid_t uid;
@@ -225,8 +225,9 @@ static int controller_method_add_name(Bus *bus, DispatchContext *dispatcher, CDV
         return 0;
 }
 
-static int controller_method_add_listener(Bus *bus, DispatchContext *dispatcher, CDVar *in_v, FDList *fds, CDVar *out_v) {
+static int controller_method_add_listener(Bus *bus, CDVar *in_v, FDList *fds, CDVar *out_v) {
         Listener *listener;
+        DispatchContext *dispatcher = bus->controller->socket_file.context;
         uint32_t fd_index;
         const char *path;
         int r;
@@ -256,7 +257,7 @@ static int controller_method_add_listener(Bus *bus, DispatchContext *dispatcher,
         return 0;
 }
 
-static int controller_handle_method(const ControllerMethod *method, Bus *bus, Connection *connection, const char *path, uint32_t serial, const char *signature_in, Message *message_in) {
+static int controller_handle_method(const ControllerMethod *method, Bus *bus, const char *path, uint32_t serial, const char *signature_in, Message *message_in) {
         _c_cleanup_(c_dvar_deinitp) CDVar var_in = C_DVAR_INIT, var_out = C_DVAR_INIT;
         _c_cleanup_(message_unrefp) Message *message_out = NULL;
         void *data;
@@ -285,7 +286,7 @@ static int controller_handle_method(const ControllerMethod *method, Bus *bus, Co
         c_dvar_write(&var_out, "(");
         controller_write_reply_header(&var_out, serial, method->out);
 
-        r = method->fn(bus, connection->socket_file.context, &var_in, message_in->fds, &var_out);
+        r = method->fn(bus, &var_in, message_in->fds, &var_out);
         if (r)
                 return error_trace(r);
 
@@ -306,14 +307,14 @@ static int controller_handle_method(const ControllerMethod *method, Bus *bus, Co
         if (r)
                 return error_fold(r);
 
-        r = connection_queue_message(connection, message_out);
+        r = connection_queue_message(bus->controller, message_out);
         if (r)
                 return error_fold(r);
 
         return 0;
 }
 
-static int controller_dispatch_method(Bus *bus, Connection *connection, uint32_t serial, const char *method, const char *path, const char *signature, Message *message) {
+static int controller_dispatch_method(Bus *bus, uint32_t serial, const char *method, const char *path, const char *signature, Message *message) {
         static const ControllerMethod methods[] = {
                 { "AddName",            controller_method_add_name,     controller_type_in_osu, controller_type_out_unit },
                 { "AddListener",        controller_method_add_listener, controller_type_in_oh,  controller_type_out_unit },
@@ -323,13 +324,13 @@ static int controller_dispatch_method(Bus *bus, Connection *connection, uint32_t
                 if (strcmp(methods[i].name, method) != 0)
                         continue;
 
-                return controller_handle_method(&methods[i], bus, connection, path, serial, signature, message);
+                return controller_handle_method(&methods[i], bus, path, serial, signature, message);
         }
 
         return CONTROLLER_E_UNEXPECTED_METHOD;
 }
 
-static int controller_dispatch_interface(Bus *bus, Connection *connection, uint32_t serial, const char *interface, const char *member, const char *path, const char *signature, Message *message) {
+static int controller_dispatch_interface(Bus *bus, uint32_t serial, const char *interface, const char *member, const char *path, const char *signature, Message *message) {
         if (message->header->type != DBUS_MESSAGE_TYPE_METHOD_CALL)
                 /* XXX: ignore, like in the driver? */
                 return 0;
@@ -340,10 +341,10 @@ static int controller_dispatch_interface(Bus *bus, Connection *connection, uint3
         if (interface && _c_unlikely_(strcmp(interface, "org.bus1.DBus.Controller") != 0))
                 return CONTROLLER_E_UNEXPECTED_INTERFACE;
 
-        return controller_dispatch_method(bus, connection, serial, member, path, signature, message);
+        return controller_dispatch_method(bus, serial, member, path, signature, message);
 }
 
-int controller_dispatch(Bus *bus, Connection *connection, Message *message) {
+int controller_dispatch(Bus *bus, Message *message) {
         MessageMetadata metadata;
         const char *signature;
         int r;
@@ -358,7 +359,6 @@ int controller_dispatch(Bus *bus, Connection *connection, Message *message) {
         signature = metadata.fields.signature ?: "";
 
         r = controller_dispatch_interface(bus,
-                                          connection,
                                           metadata.header.serial,
                                           metadata.fields.interface,
                                           metadata.fields.member,
@@ -370,16 +370,16 @@ int controller_dispatch(Bus *bus, Connection *connection, Message *message) {
                 return CONTROLLER_E_DISCONNECT;
         case CONTROLLER_E_UNEXPECTED_PATH:
         case CONTROLLER_E_UNEXPECTED_MESSAGE_TYPE:
-                r = controller_send_error(connection, metadata.header.serial, "org.freedesktop.DBus.Error.AccessDenied");
+                r = controller_send_error(bus->controller, metadata.header.serial, "org.freedesktop.DBus.Error.AccessDenied");
                 break;
         case CONTROLLER_E_UNEXPECTED_INTERFACE:
-                r = controller_send_error(connection, metadata.header.serial, "org.freedesktop.DBus.Error.UnknownInterface");
+                r = controller_send_error(bus->controller, metadata.header.serial, "org.freedesktop.DBus.Error.UnknownInterface");
                 break;
         case CONTROLLER_E_UNEXPECTED_METHOD:
-                r = controller_send_error(connection, metadata.header.serial, "org.freedesktop.DBus.Error.UnknownMethod");
+                r = controller_send_error(bus->controller, metadata.header.serial, "org.freedesktop.DBus.Error.UnknownMethod");
                 break;
         case CONTROLLER_E_UNEXPECTED_SIGNATURE:
-                r = controller_send_error(connection, metadata.header.serial, "org.freedesktop.DBus.Error.InvalidArgs");
+                r = controller_send_error(bus->controller, metadata.header.serial, "org.freedesktop.DBus.Error.InvalidArgs");
                 break;
         default:
                 break;

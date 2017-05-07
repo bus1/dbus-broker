@@ -29,4 +29,4 @@ enum {
         CONTROLLER_E_NAME_IS_ACTIVATABLE,
 };
 
-int controller_dispatch(Bus *bus, Connection *connection, Message *message);
+int controller_dispatch(Bus *bus, Message *message);

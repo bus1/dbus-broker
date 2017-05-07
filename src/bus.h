@@ -20,8 +20,10 @@ enum {
 };
 
 typedef struct Bus Bus;
+typedef struct Connection Connection;
 
 struct Bus {
+        Connection *controller;
         char guid[16];
         CRBTree listener_tree;
         CRBTree activation_tree;
