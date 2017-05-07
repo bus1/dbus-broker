@@ -182,8 +182,7 @@ static int name_entry_new(NameEntry **entryp, NameRegistry *registry, const char
 
         entry->n_refs = C_REF_INIT;
         entry->registry = registry;
-        entry->activatable = false;
-        entry->pending_skbs = (CList)C_LIST_INIT(entry->pending_skbs);
+        entry->activation = NULL;
         match_registry_init(&entry->matches);
         c_rbtree_add(&registry->entries, parent, slot, &entry->rb);
         entry->owners = (CList)C_LIST_INIT(entry->owners);
@@ -196,8 +195,8 @@ static int name_entry_new(NameEntry **entryp, NameRegistry *registry, const char
 void name_entry_free(_Atomic unsigned long *n_refs, void *userpointer) {
         NameEntry *entry = c_container_of(n_refs, NameEntry, n_refs);
 
-        assert(c_list_is_empty(&entry->pending_skbs));
         assert(c_list_is_empty(&entry->owners));
+        assert(!entry->activation);
 
         c_rbtree_remove(&entry->registry->entries, &entry->rb);
 
@@ -229,43 +228,6 @@ int name_entry_get(NameEntry **entryp, NameRegistry *registry, const char *name)
                 if (r)
                         return error_trace(r);
         }
-
-        return 0;
-}
-
-int name_entry_set_activatable(NameRegistry *registry, const char *name, bool activatable) {
-        _c_cleanup_(name_entry_unrefp) NameEntry *entry = NULL;
-        int r;
-
-        r = name_entry_get(&entry, registry, name);
-        if (r)
-                return error_trace(r);
-
-        if (entry->activatable == activatable)
-                return 0;
-
-        entry->activatable = activatable;
-
-        if (activatable)
-                name_entry_ref(entry);
-        else
-                name_entry_unref(entry);
-
-        return 0;
-}
-
-int name_entry_queue_message(NameEntry *entry, Message *message) {
-        _c_cleanup_(socket_buffer_freep) SocketBuffer *skb = NULL;
-        int r;
-
-        if (!entry->activatable)
-                return NAME_E_NOT_ACTIVATABLE;
-
-        r = socket_buffer_new_message(&skb, message);
-        if (r)
-                return error_fold(r);
-
-        c_list_link_tail(&entry->pending_skbs, &skb->link);
 
         return 0;
 }

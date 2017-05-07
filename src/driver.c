@@ -8,6 +8,7 @@
 #include <c-string.h>
 #include <stdlib.h>
 #include <sys/epoll.h>
+#include "activation.h"
 #include "bus.h"
 #include "dbus/message.h"
 #include "dbus/protocol.h"
@@ -348,7 +349,10 @@ static int driver_forward_unicast(Peer *sender, const char *destination, Message
 
                 owner = c_list_first_entry(&name->owners, NameOwner, entry_link);
                 if (!owner) {
-                        r = name_entry_queue_message(name, message);
+                        if (!name->activation)
+                                return DRIVER_E_DESTINATION_NOT_FOUND;
+
+                        r = activation_queue_message(name->activation, message);
                         if (r)
                                 return error_fold(r);
 
@@ -587,11 +591,14 @@ static int driver_name_owner_changed(const char *name, Peer *old_owner, Peer *ne
         return 0;
 }
 
-static int driver_name_activated(NameEntry *name, Peer *receiver) {
+static int driver_name_activated(Activation *activation, Peer *receiver) {
         SocketBuffer *skb, *safe;
         int r;
 
-        c_list_for_each_entry_safe(skb, safe, &name->pending_skbs, link) {
+        if (!activation)
+                return 0;
+
+        c_list_for_each_entry_safe(skb, safe, &activation->socket_buffers, link) {
                 Message *message = skb->message;
                 Peer *sender;
 
@@ -780,7 +787,7 @@ static int driver_method_list_activatable_names(Peer *peer, CDVar *in_v, CDVar *
         for (CRBNode *n = c_rbtree_first(&peer->bus->names.entries); n; n = c_rbnode_next(n)) {
                 NameEntry *entry = c_container_of(n, NameEntry, rb);
 
-                if (!entry->activatable)
+                if (!entry->activation)
                         continue;
 
                 c_dvar_write(out_v, "s", entry->name);
@@ -1131,7 +1138,7 @@ static int driver_handle_method(const DriverMethod *method, Peer *peer, const ch
                         return error_trace(r);
 
                 if (change.name && change.new_owner) {
-                        r = driver_name_activated(change.name, change.new_owner);
+                        r = driver_name_activated(change.name->activation, change.new_owner);
                         if (r)
                                 return error_trace(r);
                 }

@@ -25,6 +25,8 @@ enum {
         CONTROLLER_E_UNEXPECTED_REPLY,
 
         CONTROLLER_E_LISTENER_EXISTS,
+        CONTROLLER_E_ACTIVATION_EXISTS,
+        CONTROLLER_E_NAME_IS_ACTIVATABLE,
 };
 
 int controller_dispatch(Bus *bus, Connection *connection, Message *message);

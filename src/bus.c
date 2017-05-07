@@ -25,6 +25,7 @@ int bus_new(Bus **busp,
         if (!bus)
                 return error_origin(-ENOMEM);
 
+        bus->activation_tree = (CRBTree){};
         bus->listener_tree = (CRBTree){};
         match_registry_init(&bus->wildcard_matches);
         match_registry_init(&bus->driver_matches);
@@ -42,6 +43,7 @@ Bus *bus_free(Bus *bus) {
         if (!bus)
                 return NULL;
 
+        assert(!bus->activation_tree.root);
         assert(!bus->listener_tree.root);
 
         peer_registry_deinit(&bus->peers);

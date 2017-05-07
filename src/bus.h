@@ -24,6 +24,7 @@ typedef struct Bus Bus;
 struct Bus {
         char guid[16];
         CRBTree listener_tree;
+        CRBTree activation_tree;
         NameRegistry names;
         UserRegistry users;
         MatchRegistry wildcard_matches;

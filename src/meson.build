@@ -11,6 +11,7 @@ libdbus_broker_private = static_library(
                 'dbus/sasl.c',
                 'dbus/socket.c',
                 'dbus/unique-name.c',
+                'activation.c',
                 'driver.c',
                 'listener.c',
                 'match.c',

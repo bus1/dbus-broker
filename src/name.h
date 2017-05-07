@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include "peer.h"
 
+typedef struct Activation Activation;
 typedef struct NameChange NameChange;
 typedef struct NameOwner NameOwner;
 typedef struct NameEntry NameEntry;
@@ -25,8 +26,6 @@ enum {
         NAME_E_IN_QUEUE,
         NAME_E_EXISTS,
         NAME_E_ALREADY_OWNER,
-
-        NAME_E_NOT_ACTIVATABLE,
 };
 
 struct NameChange {
@@ -47,8 +46,7 @@ struct NameEntry {
         _Atomic unsigned long n_refs;
         NameRegistry *registry;
 
-        bool activatable : 1;
-        CList pending_skbs;
+        Activation *activation;
 
         MatchRegistry matches;
 
@@ -72,9 +70,6 @@ int name_entry_get(NameEntry **entryp, NameRegistry *registry, const char *name)
 void name_entry_free(_Atomic unsigned long *n_refs, void *userpointer);
 
 bool name_entry_is_owned(NameEntry *entry);
-int name_entry_set_activatable(NameRegistry *registry, const char *name, bool activatable);
-
-int name_entry_queue_message(NameEntry *entry, Message *message);
 
 NameEntry *name_registry_find_entry(NameRegistry *registry, const char *name);
 Peer *name_registry_resolve_name(NameRegistry *registry, const char *name);

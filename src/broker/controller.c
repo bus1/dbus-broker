@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <sys/epoll.h>
 #include "broker/controller.h"
+#include "activation.h"
 #include "bus.h"
 #include "dbus/connection.h"
 #include "dbus/message.h"
@@ -195,7 +196,7 @@ static int controller_end_read(CDVar *var) {
 }
 
 static int controller_method_add_name(Bus *bus, DispatchContext *dispatcher, CDVar *in_v, FDList *fds, CDVar *out_v) {
-        _c_cleanup_(name_entry_unrefp) NameEntry *entry = NULL;
+        Activation *activation;
         const char *path, *name;
         uid_t uid;
         int r;
@@ -209,13 +210,15 @@ static int controller_method_add_name(Bus *bus, DispatchContext *dispatcher, CDV
         if (strncmp(path, "/org/bus1/DBus/Name/", strlen("/org/bus1/DBus/Name/")) != 0)
                 return CONTROLLER_E_UNEXPECTED_PATH;
 
-        /*
-         * XXX: error out if the name is already activatable, and attach a user object
-         * to it for accounting.
-         */
-        r = name_entry_set_activatable(&bus->names, name, true);
-        if (r)
-                return error_fold(r);
+        r = activation_new(&activation, bus, path, name, uid);
+        if (r) {
+                if (r == ACTIVATION_E_EXISTS)
+                        return CONTROLLER_E_ACTIVATION_EXISTS;
+                else if (r == ACTIVATION_E_ALREADY_ACTIVATABLE)
+                        return CONTROLLER_E_NAME_IS_ACTIVATABLE;
+                else
+                        return error_fold(r);
+        }
 
         c_dvar_write(out_v, "()");
 
