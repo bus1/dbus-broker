@@ -4,7 +4,6 @@
  * Bus Context
  */
 
-#include <c-list.h>
 #include <c-macro.h>
 #include <c-rbtree.h>
 #include <stdlib.h>
@@ -24,7 +23,7 @@ typedef struct Bus Bus;
 
 struct Bus {
         char guid[16];
-        CList listener_list;
+        CRBTree listener_tree;
         NameRegistry names;
         UserRegistry users;
         MatchRegistry wildcard_matches;

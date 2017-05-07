@@ -226,7 +226,7 @@ static int controller_method_add_listener(Bus *bus, DispatchContext *dispatcher,
         Listener *listener;
         uint32_t fd_index;
         const char *path;
-        int r, fd;
+        int r;
 
         /* XXX: pass in policy */
 
@@ -239,14 +239,14 @@ static int controller_method_add_listener(Bus *bus, DispatchContext *dispatcher,
         if (strncmp(path, "/org/bus1/DBus/Listener/", strlen("/org/bus1/DBus/Listener/")) != 0)
                 return CONTROLLER_E_UNEXPECTED_PATH;
 
-        /* XXX: error handling */
-        fd = fdlist_get(fds, fd_index);
-
-        r = listener_new_with_fd(&listener, bus, dispatcher, fd);
-        if (r)
-                return error_fold(r);
-
-        fdlist_steal(fds, fd_index);
+        /* XXX: verify correctness of fd? */
+        r = listener_new_with_fd(&listener, bus, path, dispatcher, fdlist_steal(fds, fd_index));
+        if (r) {
+                if (r == LISTENER_E_EXISTS)
+                        return CONTROLLER_E_LISTENER_EXISTS;
+                else
+                        return error_fold(r);
+        }
 
         c_dvar_write(out_v, "()");
 

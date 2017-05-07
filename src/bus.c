@@ -25,7 +25,7 @@ int bus_new(Bus **busp,
         if (!bus)
                 return error_origin(-ENOMEM);
 
-        bus->listener_list = (CList)C_LIST_INIT(bus->listener_list);
+        bus->listener_tree = (CRBTree){};
         match_registry_init(&bus->wildcard_matches);
         match_registry_init(&bus->driver_matches);
         /* XXX: initialize guid with random data */
@@ -42,7 +42,7 @@ Bus *bus_free(Bus *bus) {
         if (!bus)
                 return NULL;
 
-        assert(c_list_is_empty(&bus->listener_list));
+        assert(!bus->listener_tree.root);
 
         peer_registry_deinit(&bus->peers);
         user_registry_deinit(&bus->users);

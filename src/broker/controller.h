@@ -23,6 +23,8 @@ enum {
         CONTROLLER_E_UNEXPECTED_METHOD,
         CONTROLLER_E_UNEXPECTED_SIGNATURE,
         CONTROLLER_E_UNEXPECTED_REPLY,
+
+        CONTROLLER_E_LISTENER_EXISTS,
 };
 
 int controller_dispatch(Bus *bus, Connection *connection, Message *message);

@@ -60,22 +60,35 @@ static int listener_dispatch(DispatchFile *file, uint32_t events) {
         return 0;
 }
 
+static int listener_compare(CRBTree *tree, void *k, CRBNode *rb) {
+        Listener *listener = c_container_of(rb, Listener, bus_node);
+        const char *path = k;
+
+        return strcmp(listener->path, path);
+}
+
 /**
  * listener_new_with_fd() - XXX
  */
-int listener_new_with_fd(Listener **listenerp, Bus *bus, DispatchContext *dispatcher, int socket_fd) {
+int listener_new_with_fd(Listener **listenerp, Bus *bus, const char *path, DispatchContext *dispatcher, int socket_fd) {
         _c_cleanup_(listener_freep) Listener *listener = NULL;
+        CRBNode **slot, *parent;
         int r;
 
-        listener = calloc(1, sizeof(*listener));
+        slot = c_rbtree_find_slot(&bus->listener_tree, listener_compare, path, &parent);
+        if (!slot)
+                return LISTENER_E_EXISTS;
+
+        listener = calloc(1, sizeof(*listener) + strlen(path) + 1);
         if (!listener)
                 return error_origin(-ENOMEM);
 
         listener->bus = bus;
         listener->socket_fd = -1;
         listener->socket_file = (DispatchFile)DISPATCH_FILE_NULL(listener->socket_file);
-        listener->bus_link = (CList)C_LIST_INIT(listener->bus_link);
+        listener->bus_node = (CRBNode)C_RBNODE_INIT(listener->bus_node);
         listener->peer_list = (CList)C_LIST_INIT(listener->peer_list);
+        memcpy((char*)listener->path, path, strlen(path) + 1);
 
         r = dispatch_file_init(&listener->socket_file,
                                dispatcher,
@@ -86,7 +99,7 @@ int listener_new_with_fd(Listener **listenerp, Bus *bus, DispatchContext *dispat
                 return error_fold(r);
 
         dispatch_file_select(&listener->socket_file, EPOLLIN);
-        c_list_link_tail(&bus->listener_list, &listener->bus_link);
+        c_rbtree_add(&bus->listener_tree, parent, slot, &listener->bus_node);
 
         listener->socket_fd = socket_fd;
         *listenerp = listener;
@@ -102,7 +115,8 @@ Listener *listener_free(Listener *listener) {
                 return NULL;
 
         assert(c_list_is_empty(&listener->peer_list));
-        c_list_unlink_init(&listener->bus_link);
+
+        c_rbtree_remove_init(&listener->bus->listener_tree, &listener->bus_node);
         dispatch_file_deinit(&listener->socket_file);
         listener->socket_fd = c_close(listener->socket_fd);
         free(listener);
