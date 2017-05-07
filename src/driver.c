@@ -260,6 +260,43 @@ static void driver_write_signal_header(CDVar *var, Peer *peer, const char *membe
                      DBUS_MESSAGE_FIELD_SIGNATURE, c_dvar_type_g, signature);
 }
 
+/* XXX: move this where it belongs */
+int activation_send_signal(Connection *controller, const char *path) {
+        static const CDVarType type[] = {
+                C_DVAR_T_INIT(
+                        DRIVER_T_MESSAGE(
+                                C_DVAR_T_TUPLE0
+                        )
+                )
+        };
+        _c_cleanup_(c_dvar_deinitp) CDVar var = C_DVAR_INIT;
+        _c_cleanup_(message_unrefp) Message *message = NULL;
+        void *data;
+        size_t n_data;
+        int r;
+
+        c_dvar_begin_write(&var, type, 1);
+        c_dvar_write(&var, "(yyyyuu[(y<o>)(y<s>)(y<s>)])",
+                     c_dvar_is_big_endian(&var) ? 'B' : 'l', DBUS_MESSAGE_TYPE_SIGNAL, DBUS_HEADER_FLAG_NO_REPLY_EXPECTED, 1, 0, (uint32_t)-1,
+                     DBUS_MESSAGE_FIELD_PATH, c_dvar_type_o, path,
+                     DBUS_MESSAGE_FIELD_INTERFACE, c_dvar_type_s, "org.bus1.DBus.Name",
+                     DBUS_MESSAGE_FIELD_MEMBER, c_dvar_type_s, "Activate");
+
+        r = c_dvar_end_write(&var, &data, &n_data);
+        if (r)
+                return error_origin(r);
+
+        r = message_new_outgoing(&message, data, n_data);
+        if (r)
+                return error_fold(r);
+
+        r = connection_queue_message(controller, message);
+        if (r)
+                return error_fold(r);
+
+        return 0;
+}
+
 static int driver_send_error(Peer *peer, uint32_t serial, const char *error) {
         static const CDVarType type[] = {
                 C_DVAR_T_INIT(
@@ -356,7 +393,13 @@ static int driver_forward_unicast(Peer *sender, const char *destination, Message
                         if (r)
                                 return error_fold(r);
 
-                        /* XXX: activate name */
+                        if (!name->activation->requested) {
+                                r = activation_send_signal(sender->bus->controller, name->activation->path);
+                                if (r)
+                                        return error_fold(r);
+
+                                name->activation->requested = true;
+                        }
 
                         return 0;
                 } else {

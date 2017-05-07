@@ -135,17 +135,6 @@ static void controller_write_reply_header(CDVar *var, uint32_t serial, const CDV
         c_dvar_write(var, ">)])");
 }
 
-/*
-static void controller_write_signal_header(CDVar *var, const char *member, const char *signature) {
-        c_dvar_write(var, "(yyyyuu[(y<o>)(y<s>)(y<s>)(y<g>)])",
-                     c_dvar_is_big_endian(var) ? 'B' : 'l', DBUS_MESSAGE_TYPE_SIGNAL, DBUS_HEADER_FLAG_NO_REPLY_EXPECTED, 1, 0, (uint32_t)-1,
-                     DBUS_MESSAGE_FIELD_PATH, c_dvar_type_o, "/org/bus1/DBus/Controller",
-                     DBUS_MESSAGE_FIELD_INTERFACE, c_dvar_type_s, "org.bus1.Controller",
-                     DBUS_MESSAGE_FIELD_MEMBER, c_dvar_type_s, member,
-                     DBUS_MESSAGE_FIELD_SIGNATURE, c_dvar_type_g, signature);
-}
-*/
-
 static int controller_send_error(Connection *connection, uint32_t serial, const char *error) {
         static const CDVarType type[] = {
                 C_DVAR_T_INIT(
