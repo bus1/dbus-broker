@@ -78,6 +78,10 @@ Activation *activation_free(Activation *activation) {
         return NULL;
 }
 
+Activation *activation_find(Bus *bus, const char *path) {
+        return c_rbtree_find_entry(&bus->activation_tree, activation_compare, path, Activation, bus_node);
+}
+
 int activation_queue_message(Activation *activation, Message *message) {
         SocketBuffer *skb;
         int r;

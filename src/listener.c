@@ -123,3 +123,7 @@ Listener *listener_free(Listener *listener) {
 
         return NULL;
 }
+
+Listener *listener_find(Bus *bus, const char *path) {
+        return c_rbtree_find_entry(&bus->listener_tree, listener_compare, path, Listener, bus_node);
+}

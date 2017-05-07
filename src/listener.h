@@ -36,4 +36,6 @@ struct ListenerRegistry {
 int listener_new_with_fd(Listener **listenerp, Bus *bus, const char *path, DispatchContext *dispatcher, int socket_fd);
 Listener *listener_free(Listener *free);
 
+Listener *listener_find(Bus *bus, const char *path);
+
 C_DEFINE_CLEANUP(Listener *, listener_free);

@@ -38,6 +38,8 @@ struct Activation {
 int activation_new(Activation **activationp, Bus *bus, const char *path, const char *name, uid_t uid);
 Activation *activation_free(Activation *free);
 
+Activation *activation_find(Bus *bus, const char *path);
+
 int activation_queue_message(Activation *activation, Message *message);
 
 C_DEFINE_CLEANUP(Activation *, activation_free);

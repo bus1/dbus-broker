@@ -21,7 +21,7 @@
 
 typedef struct DispatchContext DispatchContext;
 typedef struct ControllerMethod ControllerMethod;
-typedef int (*ControllerMethodFn) (Bus *bus, CDVar *var_in, FDList *fds_in, CDVar *var_out);
+typedef int (*ControllerMethodFn) (Bus *bus, const char *path, CDVar *var_in, FDList *fds_in, CDVar *var_out);
 
 struct ControllerMethod {
         const char *name;
@@ -184,7 +184,7 @@ static int controller_end_read(CDVar *var) {
         }
 }
 
-static int controller_method_add_name(Bus *bus, CDVar *in_v, FDList *fds, CDVar *out_v) {
+static int controller_method_add_name(Bus *bus, const char *_path, CDVar *in_v, FDList *fds, CDVar *out_v) {
         Activation *activation;
         const char *path, *name;
         uid_t uid;
@@ -214,7 +214,7 @@ static int controller_method_add_name(Bus *bus, CDVar *in_v, FDList *fds, CDVar 
         return 0;
 }
 
-static int controller_method_add_listener(Bus *bus, CDVar *in_v, FDList *fds, CDVar *out_v) {
+static int controller_method_add_listener(Bus *bus, const char *_path, CDVar *in_v, FDList *fds, CDVar *out_v) {
         Listener *listener;
         DispatchContext *dispatcher = bus->controller->socket_file.context;
         uint32_t fd_index;
@@ -240,6 +240,48 @@ static int controller_method_add_listener(Bus *bus, CDVar *in_v, FDList *fds, CD
                 else
                         return error_fold(r);
         }
+
+        c_dvar_write(out_v, "()");
+
+        return 0;
+}
+
+static int controller_method_listener_release(Bus *bus, const char *path, CDVar *in_v, FDList *fds, CDVar *out_v) {
+        Listener *listener;
+        int r;
+
+        c_dvar_read(in_v, "()");
+
+        r = controller_end_read(in_v);
+        if (r)
+                return error_trace(r);
+
+        listener = listener_find(bus, path);
+        if (!listener)
+                return CONTROLLER_E_LISTENER_NOT_FOUND;
+
+        listener_free(listener);
+
+        c_dvar_write(out_v, "()");
+
+        return 0;
+}
+
+static int controller_method_name_release(Bus *bus, const char *path, CDVar *in_v, FDList *fds, CDVar *out_v) {
+        Activation *activation;
+        int r;
+
+        c_dvar_read(in_v, "()");
+
+        r = controller_end_read(in_v);
+        if (r)
+                return error_trace(r);
+
+        activation = activation_find(bus, path);
+        if (!activation)
+                return CONTROLLER_E_ACTIVATION_NOT_FOUND;
+
+        activation_free(activation);
 
         c_dvar_write(out_v, "()");
 
@@ -275,7 +317,7 @@ static int controller_handle_method(const ControllerMethod *method, Bus *bus, co
         c_dvar_write(&var_out, "(");
         controller_write_reply_header(&var_out, serial, method->out);
 
-        r = method->fn(bus, &var_in, message_in->fds, &var_out);
+        r = method->fn(bus, path, &var_in, message_in->fds, &var_out);
         if (r)
                 return error_trace(r);
 
@@ -303,7 +345,7 @@ static int controller_handle_method(const ControllerMethod *method, Bus *bus, co
         return 0;
 }
 
-static int controller_dispatch_method(Bus *bus, uint32_t serial, const char *method, const char *path, const char *signature, Message *message) {
+static int controller_dispatch_controller(Bus *bus, uint32_t serial, const char *method, const char *path, const char *signature, Message *message) {
         static const ControllerMethod methods[] = {
                 { "AddName",            controller_method_add_name,     controller_type_in_osu, controller_type_out_unit },
                 { "AddListener",        controller_method_add_listener, controller_type_in_oh,  controller_type_out_unit },
@@ -319,24 +361,65 @@ static int controller_dispatch_method(Bus *bus, uint32_t serial, const char *met
         return CONTROLLER_E_UNEXPECTED_METHOD;
 }
 
-static int controller_dispatch_interface(Bus *bus, uint32_t serial, const char *interface, const char *member, const char *path, const char *signature, Message *message) {
-        if (message->header->type != DBUS_MESSAGE_TYPE_METHOD_CALL)
-                /* XXX: ignore, like in the driver? */
-                return 0;
+static int controller_dispatch_name(Bus *bus, uint32_t serial, const char *method, const char *path, const char *signature, Message *message) {
+        static const ControllerMethod methods[] = {
+                { "Release",    controller_method_name_release, c_dvar_type_unit,       controller_type_out_unit },
+        };
 
-        if (_c_unlikely_(strcmp(path, "/org/bus1/DBus/Controller") != 0))
-                return CONTROLLER_E_UNEXPECTED_PATH;
+        for (size_t i = 0; i < C_ARRAY_SIZE(methods); i++) {
+                if (strcmp(methods[i].name, method) != 0)
+                        continue;
 
-        if (interface && _c_unlikely_(strcmp(interface, "org.bus1.DBus.Controller") != 0))
-                return CONTROLLER_E_UNEXPECTED_INTERFACE;
+                return controller_handle_method(&methods[i], bus, path, serial, signature, message);
+        }
 
-        return controller_dispatch_method(bus, serial, member, path, signature, message);
+        return CONTROLLER_E_UNEXPECTED_METHOD;
+}
+
+static int controller_dispatch_listener(Bus *bus, uint32_t serial, const char *method, const char *path, const char *signature, Message *message) {
+        static const ControllerMethod methods[] = {
+                { "Release",    controller_method_listener_release,     c_dvar_type_unit,       controller_type_out_unit },
+                /* XXX: SetPolicy */
+        };
+
+        for (size_t i = 0; i < C_ARRAY_SIZE(methods); i++) {
+                if (strcmp(methods[i].name, method) != 0)
+                        continue;
+
+                return controller_handle_method(&methods[i], bus, path, serial, signature, message);
+        }
+
+        return CONTROLLER_E_UNEXPECTED_METHOD;
+}
+
+static int controller_dispatch_object(Bus *bus, uint32_t serial, const char *interface, const char *member, const char *path, const char *signature, Message *message) {
+        if (strcmp(path, "/org/bus1/DBus/Controller") == 0) {
+                if (interface && _c_unlikely_(strcmp(interface, "org.bus1.DBus.Controller") != 0))
+                        return CONTROLLER_E_UNEXPECTED_INTERFACE;
+
+                return controller_dispatch_controller(bus, serial, member, path, signature, message);
+        } else if (strncmp(path, "/org/bus1/DBus/Name/", strlen("/org/bus1/DBus/Name/")) == 0) {
+                if (interface && _c_unlikely_(strcmp(interface, "org.bus1.DBus.Name") != 0))
+                        return CONTROLLER_E_UNEXPECTED_INTERFACE;
+
+                return controller_dispatch_name(bus, serial, member, path, signature, message);
+        } else if (strncmp(path, "/org/bus1/DBus/Listener/", strlen("/org/bus1/DBus/Listener/")) == 0) {
+                if (interface && _c_unlikely_(strcmp(interface, "org.bus1.DBus.Listener") != 0))
+                        return CONTROLLER_E_UNEXPECTED_INTERFACE;
+
+                return controller_dispatch_listener(bus, serial, member, path, signature, message);
+        }
+
+        return CONTROLLER_E_UNEXPECTED_PATH;
 }
 
 int controller_dispatch(Bus *bus, Message *message) {
         MessageMetadata metadata;
         const char *signature;
         int r;
+
+        if (message->header->type != DBUS_MESSAGE_TYPE_METHOD_CALL)
+                return CONTROLLER_E_DISCONNECT;
 
         r = message_parse_metadata(message, &metadata);
         if (r > 0)
@@ -347,13 +430,13 @@ int controller_dispatch(Bus *bus, Message *message) {
         /* no signature implies empty signature */
         signature = metadata.fields.signature ?: "";
 
-        r = controller_dispatch_interface(bus,
-                                          metadata.header.serial,
-                                          metadata.fields.interface,
-                                          metadata.fields.member,
-                                          metadata.fields.path,
-                                          signature,
-                                          message);
+        r = controller_dispatch_object(bus,
+                                       metadata.header.serial,
+                                       metadata.fields.interface,
+                                       metadata.fields.member,
+                                       metadata.fields.path,
+                                       signature,
+                                       message);
         switch (r) {
         case CONTROLLER_E_INVALID_MESSAGE:
                 return CONTROLLER_E_DISCONNECT;
