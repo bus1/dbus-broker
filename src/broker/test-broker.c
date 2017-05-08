@@ -172,6 +172,11 @@ static void test_driver(struct sockaddr_un *address, socklen_t addrlen) {
         test_driver_names(bus1, bus2);
 }
 
+static void tests(struct sockaddr_un *address, socklen_t addrlen) {
+        test_setup(address, addrlen);
+        test_driver(address, addrlen);
+}
+
 int main(int argc, char **argv) {
         struct sockaddr_un address;
         socklen_t addrlen;
@@ -179,11 +184,10 @@ int main(int argc, char **argv) {
         pid_t pid;
         int r;
 
-        /* broker */
+        fprintf(stderr, " -- Broker --\n");
         thread = test_spawn_broker(&address, &addrlen);
 
-        test_setup(&address, addrlen);
-        test_driver(&address, addrlen);
+        tests(&address, addrlen);
 
         r = pthread_kill(thread, SIGTERM);
         assert(r == 0);
@@ -191,11 +195,10 @@ int main(int argc, char **argv) {
         r = pthread_join(thread, NULL);
         assert(r == 0);
 
-        /* daemon */
+        fprintf(stderr, " -- Daemon --\n");
         pid = test_spawn_daemon(&address, &addrlen);
 
-        test_setup(&address, addrlen);
-        test_driver(&address, addrlen);
+        tests(&address, addrlen);
 
         r = kill(pid, SIGTERM);
         assert(r >= 0);
