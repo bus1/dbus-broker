@@ -8,6 +8,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/un.h>
+#include <sys/wait.h>
 #include <systemd/sd-bus.h>
 #include <systemd/sd-id128.h>
 #include "dbus/protocol.h"
@@ -38,22 +39,17 @@ static sd_bus *connect_bus(struct sockaddr_un *address, socklen_t addrlen) {
         return bus;
 }
 
-static void test_setup(void) {
+static void test_setup(struct sockaddr_un *address, socklen_t addrlen) {
         _c_cleanup_(sd_bus_unrefp) sd_bus *bus1 = NULL, *bus2 = NULL;
         _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *message1 = NULL, *message2 = NULL;
         const char *unique_name1, *unique_name2;
         sd_id128_t bus_id1, bus_id2;
         uint64_t cookie1, cookie2;
         uint8_t type;
-        struct sockaddr_un address;
-        socklen_t addrlen;
-        pthread_t thread;
         int r;
 
-        thread = test_spawn_broker(&address, &addrlen);
-
-        bus1 = connect_bus(&address, addrlen);
-        bus2 = connect_bus(&address, addrlen);
+        bus1 = connect_bus(address, addrlen);
+        bus2 = connect_bus(address, addrlen);
 
         r = sd_bus_get_unique_name(bus1, &unique_name1);
         assert(r >= 0);
@@ -86,7 +82,7 @@ static void test_setup(void) {
 
         r = sd_bus_message_get_cookie(message2, &cookie2);
         assert(r >= 0);
-        assert(cookie2 == (uint32_t)-1);
+        assert(cookie2 != 0); /* the broker sets -1, the daemon does not fix this */
 
         sd_bus_message_unref(message2);
 
@@ -103,12 +99,6 @@ static void test_setup(void) {
         r = sd_bus_message_get_cookie(message2, &cookie2);
         assert(r >= 0);
         assert(cookie2 == cookie1);
-
-        r = pthread_kill(thread, SIGTERM);
-        assert(r == 0);
-
-        r = pthread_join(thread, NULL);
-        assert(r == 0);
 }
 
 static void test_driver_names(sd_bus *bus1, sd_bus *bus2) {
@@ -173,29 +163,45 @@ static void test_driver_names(sd_bus *bus1, sd_bus *bus2) {
         sd_bus_message_unref(reply);
 }
 
-static void test_driver(void) {
+static void test_driver(struct sockaddr_un *address, socklen_t addrlen) {
         _c_cleanup_(sd_bus_unrefp) sd_bus *bus1 = NULL, *bus2 = NULL;
+
+        bus1 = connect_bus(address, addrlen);
+        bus2 = connect_bus(address, addrlen);
+
+        test_driver_names(bus1, bus2);
+}
+
+int main(int argc, char **argv) {
         struct sockaddr_un address;
         socklen_t addrlen;
         pthread_t thread;
+        pid_t pid;
         int r;
 
+        /* broker */
         thread = test_spawn_broker(&address, &addrlen);
 
-        bus1 = connect_bus(&address, addrlen);
-        bus2 = connect_bus(&address, addrlen);
-
-        test_driver_names(bus1, bus2);
+        test_setup(&address, addrlen);
+        test_driver(&address, addrlen);
 
         r = pthread_kill(thread, SIGTERM);
         assert(r == 0);
 
         r = pthread_join(thread, NULL);
         assert(r == 0);
-}
 
-int main(int argc, char **argv) {
-        test_setup();
-        test_driver();
+        /* daemon */
+        pid = test_spawn_daemon(&address, &addrlen);
+
+        test_setup(&address, addrlen);
+        test_driver(&address, addrlen);
+
+        r = kill(pid, SIGTERM);
+        assert(r >= 0);
+
+        pid = waitpid(pid, NULL, 0);
+        assert(pid > 0);
+
         return 0;
 }
