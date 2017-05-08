@@ -393,8 +393,8 @@ static int controller_dispatch_listener(Bus *bus, uint32_t serial, const char *m
 }
 
 static int controller_dispatch_object(Bus *bus, uint32_t serial, const char *interface, const char *member, const char *path, const char *signature, Message *message) {
-        if (strcmp(path, "/org/bus1/DBus/Controller") == 0) {
-                if (interface && _c_unlikely_(strcmp(interface, "org.bus1.DBus.Controller") != 0))
+        if (strcmp(path, "/org/bus1/DBus/Broker") == 0) {
+                if (interface && _c_unlikely_(strcmp(interface, "org.bus1.DBus.Broker") != 0))
                         return CONTROLLER_E_UNEXPECTED_INTERFACE;
 
                 return controller_dispatch_controller(bus, serial, member, path, signature, message);
