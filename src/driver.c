@@ -554,6 +554,8 @@ static int driver_notify_name_owner_changed(Bus *bus, const char *name, Peer *ol
                 .member = "NameOwnerChanged",
                 .path = "/org/freedesktop/DBus",
         };
+        char old_owner_str[UNIQUE_NAME_STRING_MAX + 1],
+             new_owner_str[UNIQUE_NAME_STRING_MAX + 1];
         static const CDVarType type[] = {
                 C_DVAR_T_INIT(
                         DRIVER_T_MESSAGE(
@@ -589,7 +591,18 @@ static int driver_notify_name_owner_changed(Bus *bus, const char *name, Peer *ol
 
         filter.args[0] = name;
         filter.argpaths[0] = name;
-        /* XXX: also hook up the old and new owner names */
+
+        if (old_owner) {
+                unique_name_from_id(old_owner_str, old_owner->id);
+                filter.args[1] = old_owner_str;
+                filter.argpaths[1] = old_owner_str;
+        }
+
+        if (new_owner) {
+                unique_name_from_id(new_owner_str, new_owner->id);
+                filter.args[2] = new_owner_str;
+                filter.argpaths[2] = new_owner_str;
+        }
 
         r = driver_send_broadcast_to_matches(&bus->wildcard_matches, &filter, message);
         if (r)
