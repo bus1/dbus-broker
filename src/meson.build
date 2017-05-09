@@ -112,6 +112,9 @@ test('D-Bus Message Abstraction', test_message)
 test_name = executable('test-name', ['test-name.c'], dependencies: libdbus_broker_dep)
 test('Name Registry', test_name)
 
+test_reply = executable('test-reply', ['test-reply.c'], dependencies: libdbus_broker_dep)
+test('Reply Tracking', test_reply)
+
 test_sasl = executable('test-sasl', ['dbus/test-sasl.c'], dependencies: libdbus_broker_dep)
 test('D-Bus SASL Parser', test_sasl)
 
