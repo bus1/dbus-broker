@@ -6,7 +6,6 @@
 #include <c-macro.h>
 #include <c-rbtree.h>
 #include <stdlib.h>
-#include "peer.h"
 #include "reply.h"
 #include "util/error.h"
 
@@ -17,21 +16,13 @@ struct ReplySlotKey {
         uint32_t serial;
 };
 
-void reply_registry_init(ReplyRegistry *registry) {
-        *registry = (ReplyRegistry){};
-}
-
-void reply_registry_deinit(ReplyRegistry *registry) {
-        assert(!registry->slots.root);
-}
-
 static int reply_slot_compare(CRBTree *tree, void *k, CRBNode *rb) {
-        ReplySlot *slot = c_container_of(rb, ReplySlot, rb);
+        ReplySlot *slot = c_container_of(rb, ReplySlot, registry_node);
         ReplySlotKey *key = k;
 
-        if (slot->sender->id < key->id)
+        if (slot->id < key->id)
                 return -1;
-        if (slot->sender->id > key->id)
+        if (slot->id > key->id)
                 return 1;
 
         if (slot->serial < key->serial)
@@ -42,15 +33,15 @@ static int reply_slot_compare(CRBTree *tree, void *k, CRBNode *rb) {
         return 0;
 }
 
-int reply_slot_new(ReplySlot **replyp, ReplyRegistry *registry, Peer *sender, uint32_t serial) {
+int reply_slot_new(ReplySlot **replyp, ReplyRegistry *registry, ReplyOwner *owner, uint64_t id, uint32_t serial) {
         ReplySlot *reply;
         CRBNode **slot, *parent;
         ReplySlotKey key = {
-                .id = sender->id,
+                .id = id,
                 .serial = serial,
         };
 
-        slot = c_rbtree_find_slot(&registry->slots, reply_slot_compare, &key, &parent);
+        slot = c_rbtree_find_slot(&registry->reply_tree, reply_slot_compare, &key, &parent);
         if (!slot)
                 return REPLY_E_EXISTS;
 
@@ -59,13 +50,14 @@ int reply_slot_new(ReplySlot **replyp, ReplyRegistry *registry, Peer *sender, ui
                 return error_origin(-ENOMEM);
 
         reply->registry = registry;
-        c_rbnode_init(&reply->rb);
-        reply->link = (CList)C_LIST_INIT(reply->link);
-        reply->sender = sender;
+        reply->owner = owner;
+        c_rbnode_init(&reply->registry_node);
+        reply->owner_link = (CList)C_LIST_INIT(reply->owner_link);
+        reply->id = id;
         reply->serial = serial;
 
-        c_rbtree_add(&registry->slots, parent, slot, &reply->rb);
-        c_list_link_tail(&sender->replies_incoming, &reply->link);
+        c_rbtree_add(&registry->reply_tree, parent, slot, &reply->registry_node);
+        c_list_link_tail(&owner->reply_list, &reply->owner_link);
 
         *replyp = reply;
 
@@ -76,8 +68,8 @@ ReplySlot *reply_slot_free(ReplySlot *slot) {
         if (!slot)
                 return NULL;
 
-        c_list_unlink(&slot->link);
-        c_rbtree_remove(&slot->registry->slots, &slot->rb);
+        c_list_unlink(&slot->owner_link);
+        c_rbtree_remove(&slot->registry->reply_tree, &slot->registry_node);
 
         free(slot);
 
@@ -90,5 +82,21 @@ ReplySlot *reply_slot_get_by_id(ReplyRegistry *registry, uint64_t id, uint32_t s
                 .serial = serial,
         };
 
-        return c_rbtree_find_entry(&registry->slots, reply_slot_compare, &key, ReplySlot, rb);
+        return c_rbtree_find_entry(&registry->reply_tree, reply_slot_compare, &key, ReplySlot, registry_node);
+}
+
+void reply_registry_init(ReplyRegistry *registry) {
+        *registry = (ReplyRegistry){};
+}
+
+void reply_registry_deinit(ReplyRegistry *registry) {
+        assert(!registry->reply_tree.root);
+}
+
+void reply_owner_init(ReplyOwner *owner) {
+        *owner = (ReplyOwner)REPLY_OWNER_INIT(*owner);
+}
+
+void reply_owner_deinit(ReplyOwner *owner) {
+        assert(c_list_is_empty(&owner->reply_list));
 }

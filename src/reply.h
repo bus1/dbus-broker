@@ -9,9 +9,9 @@
 #include <c-rbtree.h>
 #include <stdlib.h>
 
-typedef struct Peer Peer;
 typedef struct ReplySlot ReplySlot;
 typedef struct ReplyRegistry ReplyRegistry;
+typedef struct ReplyOwner ReplyOwner;
 
 enum {
         _REPLY_E_SUCCESS,
@@ -21,22 +21,34 @@ enum {
 
 struct ReplySlot {
         ReplyRegistry *registry;
-        Peer *sender;
+        ReplyOwner *owner;
+        uint64_t id;
         uint32_t serial;
-        CRBNode rb;
-        CList link;
+        CRBNode registry_node;
+        CList owner_link;
 };
 
 struct ReplyRegistry {
-        CRBTree slots;
+        CRBTree reply_tree;
 };
+
+struct ReplyOwner {
+        CList reply_list;
+};
+
+#define REPLY_OWNER_INIT(_x) {                                  \
+                .reply_list = C_LIST_INIT((_x).reply_list),     \
+        }
+
+int reply_slot_new(ReplySlot **replyp, ReplyRegistry *registry, ReplyOwner *owner, uint64_t id, uint32_t serial);
+ReplySlot *reply_slot_free(ReplySlot *slot);
+
+ReplySlot *reply_slot_get_by_id(ReplyRegistry *registry, uint64_t id, uint32_t serial);
 
 void reply_registry_init(ReplyRegistry *registry);
 void reply_registry_deinit(ReplyRegistry *registry);
 
-int reply_slot_new(ReplySlot **replyp, ReplyRegistry *registry, Peer *sender, uint32_t serial);
-ReplySlot *reply_slot_free(ReplySlot *slot);
-
-ReplySlot *reply_slot_get_by_id(ReplyRegistry *registry, uint64_t id, uint32_t serial);
+void reply_owner_init(ReplyOwner *owner);
+void reply_owner_deinit(ReplyOwner *owner);
 
 C_DEFINE_CLEANUP(ReplySlot *, reply_slot_free);

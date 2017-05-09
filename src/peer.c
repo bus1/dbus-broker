@@ -179,7 +179,7 @@ int peer_new_with_fd(Peer **peerp,
         match_registry_init(&peer->matches);
         match_owner_init(&peer->owned_matches);
         reply_registry_init(&peer->replies_outgoing);
-        peer->replies_incoming = (CList)C_LIST_INIT(peer->replies_incoming);
+        peer->owned_replies = (ReplyOwner)REPLY_OWNER_INIT(peer->owned_replies);
 
         r = connection_init_server(&peer->connection,
                                    dispatcher,
@@ -215,13 +215,14 @@ Peer *peer_free(Peer *peer) {
 
         peer->user->n_peers ++;
 
-        c_list_for_each_entry_safe(reply, safe, &peer->replies_incoming, link)
+        c_list_for_each_entry_safe(reply, safe, &peer->owned_replies.reply_list, owner_link)
                 reply_slot_free(reply);
 
         c_rbtree_remove_init(&peer->bus->peers.peers, &peer->rb);
 
         fd = peer->connection.socket.fd;
 
+        reply_owner_deinit(&peer->owned_replies);
         reply_registry_deinit(&peer->replies_outgoing);
         match_owner_deinit(&peer->owned_matches);
         match_registry_deinit(&peer->matches);

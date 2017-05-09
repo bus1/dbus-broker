@@ -44,7 +44,7 @@ struct Peer {
         MatchRegistry matches;
         MatchOwner owned_matches;
         ReplyRegistry replies_outgoing;
-        CList replies_incoming;
+        ReplyOwner owned_replies;
 
         Metrics metrics;
 };

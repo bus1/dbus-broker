@@ -343,7 +343,7 @@ static int driver_queue_message_on_peer(Peer *receiver, Peer *sender, Message *m
         if (sender &&
             (message->header->type == DBUS_MESSAGE_TYPE_METHOD_CALL) &&
             !(message->header->flags & DBUS_HEADER_FLAG_NO_REPLY_EXPECTED)) {
-                r = reply_slot_new(&slot, &receiver->replies_outgoing, sender, message_read_serial(message));
+                r = reply_slot_new(&slot, &receiver->replies_outgoing, &sender->owned_replies, sender->id, message_read_serial(message));
                 if (r == REPLY_E_EXISTS)
                         return DRIVER_E_EXPECTED_REPLY_EXISTS;
                 else if (r)
@@ -423,6 +423,7 @@ static int driver_forward_unicast(Peer *sender, const char *destination, Message
 
 static int driver_forward_reply(Peer *sender, const char *destination, uint32_t reply_serial, Message *message) {
         ReplySlot *slot;
+        Peer *receiver;
         uint64_t id;
         int r;
 
@@ -434,7 +435,9 @@ static int driver_forward_reply(Peer *sender, const char *destination, uint32_t 
         if (!slot)
                 return DRIVER_E_UNEXPECTED_REPLY;
 
-        r = connection_queue_message(&slot->sender->connection, message);
+        receiver = c_container_of(slot->owner, Peer, owned_replies);
+
+        r = connection_queue_message(&receiver->connection, message);
         if (r)
                 return error_fold(r);
 
@@ -1295,13 +1298,14 @@ int driver_goodbye(Peer *peer, bool silent) {
         }
         peer_unregister(peer);
 
-        for (node = c_rbtree_first_postorder(&peer->replies_outgoing.slots), next = c_rbnode_next_postorder(node);
+        for (node = c_rbtree_first_postorder(&peer->replies_outgoing.reply_tree), next = c_rbnode_next_postorder(node);
              node;
              node = next, next = c_rbnode_next_postorder(node)) {
-                ReplySlot *slot = c_container_of(node, ReplySlot, rb);
+                ReplySlot *slot = c_container_of(node, ReplySlot, registry_node);
+                Peer *sender = c_container_of(slot->owner, Peer, owned_replies);
 
                 if (!silent) {
-                        r = driver_send_error(slot->sender, slot->serial, "org.freedesktop.DBus.Error.NoReply");
+                        r = driver_send_error(sender, slot->serial, "org.freedesktop.DBus.Error.NoReply");
                         if (r)
                                 return error_trace(r);
                 }
