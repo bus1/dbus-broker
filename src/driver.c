@@ -363,8 +363,9 @@ static int driver_send_broadcast_to_matches(MatchRegistry *matches, MatchFilter 
         int r;
 
         for (rule = match_rule_next(matches, NULL, filter); rule; match_rule_next(matches, rule, filter)) {
+                Peer *peer = c_container_of(rule->owner, Peer, owned_matches);
 
-                r = connection_queue_message(&rule->peer->connection, message);
+                r = connection_queue_message(&peer->connection, message);
                 if (r)
                         return error_fold(r);
         }
@@ -1046,7 +1047,7 @@ static int driver_method_add_match(Peer *peer, CDVar *in_v, CDVar *out_v, NameCh
         if (peer->user->n_matches == 0)
                 return DRIVER_E_QUOTA;
 
-        r = match_rule_new(&rule, peer, rule_string);
+        r = match_rule_new(&rule, &peer->owned_matches, rule_string);
         if (r)
                 return error_fold(r);
 
@@ -1098,7 +1099,7 @@ static int driver_method_remove_match(Peer *peer, CDVar *in_v, CDVar *out_v, Nam
         if (r)
                 return error_trace(r);
 
-        r = match_rule_get(&rule, peer, rule_string);
+        r = match_rule_get(&rule, &peer->owned_matches, rule_string);
         if (r)
                 return error_fold(r);
 
@@ -1263,10 +1264,10 @@ int driver_goodbye(Peer *peer, bool silent) {
         CRBNode *node, *next;
         int r;
 
-        for (node = c_rbtree_first_postorder(&peer->match_rules), next = c_rbnode_next_postorder(node);
+        for (node = c_rbtree_first_postorder(&peer->owned_matches.rule_tree), next = c_rbnode_next_postorder(node);
              node;
              node = next, next = c_rbnode_next_postorder(node)) {
-                MatchRule *rule = c_container_of(node, MatchRule, rb_peer);
+                MatchRule *rule = c_container_of(node, MatchRule, owner_node);
 
                 match_rule_free(rule);
         }

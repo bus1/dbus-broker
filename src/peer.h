@@ -42,7 +42,7 @@ struct Peer {
 
         CRBTree names;
         MatchRegistry matches;
-        CRBTree match_rules;
+        MatchOwner owned_matches;
         ReplyRegistry replies_outgoing;
         CList replies_incoming;
 

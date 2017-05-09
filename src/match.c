@@ -8,11 +8,10 @@
 #include <c-string.h>
 #include "dbus/protocol.h"
 #include "match.h"
-#include "peer.h"
 #include "util/error.h"
 
 static int match_rules_compare(CRBTree *tree, void *k, CRBNode *rb) {
-        MatchRule *rule = c_container_of(rb, MatchRule, rb_peer);
+        MatchRule *rule = c_container_of(rb, MatchRule, owner_node);
         MatchRuleKeys *key1 = k, *key2 = &rule->keys;
         int r;
 
@@ -243,7 +242,7 @@ int match_rule_keys_parse(MatchRuleKeys *keys, char *buffer, const char *rule_st
         return MATCH_E_INVALID;
 }
 
-int match_rule_new(MatchRule **rulep, Peer *peer, const char *rule_string) {
+int match_rule_new(MatchRule **rulep, MatchOwner *owner, const char *rule_string) {
         _c_cleanup_(match_rule_freep) MatchRule *rule = NULL;
         CRBNode **slot, *parent;
         size_t n_rule_string;
@@ -256,20 +255,20 @@ int match_rule_new(MatchRule **rulep, Peer *peer, const char *rule_string) {
                 return error_origin(-ENOMEM);
 
         rule->n_user_refs = 1;
-        rule->peer = peer;
-        rule->link_registry = (CList)C_LIST_INIT(rule->link_registry);
+        rule->owner = owner;
+        rule->registry_link = (CList)C_LIST_INIT(rule->registry_link);
 
         r = match_rule_keys_parse(&rule->keys, rule->buffer, rule_string, n_rule_string);
         if (r)
                 return error_trace(r);
 
-        slot = c_rbtree_find_slot(&peer->match_rules, match_rules_compare, &rule->keys, &parent);
+        slot = c_rbtree_find_slot(&owner->rule_tree, match_rules_compare, &rule->keys, &parent);
         if (!slot) {
                 /* one already exists, take a ref on that instead and drop the one we created */
                 *rulep = match_rule_user_ref(rule);
         } else {
                 /* link the new rule into the rbtree */
-                c_rbtree_add(&peer->match_rules, parent, slot, &rule->rb_peer);
+                c_rbtree_add(&owner->rule_tree, parent, slot, &rule->owner_node);
                 *rulep = rule;
                 rule = NULL;
         }
@@ -278,8 +277,8 @@ int match_rule_new(MatchRule **rulep, Peer *peer, const char *rule_string) {
 }
 
 MatchRule *match_rule_free(MatchRule *rule) {
-        c_list_unlink(&rule->link_registry);
-        c_rbtree_remove(&rule->peer->match_rules, &rule->rb_peer);
+        c_list_unlink(&rule->registry_link);
+        c_rbtree_remove(&rule->owner->rule_tree, &rule->owner_node);
 
         free(rule);
 
@@ -312,11 +311,11 @@ MatchRule *match_rule_user_unref(MatchRule *rule) {
 }
 
 void match_rule_link(MatchRule *rule, MatchRegistry *registry) {
-        c_list_link_tail(&registry->rules, &rule->link_registry);
+        c_list_link_tail(&registry->rule_list, &rule->registry_link);
         rule->registry = registry;
 }
 
-int match_rule_get(MatchRule **rulep, Peer *peer, const char *rule_string) {
+int match_rule_get(MatchRule **rulep, MatchOwner *owner, const char *rule_string) {
         char buffer[strlen(rule_string)];
         MatchRuleKeys keys = {};
         MatchRule *rule;
@@ -326,7 +325,7 @@ int match_rule_get(MatchRule **rulep, Peer *peer, const char *rule_string) {
         if (r)
                 return error_trace(r);
 
-        rule = c_rbtree_find_entry(&peer->match_rules, match_rules_compare, &keys, MatchRule, rb_peer);
+        rule = c_rbtree_find_entry(&owner->rule_tree, match_rules_compare, &keys, MatchRule, owner_node);
         if (!rule)
                 return MATCH_E_NOT_FOUND;
 
@@ -338,12 +337,12 @@ MatchRule *match_rule_next(MatchRegistry *registry, MatchRule *rule, MatchFilter
         CList *link;
 
         if (!rule)
-                link = c_list_loop_first(&registry->rules);
+                link = c_list_loop_first(&registry->rule_list);
         else
-                link = c_list_loop_next(&rule->link_registry);
+                link = c_list_loop_next(&rule->registry_link);
 
-        while (link != &registry->rules) {
-                rule = c_list_entry(link, MatchRule, link_registry);
+        while (link != &registry->rule_list) {
+                rule = c_list_entry(link, MatchRule, registry_link);
 
                 if (match_rule_keys_match_filter(&rule->keys, filter))
                         return rule;
@@ -359,5 +358,13 @@ void match_registry_init(MatchRegistry *registry) {
 }
 
 void match_registry_deinit(MatchRegistry *registry) {
-        assert(c_list_is_empty(&registry->rules));
+        assert(c_list_is_empty(&registry->rule_list));
+}
+
+void match_owner_init(MatchOwner *owner) {
+        *owner = (MatchOwner){};
+}
+
+void match_owner_deinit(MatchOwner *owner) {
+        assert(!owner->rule_tree.root);
 }

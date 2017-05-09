@@ -177,6 +177,7 @@ int peer_new_with_fd(Peer **peerp,
         peer->n_seclabel = n_seclabel;
         peer->metrics = (Metrics)METRICS_INIT;
         match_registry_init(&peer->matches);
+        match_owner_init(&peer->owned_matches);
         reply_registry_init(&peer->replies_outgoing);
         peer->replies_incoming = (CList)C_LIST_INIT(peer->replies_incoming);
 
@@ -209,7 +210,6 @@ Peer *peer_free(Peer *peer) {
         if (!peer)
                 return NULL;
 
-        assert(!peer->match_rules.root);
         assert(!peer->names.root);
         assert(!peer->registered);
 
@@ -223,6 +223,7 @@ Peer *peer_free(Peer *peer) {
         fd = peer->connection.socket.fd;
 
         reply_registry_deinit(&peer->replies_outgoing);
+        match_owner_deinit(&peer->owned_matches);
         match_registry_deinit(&peer->matches);
         metrics_deinit(&peer->metrics);
         connection_deinit(&peer->connection);

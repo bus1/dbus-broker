@@ -6,11 +6,9 @@
 #include <stdlib.h>
 #include <sys/types.h>
 #include <sys/socket.h>
-#include "bus.h"
 #include "match.h"
-#include "peer.h"
 
-static void test_args(Peer *peer,
+static void test_args(MatchOwner *owner,
                       const char *match,
                       const char *arg0,
                       const char *arg1,
@@ -19,7 +17,7 @@ static void test_args(Peer *peer,
         _c_cleanup_(match_rule_freep) MatchRule *rule = NULL;
         int r;
 
-        r = match_rule_new(&rule, peer, match);
+        r = match_rule_new(&rule, owner, match);
         assert(r == 0);
         assert(strcmp(rule->keys.filter.args[0], arg0) == 0);
         assert(strcmp(rule->keys.filter.args[1], arg1) == 0);
@@ -28,32 +26,15 @@ static void test_args(Peer *peer,
 }
 
 static void test_setup(void) {
-        DispatchContext dispatcher = DISPATCH_CONTEXT_NULL(dispatcher);
-        _c_cleanup_(bus_freep) Bus *bus = NULL;
-        Peer *peer;
-        int pair[2], r;
-
-        r = dispatch_context_init(&dispatcher);
-        assert(r >= 0);
-
-        r = bus_new(&bus, 1024, 1024, 1024, 1024, 1024);
-        assert(r >= 0);
-
-        r = socketpair(AF_UNIX, SOCK_STREAM, 0, pair);
-        assert(r >= 0);
-
-        r = peer_new_with_fd(&peer, bus, &dispatcher, pair[0]);
-        assert(r >= 0);
+        MatchOwner owner = {};
 
         /* examples taken from the spec */
-        test_args(peer, "arg0=''\\''',arg1='\\',arg2=',',arg3='\\\\'",
+        test_args(&owner, "arg0=''\\''',arg1='\\',arg2=',',arg3='\\\\'",
                   "\'", "\\", ",", "\\\\");
-        test_args(peer, "arg0=\\',arg1=\\,arg2=',',arg3=\\\\",
+        test_args(&owner, "arg0=\\',arg1=\\,arg2=',',arg3=\\\\",
                   "\'", "\\", ",", "\\\\");
 
-        close(pair[1]);
-        peer_free(peer);
-        dispatch_context_deinit(&dispatcher);
+        match_owner_deinit(&owner);
 }
 
 int main(int argc, char **argv) {

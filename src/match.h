@@ -12,7 +12,7 @@ typedef struct MatchFilter MatchFilter;
 typedef struct MatchRuleKeys MatchRuleKeys;
 typedef struct MatchRule MatchRule;
 typedef struct MatchRegistry MatchRegistry;
-typedef struct Peer Peer;
+typedef struct MatchOwner MatchOwner;
 
 enum {
         _MATCH_E_SUCCESS,
@@ -40,13 +40,13 @@ struct MatchRuleKeys {
 };
 
 struct MatchRule {
-        unsigned int n_user_refs;
+        unsigned long int n_user_refs;
 
-        Peer *peer;
         MatchRegistry *registry;
+        MatchOwner *owner;
 
-        CList link_registry;
-        CRBNode rb_peer;
+        CList registry_link;
+        CRBNode owner_node;
 
         MatchRuleKeys keys;
 
@@ -54,25 +54,32 @@ struct MatchRule {
 };
 
 struct MatchRegistry {
-        CList rules;
+        CList rule_list;
 };
 
-int match_rule_new(MatchRule **rulep, Peer *peer, const char *rule_string);
+struct MatchOwner {
+        CRBTree rule_tree;
+};
+
+int match_rule_new(MatchRule **rulep, MatchOwner *owner, const char *rule_string);
 MatchRule *match_rule_free(MatchRule *rule);
 MatchRule *match_rule_user_ref(MatchRule *rule);
 MatchRule *match_rule_user_unref(MatchRule *rule);
 
 void match_rule_link(MatchRule *rule, MatchRegistry *registry);
-int match_rule_get(MatchRule **rulep, Peer *peer, const char *rule_string);
+int match_rule_get(MatchRule **rulep, MatchOwner *owner, const char *rule_string);
 
 MatchRule *match_rule_next(MatchRegistry *registry, MatchRule *rule, MatchFilter *filter);
 
-#define MATCH_REGISTRY_INIT(_x) {                       \
-                .rules = (CList)C_LIST_INIT((_x).rules) \
+#define MATCH_REGISTRY_INIT(_x) {                               \
+                .rule_list = (CList)C_LIST_INIT((_x).rule_list) \
         }
 
 void match_registry_init(MatchRegistry *registry);
 void match_registry_deinit(MatchRegistry *registry);
+
+void match_owner_init(MatchOwner *owner);
+void match_owner_deinit(MatchOwner *owner);
 
 C_DEFINE_CLEANUP(MatchRule *, match_rule_free);
 C_DEFINE_CLEANUP(MatchRule *, match_rule_user_unref);
