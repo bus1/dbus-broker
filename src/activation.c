@@ -10,7 +10,7 @@
 #include "util/error.h"
 
 static int activation_compare(CRBTree *tree, void *k, CRBNode *rb) {
-        Activation *activation = c_container_of(rb, Activation, bus_node);
+        Activation *activation = c_container_of(rb, Activation, registry_node);
         const char *path = k;
 
         return strcmp(activation->path, path);
@@ -19,41 +19,30 @@ static int activation_compare(CRBTree *tree, void *k, CRBNode *rb) {
 /**
  * activation_new() - XXX
  */
-int activation_new(Activation **activationp, Bus *bus, const char *path, const char *name_str, uid_t uid) {
+int activation_new(Activation **activationp, ActivationRegistry *registry, const char *path, Name *name, UserEntry *user) {
         _c_cleanup_(activation_freep) Activation *activation = NULL;
-        _c_cleanup_(name_unrefp) Name *name = NULL;
-        _c_cleanup_(user_entry_unrefp) UserEntry *user = NULL;
         CRBNode **slot, *parent;
-        int r;
 
-        slot = c_rbtree_find_slot(&bus->activation_tree, activation_compare, path, &parent);
+        slot = c_rbtree_find_slot(&registry->activation_tree, activation_compare, path, &parent);
         if (!slot)
                 return ACTIVATION_E_EXISTS;
 
-        r = name_get(&name, &bus->names, name_str);
-        if (r)
-                return error_fold(r);
-
         if (name->activation)
                 return ACTIVATION_E_ALREADY_ACTIVATABLE;
-
-        r = user_registry_ref_entry(&bus->users, &user, uid);
-        if (r)
-                return error_fold(r);
 
         activation = calloc(1, sizeof(*activation) + strlen(path) + 1);
         if (!activation)
                 return error_origin(-ENOMEM);
 
-        activation->bus = bus;
+        activation->registry = registry;
         activation->name = name_ref(name);
         activation->user = user_entry_ref(user);
         activation->socket_buffers = (CList)C_LIST_INIT(activation->socket_buffers);
-        activation->bus_node = (CRBNode)C_RBNODE_INIT(activation->bus_node);
+        activation->registry_node = (CRBNode)C_RBNODE_INIT(activation->registry_node);
         memcpy((char*)activation->path, path, strlen(path) + 1);
 
         name->activation = activation;
-        c_rbtree_add(&bus->activation_tree, parent, slot, &activation->bus_node);
+        c_rbtree_add(&registry->activation_tree, parent, slot, &activation->registry_node);
 
         *activationp = activation;
         activation = NULL;
@@ -72,14 +61,10 @@ Activation *activation_free(Activation *activation) {
         activation->user = user_entry_unref(activation->user);
         activation->name->activation = NULL;
         activation->name = name_unref(activation->name);
-        c_rbtree_remove_init(&activation->bus->activation_tree, &activation->bus_node);
+        c_rbtree_remove_init(&activation->registry->activation_tree, &activation->registry_node);
         free(activation);
 
         return NULL;
-}
-
-Activation *activation_find(Bus *bus, const char *path) {
-        return c_rbtree_find_entry(&bus->activation_tree, activation_compare, path, Activation, bus_node);
 }
 
 int activation_queue_message(Activation *activation, Message *message) {
@@ -93,4 +78,16 @@ int activation_queue_message(Activation *activation, Message *message) {
         c_list_link_tail(&activation->socket_buffers, &skb->link);
 
         return 0;
+}
+
+void activation_registry_init(ActivationRegistry *registry) {
+        *registry = (ActivationRegistry){};
+}
+
+void activation_registry_deinit(ActivationRegistry *registry) {
+        assert(!registry->activation_tree.root);
+}
+
+Activation *activation_registry_find(ActivationRegistry *registry, const char *path) {
+        return c_rbtree_find_entry(&registry->activation_tree, activation_compare, path, Activation, registry_node);
 }

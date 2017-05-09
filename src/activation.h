@@ -11,7 +11,7 @@
 #include <sys/types.h>
 
 typedef struct Activation Activation;
-typedef struct Bus Bus;
+typedef struct ActivationRegistry ActivationRegistry;
 typedef struct Message Message;
 typedef struct Name Name;
 typedef struct UserEntry UserEntry;
@@ -24,22 +24,29 @@ enum {
 };
 
 struct Activation {
-        Bus *bus;
+        ActivationRegistry *registry;
         Name *name;
 
         UserEntry *user;
         CList socket_buffers;
         bool requested : 1;
 
-        CRBNode bus_node;
+        CRBNode registry_node;
         const char path[];
 };
 
-int activation_new(Activation **activationp, Bus *bus, const char *path, const char *name_str, uid_t uid);
+struct ActivationRegistry {
+        CRBTree activation_tree;
+};
+
+int activation_new(Activation **activationp, ActivationRegistry *registry, const char *path, Name *name, UserEntry *user);
 Activation *activation_free(Activation *free);
 
-Activation *activation_find(Bus *bus, const char *path);
-
 int activation_queue_message(Activation *activation, Message *message);
+
+void activation_registry_init(ActivationRegistry *registry);
+void activation_registry_deinit(ActivationRegistry *registry);
+
+Activation *activation_registry_find(ActivationRegistry *registry, const char *path);
 
 C_DEFINE_CLEANUP(Activation *, activation_free);

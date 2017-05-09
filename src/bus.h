@@ -7,6 +7,7 @@
 #include <c-macro.h>
 #include <c-rbtree.h>
 #include <stdlib.h>
+#include "activation.h"
 #include "listener.h"
 #include "match.h"
 #include "name.h"
@@ -26,7 +27,7 @@ struct Bus {
         Connection *controller;
         char guid[16];
         CRBTree listener_tree;
-        CRBTree activation_tree;
+        ActivationRegistry activations;
         NameRegistry names;
         UserRegistry users;
         MatchRegistry wildcard_matches;

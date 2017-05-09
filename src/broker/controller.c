@@ -186,11 +186,13 @@ static int controller_end_read(CDVar *var) {
 
 static int controller_method_add_name(Bus *bus, const char *_path, CDVar *in_v, FDList *fds, CDVar *out_v) {
         Activation *activation;
-        const char *path, *name;
+        _c_cleanup_(name_unrefp) Name *name = NULL;
+        _c_cleanup_(user_entry_unrefp) UserEntry *user = NULL;
+        const char *path, *name_str;
         uid_t uid;
         int r;
 
-        c_dvar_read(in_v, "(osu)", &path, &name, &uid);
+        c_dvar_read(in_v, "(osu)", &path, &name_str, &uid);
 
         r = controller_end_read(in_v);
         if (r)
@@ -199,7 +201,15 @@ static int controller_method_add_name(Bus *bus, const char *_path, CDVar *in_v, 
         if (strncmp(path, "/org/bus1/DBus/Name/", strlen("/org/bus1/DBus/Name/")) != 0)
                 return CONTROLLER_E_UNEXPECTED_PATH;
 
-        r = activation_new(&activation, bus, path, name, uid);
+        r = name_get(&name, &bus->names, name_str);
+        if (r)
+                return error_fold(r);
+
+        r = user_registry_ref_entry(&bus->users, &user, uid);
+        if (r)
+                return error_fold(r);
+
+        r = activation_new(&activation, &bus->activations, path, name, user);
         if (r) {
                 if (r == ACTIVATION_E_EXISTS)
                         return CONTROLLER_E_ACTIVATION_EXISTS;
@@ -277,7 +287,7 @@ static int controller_method_name_release(Bus *bus, const char *path, CDVar *in_
         if (r)
                 return error_trace(r);
 
-        activation = activation_find(bus, path);
+        activation = activation_registry_find(&bus->activations, path);
         if (!activation)
                 return CONTROLLER_E_ACTIVATION_NOT_FOUND;
 
