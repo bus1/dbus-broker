@@ -33,7 +33,7 @@ static void test_basic(Peer *peer1, Peer *peer2) {
         assert(!slot2);
 
         reply_slot_free(slot1);
-        reply_registry_init(&registry);
+        reply_registry_deinit(&registry);
 }
 
 int main(int argc, char **argv) {
