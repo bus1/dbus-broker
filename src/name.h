@@ -7,13 +7,14 @@
 #include <c-macro.h>
 #include <c-ref.h>
 #include <stdlib.h>
-#include "peer.h"
+#include "match.h"
 
 typedef struct Activation Activation;
 typedef struct NameChange NameChange;
-typedef struct NameOwner NameOwner;
+typedef struct NameOwnership NameOwnership;
 typedef struct NameEntry NameEntry;
 typedef struct NameRegistry NameRegistry;
+typedef struct Peer Peer;
 
 enum {
         _NAME_E_SUCCESS,
@@ -34,7 +35,7 @@ struct NameChange {
         Peer *new_owner;
 };
 
-struct NameOwner {
+struct NameOwnership {
         Peer *peer;
         NameEntry *entry;
         CRBNode rb;
@@ -63,8 +64,8 @@ struct NameRegistry {
 void name_change_init(NameChange *change);
 void name_change_deinit(NameChange *change);
 
-void name_owner_release(NameOwner *owner, NameChange *change);
-bool name_owner_is_primary(NameOwner *owner);
+void name_owner_release(NameOwnership *owner, NameChange *change);
+bool name_owner_is_primary(NameOwnership *owner);
 
 int name_entry_get(NameEntry **entryp, NameRegistry *registry, const char *name);
 void name_entry_free(_Atomic unsigned long *n_refs, void *userpointer);

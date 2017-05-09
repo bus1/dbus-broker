@@ -379,13 +379,13 @@ static int driver_forward_unicast(Peer *sender, const char *destination, Message
 
         if (*destination != ':') {
                 NameEntry *name;
-                NameOwner *owner;
+                NameOwnership *owner;
 
                 name = name_registry_find_entry(&sender->bus->names, destination);
                 if (!name)
                         return DRIVER_E_DESTINATION_NOT_FOUND;
 
-                owner = c_list_first_entry(&name->owners, NameOwner, entry_link);
+                owner = c_list_first_entry(&name->owners, NameOwnership, entry_link);
                 if (!owner) {
                         if (!name->activation)
                                 return DRIVER_E_DESTINATION_NOT_FOUND;
@@ -462,7 +462,7 @@ static int driver_forward_broadcast(Peer *sender, const char *interface, const c
                 return error_trace(r);
 
         for (CRBNode *node = c_rbtree_first(&sender->names); node; c_rbnode_next(node)) {
-                NameOwner *owner = c_container_of(node, NameOwner, rb);
+                NameOwnership *owner = c_container_of(node, NameOwnership, rb);
 
                 if (!name_owner_is_primary(owner))
                         continue;
@@ -780,7 +780,7 @@ static int driver_method_release_name(Peer *peer, CDVar *in_v, CDVar *out_v, Nam
 
 static int driver_method_list_queued_owners(Peer *peer, CDVar *in_v, CDVar *out_v, NameChange *change) {
         NameEntry *entry;
-        NameOwner *owner;
+        NameOwnership *owner;
         const char *name;
         int r;
 
@@ -1278,7 +1278,7 @@ int driver_goodbye(Peer *peer, bool silent) {
         for (node = c_rbtree_first_postorder(&peer->names), next = c_rbnode_next_postorder(node);
              node;
              node = next, next = c_rbnode_next_postorder(node)) {
-                NameOwner *owner = c_container_of(node, NameOwner, rb);
+                NameOwnership *owner = c_container_of(node, NameOwnership, rb);
                 NameChange change;
                 int r = 0;
 
