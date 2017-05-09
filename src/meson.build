@@ -73,14 +73,16 @@ exe_dbus_broker = executable(
 # target: dbus-broker-launch
 #
 
-if dep_systemd.found()
+if dep_systemd.found() and dep_glib.found()
         exe_dbus_broker_launch = executable(
                 'dbus-broker-launch',
                 [
                         'launch/main.c',
                 ],
                 dependencies: [
+                        dep_crbtree,
                         dep_csundry,
+                        dep_glib,
                         dep_systemd,
                         libdbus_broker_dep,
                 ],
