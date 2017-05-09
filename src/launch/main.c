@@ -15,6 +15,7 @@
 #include <sys/types.h>
 #include <sys/un.h>
 #include <systemd/sd-bus.h>
+#include <systemd/sd-daemon.h>
 #include <systemd/sd-event.h>
 #include "util/error.h"
 
@@ -165,23 +166,58 @@ static int manager_new(Manager **managerp) {
 static int manager_listen(Manager *manager, const char *path) {
         _c_cleanup_(c_closep) int s = -1;
         struct sockaddr_un addr = {};
-        int r;
+        int r, n;
 
         assert(manager->fd_listen < 0);
 
-        s = socket(PF_UNIX, SOCK_STREAM | SOCK_CLOEXEC | SOCK_NONBLOCK, 0);
-        if (s < 0)
-                return error_origin(-errno);
+        n = sd_listen_fds(true);
+        if (n < 0)
+                return error_origin(n);
 
-        addr.sun_family = AF_UNIX;
-        memcpy(addr.sun_path, path, strlen(path));
-        r = bind(s, (struct sockaddr *)&addr, offsetof(struct sockaddr_un, sun_path) + strlen(path) + 1);
-        if (r < 0)
-                return error_origin(-errno);
+        if (n >= 1) {
+                if (n > 1) {
+                        fprintf(stderr, "More than one listener socket passed\n");
+                        return error_origin(-EINVAL);
+                }
 
-        r = listen(s, 256);
-        if (r < 0)
-                return error_origin(-errno);
+                s = SD_LISTEN_FDS_START;
+                r = sd_is_socket(s, PF_UNIX, SOCK_STREAM, 1);
+                if (r < 0)
+                        return error_origin(r);
+
+                if (!r) {
+                        fprintf(stderr, "Non unix-domain-socket passed as listener\n");
+                        return error_origin(-EINVAL);
+                }
+
+                r = fcntl(s, F_GETFL);
+                if (r < 0)
+                        return error_origin(-errno);
+
+                r = fcntl(s, F_SETFL, r | O_NONBLOCK);
+                if (r < 0)
+                        return error_origin(-errno);
+
+                if (main_arg_verbose)
+                        fprintf(stderr, "Listening on inherited socket\n");
+        } else {
+                s = socket(PF_UNIX, SOCK_STREAM | SOCK_CLOEXEC | SOCK_NONBLOCK, 0);
+                if (s < 0)
+                        return error_origin(-errno);
+
+                addr.sun_family = AF_UNIX;
+                memcpy(addr.sun_path, path, strlen(path));
+                r = bind(s, (struct sockaddr *)&addr, offsetof(struct sockaddr_un, sun_path) + strlen(path) + 1);
+                if (r < 0)
+                        return error_origin(-errno);
+
+                r = listen(s, 256);
+                if (r < 0)
+                        return error_origin(-errno);
+
+                if (main_arg_verbose)
+                        fprintf(stderr, "Listening on '%s'\n", path);
+        }
 
         manager->fd_listen = s;
         s = -1;
