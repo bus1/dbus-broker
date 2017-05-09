@@ -19,7 +19,6 @@ enum {
 
         MATCH_E_INVALID,
         MATCH_E_NOT_FOUND,
-        MATCH_E_QUOTA,
 };
 
 struct MatchFilter {
@@ -76,3 +75,4 @@ void match_registry_init(MatchRegistry *registry);
 void match_registry_deinit(MatchRegistry *registry);
 
 C_DEFINE_CLEANUP(MatchRule *, match_rule_free);
+C_DEFINE_CLEANUP(MatchRule *, match_rule_user_unref);

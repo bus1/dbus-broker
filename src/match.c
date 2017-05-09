@@ -9,7 +9,6 @@
 #include "dbus/protocol.h"
 #include "match.h"
 #include "peer.h"
-#include "user.h"
 #include "util/error.h"
 
 static int match_rules_compare(CRBTree *tree, void *k, CRBNode *rb) {
@@ -250,9 +249,6 @@ int match_rule_new(MatchRule **rulep, Peer *peer, const char *rule_string) {
         size_t n_rule_string;
         int r;
 
-        if (peer->user->n_matches == 0)
-                return MATCH_E_QUOTA;
-
         n_rule_string = strlen(rule_string);
 
         rule = calloc(1, sizeof(*rule) + n_rule_string);
@@ -262,8 +258,6 @@ int match_rule_new(MatchRule **rulep, Peer *peer, const char *rule_string) {
         rule->n_user_refs = 1;
         rule->peer = peer;
         rule->link_registry = (CList)C_LIST_INIT(rule->link_registry);
-
-        peer->user->n_matches --;
 
         r = match_rule_keys_parse(&rule->keys, rule->buffer, rule_string, n_rule_string);
         if (r)
@@ -284,8 +278,6 @@ int match_rule_new(MatchRule **rulep, Peer *peer, const char *rule_string) {
 }
 
 MatchRule *match_rule_free(MatchRule *rule) {
-        rule->peer->user->n_matches ++;
-
         c_list_unlink(&rule->link_registry);
         c_rbtree_remove(&rule->peer->match_rules, &rule->rb_peer);
 

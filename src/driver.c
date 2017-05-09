@@ -1033,7 +1033,7 @@ static int driver_method_get_connection_selinux_security_context(Peer *peer, CDV
 }
 
 static int driver_method_add_match(Peer *peer, CDVar *in_v, CDVar *out_v, NameChange *change) {
-        MatchRule *rule;
+        _c_cleanup_(match_rule_user_unrefp) MatchRule *rule = NULL;
         const char *rule_string;
         int r;
 
@@ -1042,6 +1042,9 @@ static int driver_method_add_match(Peer *peer, CDVar *in_v, CDVar *out_v, NameCh
         r = driver_end_read(in_v);
         if (r)
                 return error_trace(r);
+
+        if (peer->user->n_matches == 0)
+                return DRIVER_E_QUOTA;
 
         r = match_rule_new(&rule, peer, rule_string);
         if (r)
@@ -1077,6 +1080,9 @@ static int driver_method_add_match(Peer *peer, CDVar *in_v, CDVar *out_v, NameCh
 
         c_dvar_write(out_v, "()");
 
+        --peer->user->n_matches;
+        rule = NULL;
+
         return 0;
 }
 
@@ -1096,10 +1102,11 @@ static int driver_method_remove_match(Peer *peer, CDVar *in_v, CDVar *out_v, Nam
         if (r)
                 return error_fold(r);
 
-        if (rule->keys.sender && strcmp(rule->keys.sender, "org.freedesktop.DBus") != 0)
+        if (rule->keys.sender && *rule->keys.sender != ':' && strcmp(rule->keys.sender, "org.freedesktop.DBus") != 0)
                 name = c_container_of(rule->registry, NameEntry, matches);
 
         match_rule_user_unref(rule);
+        ++peer->user->n_matches;
 
         c_dvar_write(out_v, "()");
 
@@ -1385,6 +1392,9 @@ int driver_dispatch(Peer *peer, Message *message) {
                 break;
         case DRIVER_E_UNEXPECTED_SIGNATURE:
                 r = driver_send_error(peer, metadata.header.serial, "org.freedesktop.DBus.Error.InvalidArgs");
+                break;
+        case DRIVER_E_QUOTA:
+                r = driver_send_error(peer, metadata.header.serial, "org.freedesktop.DBus.Error.LimitsExceeded");
                 break;
         case DRIVER_E_PEER_NOT_FOUND:
         case DRIVER_E_NAME_NOT_FOUND:
