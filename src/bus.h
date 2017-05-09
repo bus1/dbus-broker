@@ -35,14 +35,12 @@ struct Bus {
         PeerRegistry peers;
 };
 
-int bus_new(Bus **busp,
-            unsigned int max_bytes,
-            unsigned int max_fds,
-            unsigned int max_peers,
-            unsigned int max_names,
-            unsigned int max_matches);
-Bus *bus_free(Bus *bus);
+void bus_init(Bus *bus,
+              unsigned int max_bytes,
+              unsigned int max_fds,
+              unsigned int max_peers,
+              unsigned int max_names,
+              unsigned int max_matches);
+void bus_deinit(Bus *bus);
 
 Peer *bus_find_peer_by_name(Bus *bus, const char *name);
-
-C_DEFINE_CLEANUP(Bus *, bus_free);

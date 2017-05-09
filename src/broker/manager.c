@@ -21,7 +21,7 @@
 #include "util/error.h"
 
 struct Manager {
-        Bus *bus;
+        Bus bus;
         DispatchContext dispatcher;
 
         int signals_fd;
@@ -86,7 +86,7 @@ static int manager_dispatch_controller(DispatchFile *file, uint32_t events) {
                 if (!m)
                         break;
 
-                r = controller_dispatch(manager->bus, m);
+                r = controller_dispatch(&manager->bus, m);
                 if (r)
                         return error_fold(r);
         }
@@ -116,17 +116,13 @@ int manager_new(Manager **managerp, int controller_fd) {
         if (!manager)
                 return error_origin(-ENOMEM);
 
-        manager->bus = NULL;
         manager->dispatcher = (DispatchContext)DISPATCH_CONTEXT_NULL(manager->dispatcher);
         manager->signals_fd = -1;
         manager->signals_file = (DispatchFile)DISPATCH_FILE_NULL(manager->signals_file);
         manager->controller = (Connection)CONNECTION_NULL(manager->controller);
+        bus_init(&manager->bus, 16 * 1024 * 1024, 128, 128, 128, 128);
 
-        r = bus_new(&manager->bus, 16 * 1024 * 1024, 128, 128, 128, 128);
-        if (r)
-                return error_fold(r);
-
-        manager->bus->controller = &manager->controller;
+        manager->bus.controller = &manager->controller;
 
         r = dispatch_context_init(&manager->dispatcher);
         if (r)
@@ -150,7 +146,7 @@ int manager_new(Manager **managerp, int controller_fd) {
 
         dispatch_file_select(&manager->signals_file, EPOLLIN);
 
-        r = user_registry_ref_entry(&manager->bus->users, &user, ucred.uid);
+        r = user_registry_ref_entry(&manager->bus.users, &user, ucred.uid);
         if (r)
                 return error_fold(r);
 
@@ -176,7 +172,7 @@ Manager *manager_free(Manager *manager) {
         dispatch_file_deinit(&manager->signals_file);
         c_close(manager->signals_fd);
         dispatch_context_deinit(&manager->dispatcher);
-        bus_free(manager->bus);
+        bus_deinit(&manager->bus);
         free(manager);
 
         return NULL;
@@ -207,13 +203,13 @@ int manager_run(Manager *manager) {
                         r = error_fold(r);
         } while (!r);
 
-        peer_registry_flush(&manager->bus->peers);
-        while ((node = c_rbtree_first(&manager->bus->listener_tree))) {
+        peer_registry_flush(&manager->bus.peers);
+        while ((node = c_rbtree_first(&manager->bus.listener_tree))) {
                 Listener *listener = c_container_of(node, Listener, bus_node);
 
                 listener_free(listener);
         }
-        while ((node = c_rbtree_first(&manager->bus->activations.activation_tree))) {
+        while ((node = c_rbtree_first(&manager->bus.activations.activation_tree))) {
                 Activation *activation = c_container_of(node, Activation, registry_node);
 
                 activation_free(activation);

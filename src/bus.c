@@ -13,18 +13,12 @@
 #include "user.h"
 #include "util/error.h"
 
-int bus_new(Bus **busp,
-            unsigned int max_bytes,
-            unsigned int max_fds,
-            unsigned int max_peers,
-            unsigned int max_names,
-            unsigned int max_matches) {
-        _c_cleanup_(bus_freep) Bus *bus = NULL;
-
-        bus = calloc(1, sizeof(*bus));
-        if (!bus)
-                return error_origin(-ENOMEM);
-
+void bus_init(Bus *bus,
+              unsigned int max_bytes,
+              unsigned int max_fds,
+              unsigned int max_peers,
+              unsigned int max_names,
+              unsigned int max_matches) {
         bus->listener_tree = (CRBTree){};
         activation_registry_init(&bus->activations);
         match_registry_init(&bus->wildcard_matches);
@@ -33,16 +27,9 @@ int bus_new(Bus **busp,
         name_registry_init(&bus->names);
         user_registry_init(&bus->users, max_bytes, max_fds, max_peers, max_names, max_matches);
         peer_registry_init(&bus->peers);
-
-        *busp = bus;
-        bus = NULL;
-        return 0;
 }
 
-Bus *bus_free(Bus *bus) {
-        if (!bus)
-                return NULL;
-
+void bus_deinit(Bus *bus) {
         assert(!bus->listener_tree.root);
 
         peer_registry_deinit(&bus->peers);
@@ -51,10 +38,6 @@ Bus *bus_free(Bus *bus) {
         match_registry_deinit(&bus->driver_matches);
         match_registry_deinit(&bus->wildcard_matches);
         activation_registry_deinit(&bus->activations);
-
-        free(bus);
-
-        return NULL;
 }
 
 /* XXX: use proper return codes */
