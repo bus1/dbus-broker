@@ -19,7 +19,7 @@ static int activation_compare(CRBTree *tree, void *k, CRBNode *rb) {
 /**
  * activation_new() - XXX
  */
-int activation_new(Activation **activationp, ActivationRegistry *registry, const char *path, Name *name, UserEntry *user) {
+int activation_new(Activation **activationp, ActivationRegistry *registry, const char *path, Name *name, User *user) {
         _c_cleanup_(activation_freep) Activation *activation = NULL;
         CRBNode **slot, *parent;
 
@@ -36,7 +36,7 @@ int activation_new(Activation **activationp, ActivationRegistry *registry, const
 
         activation->registry = registry;
         activation->name = name_ref(name);
-        activation->user = user_entry_ref(user);
+        activation->user = user_ref(user);
         activation->socket_buffers = (CList)C_LIST_INIT(activation->socket_buffers);
         activation->registry_node = (CRBNode)C_RBNODE_INIT(activation->registry_node);
         memcpy((char*)activation->path, path, strlen(path) + 1);
@@ -58,7 +58,7 @@ Activation *activation_free(Activation *activation) {
 
         assert(c_list_is_empty(&activation->socket_buffers));
 
-        activation->user = user_entry_unref(activation->user);
+        activation->user = user_unref(activation->user);
         activation->name->activation = NULL;
         activation->name = name_unref(activation->name);
         c_rbtree_remove_init(&activation->registry->activation_tree, &activation->registry_node);

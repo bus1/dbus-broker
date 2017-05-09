@@ -135,7 +135,7 @@ int peer_new_with_fd(Peer **peerp,
              DispatchContext *dispatcher,
              int fd) {
         _c_cleanup_(peer_freep) Peer *peer = NULL;
-        _c_cleanup_(user_entry_unrefp) UserEntry *user = NULL;
+        _c_cleanup_(user_unrefp) User *user = NULL;
         _c_cleanup_(c_freep) char *seclabel = NULL;
         CRBNode **slot, *parent;
         size_t n_seclabel;
@@ -147,7 +147,7 @@ int peer_new_with_fd(Peer **peerp,
         if (r < 0)
                 return error_origin(-errno);
 
-        r = user_registry_ref_entry(&bus->users, &user, ucred.uid);
+        r = user_registry_ref_user(&bus->users, &user, ucred.uid);
         if (r < 0)
                 return error_fold(r);
 
@@ -227,7 +227,7 @@ Peer *peer_free(Peer *peer) {
         name_owner_deinit(&peer->owned_names);
         metrics_deinit(&peer->metrics);
         connection_deinit(&peer->connection);
-        user_entry_unref(peer->user);
+        user_unref(peer->user);
         free(peer->seclabel);
         free(peer);
 

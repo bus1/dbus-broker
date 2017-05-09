@@ -102,7 +102,7 @@ static int manager_dispatch_controller(DispatchFile *file, uint32_t events) {
 
 int manager_new(Manager **managerp, int controller_fd) {
         _c_cleanup_(manager_freep) Manager *manager = NULL;
-        _c_cleanup_(user_entry_unrefp) UserEntry *user = NULL;
+        _c_cleanup_(user_unrefp) User *user = NULL;
         struct ucred ucred;
         socklen_t z_ucred = sizeof(ucred);
         sigset_t sigmask;
@@ -146,7 +146,7 @@ int manager_new(Manager **managerp, int controller_fd) {
 
         dispatch_file_select(&manager->signals_file, EPOLLIN);
 
-        r = user_registry_ref_entry(&manager->bus.users, &user, ucred.uid);
+        r = user_registry_ref_user(&manager->bus.users, &user, ucred.uid);
         if (r)
                 return error_fold(r);
 

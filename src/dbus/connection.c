@@ -16,12 +16,12 @@
 static int connection_init(Connection *connection,
                            DispatchContext *dispatch_ctx,
                            DispatchFn dispatch_fn,
-                           UserEntry *user,
+                           User *user,
                            int fd) {
         int r;
 
         *connection = (Connection)CONNECTION_NULL(*connection);
-        connection->user = user_entry_ref(user);
+        connection->user = user_ref(user);
 
         r = socket_init(&connection->socket, fd);
         if (r)
@@ -44,7 +44,7 @@ static int connection_init(Connection *connection,
 int connection_init_server(Connection *connection,
                            DispatchContext *dispatch_ctx,
                            DispatchFn dispatch_fn,
-                           UserEntry *user,
+                           User *user,
                            const char *guid,
                            int fd) {
         _c_cleanup_(connection_deinitp) Connection *c = connection;
@@ -70,7 +70,7 @@ int connection_init_server(Connection *connection,
 int connection_init_client(Connection *connection,
                            DispatchContext *dispatch_ctx,
                            DispatchFn dispatch_fn,
-                           UserEntry *user,
+                           User *user,
                            int fd) {
         _c_cleanup_(connection_deinitp) Connection *c = connection;
         int r;
@@ -99,7 +99,7 @@ void connection_deinit(Connection *connection) {
                 sasl_client_deinit(&connection->sasl.client);
         dispatch_file_deinit(&connection->socket_file);
         socket_deinit(&connection->socket);
-        connection->user = user_entry_unref(connection->user);
+        connection->user = user_unref(connection->user);
 }
 
 /**

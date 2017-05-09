@@ -187,7 +187,7 @@ static int controller_end_read(CDVar *var) {
 static int controller_method_add_name(Bus *bus, const char *_path, CDVar *in_v, FDList *fds, CDVar *out_v) {
         Activation *activation;
         _c_cleanup_(name_unrefp) Name *name = NULL;
-        _c_cleanup_(user_entry_unrefp) UserEntry *user = NULL;
+        _c_cleanup_(user_unrefp) User *user = NULL;
         const char *path, *name_str;
         uid_t uid;
         int r;
@@ -205,7 +205,7 @@ static int controller_method_add_name(Bus *bus, const char *_path, CDVar *in_v, 
         if (r)
                 return error_fold(r);
 
-        r = user_registry_ref_entry(&bus->users, &user, uid);
+        r = user_registry_ref_user(&bus->users, &user, uid);
         if (r)
                 return error_fold(r);
 

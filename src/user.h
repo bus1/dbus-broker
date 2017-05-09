@@ -4,7 +4,7 @@
  * User Accounting
  *
  * Different users can communicate via the broker, and some resources are
- * shared between multiple users. The UserEntry object represents the UID of a
+ * shared between multiple users. The User object represents the UID of a
  * user, like "struct user_struct" does in the kernel. It is used to account
  * global resources, apply limits, and calculate quotas if different UIDs
  * communicate with each other.
@@ -32,7 +32,7 @@
 
 typedef struct UserCharge UserCharge;
 typedef struct UserUsage UserUsage;
-typedef struct UserEntry UserEntry;
+typedef struct User User;
 typedef struct UserRegistry UserRegistry;
 
 enum {
@@ -48,12 +48,12 @@ struct UserCharge {
         unsigned int n_fds;
 };
 
-struct UserEntry {
+struct User {
         _Atomic unsigned long n_refs;
         UserRegistry *registry;
 
         uid_t uid;
-        CRBNode rb;
+        CRBNode registry_node;
 
         unsigned int n_bytes;
         unsigned int n_fds;
@@ -66,7 +66,7 @@ struct UserEntry {
         unsigned int max_peers;
         unsigned int max_matches;
 
-        CRBTree usages;
+        CRBTree usage_tree;
         unsigned int n_usages;
 };
 
@@ -77,7 +77,7 @@ struct UserRegistry {
         unsigned int max_names;
         unsigned int max_matches;
 
-        CRBTree users;
+        CRBTree user_tree;
 };
 
 /* charge */
@@ -87,13 +87,13 @@ void user_charge_deinit(UserCharge *charge);
 
 /* user */
 
-void user_entry_free(_Atomic unsigned long *n_refs, void *userdata);
+void user_free(_Atomic unsigned long *n_refs, void *userdata);
 
-int user_entry_charge(UserEntry *entry,
-                      UserCharge *charge,
-                      UserEntry *actor,
-                      unsigned int n_bytes,
-                      unsigned int n_fds);
+int user_charge(User *user,
+                UserCharge *charge,
+                User *actor,
+                unsigned int n_bytes,
+                unsigned int n_fds);
 
 /* registry */
 
@@ -113,28 +113,28 @@ void user_registry_init(UserRegistry *registry,
                         unsigned int max_matches);
 void user_registry_deinit(UserRegistry *registry);
 
-int user_registry_ref_entry(UserRegistry *registry, UserEntry **userp, uid_t uid);
+int user_registry_ref_user(UserRegistry *registry, User **userp, uid_t uid);
 
 /**
- * user_entry_ref() - acquire reference
- * @entry:              user entry to acquire, or NULL
+ * user_ref() - acquire reference
+ * @user:              user object to acquire, or NULL
  *
  * Acquire an additional reference to a user-object. The caller must already
  * own a reference.
  *
  * If NULL is passed, this is a no-op.
  *
- * Return: @entry is returned.
+ * Return: @user is returned.
  */
-static inline UserEntry *user_entry_ref(UserEntry *entry) {
-        if (entry)
-                c_ref_inc(&entry->n_refs);
-        return entry;
+static inline User *user_ref(User *user) {
+        if (user)
+                c_ref_inc(&user->n_refs);
+        return user;
 }
 
 /**
- * user_entry_unref() - release reference
- * @entry:              user entry to release, or NULL
+ * user_unref() - release reference
+ * @user:              user object to release, or NULL
  *
  * Release a reference to a user-object.
  *
@@ -142,10 +142,10 @@ static inline UserEntry *user_entry_ref(UserEntry *entry) {
  *
  * Return: NULL is returned.
  */
-static inline UserEntry *user_entry_unref(UserEntry *entry) {
-        if (entry)
-                c_ref_dec(&entry->n_refs, user_entry_free, NULL);
+static inline User *user_unref(User *user) {
+        if (user)
+                c_ref_dec(&user->n_refs, user_free, NULL);
         return NULL;
 }
 
-C_DEFINE_CLEANUP(UserEntry *, user_entry_unref);
+C_DEFINE_CLEANUP(User *, user_unref);

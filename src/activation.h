@@ -14,7 +14,7 @@ typedef struct Activation Activation;
 typedef struct ActivationRegistry ActivationRegistry;
 typedef struct Message Message;
 typedef struct Name Name;
-typedef struct UserEntry UserEntry;
+typedef struct User User;
 
 enum {
         _ACTIVATION_E_SUCCESS,
@@ -27,7 +27,7 @@ struct Activation {
         ActivationRegistry *registry;
         Name *name;
 
-        UserEntry *user;
+        User *user;
         CList socket_buffers;
         bool requested : 1;
 
@@ -39,7 +39,7 @@ struct ActivationRegistry {
         CRBTree activation_tree;
 };
 
-int activation_new(Activation **activationp, ActivationRegistry *registry, const char *path, Name *name, UserEntry *user);
+int activation_new(Activation **activationp, ActivationRegistry *registry, const char *path, Name *name, User *user);
 Activation *activation_free(Activation *free);
 
 int activation_queue_message(Activation *activation, Message *message);

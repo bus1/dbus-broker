@@ -19,7 +19,7 @@ typedef struct DispatchContext DispatchContext;
 typedef struct Peer Peer;
 typedef struct PeerRegistry PeerRegistry;
 typedef struct Socket Socket;
-typedef struct UserEntry UserEntry;
+typedef struct User User;
 
 enum {
         _PEER_E_SUCCESS,
@@ -29,7 +29,7 @@ enum {
 
 struct Peer {
         Bus *bus;
-        UserEntry *user;
+        User *user;
         pid_t pid;
         char *seclabel;
         size_t n_seclabel;

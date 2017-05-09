@@ -13,7 +13,7 @@
 
 typedef struct Connection Connection;
 typedef struct Message Message;
-typedef struct UserEntry UserEntry;
+typedef struct User User;
 
 enum {
         _CONNECTION_E_SUCCESS,
@@ -23,7 +23,7 @@ enum {
 };
 
 struct Connection {
-        UserEntry *user;
+        User *user;
         Socket socket;
         DispatchFile socket_file;
         union {
@@ -47,13 +47,13 @@ struct Connection {
 int connection_init_server(Connection *connection,
                            DispatchContext *dispatch_ctx,
                            DispatchFn dispatch_fn,
-                           UserEntry *user,
+                           User *user,
                            const char *guid,
                            int fd);
 int connection_init_client(Connection *connection,
                            DispatchContext *dispatch_ctx,
                            DispatchFn dispatch_fn,
-                           UserEntry *user,
+                           User *user,
                            int fd);
 void connection_deinit(Connection *connection);
 
