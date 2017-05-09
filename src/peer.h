@@ -12,7 +12,6 @@
 #include "match.h"
 #include "name.h"
 #include "reply.h"
-#include "util/dispatch.h"
 #include "util/metrics.h"
 
 typedef struct Bus Bus;
@@ -36,7 +35,7 @@ struct Peer {
         size_t n_seclabel;
 
         uint64_t id;
-        CRBNode rb;
+        CRBNode registry_node;
 
         Connection connection;
         bool registered : 1;
@@ -51,7 +50,7 @@ struct Peer {
 };
 
 struct PeerRegistry {
-        CRBTree peers;
+        CRBTree peer_tree;
         uint64_t ids;
 };
 

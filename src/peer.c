@@ -2,11 +2,8 @@
  * Peers
  */
 
-#include <c-dvar.h>
-#include <c-dvar-type.h>
 #include <c-macro.h>
 #include <c-rbtree.h>
-#include <c-string.h>
 #include <stdlib.h>
 #include <sys/epoll.h>
 #include <sys/socket.h>
@@ -119,7 +116,7 @@ static int peer_get_peersec(int fd, char **labelp, size_t *lenp) {
 }
 
 static int peer_compare(CRBTree *tree, void *k, CRBNode *rb) {
-        Peer *peer = c_container_of(rb, Peer, rb);
+        Peer *peer = c_container_of(rb, Peer, registry_node);
         uint64_t id = *(uint64_t*)k;
 
         if (peer->id < id)
@@ -169,7 +166,7 @@ int peer_new_with_fd(Peer **peerp,
 
         peer->bus = bus;
         peer->connection = (Connection)CONNECTION_NULL(peer->connection);
-        c_rbnode_init(&peer->rb);
+        c_rbnode_init(&peer->registry_node);
         peer->user = user;
         user = NULL;
         peer->pid = ucred.pid;
@@ -193,9 +190,9 @@ int peer_new_with_fd(Peer **peerp,
                 return error_fold(r);
 
         peer->id = bus->peers.ids++;
-        slot = c_rbtree_find_slot(&bus->peers.peers, peer_compare, &peer->id, &parent);
+        slot = c_rbtree_find_slot(&bus->peers.peer_tree, peer_compare, &peer->id, &parent);
         assert(slot); /* peer->id is guaranteed to be unique */
-        c_rbtree_add(&bus->peers.peers, parent, slot, &peer->rb);
+        c_rbtree_add(&bus->peers.peer_tree, parent, slot, &peer->registry_node);
 
         *peerp = peer;
         peer = NULL;
@@ -219,7 +216,7 @@ Peer *peer_free(Peer *peer) {
         c_list_for_each_entry_safe(reply, safe, &peer->owned_replies.reply_list, owner_link)
                 reply_slot_free(reply);
 
-        c_rbtree_remove_init(&peer->bus->peers.peers, &peer->rb);
+        c_rbtree_remove_init(&peer->bus->peers.peer_tree, &peer->registry_node);
 
         fd = peer->connection.socket.fd;
 
@@ -256,22 +253,23 @@ void peer_unregister(Peer *peer) {
 }
 
 void peer_registry_init(PeerRegistry *registry) {
-        registry->peers = (CRBTree){};
+        registry->peer_tree = (CRBTree){};
         registry->ids = 0;
 }
 
 void peer_registry_deinit(PeerRegistry *registry) {
-        assert(!registry->peers.root);
+        assert(!registry->peer_tree.root);
+        registry->ids = 0;
 }
 
 void peer_registry_flush(PeerRegistry *registry) {
         CRBNode *node, *next;
         int r;
 
-        for (node = c_rbtree_first_postorder(&registry->peers), next = c_rbnode_next_postorder(node);
+        for (node = c_rbtree_first_postorder(&registry->peer_tree), next = c_rbnode_next_postorder(node);
              node;
              node = next, next = c_rbnode_next(node)) {
-                Peer *peer = c_container_of(node, Peer, rb);
+                Peer *peer = c_container_of(node, Peer, registry_node);
 
                 if (peer_is_registered(peer)) {
                         r = driver_goodbye(peer, true);
@@ -286,7 +284,7 @@ void peer_registry_flush(PeerRegistry *registry) {
 Peer *peer_registry_find_peer(PeerRegistry *registry, uint64_t id) {
         Peer *peer;
 
-        peer = c_rbtree_find_entry(&registry->peers, peer_compare, &id, Peer, rb);
+        peer = c_rbtree_find_entry(&registry->peer_tree, peer_compare, &id, Peer, registry_node);
 
         return peer->registered ? peer : NULL;
 }
