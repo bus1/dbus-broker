@@ -47,6 +47,7 @@ struct Manager {
 static bool main_arg_verbose = false;
 static const char *main_arg_listen = "/var/run/dbus/system_bus_socket";
 static const char *main_arg_servicedir = "/usr/share/dbus-1/system-services";
+static const char *main_arg_broker = "/usr/bin/dbus-broker";
 static bool main_arg_force = false;
 
 static int service_compare(CRBTree *t, void *k, CRBNode *n) {
@@ -218,7 +219,7 @@ static noreturn void manager_run_child(Manager *manager, int fd_controller) {
         r = snprintf(str_controller, sizeof(str_controller), "%d", fd_controller);
         assert(r < (ssize_t)sizeof(str_controller));
 
-        r = execve(argv[0], argv, environ);
+        r = execve(main_arg_broker, argv, environ);
         r = error_origin(-errno);
 
 exit:
