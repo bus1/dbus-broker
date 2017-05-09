@@ -18,6 +18,7 @@
 #include "dbus/unique-name.h"
 #include "driver.h"
 #include "match.h"
+#include "name.h"
 #include "peer.h"
 #include "reply.h"
 #include "user.h"
@@ -176,6 +177,7 @@ int peer_new_with_fd(Peer **peerp,
         seclabel = NULL;
         peer->n_seclabel = n_seclabel;
         peer->metrics = (Metrics)METRICS_INIT;
+        peer->owned_names = (NameOwner){};
         match_registry_init(&peer->matches);
         match_owner_init(&peer->owned_matches);
         reply_registry_init(&peer->replies_outgoing);
@@ -210,7 +212,6 @@ Peer *peer_free(Peer *peer) {
         if (!peer)
                 return NULL;
 
-        assert(!peer->names.root);
         assert(!peer->registered);
 
         peer->user->n_peers ++;
@@ -226,6 +227,7 @@ Peer *peer_free(Peer *peer) {
         reply_registry_deinit(&peer->replies_outgoing);
         match_owner_deinit(&peer->owned_matches);
         match_registry_deinit(&peer->matches);
+        name_owner_deinit(&peer->owned_names);
         metrics_deinit(&peer->metrics);
         connection_deinit(&peer->connection);
         user_entry_unref(peer->user);

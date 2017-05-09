@@ -10,6 +10,7 @@
 #include <sys/types.h>
 #include "dbus/connection.h"
 #include "match.h"
+#include "name.h"
 #include "reply.h"
 #include "util/dispatch.h"
 #include "util/metrics.h"
@@ -40,7 +41,7 @@ struct Peer {
         Connection connection;
         bool registered : 1;
 
-        CRBTree names;
+        NameOwner owned_names;
         MatchRegistry matches;
         MatchOwner owned_matches;
         ReplyRegistry replies_outgoing;

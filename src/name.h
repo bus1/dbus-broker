@@ -11,10 +11,10 @@
 
 typedef struct Activation Activation;
 typedef struct NameChange NameChange;
+typedef struct Name Name;
 typedef struct NameOwnership NameOwnership;
-typedef struct NameEntry NameEntry;
+typedef struct NameOwner NameOwner;
 typedef struct NameRegistry NameRegistry;
-typedef struct Peer Peer;
 
 enum {
         _NAME_E_SUCCESS,
@@ -30,20 +30,20 @@ enum {
 };
 
 struct NameChange {
-        NameEntry *name;
-        Peer *old_owner;
-        Peer *new_owner;
+        Name *name;
+        NameOwner *old_owner;
+        NameOwner *new_owner;
 };
 
 struct NameOwnership {
-        Peer *peer;
-        NameEntry *entry;
-        CRBNode rb;
-        CList entry_link;
+        NameOwner *owner;
+        Name *name;
+        CRBNode owner_node;
+        CList name_link;
         uint64_t flags;
 };
 
-struct NameEntry {
+struct Name {
         _Atomic unsigned long n_refs;
         NameRegistry *registry;
 
@@ -51,48 +51,55 @@ struct NameEntry {
 
         MatchRegistry matches;
 
-        CList owners;
-        CRBNode rb;
+        CList ownership_list;
+        CRBNode registry_node;
         const char name[];
 };
 
 struct NameRegistry {
         /* XXX: use a trie instead? */
-        CRBTree entries;
+        CRBTree name_tree;
+};
+
+struct NameOwner {
+        CRBTree ownership_tree;
 };
 
 void name_change_init(NameChange *change);
 void name_change_deinit(NameChange *change);
 
-void name_owner_release(NameOwnership *owner, NameChange *change);
-bool name_owner_is_primary(NameOwnership *owner);
+void name_ownership_release(NameOwnership *owner, NameChange *change);
+bool name_ownership_is_primary(NameOwnership *owner);
 
-int name_entry_get(NameEntry **entryp, NameRegistry *registry, const char *name);
-void name_entry_free(_Atomic unsigned long *n_refs, void *userpointer);
+int name_get(Name **namep, NameRegistry *registry, const char *name_str);
+void name_free(_Atomic unsigned long *n_refs, void *userpointer);
 
-bool name_entry_is_owned(NameEntry *entry);
+bool name_is_owned(Name *name);
 
-NameEntry *name_registry_find_entry(NameRegistry *registry, const char *name);
-Peer *name_registry_resolve_name(NameRegistry *registry, const char *name);
+Name *name_registry_find_name(NameRegistry *registry, const char *name_str);
+NameOwner *name_registry_resolve_owner(NameRegistry *registry, const char *name_str);
 
 void name_registry_init(NameRegistry *registry);
 void name_registry_deinit(NameRegistry *registry);
 
-int name_registry_request_name(NameRegistry *registry, Peer *peer, const char *name, uint32_t flags, NameChange *change);
-int name_registry_release_name(NameRegistry *registry, Peer *peer, const char *name, NameChange *change);
+int name_registry_request_name(NameRegistry *registry, NameOwner *owner, const char *name_str, uint32_t flags, NameChange *change);
+int name_registry_release_name(NameRegistry *registry, NameOwner *owner, const char *name_str, NameChange *change);
 
-static inline NameEntry *name_entry_ref(NameEntry *entry) {
-        if (entry)
-                c_ref_inc(&entry->n_refs);
+void name_owner_init(NameOwner *owner);
+void name_owner_deinit(NameOwner *owner);
 
-        return entry;
+static inline Name *name_ref(Name *name) {
+        if (name)
+                c_ref_inc(&name->n_refs);
+
+        return name;
 }
 
-static inline NameEntry *name_entry_unref(NameEntry *entry) {
-        if (entry)
-                c_ref_dec(&entry->n_refs, name_entry_free, NULL);
+static inline Name *name_unref(Name *name) {
+        if (name)
+                c_ref_dec(&name->n_refs, name_free, NULL);
 
         return NULL;
 }
 
-C_DEFINE_CLEANUP(NameEntry *, name_entry_unref);
+C_DEFINE_CLEANUP(Name *, name_unref);

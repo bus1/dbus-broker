@@ -378,15 +378,15 @@ static int driver_forward_unicast(Peer *sender, const char *destination, Message
         int r;
 
         if (*destination != ':') {
-                NameEntry *name;
-                NameOwnership *owner;
+                Name *name;
+                NameOwnership *ownership;
 
-                name = name_registry_find_entry(&sender->bus->names, destination);
+                name = name_registry_find_name(&sender->bus->names, destination);
                 if (!name)
                         return DRIVER_E_DESTINATION_NOT_FOUND;
 
-                owner = c_list_first_entry(&name->owners, NameOwnership, entry_link);
-                if (!owner) {
+                ownership = c_list_first_entry(&name->ownership_list, NameOwnership, name_link);
+                if (!ownership) {
                         if (!name->activation)
                                 return DRIVER_E_DESTINATION_NOT_FOUND;
 
@@ -404,7 +404,7 @@ static int driver_forward_unicast(Peer *sender, const char *destination, Message
 
                         return 0;
                 } else {
-                        receiver = owner->peer;
+                        receiver = c_container_of(ownership->owner, Peer, owned_names);
                 }
         } else {
                 uint64_t id;
@@ -461,13 +461,13 @@ static int driver_forward_broadcast(Peer *sender, const char *interface, const c
         if (r < 0)
                 return error_trace(r);
 
-        for (CRBNode *node = c_rbtree_first(&sender->names); node; c_rbnode_next(node)) {
-                NameOwnership *owner = c_container_of(node, NameOwnership, rb);
+        for (CRBNode *node = c_rbtree_first(&sender->owned_names.ownership_tree); node; c_rbnode_next(node)) {
+                NameOwnership *ownership = c_container_of(node, NameOwnership, owner_node);
 
-                if (!name_owner_is_primary(owner))
+                if (!name_ownership_is_primary(ownership))
                         continue;
 
-                r = driver_send_broadcast_to_matches(&owner->entry->matches, &filter, message);
+                r = driver_send_broadcast_to_matches(&ownership->name->matches, &filter, message);
                 if (r)
                         return error_trace(r);
         }
@@ -713,8 +713,6 @@ static int driver_method_hello(Peer *peer, CDVar *in_v, CDVar *out_v, NameChange
         /* register on the bus */
         peer_register(peer);
 
-        change->new_owner = peer;
-
         return 0;
 }
 
@@ -732,7 +730,7 @@ static int driver_method_request_name(Peer *peer, CDVar *in_v, CDVar *out_v, Nam
         if (strcmp(name, "org.freedesktop.DBus") == 0)
                 return DRIVER_E_NAME_RESERVED;
 
-        r = name_registry_request_name(&peer->bus->names, peer, name, flags, change);
+        r = name_registry_request_name(&peer->bus->names, &peer->owned_names, name, flags, change);
         if (r == 0)
                 reply = DBUS_REQUEST_NAME_REPLY_PRIMARY_OWNER;
         else if (r == NAME_E_IN_QUEUE)
@@ -763,7 +761,7 @@ static int driver_method_release_name(Peer *peer, CDVar *in_v, CDVar *out_v, Nam
         if (strcmp(name, "org.freedesktop.DBus") == 0)
                 return DRIVER_E_NAME_RESERVED;
 
-        r = name_registry_release_name(&peer->bus->names, peer, name, change);
+        r = name_registry_release_name(&peer->bus->names, &peer->owned_names, name, change);
         if (r == 0)
                 reply = DBUS_RELEASE_NAME_REPLY_RELEASED;
         else if (r == NAME_E_NOT_FOUND)
@@ -779,24 +777,24 @@ static int driver_method_release_name(Peer *peer, CDVar *in_v, CDVar *out_v, Nam
 }
 
 static int driver_method_list_queued_owners(Peer *peer, CDVar *in_v, CDVar *out_v, NameChange *change) {
-        NameEntry *entry;
-        NameOwnership *owner;
-        const char *name;
+        Name *name;
+        NameOwnership *ownership;
+        const char *name_str;
         int r;
 
-        c_dvar_read(in_v, "(s)", &name);
+        c_dvar_read(in_v, "(s)", &name_str);
 
         r = driver_end_read(in_v);
         if (r)
                 return error_trace(r);
 
-        entry = name_registry_find_entry(&peer->bus->names, name);
-        if (!entry)
+        name = name_registry_find_name(&peer->bus->names, name_str);
+        if (!name)
                 return DRIVER_E_NAME_NOT_FOUND;
 
         c_dvar_write(out_v, "([");
-        c_list_for_each_entry(owner, &entry->owners, entry_link)
-                driver_dvar_write_unique_name(out_v, owner->peer);
+        c_list_for_each_entry(ownership, &name->ownership_list, name_link)
+                driver_dvar_write_unique_name(out_v, c_container_of(ownership->owner, Peer, owned_names));
         c_dvar_write(out_v, "])");
 
         return 0;
@@ -813,13 +811,13 @@ static int driver_method_list_names(Peer *peer, CDVar *in_v, CDVar *out_v, NameC
 
         c_dvar_write(out_v, "([");
         c_dvar_write(out_v, "s", "org.freedesktop.DBus");
-        for (CRBNode *n = c_rbtree_first(&peer->bus->names.entries); n; n = c_rbnode_next(n)) {
-                NameEntry *entry = c_container_of(n, NameEntry, rb);
+        for (CRBNode *n = c_rbtree_first(&peer->bus->names.name_tree); n; n = c_rbnode_next(n)) {
+                Name *name = c_container_of(n, Name, registry_node);
 
-                if (!name_entry_is_owned(entry))
+                if (!name_is_owned(name))
                         continue;
 
-                c_dvar_write(out_v, "s", entry->name);
+                c_dvar_write(out_v, "s", name->name);
         }
         for (CRBNode *n = c_rbtree_first(&peer->bus->peers.peers); n; n = c_rbnode_next(n)) {
                 Peer *p = c_container_of(n, Peer, rb);
@@ -844,13 +842,13 @@ static int driver_method_list_activatable_names(Peer *peer, CDVar *in_v, CDVar *
                 return error_trace(r);
 
         c_dvar_write(out_v, "([");
-        for (CRBNode *n = c_rbtree_first(&peer->bus->names.entries); n; n = c_rbnode_next(n)) {
-                NameEntry *entry = c_container_of(n, NameEntry, rb);
+        for (CRBNode *n = c_rbtree_first(&peer->bus->names.name_tree); n; n = c_rbnode_next(n)) {
+                Name *name = c_container_of(n, Name, registry_node);
 
-                if (!entry->activation)
+                if (!name->activation)
                         continue;
 
-                c_dvar_write(out_v, "s", entry->name);
+                c_dvar_write(out_v, "s", name->name);
         }
         c_dvar_write(out_v, "])");
 
@@ -892,11 +890,10 @@ static int driver_method_update_activation_environment(Peer *peer, CDVar *in_v, 
 }
 
 static int driver_method_get_name_owner(Peer *peer, CDVar *in_v, CDVar *out_v, NameChange *change) {
-        Peer *owner;
-        const char *name;
+        const char *name_str;
         int r;
 
-        c_dvar_read(in_v, "(s)", &name);
+        c_dvar_read(in_v, "(s)", &name_str);
 
         r = driver_end_read(in_v);
         if (r)
@@ -904,14 +901,16 @@ static int driver_method_get_name_owner(Peer *peer, CDVar *in_v, CDVar *out_v, N
 
         c_dvar_write(out_v, "(");
 
-        if (strcmp(name, "org.freedesktop.DBus") == 0) {
+        if (strcmp(name_str, "org.freedesktop.DBus") == 0) {
                 c_dvar_write(out_v, "org.freedesktop.DBus");
         } else {
-                owner = name_registry_resolve_name(&peer->bus->names, name);
+                NameOwner *owner;
+
+                owner = name_registry_resolve_owner(&peer->bus->names, name_str);
                 if (!owner)
                         return DRIVER_E_NAME_OWNER_NOT_FOUND;
 
-                driver_dvar_write_unique_name(out_v, owner);
+                driver_dvar_write_unique_name(out_v, c_container_of(owner, Peer, owned_names));
         }
 
         c_dvar_write(out_v, ")");
@@ -1072,14 +1071,14 @@ static int driver_method_add_match(Peer *peer, CDVar *in_v, CDVar *out_v, NameCh
         } else if (strcmp(rule->keys.sender, "org.freedesktop.DBus") == 0) {
                 match_rule_link(rule, &peer->bus->driver_matches);
         } else {
-                _c_cleanup_(name_entry_unrefp) NameEntry *name = NULL;
+                _c_cleanup_(name_unrefp) Name *name = NULL;
 
-                r = name_entry_get(&name, &peer->bus->names, rule->keys.sender);
+                r = name_get(&name, &peer->bus->names, rule->keys.sender);
                 if (r)
                         return error_fold(r);
 
                 match_rule_link(rule, &name->matches);
-                name_entry_ref(name); /* this reference must be explicitly released */
+                name_ref(name); /* this reference must be explicitly released */
         }
 
         c_dvar_write(out_v, "()");
@@ -1091,7 +1090,7 @@ static int driver_method_add_match(Peer *peer, CDVar *in_v, CDVar *out_v, NameCh
 }
 
 static int driver_method_remove_match(Peer *peer, CDVar *in_v, CDVar *out_v, NameChange *change) {
-        _c_cleanup_(name_entry_unrefp) NameEntry *name = NULL;
+        _c_cleanup_(name_unrefp) Name *name = NULL;
         MatchRule *rule;
         const char *rule_string;
         int r;
@@ -1107,7 +1106,7 @@ static int driver_method_remove_match(Peer *peer, CDVar *in_v, CDVar *out_v, Nam
                 return error_fold(r);
 
         if (rule->keys.sender && *rule->keys.sender != ':' && strcmp(rule->keys.sender, "org.freedesktop.DBus") != 0)
-                name = c_container_of(rule->registry, NameEntry, matches);
+                name = c_container_of(rule->registry, Name, matches);
 
         match_rule_user_unref(rule);
         ++peer->user->n_matches;
@@ -1199,19 +1198,33 @@ static int driver_handle_method(const DriverMethod *method, Peer *peer, const ch
         if (r)
                 return error_fold(r);
 
-        if (change.name || change.old_owner || change.new_owner) {
-                r = driver_name_owner_changed(change.name ? change.name->name : NULL, change.old_owner, change.new_owner);
+        if (change.name) {
+                Peer *old_peer = NULL, *new_peer = NULL;
+
+                if (change.old_owner)
+                        old_peer = c_container_of(change.old_owner, Peer, owned_names);
+
+                if (change.new_owner)
+                        new_peer = c_container_of(change.new_owner, Peer, owned_names);
+
+                r = driver_name_owner_changed(change.name->name, old_peer, new_peer);
                 if (r)
                         return error_trace(r);
 
-                if (change.name && change.new_owner) {
-                        r = driver_name_activated(change.name->activation, change.new_owner);
+                if (new_peer) {
+                        r = driver_name_activated(change.name->activation, new_peer);
                         if (r)
                                 return error_trace(r);
                 }
 
                 name_change_deinit(&change);
+        } else if (strcmp(method->name, "Hello") == 0) {
+                /* XXX: special casing this is a bit of a hack */
+                r = driver_name_owner_changed(NULL, NULL, peer);
+                if (r)
+                        return error_trace(r);
         }
+
 
         return 0;
 }
@@ -1275,17 +1288,19 @@ int driver_goodbye(Peer *peer, bool silent) {
                 match_rule_free(rule);
         }
 
-        for (node = c_rbtree_first_postorder(&peer->names), next = c_rbnode_next_postorder(node);
+        for (node = c_rbtree_first_postorder(&peer->owned_names.ownership_tree), next = c_rbnode_next_postorder(node);
              node;
              node = next, next = c_rbnode_next_postorder(node)) {
-                NameOwnership *owner = c_container_of(node, NameOwnership, rb);
+                NameOwnership *ownership = c_container_of(node, NameOwnership, owner_node);
                 NameChange change;
                 int r = 0;
 
                 name_change_init(&change);
-                name_owner_release(owner, &change);
+                name_ownership_release(ownership, &change);
                 if (!silent && change.name)
-                        r = driver_name_owner_changed(change.name->name, change.old_owner, change.new_owner);
+                        r = driver_name_owner_changed(change.name->name,
+                                                      c_container_of(change.old_owner, Peer, owned_names),
+                                                      c_container_of(change.new_owner, Peer, owned_names));
                 name_change_deinit(&change);
                 if (r)
                         return error_fold(r);

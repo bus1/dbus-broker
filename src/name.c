@@ -20,70 +20,63 @@ void name_change_init(NameChange *change) {
 }
 
 void name_change_deinit(NameChange *change) {
-        change->name = name_entry_unref(change->name);
+        change->name = name_unref(change->name);
         change->old_owner = NULL;
         change->new_owner = NULL;
 }
 
 /* new owner object linked into the owning peer */
-static int name_owner_new(NameOwnership **ownerp, Peer *peer, NameEntry *entry, CRBNode *parent, CRBNode **slot) {
-        NameOwnership *owner;
+static int name_ownership_new(NameOwnership **ownershipp, NameOwner *owner, Name *name, CRBNode *parent, CRBNode **slot) {
+        NameOwnership *ownership;
 
-        if (peer->user->n_names < 1)
-                return NAME_E_QUOTA;
-
-        owner = calloc(1, sizeof(*owner));
-        if (!owner)
+        ownership = calloc(1, sizeof(*ownership));
+        if (!ownership)
                 return error_origin(-ENOMEM);
 
-        peer->user->n_names --;
+        ownership->name_link = (CList)C_LIST_INIT(ownership->name_link);
+        ownership->name = name_ref(name);
+        c_rbtree_add(&owner->ownership_tree, parent, slot, &ownership->owner_node);
+        ownership->owner = owner;
 
-        owner->entry_link = (CList)C_LIST_INIT(owner->entry_link);
-        owner->entry = name_entry_ref(entry);
-        owner->peer = peer;
-        c_rbtree_add(&peer->names, parent, slot, &owner->rb);
-
-        *ownerp = owner;
+        *ownershipp = ownership;
         return 0;
 }
 
 /* unlink from peer and entry */
-static NameOwnership *name_owner_free(NameOwnership *owner) {
-        if (!owner)
+static NameOwnership *name_ownership_free(NameOwnership *ownership) {
+        if (!ownership)
                 return NULL;
 
-        c_rbtree_remove(&owner->peer->names, &owner->rb);
-        c_list_unlink(&owner->entry_link);
-        name_entry_unref(owner->entry);
+        c_rbtree_remove(&ownership->owner->ownership_tree, &ownership->owner_node);
+        c_list_unlink(&ownership->name_link);
+        name_unref(ownership->name);
 
-        owner->peer->user->n_names ++;
-
-        free(owner);
+        free(ownership);
 
         return NULL;
 }
 
-static int name_owner_compare(CRBTree *tree, void *k, CRBNode *rb) {
-        NameOwnership *owner = c_container_of(rb, NameOwnership, rb);
-        NameEntry *entry = k;
+static int name_ownership_compare(CRBTree *tree, void *k, CRBNode *rb) {
+        NameOwnership *ownership = c_container_of(rb, NameOwnership, owner_node);
+        Name *name = k;
 
-        if (owner->entry < entry)
+        if (ownership->name < name)
                 return -1;
-        if (owner->entry > entry)
+        if (ownership->name > name)
                 return 1;
 
         return 0;
 }
 
-static int name_owner_get(NameOwnership **ownerp, Peer *peer, NameEntry *entry) {
+static int name_ownership_get(NameOwnership **ownershipp, NameOwner *owner, Name *name) {
         CRBNode **slot, *parent;
         int r;
 
-        slot = c_rbtree_find_slot(&peer->names, name_owner_compare, entry, &parent);
+        slot = c_rbtree_find_slot(&owner->ownership_tree, name_ownership_compare, name, &parent);
         if (!slot) {
-                *ownerp = c_container_of(parent, NameOwnership, rb);
+                *ownershipp = c_container_of(parent, NameOwnership, owner_node);
         } else {
-                r = name_owner_new(ownerp, peer, entry, parent, slot);
+                r = name_ownership_new(ownershipp, owner, name, parent, slot);
                 if (r)
                         return error_trace(r);
         }
@@ -91,141 +84,141 @@ static int name_owner_get(NameOwnership **ownerp, Peer *peer, NameEntry *entry) 
         return 0;
 }
 
-bool name_owner_is_primary(NameOwnership *owner) {
-        return (c_list_first(&owner->entry->owners) == &owner->entry_link);
+bool name_ownership_is_primary(NameOwnership *ownership) {
+        return (c_list_first(&ownership->name->ownership_list) == &ownership->name_link);
 }
 
-static int name_owner_update(NameOwnership *owner, uint32_t flags, NameChange *change) {
-        NameEntry *entry = owner->entry;
-        NameOwnership *head;
+static int name_ownership_update(NameOwnership *ownership, uint32_t flags, NameChange *change) {
+        Name *name = ownership->name;
+        NameOwnership *primary;
 
         assert(!change->name);
         assert(!change->old_owner);
         assert(!change->new_owner);
 
-        head = c_container_of(c_list_first(&entry->owners), NameOwnership, entry_link);
-        if (!head) {
+        primary = c_container_of(c_list_first(&name->ownership_list), NameOwnership, name_link);
+        if (!primary) {
                 /* there is no primary owner */
-                change->name = name_entry_ref(entry);
-                change->new_owner = owner->peer;
+                change->name = name_ref(name);
+                change->new_owner = ownership->owner;
                 change->old_owner = NULL;
 
                 /* @owner cannot already be linked */
-                c_list_link_front(&entry->owners, &owner->entry_link);
-                owner->flags = flags;
+                c_list_link_front(&name->ownership_list, &ownership->name_link);
+                ownership->flags = flags;
                 return 0;
-        } else if (head == owner) {
+        } else if (primary == ownership) {
                 /* we are already the primary owner */
-                owner->flags = flags;
+                ownership->flags = flags;
                 return NAME_E_ALREADY_OWNER;
         } else if ((flags & DBUS_NAME_FLAG_REPLACE_EXISTING) &&
-                   (head->flags & DBUS_NAME_FLAG_ALLOW_REPLACEMENT)) {
+                   (primary->flags & DBUS_NAME_FLAG_ALLOW_REPLACEMENT)) {
                 /* we replace the primary owner */
-                change->name = name_entry_ref(entry);
-                change->old_owner = head->peer;
-                change->new_owner = owner->peer;
+                change->name = name_ref(name);
+                change->old_owner = primary->owner;
+                change->new_owner = ownership->owner;
 
-                if (head->flags & DBUS_NAME_FLAG_DO_NOT_QUEUE)
+                if (primary->flags & DBUS_NAME_FLAG_DO_NOT_QUEUE)
                         /* the previous primary owner is dropped */
-                        name_owner_free(head);
+                        name_ownership_free(primary);
 
-                c_list_unlink(&owner->entry_link);
-                c_list_link_front(&entry->owners, &owner->entry_link);
-                owner->flags = flags;
+                c_list_unlink(&ownership->name_link);
+                c_list_link_front(&name->ownership_list, &ownership->name_link);
+                ownership->flags = flags;
                 return 0;
         } else if (!(flags & DBUS_NAME_FLAG_DO_NOT_QUEUE)) {
                 /* we are appended to the queue */
-                if (!c_list_is_linked(&owner->entry_link)) {
-                        c_list_link_tail(&entry->owners, &owner->entry_link);
+                if (!c_list_is_linked(&ownership->name_link)) {
+                        c_list_link_tail(&name->ownership_list, &ownership->name_link);
                 }
-                owner->flags = flags;
+                ownership->flags = flags;
                 return NAME_E_IN_QUEUE;
         } else {
                 /* we are dropped */
-                name_owner_free(owner);
+                name_ownership_free(ownership);
                 return NAME_E_EXISTS;
         }
 }
 
-void name_owner_release(NameOwnership *owner, NameChange *change) {
+void name_ownership_release(NameOwnership *ownership, NameChange *change) {
         assert(!change->name);
         assert(!change->old_owner);
         assert(!change->new_owner);
 
-        if (name_owner_is_primary(owner)) {
-                Peer *new_owner;
+        if (name_ownership_is_primary(ownership)) {
+                NameOwner *new_owner;
 
-                if (c_list_last(&owner->entry->owners) != &owner->entry_link) {
-                        NameOwnership *next = c_list_entry(owner->entry_link.next, NameOwnership, entry_link);
-                        new_owner = next->peer;
+                if (c_list_last(&ownership->name->ownership_list) != &ownership->name_link) {
+                        NameOwnership *next = c_list_entry(ownership->name_link.next, NameOwnership, name_link);
+                        new_owner = next->owner;
                 } else {
                         new_owner = NULL;
                 }
 
-                change->name = name_entry_ref(owner->entry);
-                change->old_owner = owner->peer;
+                change->name = name_ref(ownership->name);
+                change->old_owner = ownership->owner;
                 change->new_owner = new_owner;
         }
 
-        name_owner_free(owner);
+        name_ownership_free(ownership);
 }
 
 /* new name entry linked into the registry */
-static int name_entry_new(NameEntry **entryp, NameRegistry *registry, const char *name, CRBNode *parent, CRBNode **slot) {
-        NameEntry *entry;
+static int name_new(Name **namep, NameRegistry *registry, const char *name_str, CRBNode *parent, CRBNode **slot) {
+        Name *name;
         size_t n_name;
 
-        n_name = strlen(name) + 1;
+        n_name = strlen(name_str) + 1;
 
-        entry = malloc(sizeof(*entry) + n_name);
-        if (!entry)
+        name = malloc(sizeof(*name) + n_name);
+        if (!name)
                 return error_origin(-ENOMEM);
 
-        entry->n_refs = C_REF_INIT;
-        entry->registry = registry;
-        entry->activation = NULL;
-        match_registry_init(&entry->matches);
-        c_rbtree_add(&registry->entries, parent, slot, &entry->rb);
-        entry->owners = (CList)C_LIST_INIT(entry->owners);
-        memcpy((char*)entry->name, name, n_name);
+        name->n_refs = C_REF_INIT;
+        name->registry = registry;
+        name->activation = NULL;
+        match_registry_init(&name->matches);
+        c_rbtree_add(&registry->name_tree, parent, slot, &name->registry_node);
+        name->ownership_list = (CList)C_LIST_INIT(name->ownership_list);
+        memcpy((char*)name->name, name_str, n_name);
 
-        *entryp = entry;
+        *namep = name;
         return 0;
 }
 
-void name_entry_free(_Atomic unsigned long *n_refs, void *userpointer) {
-        NameEntry *entry = c_container_of(n_refs, NameEntry, n_refs);
+void name_free(_Atomic unsigned long *n_refs, void *userpointer) {
+        Name *name = c_container_of(n_refs, Name, n_refs);
 
-        assert(c_list_is_empty(&entry->owners));
-        assert(!entry->activation);
+        assert(c_list_is_empty(&name->ownership_list));
+        assert(!name->activation);
 
-        c_rbtree_remove(&entry->registry->entries, &entry->rb);
+        c_rbtree_remove(&name->registry->name_tree, &name->registry_node);
 
-        match_registry_deinit(&entry->matches);
+        match_registry_deinit(&name->matches);
 
-        free(entry);
+        free(name);
 }
 
-bool name_entry_is_owned(NameEntry *entry) {
-        return !c_list_is_empty(&entry->owners);
+bool name_is_owned(Name *name) {
+        return !c_list_is_empty(&name->ownership_list);
 }
 
-static int name_entry_compare(CRBTree *tree, void *k, CRBNode *rb) {
-        NameEntry *entry = c_container_of(rb, NameEntry, rb);
-        char *name = k;
+static int name_compare(CRBTree *tree, void *k, CRBNode *rb) {
+        Name *name = c_container_of(rb, Name, registry_node);
+        char *name_str = k;
 
-        return strcmp(entry->name, name);
+        return strcmp(name->name, name_str);
 }
 
-int name_entry_get(NameEntry **entryp, NameRegistry *registry, const char *name) {
+int name_get(Name **namep, NameRegistry *registry, const char *name_str) {
         CRBNode **slot, *parent;
         int r;
 
-        slot = c_rbtree_find_slot(&registry->entries, name_entry_compare, name, &parent);
+        slot = c_rbtree_find_slot(&registry->name_tree, name_compare, name_str, &parent);
         if (!slot) {
-                *entryp = name_entry_ref(c_container_of(parent, NameEntry, rb));
+                *namep = name_ref(c_container_of(parent, Name, registry_node));
         } else {
-                r = name_entry_new(entryp, registry, name, parent, slot);
+                r = name_new(namep, registry, name_str, parent, slot);
                 if (r)
                         return error_trace(r);
         }
@@ -238,59 +231,67 @@ void name_registry_init(NameRegistry *registry) {
 }
 
 void name_registry_deinit(NameRegistry *registry) {
-        assert(!registry->entries.root);
+        assert(!registry->name_tree.root);
 }
 
-int name_registry_request_name(NameRegistry *registry, Peer *peer, const char *name, uint32_t flags, NameChange *change) {
-        _c_cleanup_(name_entry_unrefp) NameEntry *entry = NULL;
-        NameOwnership *owner;
+int name_registry_request_name(NameRegistry *registry, NameOwner *owner, const char *name_str, uint32_t flags, NameChange *change) {
+        _c_cleanup_(name_unrefp) Name *name = NULL;
+        NameOwnership *ownership;
         int r;
 
-        r = name_entry_get(&entry, registry, name);
+        r = name_get(&name, registry, name_str);
         if (r)
                 return error_trace(r);
 
-        r = name_owner_get(&owner, peer, entry);
+        r = name_ownership_get(&ownership, owner, name);
         if (r)
                 return error_trace(r);
 
-        r = name_owner_update(owner, flags, change);
+        r = name_ownership_update(ownership, flags, change);
         if (r)
                 return error_trace(r);
 
         return 0;
 }
 
-NameEntry *name_registry_find_entry(NameRegistry *registry, const char *name) {
-        return c_rbtree_find_entry(&registry->entries, name_entry_compare, name, NameEntry, rb);
+Name *name_registry_find_name(NameRegistry *registry, const char *name_str) {
+        return c_rbtree_find_entry(&registry->name_tree, name_compare, name_str, Name, registry_node);
 }
 
-int name_registry_release_name(NameRegistry *registry, Peer *peer, const char *name, NameChange *change) {
-        NameEntry *entry;
-        NameOwnership *owner;
+int name_registry_release_name(NameRegistry *registry, NameOwner *owner, const char *name_str, NameChange *change) {
+        Name *name;
+        NameOwnership *ownership;
 
-        entry = name_registry_find_entry(registry, name);
-        if (!entry)
+        name = name_registry_find_name(registry, name_str);
+        if (!name)
                 return NAME_E_NOT_FOUND;
 
-        owner = c_rbtree_find_entry(&peer->names, name_owner_compare, entry, NameOwnership, rb);
-        if (!owner)
+        ownership = c_rbtree_find_entry(&owner->ownership_tree, name_ownership_compare, name, NameOwnership, owner_node);
+        if (!ownership)
                 return NAME_E_NOT_OWNER;
 
-        name_owner_release(owner, change);
+        name_ownership_release(ownership, change);
 
         return 0;
 }
 
-Peer *name_registry_resolve_name(NameRegistry *registry, const char *name) {
-        NameEntry *entry;
-        NameOwnership *owner;
+NameOwner *name_registry_resolve_owner(NameRegistry *registry, const char *name_str) {
+        Name *name;
+        NameOwnership *ownership;
 
-        entry = c_rbtree_find_entry(&registry->entries, name_entry_compare, name, NameEntry, rb);
-        if (!entry)
+        name = c_rbtree_find_entry(&registry->name_tree, name_compare, name_str, Name, registry_node);
+        if (!name)
                 return NULL;
 
-        owner = c_list_first_entry(&entry->owners, NameOwnership, entry_link);
+        ownership = c_list_first_entry(&name->ownership_list, NameOwnership, name_link);
 
-        return owner ? owner->peer : NULL;
+        return ownership ? ownership->owner : NULL;
+}
+
+void name_owner_init(NameOwner *owner) {
+        *owner = (NameOwner){};
+}
+
+void name_owner_deinit(NameOwner *owner) {
+        assert(!owner->ownership_tree.root);
 }

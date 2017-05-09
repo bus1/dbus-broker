@@ -62,7 +62,7 @@ Peer *bus_find_peer_by_name(Bus *bus, const char *name) {
         int r;
 
         if (*name != ':') {
-                return name_registry_resolve_name(&bus->names, name);
+                return c_container_of(name_registry_resolve_owner(&bus->names, name), Peer, owned_names);
         } else {
                 uint64_t id;
 

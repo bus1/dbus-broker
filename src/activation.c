@@ -19,9 +19,9 @@ static int activation_compare(CRBTree *tree, void *k, CRBNode *rb) {
 /**
  * activation_new() - XXX
  */
-int activation_new(Activation **activationp, Bus *bus, const char *path, const char *name, uid_t uid) {
+int activation_new(Activation **activationp, Bus *bus, const char *path, const char *name_str, uid_t uid) {
         _c_cleanup_(activation_freep) Activation *activation = NULL;
-        _c_cleanup_(name_entry_unrefp) NameEntry *entry = NULL;
+        _c_cleanup_(name_unrefp) Name *name = NULL;
         _c_cleanup_(user_entry_unrefp) UserEntry *user = NULL;
         CRBNode **slot, *parent;
         int r;
@@ -30,11 +30,11 @@ int activation_new(Activation **activationp, Bus *bus, const char *path, const c
         if (!slot)
                 return ACTIVATION_E_EXISTS;
 
-        r = name_entry_get(&entry, &bus->names, name);
+        r = name_get(&name, &bus->names, name_str);
         if (r)
                 return error_fold(r);
 
-        if (entry->activation)
+        if (name->activation)
                 return ACTIVATION_E_ALREADY_ACTIVATABLE;
 
         r = user_registry_ref_entry(&bus->users, &user, uid);
@@ -46,13 +46,13 @@ int activation_new(Activation **activationp, Bus *bus, const char *path, const c
                 return error_origin(-ENOMEM);
 
         activation->bus = bus;
-        activation->name = name_entry_ref(entry);
+        activation->name = name_ref(name);
         activation->user = user_entry_ref(user);
         activation->socket_buffers = (CList)C_LIST_INIT(activation->socket_buffers);
         activation->bus_node = (CRBNode)C_RBNODE_INIT(activation->bus_node);
         memcpy((char*)activation->path, path, strlen(path) + 1);
 
-        entry->activation = activation;
+        name->activation = activation;
         c_rbtree_add(&bus->activation_tree, parent, slot, &activation->bus_node);
 
         *activationp = activation;
@@ -70,8 +70,8 @@ Activation *activation_free(Activation *activation) {
         assert(c_list_is_empty(&activation->socket_buffers));
 
         activation->user = user_entry_unref(activation->user);
-        activation->name = name_entry_unref(activation->name);
         activation->name->activation = NULL;
+        activation->name = name_unref(activation->name);
         c_rbtree_remove_init(&activation->bus->activation_tree, &activation->bus_node);
         free(activation);
 

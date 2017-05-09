@@ -13,7 +13,7 @@
 typedef struct Activation Activation;
 typedef struct Bus Bus;
 typedef struct Message Message;
-typedef struct NameEntry NameEntry;
+typedef struct Name Name;
 typedef struct UserEntry UserEntry;
 
 enum {
@@ -25,7 +25,7 @@ enum {
 
 struct Activation {
         Bus *bus;
-        NameEntry *name;
+        Name *name;
 
         UserEntry *user;
         CList socket_buffers;
@@ -35,7 +35,7 @@ struct Activation {
         const char path[];
 };
 
-int activation_new(Activation **activationp, Bus *bus, const char *path, const char *name, uid_t uid);
+int activation_new(Activation **activationp, Bus *bus, const char *path, const char *name_str, uid_t uid);
 Activation *activation_free(Activation *free);
 
 Activation *activation_find(Bus *bus, const char *path);
