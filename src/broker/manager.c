@@ -88,7 +88,7 @@ static int manager_dispatch_controller(DispatchFile *file, uint32_t events) {
 
                 r = controller_dispatch(manager->bus, m);
                 if (r)
-                        return error_trace(r);
+                        return error_fold(r);
         }
 
         if (dispatch_file_is_ready(file, EPOLLOUT)) {
@@ -212,6 +212,11 @@ int manager_run(Manager *manager) {
                 Listener *listener = c_container_of(node, Listener, bus_node);
 
                 listener_free(listener);
+        }
+        while ((node = c_rbtree_first(&manager->bus->activations.activation_tree))) {
+                Activation *activation = c_container_of(node, Activation, registry_node);
+
+                activation_free(activation);
         }
 
         sigprocmask(SIG_SETMASK, &sigold, NULL);
