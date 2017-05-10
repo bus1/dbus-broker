@@ -257,6 +257,7 @@ int match_rule_new(MatchRule **rulep, MatchOwner *owner, const char *rule_string
         rule->n_user_refs = 1;
         rule->owner = owner;
         rule->registry_link = (CList)C_LIST_INIT(rule->registry_link);
+        rule->owner_node = (CRBNode)C_RBNODE_INIT(rule->owner_node);
 
         r = match_rule_keys_parse(&rule->keys, rule->buffer, rule_string, n_rule_string);
         if (r)
@@ -278,7 +279,7 @@ int match_rule_new(MatchRule **rulep, MatchOwner *owner, const char *rule_string
 
 MatchRule *match_rule_free(MatchRule *rule) {
         c_list_unlink(&rule->registry_link);
-        c_rbtree_remove(&rule->owner->rule_tree, &rule->owner_node);
+        c_rbtree_remove_init(&rule->owner->rule_tree, &rule->owner_node);
 
         free(rule);
 
