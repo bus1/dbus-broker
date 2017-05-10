@@ -1067,9 +1067,9 @@ static int driver_method_add_match(Peer *peer, CDVar *in_v, CDVar *out_v, NameCh
                         return error_fold(r);
         }
 
-        if (!rule->keys.sender)
+        if (!rule->keys.sender) {
                 match_rule_link(rule, &peer->bus->wildcard_matches);
-        else if (*rule->keys.sender == ':') {
+        } else if (*rule->keys.sender == ':') {
                 Peer *sender;
                 uint64_t id;
 
