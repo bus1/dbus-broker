@@ -1111,6 +1111,9 @@ static int driver_method_add_match(Peer *peer, CDVar *in_v, CDVar *out_v, NameCh
 
         c_dvar_write(out_v, "()");
 
+        if (rule->keys.eavesdrop)
+                ++peer->bus->n_eavesdrop;
+
         --peer->user->n_matches;
         rule = NULL;
 
@@ -1141,6 +1144,9 @@ static int driver_method_remove_match(Peer *peer, CDVar *in_v, CDVar *out_v, Nam
 
         if (rule->keys.sender && *rule->keys.sender != ':' && strcmp(rule->keys.sender, "org.freedesktop.DBus") != 0)
                 name = c_container_of(rule->registry, Name, matches);
+
+        if (rule->keys.eavesdrop)
+                --peer->bus->n_eavesdrop;
 
         match_rule_user_unref(rule);
         ++peer->user->n_matches;
@@ -1320,6 +1326,9 @@ int driver_goodbye(Peer *peer, bool silent) {
 
                 if (rule->keys.sender && *rule->keys.sender != ':' && strcmp(rule->keys.sender, "org.freedesktop.DBus") != 0)
                         name = c_container_of(rule->registry, Name, matches);
+
+                if (rule->keys.eavesdrop)
+                        --peer->bus->n_eavesdrop;
 
                 match_rule_user_unref(rule);
                 ++peer->user->n_matches;

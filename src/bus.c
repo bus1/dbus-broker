@@ -30,6 +30,7 @@ void bus_init(Bus *bus,
 }
 
 void bus_deinit(Bus *bus) {
+        assert(!bus->n_eavesdrop);
         assert(!bus->listener_tree.root);
 
         peer_registry_deinit(&bus->peers);

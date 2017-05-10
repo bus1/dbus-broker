@@ -26,6 +26,7 @@ typedef struct Connection Connection;
 struct Bus {
         Connection *controller;
         char guid[16];
+
         CRBTree listener_tree;
         ActivationRegistry activations;
         NameRegistry names;
@@ -33,6 +34,8 @@ struct Bus {
         MatchRegistry wildcard_matches;
         MatchRegistry driver_matches;
         PeerRegistry peers;
+
+        size_t n_eavesdrop;
 };
 
 void bus_init(Bus *bus,
