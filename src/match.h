@@ -23,7 +23,7 @@ enum {
 
 struct MatchFilter {
         uint8_t type;
-        const char *destination;
+        uint64_t destination;
         const char *interface;
         const char *member;
         const char *path;

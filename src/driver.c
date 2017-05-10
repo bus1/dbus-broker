@@ -452,6 +452,7 @@ static int driver_forward_reply(Peer *sender, const char *destination, uint32_t 
 static int driver_forward_broadcast(Peer *sender, const char *interface, const char *member, const char *path, const char *siganture, Message *message) {
         MatchFilter filter = {
                 .type = message->header->type,
+                .destination = UNIQUE_NAME_ID_INVALID,
                 .interface = interface,
                 .member = member,
                 .path = path,
@@ -557,6 +558,7 @@ static int driver_notify_name_lost(Peer *peer, const char *name) {
 static int driver_notify_name_owner_changed(Bus *bus, const char *name, Peer *old_owner, Peer *new_owner) {
         MatchFilter filter = {
                 .type = DBUS_MESSAGE_TYPE_SIGNAL,
+                .destination = UNIQUE_NAME_ID_INVALID,
                 .interface = "org.freedesktop.DBus",
                 .member = "NameOwnerChanged",
                 .path = "/org/freedesktop/DBus",

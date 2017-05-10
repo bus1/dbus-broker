@@ -7,6 +7,7 @@
 #include <c-rbtree.h>
 #include <c-string.h>
 #include "dbus/protocol.h"
+#include "dbus/unique-name.h"
 #include "match.h"
 #include "util/error.h"
 
@@ -16,7 +17,6 @@ static int match_rules_compare(CRBTree *tree, void *k, CRBNode *rb) {
         int r;
 
         if ((r = c_string_compare(key1->sender, key2->sender)) ||
-            (r = c_string_compare(key1->filter.destination, key2->filter.destination)) ||
             (r = c_string_compare(key1->filter.interface, key2->filter.interface)) ||
             (r = c_string_compare(key1->filter.member, key2->filter.member)) ||
             (r = c_string_compare(key1->filter.path, key2->filter.path)) ||
@@ -27,6 +27,11 @@ static int match_rules_compare(CRBTree *tree, void *k, CRBNode *rb) {
         if (key1->filter.type > key2->filter.type)
                 return 1;
         if (key1->filter.type < key2->filter.type)
+                return -1;
+
+        if (key1->filter.destination > key2->filter.destination)
+                return 1;
+        if (key1->filter.destination < key2->filter.destination)
                 return -1;
 
         if (key1->eavesdrop > key2->eavesdrop)
@@ -62,10 +67,10 @@ static bool match_rule_keys_match_filter(MatchRuleKeys *keys, MatchFilter *filte
         if (keys->filter.type && keys->filter.type != filter->type)
                 return false;
 
-        if (!keys->eavesdrop && filter->destination)
+        if (!keys->eavesdrop && filter->destination != UNIQUE_NAME_ID_INVALID)
                 return false;
 
-        if (keys->filter.destination && !c_string_equal(keys->filter.destination, filter->destination))
+        if (keys->filter.destination != UNIQUE_NAME_ID_INVALID && keys->filter.destination != filter->destination)
                 return false;
 
         if (keys->filter.interface && !c_string_equal(keys->filter.interface, filter->interface))
@@ -99,6 +104,8 @@ static bool match_rule_keys_match_filter(MatchRuleKeys *keys, MatchFilter *filte
 }
 
 static int match_rule_keys_assign(MatchRuleKeys *keys, const char *key, const char *value) {
+        int r;
+
         if (strcmp(key, "type") == 0) {
                 if (strcmp(value, "signal") == 0)
                         keys->filter.type = DBUS_MESSAGE_TYPE_SIGNAL;
@@ -113,7 +120,11 @@ static int match_rule_keys_assign(MatchRuleKeys *keys, const char *key, const ch
         } else if (strcmp(key, "sender") == 0) {
                 keys->sender = value;
         } else if (strcmp(key, "destination") == 0) {
-                keys->filter.destination = value;
+                r = unique_name_to_id(value, &keys->filter.destination);
+                if (r > 0)
+                        return MATCH_E_INVALID;
+                else if (r < 0)
+                        return error_fold(r);
         } else if (strcmp(key, "interface") == 0) {
                 keys->filter.interface = value;
         } else if (strcmp(key, "member") == 0) {
@@ -198,6 +209,8 @@ int match_rule_keys_parse(MatchRuleKeys *keys, char *buffer, const char *rule_st
         bool quoted = false;
         char c;
         int r;
+
+        keys->filter.destination = UNIQUE_NAME_ID_INVALID;
 
         for (unsigned int i = 0; i < n_rule_string; i ++) {
                 if (!key) {
