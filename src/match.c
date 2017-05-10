@@ -312,7 +312,10 @@ MatchRule *match_rule_user_unref(MatchRule *rule) {
 }
 
 void match_rule_link(MatchRule *rule, MatchRegistry *registry) {
-        c_list_link_tail(&registry->rule_list, &rule->registry_link);
+        if (c_list_is_linked(&rule->registry_link))
+                assert(rule->registry == registry);
+        else
+                c_list_link_tail(&registry->rule_list, &rule->registry_link);
         rule->registry = registry;
 }
 
