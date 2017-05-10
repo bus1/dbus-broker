@@ -359,7 +359,32 @@ static int driver_queue_message_on_peer(Peer *receiver, Peer *sender, Message *m
                         return error_fold(r);
         }
 
-        /* XXX: forward to monitors */
+        if (receiver->bus->n_eavesdrop) {
+                MessageMetadata metadata;
+                MatchFilter filter = {};
+
+                /* someone is eavesdropping, this message must be broadcast */
+
+                r = message_parse_metadata(message, &metadata);
+                if (r) /*
+                        * Any parsing error at this stage should be fatal, either
+                        * this was a message we already parsed or it was one sent
+                        * by us.
+                        */
+                        return error_fold(r);
+
+                filter.type = message->header->type;
+                filter.destination = receiver->id;
+                filter.interface = metadata.fields.interface;
+                filter.member = metadata.fields.member;
+                filter.path = metadata.fields.path;
+
+                /* XXX: parse the message body */
+
+                r = driver_forward_broadcast(receiver->bus, sender, &filter, message);
+                if (r)
+                        return error_trace(r);
+        }
 
         r = connection_queue_message(&receiver->connection, message);
         if (r)
