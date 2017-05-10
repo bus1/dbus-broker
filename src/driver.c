@@ -1073,13 +1073,20 @@ static int driver_method_add_match(Peer *peer, CDVar *in_v, CDVar *out_v, NameCh
                 Peer *sender;
                 uint64_t id;
 
+                /*
+                 * XXX: we refuse matches on unique sender names that do not exist,
+                 *      this we may need to reconsider due to backwards compatibility.
+                 */
+
                 r = unique_name_to_id(rule->keys.sender, &id);
-                if (r)
+                if (r > 0)
+                        return DRIVER_E_MATCH_INVALID;
+                else
                         return error_fold(r);
 
                 sender = peer_registry_find_peer(&peer->bus->peers, id);
                 if (!sender)
-                        return -ENOTRECOVERABLE;
+                        return DRIVER_E_MATCH_INVALID;
 
                 match_rule_link(rule, &sender->matches);
         } else if (strcmp(rule->keys.sender, "org.freedesktop.DBus") == 0) {
