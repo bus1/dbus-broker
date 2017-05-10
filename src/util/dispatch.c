@@ -154,8 +154,12 @@ int dispatch_context_poll(DispatchContext *ctx, int timeout) {
         }
 
         r = epoll_wait(ctx->epoll_fd, events, ctx->n_files, timeout);
-        if (r < 0)
+        if (r < 0) {
+                if (errno == EINTR)
+                        return 0;
+
                 return error_origin(-errno);
+        }
 
         while (r > 0) {
                 e = &events[--r];
