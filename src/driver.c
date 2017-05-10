@@ -933,7 +933,7 @@ static int driver_method_get_connection_unix_user(Peer *peer, CDVar *in_v, CDVar
         if (!connection)
                 return DRIVER_E_PEER_NOT_FOUND;
 
-        c_dvar_write(out_v, "u", connection->user->uid);
+        c_dvar_write(out_v, "(u)", connection->user->uid);
 
         return 0;
 }
