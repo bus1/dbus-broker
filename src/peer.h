@@ -39,6 +39,7 @@ struct Peer {
 
         Connection connection;
         bool registered : 1;
+        bool monitor : 1;
 
         NameOwner owned_names;
         MatchRegistry matches;

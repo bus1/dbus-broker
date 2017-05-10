@@ -1207,9 +1207,63 @@ static int driver_method_get_id(Peer *peer, CDVar *in_v, CDVar *out_v, NameChang
 }
 
 static int driver_method_become_monitor(Peer *peer, CDVar *in_v, CDVar *out_v, NameChange *change) {
-        /* XXX */
+        MatchOwner owned_matches;
+        uint32_t flags;
+        int r, poison = 0;
+
+        /* remember the old matches as long as the call can fail */
+        owned_matches = peer->owned_matches;
+        match_owner_init(&peer->owned_matches);
+
+        c_dvar_read(in_v, "([");
+        if (!c_dvar_more(in_v)) {
+                /* if no matches are passed, install a wildcard */
+                r = driver_add_match(peer, "", true);
+                if (r)
+                        poison = error_trace(r);
+        } else {
+                while (c_dvar_more(in_v)) {
+                        const char *match_string;
+
+                        c_dvar_read(in_v, "s", &match_string);
+
+                        r = driver_add_match(peer, match_string, true);
+                        if (r)
+                                poison = error_trace(r);
+                }
+        }
+        c_dvar_read(in_v, "]u)", &flags);
+
+        /* verify the input arguments*/
+        r = driver_end_read(in_v);
+        if (r) {
+                r = error_trace(r);
+                goto error;
+        }
+
+        if (poison) {
+                r = poison;
+                goto error;
+        }
+
+        if (flags) {
+                r = DRIVER_E_UNEXPECTED_FLAGS;
+                goto error;
+        }
+
+        /* only fatal errors from here on */
+        driver_matches_cleanup(&owned_matches, peer->bus, peer->user);
+
+        /* write the output message */
+        c_dvar_write(out_v, "()");
 
         return 0;
+
+error:
+        /* restore the old matches */
+        driver_matches_cleanup(&peer->owned_matches, peer->bus, peer->user);
+        peer->owned_matches = owned_matches;
+        return r;
 }
 
 static int driver_handle_method(const DriverMethod *method, Peer *peer, const char *path, uint32_t serial, const char *signature_in, Message *message_in) {
@@ -1295,6 +1349,13 @@ static int driver_handle_method(const DriverMethod *method, Peer *peer, const ch
                 r = driver_name_owner_changed(NULL, NULL, peer);
                 if (r)
                         return error_trace(r);
+        } else if (strcmp(method->name, "BecomeMonitor") == 0) {
+                /* XXX: ditto */
+                r = driver_goodbye(peer, false);
+                if (r)
+                        return error_trace(r);
+
+                peer->monitor = true;
         }
 
 
@@ -1475,6 +1536,9 @@ int driver_dispatch(Peer *peer, Message *message) {
         MessageMetadata metadata;
         int r;
 
+        if (peer->monitor)
+                return DRIVER_E_DISCONNECT;
+
         r = message_parse_metadata(message, &metadata);
         if (r > 0)
                 return DRIVER_E_DISCONNECT;
@@ -1502,6 +1566,8 @@ int driver_dispatch(Peer *peer, Message *message) {
                 r = driver_send_error(peer, metadata.header.serial, "org.freedesktop.DBus.Error.UnknownMethod");
                 break;
         case DRIVER_E_UNEXPECTED_SIGNATURE:
+        case DRIVER_E_UNEXPECTED_FLAGS:
+        case DRIVER_E_NAME_RESERVED:
                 r = driver_send_error(peer, metadata.header.serial, "org.freedesktop.DBus.Error.InvalidArgs");
                 break;
         case DRIVER_E_QUOTA:
@@ -1512,9 +1578,6 @@ int driver_dispatch(Peer *peer, Message *message) {
         case DRIVER_E_NAME_OWNER_NOT_FOUND:
         case DRIVER_E_DESTINATION_NOT_FOUND:
                 r = driver_send_error(peer, metadata.header.serial, "org.freedesktop.DBus.Error.NameHasNoOwner");
-                break;
-        case DRIVER_E_NAME_RESERVED:
-                r = driver_send_error(peer, metadata.header.serial, "org.freedesktop.DBus.Error.InvalidArgs");
                 break;
         case DRIVER_E_MATCH_INVALID:
                 r = driver_send_error(peer, metadata.header.serial, "org.freedesktop.DBus.Error.MatchRuleInvalid");
