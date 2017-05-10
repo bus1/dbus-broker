@@ -362,7 +362,7 @@ static int driver_send_broadcast_to_matches(MatchRegistry *matches, MatchFilter 
         MatchRule *rule;
         int r;
 
-        for (rule = match_rule_next(matches, NULL, filter); rule; match_rule_next(matches, rule, filter)) {
+        for (rule = match_rule_next(matches, NULL, filter); rule; rule = match_rule_next(matches, rule, filter)) {
                 Peer *peer = c_container_of(rule->owner, Peer, owned_matches);
 
                 r = connection_queue_message(&peer->connection, message);
@@ -461,7 +461,7 @@ static int driver_forward_broadcast(Peer *sender, const char *interface, const c
         if (r < 0)
                 return error_trace(r);
 
-        for (CRBNode *node = c_rbtree_first(&sender->owned_names.ownership_tree); node; c_rbnode_next(node)) {
+        for (CRBNode *node = c_rbtree_first(&sender->owned_names.ownership_tree); node; node = c_rbnode_next(node)) {
                 NameOwnership *ownership = c_container_of(node, NameOwnership, owner_node);
 
                 if (!name_ownership_is_primary(ownership))
