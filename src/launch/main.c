@@ -239,6 +239,7 @@ static noreturn void manager_run_child(Manager *manager, int fd_controller) {
                 "-v",
                 "--controller",
                 str_controller,
+                NULL,
         };
         int r;
 
