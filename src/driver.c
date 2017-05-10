@@ -1277,20 +1277,16 @@ static int driver_dispatch_interface(Peer *peer, uint32_t serial, const char *in
 }
 
 int driver_goodbye(Peer *peer, bool silent) {
-        CRBNode *node, *next;
+        CRBNode *node;
         int r;
 
-        for (node = c_rbtree_first_postorder(&peer->owned_matches.rule_tree), next = c_rbnode_next_postorder(node);
-             node;
-             node = next, next = c_rbnode_next_postorder(node)) {
+        while ((node = peer->owned_matches.rule_tree.root)) {
                 MatchRule *rule = c_container_of(node, MatchRule, owner_node);
 
                 match_rule_free(rule);
         }
 
-        for (node = c_rbtree_first_postorder(&peer->owned_names.ownership_tree), next = c_rbnode_next_postorder(node);
-             node;
-             node = next, next = c_rbnode_next_postorder(node)) {
+        while ((node = peer->owned_names.ownership_tree.root)) {
                 NameOwnership *ownership = c_container_of(node, NameOwnership, owner_node);
                 NameChange change;
                 int r = 0;
@@ -1313,9 +1309,7 @@ int driver_goodbye(Peer *peer, bool silent) {
         }
         peer_unregister(peer);
 
-        for (node = c_rbtree_first_postorder(&peer->replies_outgoing.reply_tree), next = c_rbnode_next_postorder(node);
-             node;
-             node = next, next = c_rbnode_next_postorder(node)) {
+        while ((node = peer->replies_outgoing.reply_tree.root)) {
                 ReplySlot *slot = c_container_of(node, ReplySlot, registry_node);
                 Peer *sender = c_container_of(slot->owner, Peer, owned_replies);
 

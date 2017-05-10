@@ -263,12 +263,10 @@ void peer_registry_deinit(PeerRegistry *registry) {
 }
 
 void peer_registry_flush(PeerRegistry *registry) {
-        CRBNode *node, *next;
+        CRBNode *node;
         int r;
 
-        for (node = c_rbtree_first_postorder(&registry->peer_tree), next = c_rbnode_next_postorder(node);
-             node;
-             node = next, next = c_rbnode_next(node)) {
+        while ((node = registry->peer_tree.root)) {
                 Peer *peer = c_container_of(node, Peer, registry_node);
 
                 if (peer_is_registered(peer)) {
