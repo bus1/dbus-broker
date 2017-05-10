@@ -204,7 +204,6 @@ int peer_new_with_fd(Peer **peerp,
  * peer_free() - XXX
  */
 Peer *peer_free(Peer *peer) {
-        ReplySlot *reply, *safe;
         int fd;
 
         if (!peer)
@@ -213,9 +212,6 @@ Peer *peer_free(Peer *peer) {
         assert(!peer->registered);
 
         peer->user->n_peers ++;
-
-        c_list_for_each_entry_safe(reply, safe, &peer->owned_replies.reply_list, owner_link)
-                reply_slot_free(reply);
 
         c_rbtree_remove_init(&peer->bus->peers.peer_tree, &peer->registry_node);
 

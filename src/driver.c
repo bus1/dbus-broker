@@ -1367,8 +1367,12 @@ void driver_matches_cleanup(MatchOwner *owner, Bus *bus, User *user) {
 }
 
 int driver_goodbye(Peer *peer, bool silent) {
+        ReplySlot *reply, *safe;
         CRBNode *node;
         int r;
+
+        c_list_for_each_entry_safe(reply, safe, &peer->owned_replies.reply_list, owner_link)
+                reply_slot_free(reply);
 
         while ((node = peer->owned_names.ownership_tree.root)) {
                 NameOwnership *ownership = c_container_of(node, NameOwnership, owner_node);
