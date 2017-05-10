@@ -163,9 +163,8 @@ static int manager_new(Manager **managerp) {
         return 0;
 }
 
-static int manager_listen(Manager *manager, const char *path) {
+static int manager_listen_inherit(Manager *manager) {
         _c_cleanup_(c_closep) int s = -1;
-        struct sockaddr_un addr = {};
         int r, n;
 
         assert(manager->fd_listen < 0);
@@ -174,50 +173,59 @@ static int manager_listen(Manager *manager, const char *path) {
         if (n < 0)
                 return error_origin(n);
 
-        if (n >= 1) {
-                if (n > 1) {
-                        fprintf(stderr, "More than one listener socket passed\n");
-                        return error_origin(-EINVAL);
-                }
-
-                s = SD_LISTEN_FDS_START;
-                r = sd_is_socket(s, PF_UNIX, SOCK_STREAM, 1);
-                if (r < 0)
-                        return error_origin(r);
-
-                if (!r) {
-                        fprintf(stderr, "Non unix-domain-socket passed as listener\n");
-                        return error_origin(-EINVAL);
-                }
-
-                r = fcntl(s, F_GETFL);
-                if (r < 0)
-                        return error_origin(-errno);
-
-                r = fcntl(s, F_SETFL, r | O_NONBLOCK);
-                if (r < 0)
-                        return error_origin(-errno);
-
-                if (main_arg_verbose)
-                        fprintf(stderr, "Listening on inherited socket\n");
-        } else {
-                s = socket(PF_UNIX, SOCK_STREAM | SOCK_CLOEXEC | SOCK_NONBLOCK, 0);
-                if (s < 0)
-                        return error_origin(-errno);
-
-                addr.sun_family = AF_UNIX;
-                memcpy(addr.sun_path, path, strlen(path));
-                r = bind(s, (struct sockaddr *)&addr, offsetof(struct sockaddr_un, sun_path) + strlen(path) + 1);
-                if (r < 0)
-                        return error_origin(-errno);
-
-                r = listen(s, 256);
-                if (r < 0)
-                        return error_origin(-errno);
-
-                if (main_arg_verbose)
-                        fprintf(stderr, "Listening on '%s'\n", path);
+        if (n == 0) {
+                fprintf(stderr, "No listener socket inherited\n");
+                return MAIN_FAILED;
         }
+        if (n > 1) {
+                fprintf(stderr, "More than one listener socket passed\n");
+                return MAIN_FAILED;
+        }
+
+        s = SD_LISTEN_FDS_START;
+
+        r = sd_is_socket(s, PF_UNIX, SOCK_STREAM, 1);
+        if (r < 0)
+                return error_origin(r);
+
+        if (!r) {
+                fprintf(stderr, "Non unix-domain-socket passed as listener\n");
+                return MAIN_FAILED;
+        }
+
+        r = fcntl(s, F_GETFL);
+        if (r < 0)
+                return error_origin(-errno);
+
+        r = fcntl(s, F_SETFL, r | O_NONBLOCK);
+        if (r < 0)
+                return error_origin(-errno);
+
+        manager->fd_listen = s;
+        s = -1;
+        return 0;
+}
+
+static int manager_listen_path(Manager *manager, const char *path) {
+        _c_cleanup_(c_closep) int s = -1;
+        struct sockaddr_un addr = {};
+        int r;
+
+        assert(manager->fd_listen < 0);
+
+        s = socket(PF_UNIX, SOCK_STREAM | SOCK_CLOEXEC | SOCK_NONBLOCK, 0);
+        if (s < 0)
+                return error_origin(-errno);
+
+        addr.sun_family = AF_UNIX;
+        memcpy(addr.sun_path, path, strlen(path));
+        r = bind(s, (struct sockaddr *)&addr, offsetof(struct sockaddr_un, sun_path) + strlen(path) + 1);
+        if (r < 0)
+                return error_origin(-errno);
+
+        r = listen(s, 256);
+        if (r < 0)
+                return error_origin(-errno);
 
         manager->fd_listen = s;
         s = -1;
@@ -610,40 +618,60 @@ static int parse_argv(int argc, char *argv[]) {
 
 static int run(void) {
         _c_cleanup_(manager_freep) Manager *manager = NULL;
+        const char *unlink_path = NULL;
         int r;
 
         r = manager_new(&manager);
         if (r)
                 return error_trace(r);
 
-        if (main_arg_force) {
-                r = unlink(main_arg_listen);
-                if (r < 0) {
-                        if (errno != ENOENT)
-                                return error_origin(-errno);
-                        else if (main_arg_verbose)
-                                fprintf(stderr, "No conflict on socket '%s'\n", main_arg_listen);
-                } else if (main_arg_verbose) {
-                        fprintf(stderr, "Forcibly removed conflicting socket '%s'\n", main_arg_listen);
+        if (!strcmp(main_arg_listen, "inherit")) {
+                r = manager_listen_inherit(manager);
+                if (r)
+                        return error_trace(r);
+
+                if (main_arg_verbose)
+                        fprintf(stderr, "Listening on inherited socket\n");
+        } else if (main_arg_listen[0] == '/') {
+                if (main_arg_force) {
+                        r = unlink(main_arg_listen);
+                        if (r < 0) {
+                                if (errno != ENOENT)
+                                        return error_origin(-errno);
+                                else if (main_arg_verbose)
+                                        fprintf(stderr, "No conflict on socket '%s'\n", main_arg_listen);
+                        } else if (main_arg_verbose) {
+                                fprintf(stderr, "Forcibly removed conflicting socket '%s'\n", main_arg_listen);
+                        }
                 }
+
+                r = manager_listen_path(manager, main_arg_listen);
+                if (r)
+                        return error_trace(r);
+
+                unlink_path = main_arg_listen;
+
+                if (main_arg_verbose)
+                        fprintf(stderr, "Listening on socket '%s'\n", unlink_path);
+        } else {
+                fprintf(stderr, "Invalid listener socket '%s'\n", main_arg_listen);
+                return MAIN_FAILED;
         }
 
-        r = manager_listen(manager, main_arg_listen);
-        if (r)
-                return error_trace(r);
-
         r = manager_run(manager);
-        if (r)
-                return error_trace(r);
+        r = error_trace(r);
 
-        r = unlink(main_arg_listen);
-        if (r < 0)
-                return error_origin(-errno);
+        if (unlink_path) {
+                r = unlink(unlink_path);
+                if (r < 0)
+                        return error_origin(-errno);
 
-        if (main_arg_verbose)
-                fprintf(stderr, "Cleaned up listener socket '%s'\n", main_arg_listen);
+                if (main_arg_verbose)
+                        fprintf(stderr, "Cleaned up listener socket '%s'\n", unlink_path);
+        }
 
-        return 0;
+        return r;
+
 }
 
 int main(int argc, char **argv) {
