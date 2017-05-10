@@ -313,36 +313,34 @@ static int driver_send_broadcast_to_matches(MatchRegistry *matches, MatchFilter 
         return 0;
 }
 
-static int driver_forward_broadcast(Peer *receiver, Peer *sender, const char *interface, const char *member, const char *path, const char *siganture, Message *message) {
-        MatchFilter filter = {
-                .type = message->header->type,
-                .destination = receiver ? receiver->id : UNIQUE_NAME_ID_INVALID,
-                .interface = interface,
-                .member = member,
-                .path = path,
-        };
+static int driver_forward_broadcast(Bus *bus, Peer *sender, MatchFilter *filter, Message *message) {
         int r;
 
-        /* XXX: parse the message to verify the marshalling and read out the arguments for filtering */
-
-        r = driver_send_broadcast_to_matches(&sender->bus->wildcard_matches, &filter, message);
-        if (r < 0)
+        r = driver_send_broadcast_to_matches(&bus->wildcard_matches, filter, message);
+        if (r)
                 return error_trace(r);
 
-        for (CRBNode *node = c_rbtree_first(&sender->owned_names.ownership_tree); node; node = c_rbnode_next(node)) {
-                NameOwnership *ownership = c_container_of(node, NameOwnership, owner_node);
+        if (sender) {
+                for (CRBNode *node = c_rbtree_first(&sender->owned_names.ownership_tree); node; node = c_rbnode_next(node)) {
+                        NameOwnership *ownership = c_container_of(node, NameOwnership, owner_node);
 
-                if (!name_ownership_is_primary(ownership))
-                        continue;
+                        if (!name_ownership_is_primary(ownership))
+                                continue;
 
-                r = driver_send_broadcast_to_matches(&ownership->name->matches, &filter, message);
+                        r = driver_send_broadcast_to_matches(&ownership->name->matches, filter, message);
+                        if (r)
+                                return error_trace(r);
+                }
+
+                r = driver_send_broadcast_to_matches(&sender->matches, filter, message);
+                if (r)
+                        return error_trace(r);
+        } else {
+                /* sent from the driver */
+                r = driver_send_broadcast_to_matches(&bus->driver_matches, filter, message);
                 if (r)
                         return error_trace(r);
         }
-
-        r = driver_send_broadcast_to_matches(&sender->matches, &filter, message);
-        if (r < 0)
-                return error_trace(r);
 
         return 0;
 }
@@ -613,11 +611,7 @@ static int driver_notify_name_owner_changed(Bus *bus, const char *name, Peer *ol
                 filter.argpaths[2] = new_owner_str;
         }
 
-        r = driver_send_broadcast_to_matches(&bus->wildcard_matches, &filter, message);
-        if (r)
-
-                return error_trace(r);
-        r = driver_send_broadcast_to_matches(&bus->driver_matches, &filter, message);
+        r = driver_forward_broadcast(bus, NULL, &filter, message);
         if (r)
                 return error_trace(r);
 
@@ -1395,15 +1389,22 @@ static int driver_dispatch_internal(Peer *peer, MessageMetadata *metadata, Messa
                 return error_fold(r);
 
         if (!metadata->fields.destination) {
+                MatchFilter filter = {
+                        .type = DBUS_MESSAGE_TYPE_SIGNAL,
+                        .destination = UNIQUE_NAME_ID_INVALID,
+                        .interface = metadata->fields.interface,
+                        .member = metadata->fields.member,
+                        .path = metadata->fields.path,
+                };
+
                 if (metadata->header.type != DBUS_MESSAGE_TYPE_SIGNAL)
                         return DRIVER_E_UNEXPECTED_MESSAGE_TYPE;
 
-                return error_trace(driver_forward_broadcast(NULL,
+                /* XXX: parse the message body */
+
+                return error_trace(driver_forward_broadcast(peer->bus,
                                                             peer,
-                                                            metadata->fields.interface,
-                                                            metadata->fields.member,
-                                                            metadata->fields.path,
-                                                            signature,
+                                                            &filter,
                                                             message));
         }
 
