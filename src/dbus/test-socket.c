@@ -48,7 +48,7 @@ static void test_line(void) {
         r = socket_dispatch(&client, EPOLLOUT);
         assert(r == SOCKET_E_LOST_INTEREST);
         r = socket_dispatch(&server, EPOLLIN);
-        assert(!r);
+        assert(!r || r == SOCKET_E_PREEMPTED);
 
         r = socket_dequeue_line(&server, &line, &n_bytes);
         assert(!r && line);
@@ -96,7 +96,7 @@ static void test_message(void) {
         r = socket_dispatch(&client, EPOLLOUT);
         assert(r == SOCKET_E_LOST_INTEREST);
         r = socket_dispatch(&server, EPOLLIN);
-        assert(!r);
+        assert(!r || r == SOCKET_E_PREEMPTED);
 
         r = socket_dequeue(&server, &message2);
         assert(!r && message2);
