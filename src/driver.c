@@ -963,7 +963,7 @@ static int driver_method_get_connection_unix_process_id(Peer *peer, CDVar *in_v,
         if (!connection)
                 return DRIVER_E_PEER_NOT_FOUND;
 
-        c_dvar_write(out_v, "u", connection->pid);
+        c_dvar_write(out_v, "(u)", connection->pid);
 
         return 0;
 }
@@ -983,7 +983,7 @@ static int driver_method_get_connection_credentials(Peer *peer, CDVar *in_v, CDV
         if (!connection)
                 return DRIVER_E_PEER_NOT_FOUND;
 
-        c_dvar_write(out_v, "[{s<u>}{s<u>}",
+        c_dvar_write(out_v, "([{s<u>}{s<u>}",
                      "UnixUserID", c_dvar_type_u, connection->user->uid,
                      "ProcessID", c_dvar_type_u, connection->pid);
 
@@ -1003,7 +1003,7 @@ static int driver_method_get_connection_credentials(Peer *peer, CDVar *in_v, CDV
                 c_dvar_write(out_v, ">}");
         }
 
-        c_dvar_write(out_v, "]");
+        c_dvar_write(out_v, "])");
 
         return 0;
 }
@@ -1040,7 +1040,9 @@ static int driver_method_get_connection_selinux_security_context(Peer *peer, CDV
          * Unlike the "LinuxSecurityLabel", this call does not include a
          * trailing 0-byte in the data blob.
          */
+        c_dvar_write(out_v, "(");
         driver_write_bytes(out_v, connection->seclabel, connection->n_seclabel);
+        c_dvar_write(out_v, ")");
 
         return 0;
 }
