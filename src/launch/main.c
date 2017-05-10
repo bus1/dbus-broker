@@ -486,29 +486,6 @@ static int manager_load(Manager *manager) {
         return 0;
 }
 
-static int manager_setup(Manager *manager) {
-        int r;
-
-        r = manager_load(manager);
-        if (r)
-                return error_trace(r);
-
-        r = sd_bus_call_method(manager->bus,
-                               NULL,
-                               "/org/bus1/DBus/Broker",
-                               "org.bus1.DBus.Broker",
-                               "AddListener",
-                               NULL,
-                               NULL,
-                               "oh",
-                               "/org/bus1/DBus/Listener/0",
-                               manager->fd_listen);
-        if (r < 0)
-                return error_origin(r);
-
-        return 0;
-}
-
 static int manager_run(Manager *manager) {
         int r, controller[2];
 
@@ -541,7 +518,20 @@ static int manager_run(Manager *manager) {
         if (r < 0)
                 return error_origin(r);
 
-        r = manager_setup(manager);
+        r = manager_load(manager);
+        if (r)
+                return error_trace(r);
+
+        r = sd_bus_call_method(manager->bus,
+                               NULL,
+                               "/org/bus1/DBus/Broker",
+                               "org.bus1.DBus.Broker",
+                               "AddListener",
+                               NULL,
+                               NULL,
+                               "oh",
+                               "/org/bus1/DBus/Listener/0",
+                               manager->fd_listen);
         if (r < 0)
                 return error_origin(r);
 
