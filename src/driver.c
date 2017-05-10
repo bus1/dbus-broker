@@ -1301,10 +1301,14 @@ int driver_goodbye(Peer *peer, bool silent) {
         int r;
 
         while ((node = peer->owned_matches.rule_tree.root)) {
+                _c_cleanup_(name_unrefp) Name *name = NULL;
                 MatchRule *rule = c_container_of(node, MatchRule, owner_node);
 
+                if (rule->keys.sender && *rule->keys.sender != ':' && strcmp(rule->keys.sender, "org.freedesktop.DBus") != 0)
+                        name = c_container_of(rule->registry, Name, matches);
+
                 match_rule_user_unref(rule);
-                --peer->user->n_matches;
+                ++peer->user->n_matches;
         }
 
         while ((node = peer->owned_names.ownership_tree.root)) {
