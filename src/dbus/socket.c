@@ -490,7 +490,7 @@ static int socket_recvmsg(Socket *socket, void *buffer, size_t n_buffer, size_t 
         }
 
         *from += l;
-        return 0;
+        return SOCKET_E_PREEMPTED;
 
 error:
         while (n_fds)
