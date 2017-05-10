@@ -19,14 +19,14 @@ typedef struct NameRegistry NameRegistry;
 enum {
         _NAME_E_SUCCESS,
 
-        NAME_E_QUOTA,
-
         NAME_E_NOT_FOUND,
         NAME_E_NOT_OWNER,
 
-        NAME_E_IN_QUEUE,
+        NAME_E_OWNER_NEW,
+        NAME_E_OWNER_UPDATED,
+        NAME_E_IN_QUEUE_NEW,
+        NAME_E_IN_QUEUE_UPDATED,
         NAME_E_EXISTS,
-        NAME_E_ALREADY_OWNER,
 };
 
 struct NameChange {

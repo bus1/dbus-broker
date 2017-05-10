@@ -19,7 +19,7 @@ static void test_setup(void) {
         name_change_init(&change);
 
         r = name_registry_request_name(&registry, &owner, "foobar", 0, &change);
-        assert(r == 0);
+        assert(r == NAME_E_OWNER_NEW);
         assert(strcmp(change.name->name, "foobar") == 0);
         assert(change.old_owner == NULL);
         assert(change.new_owner == &owner);
@@ -51,7 +51,7 @@ static void test_release(void) {
         name_change_init(&change);
 
         r = name_registry_request_name(&registry, &owner1, "foobar", 0, &change);
-        assert(r == 0);
+        assert(r == NAME_E_OWNER_NEW);
         assert(strcmp(change.name->name, "foobar") == 0);
         assert(change.old_owner == NULL);
         assert(change.new_owner == &owner1);
@@ -92,7 +92,7 @@ static void test_queue(void) {
 
         /* first to request */
         r = name_registry_request_name(&registry, &owner1, "foobar", 0, &change);
-        assert(r == 0);
+        assert(r == NAME_E_OWNER_NEW);
         assert(strcmp(change.name->name, "foobar") == 0);
         assert(change.old_owner == NULL);
         assert(change.new_owner == &owner1);
@@ -102,7 +102,7 @@ static void test_queue(void) {
         assert(o == &owner1);
         /* already the owner */
         r = name_registry_request_name(&registry, &owner1, "foobar", 0, &change);
-        assert(r == NAME_E_ALREADY_OWNER);
+        assert(r == 0);
         assert(change.name == NULL);
         assert(change.old_owner == NULL);
         assert(change.new_owner == NULL);
@@ -120,7 +120,7 @@ static void test_queue(void) {
         assert(change.new_owner == NULL);
         /* queue */
         r = name_registry_request_name(&registry, &owner2, "foobar", 0, &change);
-        assert(r == NAME_E_IN_QUEUE);
+        assert(r == NAME_E_IN_QUEUE_NEW);
         assert(change.name == NULL);
         assert(change.old_owner == NULL);
         assert(change.new_owner == NULL);
@@ -138,25 +138,25 @@ static void test_queue(void) {
         assert(o == &owner1);
         /* try to overtake, but wait in queue if it fails */
         r = name_registry_request_name(&registry, &owner2, "foobar", DBUS_NAME_FLAG_REPLACE_EXISTING, &change);
-        assert(r == NAME_E_IN_QUEUE);
+        assert(r == NAME_E_IN_QUEUE_NEW);
         assert(change.name == NULL);
         assert(change.old_owner == NULL);
         assert(change.new_owner == NULL);
         /* again */
         r = name_registry_request_name(&registry, &owner2, "foobar", DBUS_NAME_FLAG_REPLACE_EXISTING, &change);
-        assert(r == NAME_E_IN_QUEUE);
+        assert(r == NAME_E_IN_QUEUE_UPDATED);
         assert(change.name == NULL);
         assert(change.old_owner == NULL);
         assert(change.new_owner == NULL);
         /* update primary owner to allow replacement */
         r = name_registry_request_name(&registry, &owner1, "foobar", DBUS_NAME_FLAG_ALLOW_REPLACEMENT, &change);
-        assert(r == NAME_E_ALREADY_OWNER);
+        assert(r == 0);
         assert(change.name == NULL);
         assert(change.old_owner == NULL);
         assert(change.new_owner == NULL);
         /* queue again, but do not attempt to overtake */
         r = name_registry_request_name(&registry, &owner2, "foobar", 0, &change);
-        assert(r == NAME_E_IN_QUEUE);
+        assert(r == NAME_E_IN_QUEUE_UPDATED);
         assert(change.name == NULL);
         assert(change.old_owner == NULL);
         assert(change.new_owner == NULL);
@@ -170,7 +170,7 @@ static void test_queue(void) {
                                        DBUS_NAME_FLAG_ALLOW_REPLACEMENT |
                                        DBUS_NAME_FLAG_DO_NOT_QUEUE,
                                        &change);
-        assert(r == 0);
+        assert(r == NAME_E_OWNER_UPDATED);
         assert(strcmp(change.name->name, "foobar") == 0);
         assert(change.old_owner == &owner1);
         assert(change.new_owner == &owner2);
@@ -180,7 +180,7 @@ static void test_queue(void) {
         assert(o == &owner2);
         /* overtake again */
         r = name_registry_request_name(&registry, &owner1, "foobar", DBUS_NAME_FLAG_REPLACE_EXISTING, &change);
-        assert(r == 0);
+        assert(r == NAME_E_OWNER_UPDATED);
         assert(strcmp(change.name->name, "foobar") == 0);
         assert(change.old_owner == &owner2);
         assert(change.new_owner == &owner1);

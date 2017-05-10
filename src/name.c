@@ -91,13 +91,18 @@ bool name_ownership_is_primary(NameOwnership *ownership) {
 static int name_ownership_update(NameOwnership *ownership, uint32_t flags, NameChange *change) {
         Name *name = ownership->name;
         NameOwnership *primary;
+        int r;
 
         assert(!change->name);
         assert(!change->old_owner);
         assert(!change->new_owner);
 
         primary = c_container_of(c_list_first(&name->ownership_list), NameOwnership, name_link);
-        if (!primary) {
+        if (primary == ownership) {
+                /* we are already the primary owner */
+                ownership->flags = flags;
+                r =  0;
+        } else if (!primary) {
                 /* there is no primary owner */
                 change->name = name_ref(name);
                 change->new_owner = ownership->owner;
@@ -106,11 +111,7 @@ static int name_ownership_update(NameOwnership *ownership, uint32_t flags, NameC
                 /* @owner cannot already be linked */
                 c_list_link_front(&name->ownership_list, &ownership->name_link);
                 ownership->flags = flags;
-                return 0;
-        } else if (primary == ownership) {
-                /* we are already the primary owner */
-                ownership->flags = flags;
-                return NAME_E_ALREADY_OWNER;
+                r = NAME_E_OWNER_NEW;
         } else if ((flags & DBUS_NAME_FLAG_REPLACE_EXISTING) &&
                    (primary->flags & DBUS_NAME_FLAG_ALLOW_REPLACEMENT)) {
                 /* we replace the primary owner */
@@ -122,22 +123,30 @@ static int name_ownership_update(NameOwnership *ownership, uint32_t flags, NameC
                         /* the previous primary owner is dropped */
                         name_ownership_free(primary);
 
-                c_list_unlink(&ownership->name_link);
+                if (c_list_is_linked(&ownership->name_link)) {
+                        c_list_unlink(&ownership->name_link);
+                        r = NAME_E_OWNER_UPDATED;
+                } else {
+                        r = NAME_E_OWNER_NEW;
+                }
                 c_list_link_front(&name->ownership_list, &ownership->name_link);
                 ownership->flags = flags;
-                return 0;
         } else if (!(flags & DBUS_NAME_FLAG_DO_NOT_QUEUE)) {
                 /* we are appended to the queue */
                 if (!c_list_is_linked(&ownership->name_link)) {
                         c_list_link_tail(&name->ownership_list, &ownership->name_link);
+                        r = NAME_E_IN_QUEUE_NEW;
+                } else {
+                        r = NAME_E_IN_QUEUE_UPDATED;
                 }
                 ownership->flags = flags;
-                return NAME_E_IN_QUEUE;
         } else {
                 /* we are dropped */
                 name_ownership_free(ownership);
-                return NAME_E_EXISTS;
+                r = NAME_E_EXISTS;
         }
+
+        return r;
 }
 
 void name_ownership_release(NameOwnership *ownership, NameChange *change) {

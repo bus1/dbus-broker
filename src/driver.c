@@ -730,17 +730,25 @@ static int driver_method_request_name(Peer *peer, CDVar *in_v, CDVar *out_v, Nam
         if (strcmp(name, "org.freedesktop.DBus") == 0)
                 return DRIVER_E_NAME_RESERVED;
 
+        if (peer->user->n_names == 0)
+                return DRIVER_E_QUOTA;
+
         r = name_registry_request_name(&peer->bus->names, &peer->owned_names, name, flags, change);
-        if (r == 0)
-                reply = DBUS_REQUEST_NAME_REPLY_PRIMARY_OWNER;
-        else if (r == NAME_E_IN_QUEUE)
-                reply = DBUS_REQUEST_NAME_REPLY_IN_QUEUE;
-        else if (r == NAME_E_EXISTS)
-                reply = DBUS_REQUEST_NAME_REPLY_EXISTS;
-        else if (r == NAME_E_ALREADY_OWNER)
+        if (r == 0) {
                 reply = DBUS_REQUEST_NAME_REPLY_ALREADY_OWNER;
-        else
+        } else if (r == NAME_E_OWNER_NEW || r == NAME_E_OWNER_UPDATED) {
+                reply = DBUS_REQUEST_NAME_REPLY_PRIMARY_OWNER;
+                if (r == NAME_E_OWNER_NEW)
+                        --peer->user->n_names;
+        } else if (r == NAME_E_IN_QUEUE_NEW || r == NAME_E_IN_QUEUE_UPDATED) {
+                reply = DBUS_REQUEST_NAME_REPLY_IN_QUEUE;
+                if (r == NAME_E_IN_QUEUE_NEW)
+                        --peer->user->n_names;
+        } else if (r == NAME_E_EXISTS) {
+                reply = DBUS_REQUEST_NAME_REPLY_EXISTS;
+        } else {
                 return error_fold(r);
+        }
 
         c_dvar_write(out_v, "(u)", reply);
 
@@ -762,14 +770,16 @@ static int driver_method_release_name(Peer *peer, CDVar *in_v, CDVar *out_v, Nam
                 return DRIVER_E_NAME_RESERVED;
 
         r = name_registry_release_name(&peer->bus->names, &peer->owned_names, name, change);
-        if (r == 0)
+        if (r == 0) {
                 reply = DBUS_RELEASE_NAME_REPLY_RELEASED;
-        else if (r == NAME_E_NOT_FOUND)
+                ++peer->user->n_names;
+        } else if (r == NAME_E_NOT_FOUND) {
                 reply = DBUS_RELEASE_NAME_REPLY_NON_EXISTENT;
-        else if (r == NAME_E_NOT_OWNER)
+        } else if (r == NAME_E_NOT_OWNER) {
                 reply = DBUS_RELEASE_NAME_REPLY_NOT_OWNER;
-        else
+        } else {
                 return error_fold(r);
+        }
 
         c_dvar_write(out_v, "(u)", reply);
 
@@ -1294,6 +1304,7 @@ int driver_goodbye(Peer *peer, bool silent) {
 
                 name_change_init(&change);
                 name_ownership_release(ownership, &change);
+                ++peer->user->n_names;
                 if (!silent && change.name)
                         r = driver_name_owner_changed(change.name->name,
                                                       c_container_of(change.old_owner, Peer, owned_names),
