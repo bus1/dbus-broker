@@ -355,7 +355,7 @@ static int manager_on_message(sd_bus_message *m, void *userdata, sd_bus_error *e
                         r = manager_on_name_activate(manager, m, suffix);
         }
 
-        return r;
+        return error_trace(r);
 }
 
 static int manager_load_service(Manager *manager, const char *path) {
@@ -528,14 +528,14 @@ static int manager_run(Manager *manager) {
 
         /* consumes FD controller[1] */
         r = manager_fork(manager, controller[1]);
-        if (r < 0) {
+        if (r) {
                 close(controller[1]);
-                return error_fold(r);
+                return error_trace(r);
         }
 
         r = sd_bus_add_filter(manager->bus, NULL, manager_on_message, manager);
         if (r < 0)
-                return error_fold(r);
+                return error_origin(r);
 
         r = sd_bus_start(manager->bus);
         if (r < 0)
@@ -543,7 +543,7 @@ static int manager_run(Manager *manager) {
 
         r = manager_setup(manager);
         if (r < 0)
-                return error_fold(r);
+                return error_origin(r);
 
         r = sd_event_loop(manager->event);
         if (r < 0)
