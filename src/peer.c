@@ -47,6 +47,7 @@ int peer_dispatch(DispatchFile *file, uint32_t mask) {
                 if (r == CONNECTION_E_EOF || r == CONNECTION_E_RESET) {
                         if (peer_is_registered(peer)) {
                                 metrics_sample_start(&peer->metrics);
+                                driver_matches_cleanup(&peer->owned_matches, peer->bus, peer->user);
                                 r = driver_goodbye(peer, false);
                                 metrics_sample_end(&peer->metrics);
                         }
@@ -270,6 +271,7 @@ void peer_registry_flush(PeerRegistry *registry) {
                 Peer *peer = c_container_of(node, Peer, registry_node);
 
                 if (peer_is_registered(peer)) {
+                        driver_matches_cleanup(&peer->owned_matches, peer->bus, peer->user);
                         r = driver_goodbye(peer, true);
                         assert(!r); /* can not fail in silent mode */
                 }

@@ -6,8 +6,11 @@
 
 #include <stdlib.h>
 
+typedef struct Bus Bus;
+typedef struct MatchOwner MatchOwner;
 typedef struct Message Message;
 typedef struct Peer Peer;
+typedef struct User User;
 
 enum {
         _DRIVER_E_SUCCESS,
@@ -44,4 +47,5 @@ enum {
 };
 
 int driver_dispatch(Peer *peer, Message *message);
+void driver_matches_cleanup(MatchOwner *owner, Bus *bus, User *user);
 int driver_goodbye(Peer *peer, bool silent);

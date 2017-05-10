@@ -1348,11 +1348,10 @@ static int driver_dispatch_interface(Peer *peer, uint32_t serial, const char *in
         return driver_dispatch_method(peer, serial, member, path, signature, message);
 }
 
-int driver_goodbye(Peer *peer, bool silent) {
+void driver_matches_cleanup(MatchOwner *owner, Bus *bus, User *user) {
         CRBNode *node;
-        int r;
 
-        while ((node = peer->owned_matches.rule_tree.root)) {
+        while ((node = owner->rule_tree.root)) {
                 _c_cleanup_(name_unrefp) Name *name = NULL;
                 MatchRule *rule = c_container_of(node, MatchRule, owner_node);
 
@@ -1360,11 +1359,16 @@ int driver_goodbye(Peer *peer, bool silent) {
                         name = c_container_of(rule->registry, Name, matches);
 
                 if (rule->keys.eavesdrop)
-                        --peer->bus->n_eavesdrop;
+                        --bus->n_eavesdrop;
 
                 match_rule_user_unref(rule);
-                ++peer->user->n_matches;
+                ++user->n_matches;
         }
+}
+
+int driver_goodbye(Peer *peer, bool silent) {
+        CRBNode *node;
+        int r;
 
         while ((node = peer->owned_names.ownership_tree.root)) {
                 NameOwnership *ownership = c_container_of(node, NameOwnership, owner_node);
