@@ -290,10 +290,35 @@ int activation_send_signal(Connection *controller, const char *path) {
         if (r)
                 return error_fold(r);
 
+        /* XXX: this is excluded from monitoring as it is on our private connection */
         r = connection_queue_message(controller, message);
         if (r)
                 return error_fold(r);
 
+        return 0;
+}
+
+static int driver_queue_message_on_peer(Peer *receiver, Peer *sender, Message *message) {
+        _c_cleanup_(reply_slot_freep) ReplySlot *slot = NULL;
+        int r;
+
+        if (sender &&
+            (message->header->type == DBUS_MESSAGE_TYPE_METHOD_CALL) &&
+            !(message->header->flags & DBUS_HEADER_FLAG_NO_REPLY_EXPECTED)) {
+                r = reply_slot_new(&slot, &receiver->replies_outgoing, &sender->owned_replies, sender->id, message_read_serial(message));
+                if (r == REPLY_E_EXISTS)
+                        return DRIVER_E_EXPECTED_REPLY_EXISTS;
+                else if (r)
+                        return error_fold(r);
+        }
+
+        /* XXX: forward to monitors */
+
+        r = connection_queue_message(&receiver->connection, message);
+        if (r)
+                return error_fold(r);
+
+        slot = NULL;
         return 0;
 }
 
@@ -329,32 +354,10 @@ static int driver_send_error(Peer *peer, uint32_t serial, const char *error) {
         if (r)
                 return error_fold(r);
 
-        r = connection_queue_message(&peer->connection, message);
+        r = driver_queue_message_on_peer(peer, NULL, message);
         if (r)
                 return error_fold(r);
 
-        return 0;
-}
-
-static int driver_queue_message_on_peer(Peer *receiver, Peer *sender, Message *message) {
-        _c_cleanup_(reply_slot_freep) ReplySlot *slot = NULL;
-        int r;
-
-        if (sender &&
-            (message->header->type == DBUS_MESSAGE_TYPE_METHOD_CALL) &&
-            !(message->header->flags & DBUS_HEADER_FLAG_NO_REPLY_EXPECTED)) {
-                r = reply_slot_new(&slot, &receiver->replies_outgoing, &sender->owned_replies, sender->id, message_read_serial(message));
-                if (r == REPLY_E_EXISTS)
-                        return DRIVER_E_EXPECTED_REPLY_EXISTS;
-                else if (r)
-                        return error_fold(r);
-        }
-
-        r = connection_queue_message(&receiver->connection, message);
-        if (r)
-                return error_fold(r);
-
-        slot = NULL;
         return 0;
 }
 
@@ -437,7 +440,7 @@ static int driver_forward_reply(Peer *sender, const char *destination, uint32_t 
 
         receiver = c_container_of(slot->owner, Peer, owned_replies);
 
-        r = connection_queue_message(&receiver->connection, message);
+        r = driver_queue_message_on_peer(receiver, NULL, message);
         if (r)
                 return error_fold(r);
 
@@ -508,7 +511,7 @@ static int driver_notify_name_acquired(Peer *peer, const char *name) {
         if (r)
                 return error_fold(r);
 
-        r = connection_queue_message(&peer->connection, message);
+        r = driver_queue_message_on_peer(peer, NULL, message);
         if (r)
                 return error_fold(r);
 
@@ -544,7 +547,7 @@ static int driver_notify_name_lost(Peer *peer, const char *name) {
         if (r)
                 return error_fold(r);
 
-        r = connection_queue_message(&peer->connection, message);
+        r = driver_queue_message_on_peer(peer, NULL, message);
         if (r)
                 return error_fold(r);
 
@@ -1223,7 +1226,7 @@ static int driver_handle_method(const DriverMethod *method, Peer *peer, const ch
         if (r)
                 return error_fold(r);
 
-        r = connection_queue_message(&peer->connection, message_out);
+        r = driver_queue_message_on_peer(peer, NULL, message_out);
         if (r)
                 return error_fold(r);
 
