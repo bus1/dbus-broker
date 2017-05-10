@@ -1060,8 +1060,12 @@ static int driver_method_add_match(Peer *peer, CDVar *in_v, CDVar *out_v, NameCh
                 return DRIVER_E_QUOTA;
 
         r = match_rule_new(&rule, &peer->owned_matches, rule_string);
-        if (r)
-                return error_fold(r);
+        if (r) {
+                if (r == MATCH_E_INVALID)
+                        return DRIVER_E_MATCH_INVALID;
+                else
+                        return error_fold(r);
+        }
 
         if (!rule->keys.sender)
                 match_rule_link(rule, &peer->bus->wildcard_matches);
@@ -1112,8 +1116,14 @@ static int driver_method_remove_match(Peer *peer, CDVar *in_v, CDVar *out_v, Nam
                 return error_trace(r);
 
         r = match_rule_get(&rule, &peer->owned_matches, rule_string);
-        if (r)
-                return error_fold(r);
+        if (r) {
+                if (r == MATCH_E_NOT_FOUND)
+                        return DRIVER_E_MATCH_NOT_FOUND;
+                else if (r == MATCH_E_INVALID)
+                        return DRIVER_E_MATCH_INVALID;
+                else
+                        return error_fold(r);
+        }
 
         if (rule->keys.sender && *rule->keys.sender != ':' && strcmp(rule->keys.sender, "org.freedesktop.DBus") != 0)
                 name = c_container_of(rule->registry, Name, matches);
@@ -1430,6 +1440,12 @@ int driver_dispatch(Peer *peer, Message *message) {
                 break;
         case DRIVER_E_NAME_RESERVED:
                 r = driver_send_error(peer, metadata.header.serial, "org.freedesktop.DBus.Error.InvalidArgs");
+                break;
+        case DRIVER_E_MATCH_INVALID:
+                r = driver_send_error(peer, metadata.header.serial, "org.freedesktop.DBus.Error.MatchRuleInvalid");
+                break;
+        case DRIVER_E_MATCH_NOT_FOUND:
+                r = driver_send_error(peer, metadata.header.serial, "org.freedesktop.DBus.Error.MatchRuleNotFound");
                 break;
         case DRIVER_E_ADT_NOT_SUPPORTED:
                 r = driver_send_error(peer, metadata.header.serial, "org.freedesktop.DBus.Error.AdtAuditDataUnknown");
