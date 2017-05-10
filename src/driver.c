@@ -298,6 +298,55 @@ int activation_send_signal(Connection *controller, const char *path) {
         return 0;
 }
 
+static int driver_send_broadcast_to_matches(MatchRegistry *matches, MatchFilter *filter, Message *message) {
+        MatchRule *rule;
+        int r;
+
+        for (rule = match_rule_next(matches, NULL, filter); rule; rule = match_rule_next(matches, rule, filter)) {
+                Peer *peer = c_container_of(rule->owner, Peer, owned_matches);
+
+                r = connection_queue_message(&peer->connection, message);
+                if (r)
+                        return error_fold(r);
+        }
+
+        return 0;
+}
+
+static int driver_forward_broadcast(Peer *receiver, Peer *sender, const char *interface, const char *member, const char *path, const char *siganture, Message *message) {
+        MatchFilter filter = {
+                .type = message->header->type,
+                .destination = receiver ? receiver->id : UNIQUE_NAME_ID_INVALID,
+                .interface = interface,
+                .member = member,
+                .path = path,
+        };
+        int r;
+
+        /* XXX: parse the message to verify the marshalling and read out the arguments for filtering */
+
+        r = driver_send_broadcast_to_matches(&sender->bus->wildcard_matches, &filter, message);
+        if (r < 0)
+                return error_trace(r);
+
+        for (CRBNode *node = c_rbtree_first(&sender->owned_names.ownership_tree); node; node = c_rbnode_next(node)) {
+                NameOwnership *ownership = c_container_of(node, NameOwnership, owner_node);
+
+                if (!name_ownership_is_primary(ownership))
+                        continue;
+
+                r = driver_send_broadcast_to_matches(&ownership->name->matches, &filter, message);
+                if (r)
+                        return error_trace(r);
+        }
+
+        r = driver_send_broadcast_to_matches(&sender->matches, &filter, message);
+        if (r < 0)
+                return error_trace(r);
+
+        return 0;
+}
+
 static int driver_queue_message_on_peer(Peer *receiver, Peer *sender, Message *message) {
         _c_cleanup_(reply_slot_freep) ReplySlot *slot = NULL;
         int r;
@@ -357,21 +406,6 @@ static int driver_send_error(Peer *peer, uint32_t serial, const char *error) {
         r = driver_queue_message_on_peer(peer, NULL, message);
         if (r)
                 return error_fold(r);
-
-        return 0;
-}
-
-static int driver_send_broadcast_to_matches(MatchRegistry *matches, MatchFilter *filter, Message *message) {
-        MatchRule *rule;
-        int r;
-
-        for (rule = match_rule_next(matches, NULL, filter); rule; rule = match_rule_next(matches, rule, filter)) {
-                Peer *peer = c_container_of(rule->owner, Peer, owned_matches);
-
-                r = connection_queue_message(&peer->connection, message);
-                if (r)
-                        return error_fold(r);
-        }
 
         return 0;
 }
@@ -445,40 +479,6 @@ static int driver_forward_reply(Peer *sender, const char *destination, uint32_t 
                 return error_fold(r);
 
         reply_slot_free(slot);
-
-        return 0;
-}
-
-static int driver_forward_broadcast(Peer *sender, const char *interface, const char *member, const char *path, const char *siganture, Message *message) {
-        MatchFilter filter = {
-                .type = message->header->type,
-                .destination = UNIQUE_NAME_ID_INVALID,
-                .interface = interface,
-                .member = member,
-                .path = path,
-        };
-        int r;
-
-        /* XXX: parse the message to verify the marshalling and read out the arguments for filtering */
-
-        r = driver_send_broadcast_to_matches(&sender->bus->wildcard_matches, &filter, message);
-        if (r < 0)
-                return error_trace(r);
-
-        for (CRBNode *node = c_rbtree_first(&sender->owned_names.ownership_tree); node; node = c_rbnode_next(node)) {
-                NameOwnership *ownership = c_container_of(node, NameOwnership, owner_node);
-
-                if (!name_ownership_is_primary(ownership))
-                        continue;
-
-                r = driver_send_broadcast_to_matches(&ownership->name->matches, &filter, message);
-                if (r)
-                        return error_trace(r);
-        }
-
-        r = driver_send_broadcast_to_matches(&sender->matches, &filter, message);
-        if (r < 0)
-                return error_trace(r);
 
         return 0;
 }
@@ -1389,7 +1389,8 @@ static int driver_dispatch_internal(Peer *peer, MessageMetadata *metadata, Messa
                 if (metadata->header.type != DBUS_MESSAGE_TYPE_SIGNAL)
                         return DRIVER_E_UNEXPECTED_MESSAGE_TYPE;
 
-                return error_trace(driver_forward_broadcast(peer,
+                return error_trace(driver_forward_broadcast(NULL,
+                                                            peer,
                                                             metadata->fields.interface,
                                                             metadata->fields.member,
                                                             metadata->fields.path,
