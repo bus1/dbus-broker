@@ -1071,16 +1071,9 @@ static int driver_method_get_connection_selinux_security_context(Peer *peer, CDV
         return 0;
 }
 
-static int driver_method_add_match(Peer *peer, CDVar *in_v, CDVar *out_v, NameChange *change) {
+static int driver_add_match(Peer *peer, const char *rule_string, bool force_eavesdrop) {
         _c_cleanup_(match_rule_user_unrefp) MatchRule *rule = NULL;
-        const char *rule_string;
         int r;
-
-        c_dvar_read(in_v, "(s)", &rule_string);
-
-        r = driver_end_read(in_v);
-        if (r)
-                return error_trace(r);
 
         if (peer->user->n_matches == 0)
                 return DRIVER_E_QUOTA;
@@ -1092,6 +1085,9 @@ static int driver_method_add_match(Peer *peer, CDVar *in_v, CDVar *out_v, NameCh
                 else
                         return error_fold(r);
         }
+
+        if (force_eavesdrop)
+                rule->keys.eavesdrop = true;
 
         if (!rule->keys.sender) {
                 match_rule_link(rule, &peer->bus->wildcard_matches);
@@ -1128,13 +1124,30 @@ static int driver_method_add_match(Peer *peer, CDVar *in_v, CDVar *out_v, NameCh
                 name_ref(name); /* this reference must be explicitly released */
         }
 
-        c_dvar_write(out_v, "()");
-
         if (rule->keys.eavesdrop)
                 ++peer->bus->n_eavesdrop;
 
         --peer->user->n_matches;
         rule = NULL;
+
+        return 0;
+}
+
+static int driver_method_add_match(Peer *peer, CDVar *in_v, CDVar *out_v, NameChange *change) {
+        const char *rule_string;
+        int r;
+
+        c_dvar_read(in_v, "(s)", &rule_string);
+
+        r = driver_end_read(in_v);
+        if (r)
+                return error_trace(r);
+
+        r = driver_add_match(peer, rule_string, false);
+        if (r)
+                return error_trace(r);
+
+        c_dvar_write(out_v, "()");
 
         return 0;
 }
