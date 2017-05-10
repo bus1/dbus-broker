@@ -276,7 +276,7 @@ int activation_send_signal(Connection *controller, const char *path) {
         int r;
 
         c_dvar_begin_write(&var, type, 1);
-        c_dvar_write(&var, "(yyyyuu[(y<o>)(y<s>)(y<s>)])",
+        c_dvar_write(&var, "((yyyyuu[(y<o>)(y<s>)(y<s>)])())",
                      c_dvar_is_big_endian(&var) ? 'B' : 'l', DBUS_MESSAGE_TYPE_SIGNAL, DBUS_HEADER_FLAG_NO_REPLY_EXPECTED, 1, 0, (uint32_t)-1,
                      DBUS_MESSAGE_FIELD_PATH, c_dvar_type_o, path,
                      DBUS_MESSAGE_FIELD_INTERFACE, c_dvar_type_s, "org.bus1.DBus.Name",
