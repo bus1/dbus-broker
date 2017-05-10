@@ -1283,7 +1283,8 @@ int driver_goodbye(Peer *peer, bool silent) {
         while ((node = peer->owned_matches.rule_tree.root)) {
                 MatchRule *rule = c_container_of(node, MatchRule, owner_node);
 
-                match_rule_free(rule);
+                match_rule_user_unref(rule);
+                --peer->user->n_matches;
         }
 
         while ((node = peer->owned_names.ownership_tree.root)) {
