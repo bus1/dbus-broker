@@ -904,13 +904,13 @@ static int driver_method_get_name_owner(Peer *peer, CDVar *in_v, CDVar *out_v, N
         if (strcmp(name_str, "org.freedesktop.DBus") == 0) {
                 c_dvar_write(out_v, "org.freedesktop.DBus");
         } else {
-                NameOwner *owner;
+                Peer *owner;
 
-                owner = name_registry_resolve_owner(&peer->bus->names, name_str);
+                owner = bus_find_peer_by_name(peer->bus, name_str);
                 if (!owner)
                         return DRIVER_E_NAME_OWNER_NOT_FOUND;
 
-                driver_dvar_write_unique_name(out_v, c_container_of(owner, Peer, owned_names));
+                driver_dvar_write_unique_name(out_v, owner);
         }
 
         c_dvar_write(out_v, ")");
