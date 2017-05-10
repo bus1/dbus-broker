@@ -45,11 +45,11 @@ struct Manager {
         uint64_t service_ids;
 };
 
-static bool main_arg_verbose = false;
-static const char *main_arg_listen = "/var/run/dbus/system_bus_socket";
-static const char *main_arg_servicedir = "/usr/share/dbus-1/system-services";
-static const char *main_arg_broker = "/usr/bin/dbus-broker";
-static bool main_arg_force = false;
+static const char *     main_arg_broker = "/usr/bin/dbus-broker";
+static bool             main_arg_force = false;
+static const char *     main_arg_listen = "/var/run/dbus/system_bus_socket";
+static const char *     main_arg_servicedir = "/usr/share/dbus-1/system-services";
+static bool             main_arg_verbose = false;
 
 static int service_compare(CRBTree *t, void *k, CRBNode *n) {
         Service *service = c_container_of(n, Service, rb);
