@@ -39,7 +39,8 @@ struct Service {
 
 struct Manager {
         sd_event *event;
-        sd_bus *bus;
+        sd_bus *bus_controller;
+        sd_bus *bus_regular;
         int fd_listen;
         CRBTree services;
         uint64_t service_ids;
@@ -119,7 +120,8 @@ static Manager *manager_free(Manager *manager) {
                 service_free(service);
 
         c_close(manager->fd_listen);
-        sd_bus_unref(manager->bus);
+        sd_bus_unref(manager->bus_regular);
+        sd_bus_unref(manager->bus_controller);
         sd_event_unref(manager->event);
         free(manager);
 
@@ -150,11 +152,11 @@ static int manager_new(Manager **managerp) {
         if (r < 0)
                 return error_origin(r);
 
-        r = sd_bus_new(&manager->bus);
+        r = sd_bus_new(&manager->bus_controller);
         if (r < 0)
                 return error_origin(r);
 
-        r = sd_bus_attach_event(manager->bus, manager->event, SD_EVENT_PRIORITY_NORMAL);
+        r = sd_bus_attach_event(manager->bus_controller, manager->event, SD_EVENT_PRIORITY_NORMAL);
         if (r < 0)
                 return error_origin(r);
 
@@ -321,7 +323,7 @@ static int manager_on_name_activate(Manager *manager, sd_bus_message *m, const c
         if (main_arg_verbose)
                 fprintf(stderr, "Activation request for '%s' -> '%s'\n", service->name, service->unit);
 
-        r = sd_bus_message_new_signal(manager->bus, &signal, "/org/freedesktop/DBus", "org.freedesktop.systemd1.Activator", "ActivationRequest");
+        r = sd_bus_message_new_signal(manager->bus_regular, &signal, "/org/freedesktop/DBus", "org.freedesktop.systemd1.Activator", "ActivationRequest");
         if (r < 0)
                 return error_origin(r);
 
@@ -333,7 +335,7 @@ static int manager_on_name_activate(Manager *manager, sd_bus_message *m, const c
         if (r < 0)
                 return error_origin(r);
 
-        r = sd_bus_send(manager->bus, signal, NULL);
+        r = sd_bus_send(manager->bus_regular, signal, NULL);
         if (r < 0)
                 return error_origin(r);
 
@@ -415,7 +417,7 @@ static int manager_load_service(Manager *manager, const char *path) {
                 goto exit;
         }
 
-        r = sd_bus_call_method(manager->bus,
+        r = sd_bus_call_method(manager->bus_controller,
                                NULL,
                                "/org/bus1/DBus/Broker",
                                "org.bus1.DBus.Broker",
@@ -486,6 +488,54 @@ static int manager_load(Manager *manager) {
         return 0;
 }
 
+static int manager_connect(Manager *manager) {
+        _c_cleanup_(sd_bus_unrefp) sd_bus *b = NULL;
+        _c_cleanup_(c_closep) int s = -1;
+        struct sockaddr_un addr;
+        socklen_t n_addr = sizeof(addr);
+        int r;
+
+        assert(!manager->bus_regular);
+
+        s = socket(PF_UNIX, SOCK_STREAM | SOCK_CLOEXEC | SOCK_NONBLOCK, 0);
+        if (s < 0)
+                return error_origin(-errno);
+
+        r = getsockname(manager->fd_listen, (struct sockaddr *)&addr, &n_addr);
+        if (r < 0)
+                return error_origin(-r);
+
+        r = connect(s, (struct sockaddr *)&addr, n_addr);
+        if (r < 0)
+                return error_origin(-r);
+
+        r = sd_bus_new(&b);
+        if (r < 0)
+                return error_origin(r);
+
+        r = sd_bus_set_fd(b, s, s);
+        if (r < 0)
+                return error_origin(r);
+
+        s = -1;
+
+        r = sd_bus_set_bus_client(b, true);
+        if (r < 0)
+                return error_origin(r);
+
+        r = sd_bus_start(b);
+        if (r < 0)
+                return error_origin(r);
+
+        r = sd_bus_attach_event(b, manager->event, SD_EVENT_PRIORITY_NORMAL);
+        if (r < 0)
+                return error_origin(r);
+
+        manager->bus_regular = b;
+        b = NULL;
+        return 0;
+}
+
 static int manager_run(Manager *manager) {
         int r, controller[2];
 
@@ -496,7 +546,7 @@ static int manager_run(Manager *manager) {
                 return error_origin(-errno);
 
         /* consumes FD controller[0] */
-        r = sd_bus_set_fd(manager->bus, controller[0], controller[0]);
+        r = sd_bus_set_fd(manager->bus_controller, controller[0], controller[0]);
         if (r < 0) {
                 close(controller[0]);
                 close(controller[1]);
@@ -510,11 +560,11 @@ static int manager_run(Manager *manager) {
                 return error_trace(r);
         }
 
-        r = sd_bus_add_filter(manager->bus, NULL, manager_on_message, manager);
+        r = sd_bus_add_filter(manager->bus_controller, NULL, manager_on_message, manager);
         if (r < 0)
                 return error_origin(r);
 
-        r = sd_bus_start(manager->bus);
+        r = sd_bus_start(manager->bus_controller);
         if (r < 0)
                 return error_origin(r);
 
@@ -522,7 +572,7 @@ static int manager_run(Manager *manager) {
         if (r)
                 return error_trace(r);
 
-        r = sd_bus_call_method(manager->bus,
+        r = sd_bus_call_method(manager->bus_controller,
                                NULL,
                                "/org/bus1/DBus/Broker",
                                "org.bus1.DBus.Broker",
@@ -534,6 +584,10 @@ static int manager_run(Manager *manager) {
                                manager->fd_listen);
         if (r < 0)
                 return error_origin(r);
+
+        r = manager_connect(manager);
+        if (r)
+                return error_trace(r);
 
         r = sd_event_loop(manager->event);
         if (r < 0)
