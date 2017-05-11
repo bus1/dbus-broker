@@ -216,40 +216,20 @@ static int match_rule_key_read(const char **keyp, size_t *n_keyp, const char **m
         const char *key;
         size_t n_key = 0;
 
-        /* skip leading whitespace and equal signs */
-        while (**match == ' ' ||
-               **match == '\t' ||
-               **match == '\n' ||
-               **match == '\r' ||
-               **match == '=')
-                ++*match;
-
-        /* finished parsing the string */
+        /* skip any leading whitespace and stray equal signs */
+        *match += strspn(*match, " \t\n\r=");
         if (!**match)
                 return MATCH_E_EOF;
 
-        /* found the start of the key */
-        key = *match;
-
         /* skip over the key, recording its length */
-        while (**match != ' ' &&
-               **match != '\t' &&
-               **match != '\n' &&
-               **match != '\r' &&
-               **match != '=') {
-                if (!**match)
-                        return MATCH_E_INVALID;
-
-                ++*match;
-                ++n_key;
-        }
+        n_key = strcspn(*match, " \t\n\r=");
+        key = *match;
+        *match += n_key;
+        if (!**match)
+                return MATCH_E_INVALID;
 
         /* drop trailing whitespace */
-        while (**match == ' ' ||
-               **match == '\t' ||
-               **match == '\n' ||
-               **match == '\r')
-                ++*match;
+        *match += strspn(*match, " \t\n\r");
 
         /* skip over the equals sign between the key and the value */
         if (**match != '=')
