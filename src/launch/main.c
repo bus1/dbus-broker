@@ -156,10 +156,6 @@ static int manager_new(Manager **managerp) {
         if (r < 0)
                 return error_origin(r);
 
-        r = sd_bus_attach_event(manager->bus_controller, manager->event, SD_EVENT_PRIORITY_NORMAL);
-        if (r < 0)
-                return error_origin(r);
-
         *managerp = manager;
         manager = NULL;
         return 0;
@@ -527,10 +523,6 @@ static int manager_connect(Manager *manager) {
         if (r < 0)
                 return error_origin(r);
 
-        r = sd_bus_attach_event(b, manager->event, SD_EVENT_PRIORITY_NORMAL);
-        if (r < 0)
-                return error_origin(r);
-
         manager->bus_regular = b;
         b = NULL;
         return 0;
@@ -588,6 +580,14 @@ static int manager_run(Manager *manager) {
         r = manager_connect(manager);
         if (r)
                 return error_trace(r);
+
+        r = sd_bus_attach_event(manager->bus_controller, manager->event, SD_EVENT_PRIORITY_NORMAL);
+        if (r < 0)
+                return error_origin(r);
+
+        r = sd_bus_attach_event(manager->bus_regular, manager->event, SD_EVENT_PRIORITY_NORMAL);
+        if (r < 0)
+                return error_origin(r);
 
         r = sd_event_loop(manager->event);
         if (r < 0)
