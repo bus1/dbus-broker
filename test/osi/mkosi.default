@@ -1,0 +1,13 @@
+[Distribution]
+Distribution=arch
+
+[Output]
+Format=directory
+Output=rootfs
+
+[Packages]
+#Cache=/var/cache/pacman/pkg/
+Packages=
+        openssh
+        htop
+        valgrind
