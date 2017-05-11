@@ -33,6 +33,7 @@ struct MatchFilter {
 };
 
 struct MatchRuleKeys {
+        const char *destination;
         const char *sender;
         MatchFilter filter;
         bool eavesdrop : 1;

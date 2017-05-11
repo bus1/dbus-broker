@@ -17,6 +17,7 @@ static int match_rules_compare(CRBTree *tree, void *k, CRBNode *rb) {
         int r;
 
         if ((r = c_string_compare(key1->sender, key2->sender)) ||
+            (r = c_string_compare(key1->destination, key2->destination)) ||
             (r = c_string_compare(key1->filter.interface, key2->filter.interface)) ||
             (r = c_string_compare(key1->filter.member, key2->filter.member)) ||
             (r = c_string_compare(key1->filter.path, key2->filter.path)) ||
@@ -27,11 +28,6 @@ static int match_rules_compare(CRBTree *tree, void *k, CRBNode *rb) {
         if (key1->filter.type > key2->filter.type)
                 return 1;
         if (key1->filter.type < key2->filter.type)
-                return -1;
-
-        if (key1->filter.destination > key2->filter.destination)
-                return 1;
-        if (key1->filter.destination < key2->filter.destination)
                 return -1;
 
         if (key1->eavesdrop > key2->eavesdrop)
@@ -114,6 +110,9 @@ static int match_rule_keys_assign(MatchRuleKeys *keys, const char *key, size_t n
         int r;
 
         if (match_key_equal("type", key, n_key)) {
+                if (keys->filter.type != DBUS_MESSAGE_TYPE_INVALID)
+                        return MATCH_E_INVALID;
+
                 if (strcmp(value, "signal") == 0)
                         keys->filter.type = DBUS_MESSAGE_TYPE_SIGNAL;
                 else if (strcmp(value, "method_call") == 0)
@@ -125,29 +124,45 @@ static int match_rule_keys_assign(MatchRuleKeys *keys, const char *key, size_t n
                 else
                         return MATCH_E_INVALID;
         } else if (match_key_equal("sender", key, n_key)) {
+                if (keys->sender)
+                        return MATCH_E_INVALID;
                 keys->sender = value;
         } else if (match_key_equal("destination", key, n_key)) {
+                if (keys->destination)
+                        return MATCH_E_INVALID;
+                keys->destination = value;
+
                 r = unique_name_to_id(value, &keys->filter.destination);
                 if (r > 0)
-                        return MATCH_E_INVALID;
+                        keys->filter.destination = UNIQUE_NAME_ID_INVALID;
                 else if (r < 0)
                         return error_fold(r);
         } else if (match_key_equal("interface", key, n_key)) {
+                if (keys->filter.interface)
+                        return MATCH_E_INVALID;
                 keys->filter.interface = value;
         } else if (match_key_equal("member", key, n_key)) {
+                if (keys->filter.member)
+                        return MATCH_E_INVALID;
                 keys->filter.member = value;
         } else if (match_key_equal("path", key, n_key)) {
+                if (keys->filter.path || keys->path_namespace)
+                        return MATCH_E_INVALID;
                 keys->filter.path = value;
         } else if (match_key_equal("path_namespace", key, n_key)) {
+                if (keys->path_namespace || keys->filter.path)
+                        return MATCH_E_INVALID;
                 keys->path_namespace = value;
         } else if (match_key_equal("eavesdrop", key, n_key)) {
-                if (strcmp(value, "true") ==0)
+                if (strcmp(value, "true") == 0)
                         keys->eavesdrop = true;
-                else if (strcmp(value, "fase") == 0)
+                else if (strcmp(value, "false") == 0)
                         keys->eavesdrop = false;
                 else
                         return MATCH_E_INVALID;
         } else if (match_key_equal("arg0namespace", key, n_key)) {
+                if (keys->arg0namespace || keys->filter.args[0] || keys->filter.argpaths[0])
+                        return MATCH_E_INVALID;
                 keys->arg0namespace = value;
         } else if (n_key >= strlen("arg") && match_key_equal("arg", key, strlen("arg"))) {
                 unsigned int i = 0;
@@ -161,6 +176,12 @@ static int match_rule_keys_assign(MatchRuleKeys *keys, const char *key, size_t n
 
                         i = i * 10 + *key - '0';
                 }
+
+                if (i == 0 && keys->arg0namespace)
+                        return MATCH_E_INVALID;
+
+                if (keys->filter.args[i] || keys->filter.argpaths[i])
+                        return MATCH_E_INVALID;
 
                 if (match_key_equal("", key, n_key)) {
                         keys->filter.args[i] = value;
@@ -246,6 +267,7 @@ int match_rule_keys_parse(MatchRuleKeys *keys, char *buffer, size_t n_buffer, co
         size_t i = 0;
         int r = 0;
 
+        keys->filter.type = DBUS_MESSAGE_TYPE_INVALID;
         keys->filter.destination = UNIQUE_NAME_ID_INVALID;
 
         while (i < n_buffer) {
