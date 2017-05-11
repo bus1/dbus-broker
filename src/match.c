@@ -103,10 +103,17 @@ static bool match_rule_keys_match_filter(MatchRuleKeys *keys, MatchFilter *filte
         return true;
 }
 
-static int match_rule_keys_assign(MatchRuleKeys *keys, const char *key, const char *value) {
+static bool match_key_equal(const char *key1, const char *key2, size_t n_key2) {
+        if (strlen(key1) != n_key2)
+                return false;
+
+        return (strncmp(key1, key2, n_key2) == 0);
+}
+
+static int match_rule_keys_assign(MatchRuleKeys *keys, const char *key, size_t n_key, const char *value) {
         int r;
 
-        if (strcmp(key, "type") == 0) {
+        if (match_key_equal("type", key, n_key)) {
                 if (strcmp(value, "signal") == 0)
                         keys->filter.type = DBUS_MESSAGE_TYPE_SIGNAL;
                 else if (strcmp(value, "method_call") == 0)
@@ -117,46 +124,47 @@ static int match_rule_keys_assign(MatchRuleKeys *keys, const char *key, const ch
                         keys->filter.type = DBUS_MESSAGE_TYPE_ERROR;
                 else
                         return MATCH_E_INVALID;
-        } else if (strcmp(key, "sender") == 0) {
+        } else if (match_key_equal("sender", key, n_key)) {
                 keys->sender = value;
-        } else if (strcmp(key, "destination") == 0) {
+        } else if (match_key_equal("destination", key, n_key)) {
                 r = unique_name_to_id(value, &keys->filter.destination);
                 if (r > 0)
                         return MATCH_E_INVALID;
                 else if (r < 0)
                         return error_fold(r);
-        } else if (strcmp(key, "interface") == 0) {
+        } else if (match_key_equal("interface", key, n_key)) {
                 keys->filter.interface = value;
-        } else if (strcmp(key, "member") == 0) {
+        } else if (match_key_equal("member", key, n_key)) {
                 keys->filter.member = value;
-        } else if (strcmp(key, "path") == 0) {
+        } else if (match_key_equal("path", key, n_key)) {
                 keys->filter.path = value;
-        } else if (strcmp(key, "path_namespace") == 0) {
+        } else if (match_key_equal("path_namespace", key, n_key)) {
                 keys->path_namespace = value;
-        } else if (strcmp(key, "eavesdrop") == 0) {
+        } else if (match_key_equal("eavesdrop", key, n_key)) {
                 if (strcmp(value, "true") ==0)
                         keys->eavesdrop = true;
                 else if (strcmp(value, "fase") == 0)
                         keys->eavesdrop = false;
                 else
                         return MATCH_E_INVALID;
-        } else if (strcmp(key, "arg0namespace") == 0) {
+        } else if (match_key_equal("arg0namespace", key, n_key)) {
                 keys->arg0namespace = value;
-        } else if (strncmp(key, "arg", strlen("arg")) == 0) {
+        } else if (n_key >= strlen("arg") && match_key_equal("arg", key, strlen("arg"))) {
                 unsigned int i = 0;
 
                 key += strlen("arg");
+                n_key -= strlen("arg");
 
-                for (unsigned int j = 0; j < 2; j ++) {
+                for (unsigned int j = 0; j < 2 && n_key; ++j, ++key, --n_key) {
                         if (*key < '0' || *key > '9')
                                 break;
 
                         i = i * 10 + *key - '0';
-                        key ++;
                 }
-                if (strcmp(key, "")  == 0) {
+
+                if (match_key_equal("", key, n_key)) {
                         keys->filter.args[i] = value;
-                } else if (strcmp(key, "path") == 0) {
+                } else if (match_key_equal("path", key, n_key)) {
                         keys->filter.argpaths[i] = value;
                 } else
                         return MATCH_E_INVALID;
@@ -170,7 +178,7 @@ static int match_rule_keys_assign(MatchRuleKeys *keys, const char *key, const ch
 /*
  * Takes a null-termianted stream of characters, removes any quoting, breaks them up at commas and returns them one character at a time.
  */
-static char match_string_pop(const char **match, bool *quoted) {
+static char match_string_value_pop(const char **match, bool *quoted) {
         /*
          * Within single quotes (apostrophe), a backslash represents itself, and an apostrophe ends the quoted section. Outside single quotes, \'
          * (backslash, apostrophe) represents an apostrophe, and any backslash not followed by an apostrophe represents itself.
@@ -204,66 +212,110 @@ static char match_string_pop(const char **match, bool *quoted) {
         }
 }
 
-int match_rule_keys_parse(MatchRuleKeys *keys, char *buffer, const char *rule_string, size_t n_rule_string) {
-        const char *key = NULL, *value = NULL;
-        bool quoted = false;
-        char c;
-        int r;
+static int match_rule_key_read(const char **keyp, size_t *n_keyp, const char **match) {
+        const char *key;
+        size_t n_key = 0;
+
+        /* skip leading whitespace and equal signs */
+        while (**match == ' ' ||
+               **match == '\t' ||
+               **match == '\n' ||
+               **match == '\r' ||
+               **match == '=')
+                ++*match;
+
+        /* finished parsing the string */
+        if (!**match)
+                return MATCH_E_EOF;
+
+        /* found the start of the key */
+        key = *match;
+
+        /* skip over the key, recording its length */
+        while (**match != ' ' &&
+               **match != '\t' &&
+               **match != '\n' &&
+               **match != '\r' &&
+               **match != '=') {
+                if (!**match)
+                        return MATCH_E_INVALID;
+
+                ++*match;
+                ++n_key;
+        }
+
+        /* drop trailing whitespace */
+        while (**match == ' ' ||
+               **match == '\t' ||
+               **match == '\n' ||
+               **match == '\r')
+                ++*match;
+
+        /* skip over the equals sign between the key and the value */
+        if (**match != '=')
+                return MATCH_E_INVALID;
+        else
+                ++*match;
+
+        *keyp = key;
+        *n_keyp = n_key;
+        return 0;
+}
+
+int match_rule_keys_parse(MatchRuleKeys *keys, char *buffer, size_t n_buffer, const char *rule_string) {
+        size_t i = 0;
+        int r = 0;
 
         keys->filter.destination = UNIQUE_NAME_ID_INVALID;
 
-        for (unsigned int i = 0; i < n_rule_string; i ++) {
-                if (!key) {
-                        do {
-                                /* strip leading space before a key */
-                                c = match_string_pop(&rule_string, &quoted);
-                        } while (c == ' ');
-                        key = buffer + i;
-                } else {
-                        c = match_string_pop(&rule_string, &quoted);
-                }
+        while (i < n_buffer) {
+                const char *key, *value;
+                size_t n_key;
+                bool quoted = false;
+                char c;
 
-                /* strip key and value at '=' */
-                if (c == '=' && !value) {
-                        buffer[i] = '\0';
-                        value = buffer + i + 1;
-                } else {
-                        buffer[i] = c;
-                }
-
-                /* reached end of key/value pair */
-                if (c == '\0') {
-                        /* did not finish reading key yet */
-                        if (!value)
-                                return MATCH_E_INVALID;
-
-                        r = match_rule_keys_assign(keys, key, value);
-                        if (r)
+                r = match_rule_key_read(&key, &n_key, &rule_string);
+                if (r) {
+                        if (r == MATCH_E_EOF)
+                                break;
+                        else
                                 return error_trace(r);
-
-                        key = NULL;
-                        value = NULL;
-
-                        /* reached the end of the input string */
-                        if (*rule_string == '\0')
-                                return 0;
                 }
+
+                value = buffer + i;
+
+                do {
+                        c = match_string_value_pop(&rule_string, &quoted);
+                        buffer[i++] = c;
+                } while (c);
+
+                if (quoted)
+                        return MATCH_E_INVALID;
+
+                r = match_rule_keys_assign(keys, key, n_key, value);
+                if (r)
+                        return error_trace(r);
         }
+
+        if (r != MATCH_E_EOF)
+                /* this should not be possible */
+                return error_origin(-ENOTRECOVERABLE);
 
         /* XXX: verify that no invalid combinations such as path/path_namespace occur */
 
-        return MATCH_E_INVALID;
+        return 0;
 }
 
 int match_rule_new(MatchRule **rulep, MatchOwner *owner, const char *rule_string) {
         _c_cleanup_(match_rule_freep) MatchRule *rule = NULL;
         CRBNode **slot, *parent;
-        size_t n_rule_string;
+        size_t n_buffer;
         int r;
 
-        n_rule_string = strlen(rule_string);
+        /* the buffer needs at most the size of the string */
+        n_buffer = strlen(rule_string) + 1;
 
-        rule = calloc(1, sizeof(*rule) + n_rule_string);
+        rule = calloc(1, sizeof(*rule) + n_buffer);
         if (!rule)
                 return error_origin(-ENOMEM);
 
@@ -272,7 +324,7 @@ int match_rule_new(MatchRule **rulep, MatchOwner *owner, const char *rule_string
         rule->registry_link = (CList)C_LIST_INIT(rule->registry_link);
         rule->owner_node = (CRBNode)C_RBNODE_INIT(rule->owner_node);
 
-        r = match_rule_keys_parse(&rule->keys, rule->buffer, rule_string, n_rule_string);
+        r = match_rule_keys_parse(&rule->keys, rule->buffer, n_buffer, rule_string);
         if (r)
                 return error_trace(r);
 
@@ -333,12 +385,12 @@ void match_rule_link(MatchRule *rule, MatchRegistry *registry) {
 }
 
 int match_rule_get(MatchRule **rulep, MatchOwner *owner, const char *rule_string) {
-        char buffer[strlen(rule_string)];
+        char buffer[strlen(rule_string) + 1];
         MatchRuleKeys keys = {};
         MatchRule *rule;
         int r;
 
-        r = match_rule_keys_parse(&keys, buffer, rule_string, strlen(rule_string));
+        r = match_rule_keys_parse(&keys, buffer, sizeof(buffer), rule_string);
         if (r)
                 return error_trace(r);
 

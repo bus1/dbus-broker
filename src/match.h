@@ -17,6 +17,7 @@ typedef struct MatchOwner MatchOwner;
 enum {
         _MATCH_E_SUCCESS,
 
+        MATCH_E_EOF,
         MATCH_E_INVALID,
         MATCH_E_NOT_FOUND,
 };
