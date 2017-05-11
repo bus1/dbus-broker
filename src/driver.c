@@ -1209,6 +1209,118 @@ static int driver_method_get_id(Peer *peer, CDVar *in_v, CDVar *out_v, NameChang
         return 0;
 }
 
+static int driver_method_introspect(Peer *peer, CDVar *in_v, CDVar *out_v, NameChange *change) {
+        static const char *introspection =
+"<!DOCTYPE node PUBLIC \"-//freedesktop//DTD D-BUS Object Introspection 1.0//EN\"\n"
+"\"http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd\">\n"
+"<node>\n"
+"  <interface name=\"org.freedesktop.DBus\">\n"
+"    <method name=\"Hello\">\n"
+"      <arg direction=\"out\" type=\"s\"/>\n"
+"    </method>\n"
+"    <method name=\"RequestName\">\n"
+"      <arg direction=\"in\" type=\"s\"/>\n"
+"      <arg direction=\"in\" type=\"u\"/>\n"
+"      <arg direction=\"out\" type=\"u\"/>\n"
+"    </method>\n"
+"    <method name=\"ReleaseName\">\n"
+"      <arg direction=\"in\" type=\"s\"/>\n"
+"      <arg direction=\"out\" type=\"u\"/>\n"
+"    </method>\n"
+"    <method name=\"StartServiceByName\">\n"
+"      <arg direction=\"in\" type=\"s\"/>\n"
+"      <arg direction=\"in\" type=\"u\"/>\n"
+"      <arg direction=\"out\" type=\"u\"/>\n"
+"    </method>\n"
+"    <method name=\"UpdateActivationEnvironment\">\n"
+"      <arg direction=\"in\" type=\"a{ss}\"/>\n"
+"    </method>\n"
+"    <method name=\"NameHasOwner\">\n"
+"      <arg direction=\"in\" type=\"s\"/>\n"
+"      <arg direction=\"out\" type=\"b\"/>\n"
+"    </method>\n"
+"    <method name=\"ListNames\">\n"
+"      <arg direction=\"out\" type=\"as\"/>\n"
+"    </method>\n"
+"    <method name=\"ListActivatableNames\">\n"
+"      <arg direction=\"out\" type=\"as\"/>\n"
+"    </method>\n"
+"    <method name=\"AddMatch\">\n"
+"      <arg direction=\"in\" type=\"s\"/>\n"
+"    </method>\n"
+"    <method name=\"RemoveMatch\">\n"
+"      <arg direction=\"in\" type=\"s\"/>\n"
+"    </method>\n"
+"    <method name=\"GetNameOwner\">\n"
+"      <arg direction=\"in\" type=\"s\"/>\n"
+"      <arg direction=\"out\" type=\"s\"/>\n"
+"    </method>\n"
+"    <method name=\"ListQueuedOwners\">\n"
+"      <arg direction=\"in\" type=\"s\"/>\n"
+"      <arg direction=\"out\" type=\"as\"/>\n"
+"    </method>\n"
+"    <method name=\"GetConnectionUnixUser\">\n"
+"      <arg direction=\"in\" type=\"s\"/>\n"
+"      <arg direction=\"out\" type=\"u\"/>\n"
+"    </method>\n"
+"    <method name=\"GetConnectionUnixProcessID\">\n"
+"      <arg direction=\"in\" type=\"s\"/>\n"
+"      <arg direction=\"out\" type=\"u\"/>\n"
+"    </method>\n"
+"    <method name=\"GetAdtAuditSessionData\">\n"
+"      <arg direction=\"in\" type=\"s\"/>\n"
+"      <arg direction=\"out\" type=\"ay\"/>\n"
+"    </method>\n"
+"    <method name=\"GetConnectionSELinuxSecurityContext\">\n"
+"      <arg direction=\"in\" type=\"s\"/>\n"
+"      <arg direction=\"out\" type=\"ay\"/>\n"
+"    </method>\n"
+"    <method name=\"ReloadConfig\">\n"
+"    </method>\n"
+"    <method name=\"GetId\">\n"
+"      <arg direction=\"out\" type=\"s\"/>\n"
+"    </method>\n"
+"    <method name=\"GetConnectionCredentials\">\n"
+"      <arg direction=\"in\" type=\"s\"/>\n"
+"      <arg direction=\"out\" type=\"a{sv}\"/>\n"
+"    </method>\n"
+"    <signal name=\"NameOwnerChanged\">\n"
+"      <arg type=\"s\"/>\n"
+"      <arg type=\"s\"/>\n"
+"      <arg type=\"s\"/>\n"
+"    </signal>\n"
+"    <signal name=\"NameLost\">\n"
+"      <arg type=\"s\"/>\n"
+"    </signal>\n"
+"    <signal name=\"NameAcquired\">\n"
+"      <arg type=\"s\"/>\n"
+"    </signal>\n"
+"  </interface>\n"
+"  <interface name=\"org.freedesktop.DBus.Introspectable\">\n"
+"    <method name=\"Introspect\">\n"
+"      <arg direction=\"out\" type=\"s\"/>\n"
+"    </method>\n"
+"  </interface>\n"
+"  <interface name=\"org.freedesktop.DBus.Monitoring\">\n"
+"    <method name=\"BecomeMonitor\">\n"
+"      <arg direction=\"in\" type=\"as\"/>\n"
+"      <arg direction=\"in\" type=\"u\"/>\n"
+"    </method>\n"
+"  </interface>\n"
+"</node>\n";
+        int r;
+
+        c_dvar_read(in_v, "()");
+
+        r = driver_end_read(in_v);
+        if (r)
+                return error_trace(r);
+
+        c_dvar_write(out_v, "(s)", introspection);
+
+        return 0;
+}
+
 static int driver_method_become_monitor(Peer *peer, CDVar *in_v, CDVar *out_v, NameChange *change) {
         MatchOwner owned_matches;
         uint32_t flags;
@@ -1385,6 +1497,7 @@ static int driver_dispatch_method(Peer *peer, uint32_t serial, const char *metho
                 { "AddMatch",                                   NULL,                           driver_method_add_match,                                        driver_type_in_s,       driver_type_out_unit },
                 { "RemoveMatch",                                NULL,                           driver_method_remove_match,                                     driver_type_in_s,       driver_type_out_unit },
                 { "GetId",                                      NULL,                           driver_method_get_id,                                           c_dvar_type_unit,       driver_type_out_s },
+                { "Introspect",                                 NULL,                           driver_method_introspect,                                       c_dvar_type_unit,       driver_type_out_s },
                 { "BecomeMonitor",                              "/org/freedesktop/DBus",        driver_method_become_monitor,                                   driver_type_in_asu,     driver_type_out_unit },
         };
 
@@ -1406,8 +1519,18 @@ static int driver_dispatch_interface(Peer *peer, uint32_t serial, const char *in
                 /* ignore */
                 return 0;
 
-        if (interface && _c_unlikely_(strcmp(interface, "org.freedesktop.DBus") != 0))
-                return DRIVER_E_UNEXPECTED_INTERFACE;
+        if (interface) {
+                if (_c_unlikely_(strcmp(member, "Introspect") == 0)) {
+                        if (strcmp(interface, "org.freedesktop.DBus.Introspectable") != 0)
+                                return DRIVER_E_UNEXPECTED_INTERFACE;
+                } else if (_c_unlikely_(strcmp(member, "BecomeMonitor") == 0)) {
+                        if (strcmp(interface, "org.freedesktop.DBus.Monitoring") != 0)
+                                return DRIVER_E_UNEXPECTED_INTERFACE;
+                } else {
+                        if (_c_unlikely_(strcmp(interface, "org.freedesktop.DBus") != 0))
+                                return DRIVER_E_UNEXPECTED_INTERFACE;
+                }
+        }
 
         return driver_dispatch_method(peer, serial, member, path, signature, message);
 }
