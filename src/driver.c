@@ -682,6 +682,9 @@ static int driver_name_activated(Activation *activation, Peer *receiver) {
         if (!activation)
                 return 0;
 
+        /* in case the name is dropped again in the future, we should request it again */
+        activation->requested = false;
+
         c_list_for_each_entry_safe(skb, safe, &activation->socket_buffers, link) {
                 Message *message = skb->message;
                 Peer *sender;
