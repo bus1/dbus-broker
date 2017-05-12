@@ -939,7 +939,7 @@ static int driver_method_get_name_owner(Peer *peer, CDVar *in_v, CDVar *out_v, N
         c_dvar_write(out_v, "(");
 
         if (strcmp(name_str, "org.freedesktop.DBus") == 0) {
-                c_dvar_write(out_v, "org.freedesktop.DBus");
+                c_dvar_write(out_v, "s", "org.freedesktop.DBus");
         } else {
                 Peer *owner;
 
