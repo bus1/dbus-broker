@@ -179,6 +179,8 @@ static int match_rule_keys_assign(MatchRuleKeys *keys, const char *key, size_t n
 
                 if (i == 0 && keys->arg0namespace)
                         return MATCH_E_INVALID;
+                if (i > 63)
+                        return MATCH_E_INVALID;
 
                 if (keys->filter.args[i] || keys->filter.argpaths[i])
                         return MATCH_E_INVALID;
