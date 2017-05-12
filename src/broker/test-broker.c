@@ -434,8 +434,8 @@ static void tests(struct sockaddr_un *address, socklen_t addrlen) {
 
         test_setup(address, addrlen);
         test_driver(address, addrlen);
-        test_connect(address, addrlen, 1000);
-        test_ping(address, addrlen, unique_name, 1000);
+        test_connect(address, addrlen, 100);
+        test_ping(address, addrlen, unique_name, 100);
 
         r = pthread_kill(thread, SIGTERM);
         assert(r == 0);
