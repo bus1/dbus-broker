@@ -48,8 +48,9 @@ struct Manager {
 
 static const char *     main_arg_broker = "/usr/bin/dbus-broker";
 static bool             main_arg_force = false;
-static const char *     main_arg_listen = "/var/run/dbus/system_bus_socket";
-static const char *     main_arg_servicedir = "/usr/share/dbus-1/system-services";
+static const char *     main_arg_listen = NULL;
+static const char *     main_arg_scope = "system";
+static const char *     main_arg_servicedir = NULL;
 static bool             main_arg_verbose = false;
 
 static int service_compare(CRBTree *t, void *k, CRBNode *n) {
@@ -444,12 +445,22 @@ exit:
 static int manager_load(Manager *manager) {
         const char suffix[] = ".service";
         _c_cleanup_(c_closedirp) DIR *dir;
+        const char *dirpath;
         struct dirent *de;
         char *path;
         size_t n;
         int r;
 
-        dir = opendir(main_arg_servicedir);
+        if (main_arg_servicedir)
+                dirpath = main_arg_servicedir;
+        else if (!strcmp(main_arg_scope, "user"))
+                dirpath = "/usr/share/dbus-1/services";
+        else if (!strcmp(main_arg_scope, "system"))
+                dirpath = "/usr/share/dbus-1/system-services";
+        else
+                return error_origin(-ENOTRECOVERABLE);
+
+        dir = opendir(dirpath);
         if (!dir) {
                 if (errno == ENOENT || errno == ENOTDIR)
                         return 0;
@@ -469,7 +480,7 @@ static int manager_load(Manager *manager) {
                 if (strcmp(de->d_name + n - strlen(suffix), suffix))
                         continue;
 
-                r = asprintf(&path, "%s/%s", main_arg_servicedir, de->d_name);
+                r = asprintf(&path, "%s/%s", dirpath, de->d_name);
                 if (r < 0)
                         return error_origin(-ENOMEM);
 
@@ -604,6 +615,7 @@ static void help(void) {
                "  -v --verbose          Print progress to terminal\n"
                "     --listen PATH      Specify path of listener socket\n"
                "  -f --force            Ignore existing listener sockets\n"
+               "     --scope SCOPE      Scope of message bus\n"
                , program_invocation_short_name);
 }
 
@@ -611,6 +623,7 @@ static int parse_argv(int argc, char *argv[]) {
         enum {
                 ARG_VERSION = 0x100,
                 ARG_LISTEN,
+                ARG_SCOPE,
         };
         static const struct option options[] = {
                 { "help",               no_argument,            NULL,   'h'                     },
@@ -618,6 +631,7 @@ static int parse_argv(int argc, char *argv[]) {
                 { "verbose",            no_argument,            NULL,   'v'                     },
                 { "listen",             required_argument,      NULL,   ARG_LISTEN              },
                 { "force",              no_argument,            NULL,   'f'                     },
+                { "scope",              required_argument,      NULL,   ARG_SCOPE               },
                 {}
         };
         int c;
@@ -644,6 +658,16 @@ static int parse_argv(int argc, char *argv[]) {
                         main_arg_force = true;
                         break;
 
+                case ARG_SCOPE:
+                        if (strcmp(optarg, "system") &&
+                            strcmp(optarg, "user")) {
+                                fprintf(stderr, "%s: invalid message bus scope -- '%s'\n", program_invocation_name, optarg);
+                                return MAIN_FAILED;
+                        }
+
+                        main_arg_scope = optarg;
+                        break;
+
                 case '?':
                         /* getopt_long() prints warning */
                         return MAIN_FAILED;
@@ -663,43 +687,60 @@ static int parse_argv(int argc, char *argv[]) {
 
 static int run(void) {
         _c_cleanup_(manager_freep) Manager *manager = NULL;
-        const char *unlink_path = NULL;
+        _c_cleanup_(c_freep) char *listen_path = NULL;
+        const char *t, *path = NULL, *unlink_path = NULL;
         int r;
 
         r = manager_new(&manager);
         if (r)
                 return error_trace(r);
 
-        if (!strcmp(main_arg_listen, "inherit")) {
+        if (main_arg_listen) {
+                path = main_arg_listen;
+        } else if (!strcmp(main_arg_scope, "user")) {
+                t = getenv("XDG_RUNTIME_DIR");
+                if (t)
+                        r = asprintf(&listen_path, "%s/bus", t);
+                else
+                        r = asprintf(&listen_path, "/var/run/user/%u/bus", getuid());
+                if (r < 0)
+                        return error_origin(-ENOMEM);
+        } else if (!strcmp(main_arg_scope, "system")) {
+                path = "/var/run/dbus/system_bus_socket";
+        } else {
+                return error_origin(-ENOTRECOVERABLE);
+        }
+
+        if (!strcmp(path, "inherit")) {
                 r = manager_listen_inherit(manager);
                 if (r)
                         return error_trace(r);
 
                 if (main_arg_verbose)
                         fprintf(stderr, "Listening on inherited socket\n");
-        } else if (main_arg_listen[0] == '/') {
+        } else if (path[0] == '/') {
                 if (main_arg_force) {
-                        r = unlink(main_arg_listen);
+                        r = unlink(path);
                         if (r < 0) {
                                 if (errno != ENOENT)
                                         return error_origin(-errno);
                                 else if (main_arg_verbose)
-                                        fprintf(stderr, "No conflict on socket '%s'\n", main_arg_listen);
+                                        fprintf(stderr, "No conflict on socket '%s'\n", path);
                         } else if (main_arg_verbose) {
-                                fprintf(stderr, "Forcibly removed conflicting socket '%s'\n", main_arg_listen);
+                                fprintf(stderr, "Forcibly removed conflicting socket '%s'\n", path);
                         }
                 }
 
-                r = manager_listen_path(manager, main_arg_listen);
+                r = manager_listen_path(manager, path);
                 if (r)
                         return error_trace(r);
 
-                unlink_path = main_arg_listen;
+                unlink_path = path;
 
                 if (main_arg_verbose)
-                        fprintf(stderr, "Listening on socket '%s'\n", unlink_path);
+                        fprintf(stderr, "Listening on socket '%s'\n", path);
         } else {
-                fprintf(stderr, "Invalid listener socket '%s'\n", main_arg_listen);
+                fprintf(stderr, "Invalid listener socket '%s'\n", path);
                 return MAIN_FAILED;
         }
 
