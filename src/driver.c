@@ -885,14 +885,6 @@ static int driver_method_list_names(Peer *peer, CDVar *in_v, CDVar *out_v, NameC
 
         c_dvar_write(out_v, "([");
         c_dvar_write(out_v, "s", "org.freedesktop.DBus");
-        for (CRBNode *n = c_rbtree_first(&peer->bus->names.name_tree); n; n = c_rbnode_next(n)) {
-                Name *name = c_container_of(n, Name, registry_node);
-
-                if (!name_is_owned(name))
-                        continue;
-
-                c_dvar_write(out_v, "s", name->name);
-        }
         for (CRBNode *n = c_rbtree_first(&peer->bus->peers.peer_tree); n; n = c_rbnode_next(n)) {
                 Peer *p = c_container_of(n, Peer, registry_node);
 
@@ -900,6 +892,14 @@ static int driver_method_list_names(Peer *peer, CDVar *in_v, CDVar *out_v, NameC
                         continue;
 
                 driver_dvar_write_unique_name(out_v, p);
+        }
+        for (CRBNode *n = c_rbtree_first(&peer->bus->names.name_tree); n; n = c_rbnode_next(n)) {
+                Name *name = c_container_of(n, Name, registry_node);
+
+                if (!name_is_owned(name))
+                        continue;
+
+                c_dvar_write(out_v, "s", name->name);
         }
         c_dvar_write(out_v, "])");
 

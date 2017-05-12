@@ -20,14 +20,14 @@ static int reply_slot_compare(CRBTree *tree, void *k, CRBNode *rb) {
         ReplySlot *slot = c_container_of(rb, ReplySlot, registry_node);
         ReplySlotKey *key = k;
 
-        if (slot->id < key->id)
+        if (key->id < slot->id)
                 return -1;
-        if (slot->id > key->id)
+        if (key->id > slot->id)
                 return 1;
 
-        if (slot->serial < key->serial)
+        if (key->serial < slot->serial)
                 return -1;
-        if (slot->serial > key->serial)
+        if (key->serial > slot->serial)
                 return 1;
 
         return 0;

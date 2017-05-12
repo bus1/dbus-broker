@@ -24,9 +24,9 @@ static int user_usage_compare(CRBTree *tree, void *k, CRBNode *rb) {
         UserUsage *usage = c_container_of(rb, UserUsage, user_node);
         uid_t uid = *(uid_t*)k;
 
-        if (usage->uid > uid)
+        if (uid < usage->uid)
                 return -1;
-        if (usage->uid < uid)
+        if (uid > usage->uid)
                 return 1;
 
         return 0;
@@ -276,9 +276,9 @@ static int user_compare(CRBTree *tree, void *k, CRBNode *rb) {
         User *user = c_container_of(rb, User, registry_node);
         uid_t uid = *(uid_t*)k;
 
-        if (user->uid > uid)
+        if (uid < user->uid)
                 return -1;
-        if (user->uid < uid)
+        if (uid > user->uid)
                 return 1;
 
         return 0;

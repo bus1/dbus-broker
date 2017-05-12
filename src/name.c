@@ -58,11 +58,10 @@ static NameOwnership *name_ownership_free(NameOwnership *ownership) {
 
 static int name_ownership_compare(CRBTree *tree, void *k, CRBNode *rb) {
         NameOwnership *ownership = c_container_of(rb, NameOwnership, owner_node);
-        Name *name = k;
 
-        if (ownership->name < name)
+        if ((Name*)k < ownership->name)
                 return -1;
-        if (ownership->name > name)
+        if ((Name*)k > ownership->name)
                 return 1;
 
         return 0;
@@ -214,9 +213,8 @@ bool name_is_owned(Name *name) {
 
 static int name_compare(CRBTree *tree, void *k, CRBNode *rb) {
         Name *name = c_container_of(rb, Name, registry_node);
-        char *name_str = k;
 
-        return strcmp(name->name, name_str);
+        return strcmp(k, name->name);
 }
 
 int name_get(Name **namep, NameRegistry *registry, const char *name_str) {

@@ -127,9 +127,9 @@ static int peer_compare(CRBTree *tree, void *k, CRBNode *rb) {
         Peer *peer = c_container_of(rb, Peer, registry_node);
         uint64_t id = *(uint64_t*)k;
 
-        if (peer->id < id)
+        if (id < peer->id)
                 return -1;
-        if (peer->id > id)
+        if (id > peer->id)
                 return 1;
 
         return 0;

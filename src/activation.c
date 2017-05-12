@@ -11,9 +11,8 @@
 
 static int activation_compare(CRBTree *tree, void *k, CRBNode *rb) {
         Activation *activation = c_container_of(rb, Activation, registry_node);
-        const char *path = k;
 
-        return strcmp(activation->path, path);
+        return strcmp(k, activation->path);
 }
 
 /**
