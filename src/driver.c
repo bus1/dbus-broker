@@ -921,7 +921,38 @@ static int driver_method_name_has_owner(Peer *peer, CDVar *in_v, CDVar *out_v, N
 }
 
 static int driver_method_start_service_by_name(Peer *peer, CDVar *in_v, CDVar *out_v, NameChange *change) {
-        /* XXX */
+        const char *service;
+        Name *name;
+        NameOwnership *ownership;
+        uint32_t flags;
+        int r;
+
+        c_dvar_read(in_v, "(su)", &service, &flags);
+
+        r = driver_end_read(in_v);
+        if (r)
+                return error_trace(r);
+
+        if (flags)
+                return DRIVER_E_UNEXPECTED_FLAGS; /* XXX */
+
+        name = name_registry_find_name(&peer->bus->names, service);
+        if (!name)
+                return DRIVER_E_DESTINATION_NOT_FOUND; /* XXX */
+
+        ownership = c_list_first_entry(&name->ownership_list, NameOwnership, name_link);
+        if (!ownership) {
+                if (!name->activation)
+                        return DRIVER_E_DESTINATION_NOT_FOUND; /* XXX */
+
+                if (!name->activation->requested) {
+                        r = activation_send_signal(peer->bus->controller, name->activation->path);
+                        if (r)
+                                return error_fold(r);
+
+                        name->activation->requested = true;
+                }
+        }
 
         return 0;
 }
