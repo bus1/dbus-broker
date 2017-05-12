@@ -90,7 +90,8 @@ static void test_eavesdrop(MatchOwner *owner, const char *match, bool eavesdrop)
         assert(rule->keys.eavesdrop == eavesdrop);
 }
 
-static void test_duplicates(MatchOwner *owner) {
+static void test_validate_keys(MatchOwner *owner) {
+        assert(!test_validity(owner, "foo=bar"));
         assert(test_validity(owner, "type=signal"));
         assert(!test_validity(owner, "type=signal,type=signal"));
         assert(test_validity(owner, "sender=foo.bar"));
@@ -134,7 +135,7 @@ int main(int argc, char **argv) {
         test_parse_key(&owner);
         test_parse_value(&owner);
         test_wildcard(&owner);
-        test_duplicates(&owner);
+        test_validate_keys(&owner);
 
         match_owner_deinit(&owner);
         return 0;
