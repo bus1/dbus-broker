@@ -628,12 +628,18 @@ static int driver_notify_name_owner_changed(Bus *bus, const char *name, Peer *ol
                 unique_name_from_id(old_owner_str, old_owner->id);
                 filter.args[1] = old_owner_str;
                 filter.argpaths[1] = old_owner_str;
+        } else {
+                filter.args[1] = "";
+                filter.argpaths[1] = "";
         }
 
         if (new_owner) {
                 unique_name_from_id(new_owner_str, new_owner->id);
                 filter.args[2] = new_owner_str;
                 filter.argpaths[2] = new_owner_str;
+        } else {
+                filter.args[2] = "";
+                filter.argpaths[2] = "";
         }
 
         r = driver_forward_broadcast(bus, NULL, &filter, message);
