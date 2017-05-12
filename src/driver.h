@@ -47,6 +47,8 @@ enum {
 
         DRIVER_E_ADT_NOT_SUPPORTED,
         DRIVER_E_SELINUX_NOT_SUPPORTED,
+
+        _DRIVER_E_MAX,
 };
 
 int driver_dispatch(Peer *peer, Message *message);

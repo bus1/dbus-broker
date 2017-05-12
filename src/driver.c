@@ -393,12 +393,42 @@ static int driver_queue_message_on_peer(Peer *receiver, Peer *sender, Message *m
         slot = NULL;
         return 0;
 }
+const char *driver_error_to_string(int r) {
+        static const char *error_strings[_DRIVER_E_MAX] = {
+                [DRIVER_E_INVALID_MESSAGE]                      = "Invalid message body",
+                [DRIVER_E_PEER_ALREADY_REGISTERED]              = "Hello() already called",
+                [DRIVER_E_UNEXPECTED_MESSAGE_TYPE]              = "Unexpected message type",
+                [DRIVER_E_UNEXPECTED_PATH]                      = "Invalid object path",
+                [DRIVER_E_UNEXPECTED_INTERFACE]                 = "Invalid interface",
+                [DRIVER_E_UNEXPECTED_METHOD]                    = "Invalid method call",
+                [DRIVER_E_UNEXPECTED_SIGNATURE]                 = "Invalid signature for method",
+                [DRIVER_E_UNEXPECTED_REPLY]                     = "No pending reply with that serial",
+                [DRIVER_E_QUOTA]                                = "Sending user's quota exceeded",
+                [DRIVER_E_UNEXPECTED_FLAGS]                     = "Invalid flags",
+                [DRIVER_E_UNEXPECTED_ENVIRONMENT_UPDATE]        = "User is not authorized to update environment variables",
+                [DRIVER_E_EXPECTED_REPLY_EXISTS]                = "Pending reply with that serial already exists",
+                [DRIVER_E_NAME_RESERVED]                        = "org.freedesktop.DBus is a reserved name",
+                [DRIVER_E_NAME_NOT_FOUND]                       = "The name does not exist",
+                [DRIVER_E_NAME_OWNER_NOT_FOUND]                 = "The name does not have an owner",
+                [DRIVER_E_PEER_NOT_FOUND]                       = "The connection does not exist",
+                [DRIVER_E_DESTINATION_NOT_FOUND]                = "Destination does not exist",
+                [DRIVER_E_MATCH_INVALID]                        = "Invalid match rule",
+                [DRIVER_E_MATCH_NOT_FOUND]                      = "The match does not exist",
+                [DRIVER_E_ADT_NOT_SUPPORTED]                    = "Solaris ADT is not supported",
+                [DRIVER_E_SELINUX_NOT_SUPPORTED]                = "SELinux is not supported",
+        };
+        assert(r >= 0 && r < _DRIVER_E_MAX && error_strings[r]);
 
-static int driver_send_error(Peer *peer, uint32_t serial, const char *error) {
+        return error_strings[r];
+}
+
+static int driver_send_error(Peer *peer, uint32_t serial, const char *error, const char *error_message) {
         static const CDVarType type[] = {
                 C_DVAR_T_INIT(
                         DRIVER_T_MESSAGE(
-                                C_DVAR_T_TUPLE0
+                                C_DVAR_T_TUPLE1(
+                                        C_DVAR_T_s
+                                )
                         )
                 )
         };
@@ -409,14 +439,15 @@ static int driver_send_error(Peer *peer, uint32_t serial, const char *error) {
         int r;
 
         c_dvar_begin_write(&var, type, 1);
-        c_dvar_write(&var, "((yyyyuu[(y<u>)(y<s>)(y<s>)(y<",
+        c_dvar_write(&var, "((yyyyuu[(y<u>)(y<s>)(y<s>)(y<g>)(y<",
                      c_dvar_is_big_endian(&var) ? 'B' : 'l', DBUS_MESSAGE_TYPE_ERROR, DBUS_HEADER_FLAG_NO_REPLY_EXPECTED, 1, 0, (uint32_t)-1,
                      DBUS_MESSAGE_FIELD_REPLY_SERIAL, c_dvar_type_u, serial,
                      DBUS_MESSAGE_FIELD_SENDER, c_dvar_type_s, "org.freedesktop.DBus",
                      DBUS_MESSAGE_FIELD_ERROR_NAME, c_dvar_type_s, error,
+                     DBUS_MESSAGE_FIELD_SIGNATURE, c_dvar_type_g, "s",
                      DBUS_MESSAGE_FIELD_DESTINATION, c_dvar_type_s);
         driver_dvar_write_unique_name(&var, peer);
-        c_dvar_write(&var, ">)])())");
+        c_dvar_write(&var, ">)])(s))", error_message);
 
         r = c_dvar_end_write(&var, &data, &n_data);
         if (r)
@@ -700,7 +731,7 @@ static int driver_name_activated(Activation *activation, Peer *receiver) {
                 r = driver_queue_message_on_peer(receiver, sender, message);
                 if (r) {
                         if (r == DRIVER_E_EXPECTED_REPLY_EXISTS)
-                                r = driver_send_error(sender, message_read_serial(message), "org.freedesktop.DBus.Error.AccessDenied");
+                                r = driver_send_error(sender, message_read_serial(message), "org.freedesktop.DBus.Error.AccessDenied", driver_error_to_string(r));
 
                         return error_fold(r);
                 }
@@ -1639,7 +1670,7 @@ int driver_goodbye(Peer *peer, bool silent) {
                 Peer *sender = c_container_of(slot->owner, Peer, owned_replies);
 
                 if (!silent) {
-                        r = driver_send_error(sender, slot->serial, "org.freedesktop.DBus.Error.NoReply");
+                        r = driver_send_error(sender, slot->serial, "org.freedesktop.DBus.Error.NoReply", "Pending reply cancelled");
                         if (r)
                                 return error_trace(r);
                 }
@@ -1726,46 +1757,46 @@ int driver_dispatch(Peer *peer, Message *message) {
         case DRIVER_E_PEER_NOT_REGISTERED:
                 return DRIVER_E_DISCONNECT;
         case DRIVER_E_PEER_ALREADY_REGISTERED:
-                r = driver_send_error(peer, metadata.header.serial, "org.freedesktop.DBus.Error.Failed");
+                r = driver_send_error(peer, metadata.header.serial, "org.freedesktop.DBus.Error.Failed", driver_error_to_string(r));
                 break;
         case DRIVER_E_UNEXPECTED_PATH:
         case DRIVER_E_UNEXPECTED_MESSAGE_TYPE:
         case DRIVER_E_UNEXPECTED_REPLY:
         case DRIVER_E_UNEXPECTED_ENVIRONMENT_UPDATE:
         case DRIVER_E_EXPECTED_REPLY_EXISTS:
-                r = driver_send_error(peer, metadata.header.serial, "org.freedesktop.DBus.Error.AccessDenied");
+                r = driver_send_error(peer, metadata.header.serial, "org.freedesktop.DBus.Error.AccessDenied", driver_error_to_string(r));
                 break;
         case DRIVER_E_UNEXPECTED_INTERFACE:
-                r = driver_send_error(peer, metadata.header.serial, "org.freedesktop.DBus.Error.UnknownInterface");
+                r = driver_send_error(peer, metadata.header.serial, "org.freedesktop.DBus.Error.UnknownInterface", driver_error_to_string(r));
                 break;
         case DRIVER_E_UNEXPECTED_METHOD:
-                r = driver_send_error(peer, metadata.header.serial, "org.freedesktop.DBus.Error.UnknownMethod");
+                r = driver_send_error(peer, metadata.header.serial, "org.freedesktop.DBus.Error.UnknownMethod", driver_error_to_string(r));
                 break;
         case DRIVER_E_UNEXPECTED_SIGNATURE:
         case DRIVER_E_UNEXPECTED_FLAGS:
         case DRIVER_E_NAME_RESERVED:
-                r = driver_send_error(peer, metadata.header.serial, "org.freedesktop.DBus.Error.InvalidArgs");
+                r = driver_send_error(peer, metadata.header.serial, "org.freedesktop.DBus.Error.InvalidArgs", driver_error_to_string(r));
                 break;
         case DRIVER_E_QUOTA:
-                r = driver_send_error(peer, metadata.header.serial, "org.freedesktop.DBus.Error.LimitsExceeded");
+                r = driver_send_error(peer, metadata.header.serial, "org.freedesktop.DBus.Error.LimitsExceeded", driver_error_to_string(r));
                 break;
         case DRIVER_E_PEER_NOT_FOUND:
         case DRIVER_E_NAME_NOT_FOUND:
         case DRIVER_E_NAME_OWNER_NOT_FOUND:
         case DRIVER_E_DESTINATION_NOT_FOUND:
-                r = driver_send_error(peer, metadata.header.serial, "org.freedesktop.DBus.Error.NameHasNoOwner");
+                r = driver_send_error(peer, metadata.header.serial, "org.freedesktop.DBus.Error.NameHasNoOwner", driver_error_to_string(r));
                 break;
         case DRIVER_E_MATCH_INVALID:
-                r = driver_send_error(peer, metadata.header.serial, "org.freedesktop.DBus.Error.MatchRuleInvalid");
+                r = driver_send_error(peer, metadata.header.serial, "org.freedesktop.DBus.Error.MatchRuleInvalid", driver_error_to_string(r));
                 break;
         case DRIVER_E_MATCH_NOT_FOUND:
-                r = driver_send_error(peer, metadata.header.serial, "org.freedesktop.DBus.Error.MatchRuleNotFound");
+                r = driver_send_error(peer, metadata.header.serial, "org.freedesktop.DBus.Error.MatchRuleNotFound", driver_error_to_string(r));
                 break;
         case DRIVER_E_ADT_NOT_SUPPORTED:
-                r = driver_send_error(peer, metadata.header.serial, "org.freedesktop.DBus.Error.AdtAuditDataUnknown");
+                r = driver_send_error(peer, metadata.header.serial, "org.freedesktop.DBus.Error.AdtAuditDataUnknown", driver_error_to_string(r));
                 break;
         case DRIVER_E_SELINUX_NOT_SUPPORTED:
-                r = driver_send_error(peer, metadata.header.serial, "org.freedesktop.DBus.Error.SELinuxSecurityContextUnknown");
+                r = driver_send_error(peer, metadata.header.serial, "org.freedesktop.DBus.Error.SELinuxSecurityContextUnknown", driver_error_to_string(r));
                 break;
         default:
                 break;
