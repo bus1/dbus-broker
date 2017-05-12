@@ -84,11 +84,11 @@ static bool match_rule_keys_match_filter(MatchRuleKeys *keys, MatchFilter *filte
         if (keys->filter.path && !c_string_equal(keys->filter.path, filter->path))
                 return false;
 
-        if (keys->path_namespace && !match_string_prefix(filter->path, keys->path_namespace, '/'))
+        if (keys->path_namespace && !match_string_prefix(keys->path_namespace, filter->path, '/'))
                 return false;
 
         /* XXX: verify that arg0 is a (potentially single-label) bus name */
-        if (keys->arg0namespace && !match_string_prefix(filter->args[0], keys->arg0namespace, '.'))
+        if (keys->arg0namespace && !match_string_prefix(keys->arg0namespace, filter->args[0], '.'))
                 return false;
 
         for (unsigned int i = 0; i < C_ARRAY_SIZE(filter->args); i ++) {
