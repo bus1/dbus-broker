@@ -128,6 +128,136 @@ static void test_validate_keys(MatchOwner *owner) {
         test_eavesdrop(owner, "eavesdrop=true,eavesdrop=false", false);
 }
 
+static bool test_match(const char *match_string, MatchFilter *filter) {
+        MatchRegistry registry;
+        MatchOwner owner;
+        MatchRule *rule, *rule1;
+        int r;
+
+        match_registry_init(&registry);
+        match_owner_init(&owner);
+
+        r = match_rule_new(&rule, &owner, match_string);
+        assert(!r);
+
+        match_rule_link(rule, &registry);
+
+        rule1 = match_rule_next(&registry, NULL, filter);
+        assert(!rule1 || rule1 == rule);
+
+        match_rule_free(rule);
+        match_owner_deinit(&owner);
+        match_registry_deinit(&registry);
+
+        return !!(rule1 == rule);
+}
+
+static void test_individual_matches(void) {
+        MatchFilter filter;
+
+        match_filter_init(&filter);
+        assert(test_match("", &filter));
+
+        /* type */
+        match_filter_init(&filter);
+        assert(!test_match("type=signal", &filter));
+        filter.type = DBUS_MESSAGE_TYPE_SIGNAL;
+        assert(test_match("type=signal", &filter));
+        assert(!test_match("type=error", &filter));
+
+        /* destination */
+        match_filter_init(&filter);
+        assert(!test_match("destination=:1.0", &filter));
+        filter.destination = 0;
+        assert(!test_match("", &filter));
+        assert(!test_match("destination=:1.0", &filter));
+        assert(test_match("eavesdrop=true", &filter));
+        assert(test_match("destination=:1.0,eavesdrop=true", &filter));
+        assert(!test_match("destination=:1.1,eavesdrop=true", &filter));
+
+        /* interface */
+        match_filter_init(&filter);
+        assert(!test_match("interface=com.example.foo", &filter));
+        filter.interface = "com.example.foo";
+        assert(test_match("interface=com.example.foo", &filter));
+        assert(!test_match("interface=com.example.bar", &filter));
+
+        /* member */
+        match_filter_init(&filter);
+        assert(!test_match("member=FooBar", &filter));
+        filter.member = "FooBar";
+        assert(test_match("member=FooBar", &filter));
+        assert(!test_match("member=FooBaz", &filter));
+
+        /* path */
+        match_filter_init(&filter);
+        assert(!test_match("path=/com/example/foo", &filter));
+        filter.path = "/com/example/foo";
+        assert(test_match("path=/com/example/foo", &filter));
+        assert(!test_match("path=/com/example/bar", &filter));
+        assert(!test_match("path=/com/example", &filter));
+        assert(!test_match("path=/com/example/foo/bar", &filter));
+
+        /* path_namespace */
+        match_filter_init(&filter);
+        assert(!test_match("path_namespace=/com/example/foo", &filter));
+        filter.path = "/com/example/foo";
+        assert(test_match("path_namespace=/com/example/foo", &filter));
+        assert(test_match("path_namespace=/com/example/foo/bar", &filter));
+        assert(!test_match("path_namespace=/com/example/foobar", &filter));
+        assert(!test_match("path_namespace=/com/example", &filter));
+
+        /* arg0 */
+        match_filter_init(&filter);
+        assert(!test_match("arg0=/com/example/foo/", &filter));
+        filter.args[0] = "/com/example/foo/";
+        assert(test_match("arg0=/com/example/foo/", &filter));
+        assert(!test_match("arg0=/com/example/foo/bar", &filter));
+        assert(!test_match("arg0=/com/example/foobar", &filter));
+        assert(!test_match("arg0=/com/example/", &filter));
+        assert(!test_match("arg0=/com/example", &filter));
+        filter.args[0] = "/com/example/foo";
+        assert(test_match("arg0=/com/example/foo", &filter));
+        assert(!test_match("arg0=/com/example/foo/bar", &filter));
+        assert(!test_match("arg0=/com/example/foobar", &filter));
+        assert(!test_match("arg0=/com/example/", &filter));
+        assert(!test_match("arg0=/com/example", &filter));
+        filter.args[0] = "com.example.foo";
+        assert(test_match("arg0=com.example.foo", &filter));
+        assert(!test_match("arg0=com.example.foo.bar", &filter));
+        assert(!test_match("arg0=com.example.foobar", &filter));
+        assert(!test_match("arg0=com.example", &filter));
+
+        /* arg0path - parent */
+        match_filter_init(&filter);
+        assert(!test_match("arg0path=/com/example/foo/", &filter));
+        filter.argpaths[0] = "/com/example/foo/";
+        assert(test_match("arg0path=/com/example/foo/", &filter));
+        assert(test_match("arg0path=/com/example/foo/bar", &filter));
+        assert(!test_match("arg0path=/com/example/foobar", &filter));
+        assert(test_match("arg0path=/com/example/", &filter));
+        assert(!test_match("arg0path=/com/example", &filter));
+
+        /* arg0path - child */
+        match_filter_init(&filter);
+        assert(!test_match("arg0path=/com/example/foo", &filter));
+        filter.argpaths[0] = "/com/example/foo";
+        assert(test_match("arg0path=/com/example/foo", &filter));
+        assert(!test_match("arg0path=/com/example/foo/bar", &filter));
+        assert(!test_match("arg0path=/com/example/foobar", &filter));
+        assert(test_match("arg0path=/com/example/", &filter));
+        assert(!test_match("arg0path=/com/example", &filter));
+
+        /* arg0namespace */
+        match_filter_init(&filter);
+        assert(!test_match("arg0namespace=com.example.foo", &filter));
+        filter.args[0] = "com.example.foo";
+        assert(test_match("arg0namespace=com.example.foo", &filter));
+        assert(test_match("arg0namespace=com.example.foo.bar", &filter));
+        assert(!test_match("arg0namespace=com.example.foobar", &filter));
+        assert(!test_match("arg0namespace=com.example", &filter));
+}
+
 int main(int argc, char **argv) {
         MatchOwner owner = {};
 
@@ -136,6 +266,8 @@ int main(int argc, char **argv) {
         test_parse_value(&owner);
         test_wildcard(&owner);
         test_validate_keys(&owner);
+
+        test_individual_matches();
 
         match_owner_deinit(&owner);
         return 0;
