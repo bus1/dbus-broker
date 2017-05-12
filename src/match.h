@@ -83,5 +83,7 @@ void match_registry_deinit(MatchRegistry *registry);
 void match_owner_init(MatchOwner *owner);
 void match_owner_deinit(MatchOwner *owner);
 
+void match_filter_init(MatchFilter *filter);
+
 C_DEFINE_CLEANUP(MatchRule *, match_rule_free);
 C_DEFINE_CLEANUP(MatchRule *, match_rule_user_unref);

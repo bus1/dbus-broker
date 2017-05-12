@@ -441,3 +441,10 @@ void match_owner_init(MatchOwner *owner) {
 void match_owner_deinit(MatchOwner *owner) {
         assert(!owner->rule_tree.root);
 }
+
+void match_filter_init(MatchFilter *filter) {
+        *filter = (MatchFilter) {
+                        .type = DBUS_MESSAGE_TYPE_INVALID,
+                        .destination = UNIQUE_NAME_ID_INVALID,
+                };
+}
