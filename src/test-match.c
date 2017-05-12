@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include "dbus/protocol.h"
 #include "match.h"
 
 static void test_arg(MatchOwner *owner,
@@ -58,24 +59,26 @@ static void test_parse_value(MatchOwner *owner) {
                   "\\\\");
 }
 
-static void test_validity(MatchOwner *owner, const char *match, bool valid) {
+static bool test_validity(MatchOwner *owner, const char *match) {
         _c_cleanup_(match_rule_freep) MatchRule *rule = NULL;
         int r;
 
         r = match_rule_new(&rule, owner, match);
-        assert(r == (valid ? 0 : MATCH_E_INVALID));
+        assert(r == 0 || r == MATCH_E_INVALID);
+
+        return !r;
 }
 
 static void test_splitting(MatchOwner *owner) {
-        test_validity(owner, "arg0=foo,arg1=bar", true);
-        test_validity(owner, "arg0=foo, arg1=bar", true);
-        test_validity(owner, "arg0=foo, arg1=bar,", true);
-        test_validity(owner, "arg0=foo, arg1=bar, ", true);
+        assert(test_validity(owner, "arg0=foo,arg1=bar"));
+        assert(test_validity(owner, "arg0=foo, arg1=bar"));
+        assert(test_validity(owner, "arg0=foo, arg1=bar,"));
+        assert(test_validity(owner, "arg0=foo, arg1=bar, "));
 }
 
 static void test_wildcard(MatchOwner *owner) {
-        test_validity(owner, "", true);
-        test_validity(owner, "\n=", true);
+        assert(test_validity(owner, ""));
+        assert(test_validity(owner, "\n="));
 }
 
 static void test_eavesdrop(MatchOwner *owner, const char *match, bool eavesdrop) {
@@ -88,30 +91,35 @@ static void test_eavesdrop(MatchOwner *owner, const char *match, bool eavesdrop)
 }
 
 static void test_duplicates(MatchOwner *owner) {
-        test_validity(owner, "type=signal", true);
-        test_validity(owner, "type=signal,type=signal", false);
-        test_validity(owner, "sender=foo.bar", true);
-        test_validity(owner, "sender=foo.bar,sender=foo.bar", false);
-        test_validity(owner, "interface=foo.bar", true);
-        test_validity(owner, "interface=foo.bar,interface=foo.bar", false);
-        test_validity(owner, "member=FooBar", true);
-        test_validity(owner, "member=FooBar,member=FooBar", false);
-        test_validity(owner, "path=/org/foo", true);
-        test_validity(owner, "path=/org/foo,path=/org/foo", false);
-        test_validity(owner, "path_namespace=/org/foo", true);
-        test_validity(owner, "path_namespace=/org/foo,path_namespace=/org/foo", false);
-        test_validity(owner, "path_namespace=/org/foo,path=/org/foo", false); /* cannot be mixed */
-        test_validity(owner, "destination=foo.bar", true);
-        test_validity(owner, "destination=foo.bar,destination=foo.bar", false);
-        test_validity(owner, "arg0=foo", true);
-        test_validity(owner, "arg0=foo,arg0=foo", false);
-        test_validity(owner, "arg0=foo,arg0path=foo", false); /* cannot be mixed */
-        test_validity(owner, "arg0=foo,arg0namespace=foo", false);
-        test_validity(owner, "arg0path=foo", true);
-        test_validity(owner, "arg0path=foo,arg0path=foo", false);
-        test_validity(owner, "arg0path=foo,arg0namespace=foo", false); /* cannot be mixed */
-        test_validity(owner, "arg0namespace=foo", true);
-        test_validity(owner, "arg0namespace=foo,arg0namespace=foo", false);
+        assert(test_validity(owner, "type=signal"));
+        assert(!test_validity(owner, "type=signal,type=signal"));
+        assert(test_validity(owner, "sender=foo.bar"));
+        assert(!test_validity(owner, "sender=foo.bar,sender=foo.bar"));
+        assert(test_validity(owner, "interface=foo.bar"));
+        assert(!test_validity(owner, "interface=foo.bar,interface=foo.bar"));
+        assert(test_validity(owner, "member=FooBar"));
+        assert(!test_validity(owner, "member=FooBar,member=FooBar"));
+        assert(test_validity(owner, "path=/org/foo"));
+        assert(!test_validity(owner, "path=/org/foo,path=/org/foo"));
+        assert(test_validity(owner, "path_namespace=/org/foo"));
+        assert(!test_validity(owner, "path_namespace=/org/foo,path_namespace=/org/foo"));
+        assert(!test_validity(owner, "path_namespace=/org/foo,path=/org/foo")); /* cannot be mixed */
+        assert(test_validity(owner, "destination=foo.bar"));
+        assert(!test_validity(owner, "destination=foo.bar,destination=foo.bar"));
+        assert(test_validity(owner, "arg0=foo"));
+        assert(test_validity(owner, "arg63=foo"));
+        assert(!test_validity(owner, "arg64=foo"));
+        assert(!test_validity(owner, "arg0=foo,arg0=foo"));
+        assert(!test_validity(owner, "arg0=foo,arg0path=foo")); /* cannot be mixed */
+        assert(!test_validity(owner, "arg0=foo,arg0namespace=foo"));
+        assert(test_validity(owner, "arg0path=foo"));
+        assert(test_validity(owner, "arg63path=foo"));
+        assert(!test_validity(owner, "arg64path=foo"));
+        assert(!test_validity(owner, "arg0path=foo,arg0path=foo"));
+        assert(!test_validity(owner, "arg0path=foo,arg0namespace=foo")); /* cannot be mixed */
+        assert(test_validity(owner, "arg0namespace=foo"));
+        assert(!test_validity(owner, "arg1namespace=foo"));
+        assert(!test_validity(owner, "arg0namespace=foo,arg0namespace=foo"));
         test_eavesdrop(owner, "", false);
         test_eavesdrop(owner, "eavesdrop=true", true);
         test_eavesdrop(owner, "eavesdrop=false", false);
