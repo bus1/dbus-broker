@@ -49,6 +49,12 @@ static int match_rules_compare(CRBTree *tree, void *k, CRBNode *rb) {
 static bool match_string_prefix(const char *string, const char *prefix, char delimiter) {
         char *tail;
 
+        if (string == prefix)
+                return true;
+
+        if (!string || !prefix)
+                return false;
+
         tail = c_string_prefix(string, prefix);
         if (!tail)
                 return false;
