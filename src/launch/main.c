@@ -339,6 +339,64 @@ static int manager_on_name_activate(Manager *manager, sd_bus_message *m, const c
         return 0;
 }
 
+static int manager_on_set_activation_environment(Manager *manager, sd_bus_message *m) {
+        _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *method_call = NULL;
+        int r;
+
+        if (main_arg_verbose)
+                fprintf(stderr, "Setting activation environment:\n");
+
+        r = sd_bus_message_new_method_call(manager->bus_regular, &method_call,
+                                           "org.freedesktop.systemd1",
+                                           "/org/freedesktop/systemd1",
+                                           "org.freedesktop.systemd1.Manager",
+                                           "SetEnvironment");
+        if (r < 0)
+                return error_origin(r);
+
+        r = sd_bus_message_enter_container(m, 'a', "{ss}");
+        if (r < 0)
+                return error_origin(r);
+
+        r = sd_bus_message_open_container(method_call, 'a', "s");
+        if (r < 0)
+                return error_origin(r);
+
+        while (!sd_bus_message_at_end(m, false)) {
+                _c_cleanup_(c_freep) char *entry = NULL;
+                const char *key, *value;
+
+                r = sd_bus_message_read(m, "{ss}", &key, &value);
+                if (r < 0)
+                        return error_origin(r);
+
+                r = asprintf(&entry, "%s=%s", key, value);
+                if (r < 0)
+                        return error_origin(-errno);
+
+                if (main_arg_verbose)
+                        fprintf(stderr, "    %s\n", entry);
+
+                r = sd_bus_message_append(method_call, "s", entry);
+                if (r < 0)
+                        return error_origin(r);
+        }
+
+        r = sd_bus_message_close_container(method_call);
+        if (r < 0)
+                return error_origin(r);
+
+        r = sd_bus_message_exit_container(m);
+        if (r < 0)
+                return error_origin(r);
+
+        r = sd_bus_send(manager->bus_regular, method_call, NULL);
+        if (r < 0)
+                return error_origin(r);
+
+        return 0;
+}
+
 static int manager_on_message(sd_bus_message *m, void *userdata, sd_bus_error *error) {
         Manager *manager = userdata;
         const char *path, *suffix;
@@ -352,6 +410,9 @@ static int manager_on_message(sd_bus_message *m, void *userdata, sd_bus_error *e
         if (suffix) {
                 if (sd_bus_message_is_signal(m, "org.bus1.DBus.Name", "Activate"))
                         r = manager_on_name_activate(manager, m, suffix);
+        } else if (strcmp(path, "/org/bus1/DBus/Broker") == 0) {
+                if (sd_bus_message_is_signal(m, "org.bus1.DBus.Broker", "SetActivationEnvironment"))
+                        r = manager_on_set_activation_environment(manager, m);
         }
 
         return error_trace(r);
