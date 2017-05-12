@@ -24,6 +24,11 @@ enum {
 };
 
 enum {
+    DBUS_START_REPLY_SUCCESS            = 1,
+    DBUS_START_REPLY_ALREADY_RUNNING    = 2,
+};
+
+enum {
     DBUS_MESSAGE_TYPE_INVALID       = 0,
     DBUS_MESSAGE_TYPE_METHOD_CALL   = 1,
     DBUS_MESSAGE_TYPE_METHOD_RETURN = 2,

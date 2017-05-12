@@ -955,7 +955,7 @@ static int driver_method_start_service_by_name(Peer *peer, CDVar *in_v, CDVar *o
         const char *service;
         Name *name;
         NameOwnership *ownership;
-        uint32_t flags;
+        uint32_t flags, reply;
         int r;
 
         c_dvar_read(in_v, "(su)", &service, &flags);
@@ -969,12 +969,12 @@ static int driver_method_start_service_by_name(Peer *peer, CDVar *in_v, CDVar *o
 
         name = name_registry_find_name(&peer->bus->names, service);
         if (!name)
-                return DRIVER_E_DESTINATION_NOT_FOUND; /* XXX */
+                return DRIVER_E_NAME_NOT_FOUND; /* XXX */
 
         ownership = c_list_first_entry(&name->ownership_list, NameOwnership, name_link);
         if (!ownership) {
                 if (!name->activation)
-                        return DRIVER_E_DESTINATION_NOT_FOUND; /* XXX */
+                        return DRIVER_E_NAME_NOT_FOUND; /* XXX */
 
                 if (!name->activation->requested) {
                         r = activation_send_signal(peer->bus->controller, name->activation->path);
@@ -983,7 +983,13 @@ static int driver_method_start_service_by_name(Peer *peer, CDVar *in_v, CDVar *o
 
                         name->activation->requested = true;
                 }
+
+                reply = DBUS_START_REPLY_SUCCESS;
+        } else {
+                reply = DBUS_START_REPLY_ALREADY_RUNNING;
         }
+
+        c_dvar_write(out_v, "(u)", reply);
 
         return 0;
 }
@@ -1563,7 +1569,7 @@ static int driver_dispatch_method(Peer *peer, uint32_t serial, const char *metho
                 { "ListNames",                                  NULL,                           driver_method_list_names,                                       c_dvar_type_unit,       driver_type_out_as },
                 { "ListActivatableNames",                       NULL,                           driver_method_list_activatable_names,                           c_dvar_type_unit,       driver_type_out_as },
                 { "NameHasOwner",                               NULL,                           driver_method_name_has_owner,                                   driver_type_in_s,       driver_type_out_b },
-                { "StartServiceByName",                         NULL,                           driver_method_start_service_by_name,                            driver_type_in_s,       driver_type_out_u },
+                { "StartServiceByName",                         NULL,                           driver_method_start_service_by_name,                            driver_type_in_su,      driver_type_out_u },
                 { "UpdateActivationEnvironment",                "/org/freedesktop/DBus",        driver_method_update_activation_environment,                    driver_type_in_apss,    driver_type_out_unit },
                 { "GetNameOwner",                               NULL,                           driver_method_get_name_owner,                                   driver_type_in_s,       driver_type_out_s },
                 { "GetConnectionUnixUser",                      NULL,                           driver_method_get_connection_unix_user,                         driver_type_in_s,       driver_type_out_u },
