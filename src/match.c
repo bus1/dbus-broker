@@ -46,7 +46,7 @@ static int match_rules_compare(CRBTree *tree, void *k, CRBNode *rb) {
         return 0;
 }
 
-static bool match_string_prefix(const char *string, const char *prefix, char delimiter) {
+static bool match_string_prefix(const char *string, const char *prefix, char delimiter, bool delimiter_included) {
         char *tail;
 
         if (string == prefix)
@@ -59,8 +59,13 @@ static bool match_string_prefix(const char *string, const char *prefix, char del
         if (!tail)
                 return false;
 
-        if (*tail != '\0' && *tail != delimiter)
-                return false;
+        if (delimiter_included) {
+                if (tail == string || (*tail != '\0' && *(tail - 1) != delimiter))
+                        return false;
+        } else {
+                if (*tail != '\0' && *tail != delimiter)
+                        return false;
+        }
 
         return true;
 }
@@ -84,11 +89,11 @@ static bool match_rule_keys_match_filter(MatchRuleKeys *keys, MatchFilter *filte
         if (keys->filter.path && !c_string_equal(keys->filter.path, filter->path))
                 return false;
 
-        if (keys->path_namespace && !match_string_prefix(keys->path_namespace, filter->path, '/'))
+        if (keys->path_namespace && !match_string_prefix(keys->path_namespace, filter->path, '/', false))
                 return false;
 
         /* XXX: verify that arg0 is a (potentially single-label) bus name */
-        if (keys->arg0namespace && !match_string_prefix(keys->arg0namespace, filter->args[0], '.'))
+        if (keys->arg0namespace && !match_string_prefix(keys->arg0namespace, filter->args[0], '.', false))
                 return false;
 
         for (unsigned int i = 0; i < C_ARRAY_SIZE(filter->args); i ++) {
@@ -96,8 +101,8 @@ static bool match_rule_keys_match_filter(MatchRuleKeys *keys, MatchFilter *filte
                         return false;
 
                 if (keys->filter.argpaths[i]) {
-                        if (!match_string_prefix(filter->argpaths[i], keys->filter.argpaths[i], '/') &&
-                            !match_string_prefix(keys->filter.argpaths[i], filter->argpaths[i], '/'))
+                        if (!match_string_prefix(filter->argpaths[i], keys->filter.argpaths[i], '/', true) &&
+                            !match_string_prefix(keys->filter.argpaths[i], filter->argpaths[i], '/', true))
                                 return false;
                 }
         }
