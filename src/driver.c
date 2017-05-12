@@ -1604,6 +1604,9 @@ int driver_goodbye(Peer *peer, bool silent) {
         CRBNode *node;
         int r;
 
+        if (!peer_is_registered(peer))
+                return 0;
+
         c_list_for_each_entry_safe(reply, safe, &peer->owned_replies.reply_list, owner_link)
                 reply_slot_free(reply);
 

@@ -44,22 +44,21 @@ int peer_dispatch(DispatchFile *file, uint32_t mask) {
                 _c_cleanup_(message_unrefp) Message *m = NULL;
 
                 r = connection_dequeue(&peer->connection, &m);
-                if (r == CONNECTION_E_EOF || r == CONNECTION_E_RESET) {
-                        if (peer_is_registered(peer)) {
-                                metrics_sample_start(&peer->metrics);
-                                driver_matches_cleanup(&peer->owned_matches, peer->bus, peer->user);
-                                r = driver_goodbye(peer, false);
-                                metrics_sample_end(&peer->metrics);
-                        }
-
-                        if (r == CONNECTION_E_EOF) {
-                                connection_shutdown(&peer->connection);
-                                break;
-                        } else {
-                                connection_close(&peer->connection);
-                                peer_free(peer);
-                                return 0;
-                        }
+                if (r == CONNECTION_E_EOF) {
+                        driver_matches_cleanup(&peer->owned_matches, peer->bus, peer->user);
+                        r = driver_goodbye(peer, false);
+                        if (r)
+                                return error_fold(r);
+                        connection_shutdown(&peer->connection);
+                        break;
+                } else if (r == CONNECTION_E_RESET) {
+                        driver_matches_cleanup(&peer->owned_matches, peer->bus, peer->user);
+                        r = driver_goodbye(peer, false);
+                        if (r)
+                                return error_fold(r);
+                        connection_close(&peer->connection);
+                        peer_free(peer);
+                        return 0;
                 } else if (r)
                         return error_fold(r);
                 if (!m)
@@ -68,7 +67,15 @@ int peer_dispatch(DispatchFile *file, uint32_t mask) {
                 metrics_sample_start(&peer->metrics);
                 r = driver_dispatch(peer, m);
                 metrics_sample_end(&peer->metrics);
-                if (r)
+                if (r == DRIVER_E_DISCONNECT) {
+                        driver_matches_cleanup(&peer->owned_matches, peer->bus, peer->user);
+                        r = driver_goodbye(peer, false);
+                        if (r)
+                                return error_fold(r);
+                        connection_close(&peer->connection);
+                        peer_free(peer);
+                        return 0;
+                } else if (r)
                         return error_fold(r);
         }
 
@@ -266,12 +273,9 @@ void peer_registry_flush(PeerRegistry *registry) {
         while ((node = registry->peer_tree.root)) {
                 Peer *peer = c_container_of(node, Peer, registry_node);
 
-                if (peer_is_registered(peer)) {
-                        driver_matches_cleanup(&peer->owned_matches, peer->bus, peer->user);
-                        r = driver_goodbye(peer, true);
-                        assert(!r); /* can not fail in silent mode */
-                }
-
+                driver_matches_cleanup(&peer->owned_matches, peer->bus, peer->user);
+                r = driver_goodbye(peer, true);
+                assert(!r); /* can not fail in silent mode */
                 connection_close(&peer->connection);
                 peer_free(peer);
         }
