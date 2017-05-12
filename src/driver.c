@@ -927,9 +927,18 @@ static int driver_method_start_service_by_name(Peer *peer, CDVar *in_v, CDVar *o
 }
 
 static int driver_method_update_activation_environment(Peer *peer, CDVar *in_v, CDVar *out_v, NameChange *change) {
-        /* XXX */
+        int r;
 
-        return 0;
+        c_dvar_read(in_v, "([");
+        while (c_dvar_more(in_v))
+                c_dvar_read(in_v, "{ss}", NULL, NULL);
+        c_dvar_read(in_v, "])");
+
+        r = driver_end_read(in_v);
+        if (r)
+                return error_trace(r);
+
+        return DRIVER_E_UNEXPECTED_ENVIRONMENT_UPDATE;
 }
 
 static int driver_method_get_name_owner(Peer *peer, CDVar *in_v, CDVar *out_v, NameChange *change) {
@@ -1688,6 +1697,7 @@ int driver_dispatch(Peer *peer, Message *message) {
         case DRIVER_E_UNEXPECTED_PATH:
         case DRIVER_E_UNEXPECTED_MESSAGE_TYPE:
         case DRIVER_E_UNEXPECTED_REPLY:
+        case DRIVER_E_UNEXPECTED_ENVIRONMENT_UPDATE:
         case DRIVER_E_EXPECTED_REPLY_EXISTS:
                 r = driver_send_error(peer, metadata.header.serial, "org.freedesktop.DBus.Error.AccessDenied");
                 break;
