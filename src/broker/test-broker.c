@@ -203,12 +203,126 @@ static void test_driver_names(sd_bus *bus1, sd_bus *bus2) {
         sd_bus_message_unref(reply);
 }
 
+static void test_driver_api(struct sockaddr_un *address, socklen_t addrlen) {
+        _c_cleanup_(sd_bus_unrefp) sd_bus *bus = NULL;
+        int r;
+
+        bus = connect_bus(address, addrlen);
+
+        r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                               "Hello", NULL, NULL,
+                               "");
+        assert(r < 0);
+
+        r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                               "RequestName", NULL, NULL,
+                               "su", "com.example.foo", 0);
+        assert(r >= 0);
+
+        r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                               "GetNameOwner", NULL, NULL,
+                               "s", "com.example.foo");
+        assert(r >= 0);
+
+        r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                               "NameHasOwner", NULL, NULL,
+                               "s", "com.example.foo");
+        assert(r >= 0);
+
+        r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                               "ListNames", NULL, NULL,
+                               "");
+        assert(r >= 0);
+
+        r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                               "ListActivatableNames", NULL, NULL,
+                               "");
+        assert(r >= 0);
+
+        r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                               "ListQueuedOwners", NULL, NULL,
+                               "s", "com.example.foo");
+        assert(r >= 0);
+
+        r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                               "GetAdtAuditSessionData", NULL, NULL,
+                               "s", "com.example.foo");
+        assert(r < 0);
+
+        r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                               "GetConnectionCredentials", NULL, NULL,
+                               "s", "com.example.foo");
+        assert(r >= 0);
+
+        r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                               "GetConnectionSELinuxSecurityContext", NULL, NULL,
+                               "s", "com.example.foo");
+        /* this will fail or succeed depending on whether or not SELinux is enabled */
+
+        r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                               "GetConnectionUnixProcessID", NULL, NULL,
+                               "s", "com.example.foo");
+        assert(r >= 0);
+
+        r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                               "GetConnectionUnixUser", NULL, NULL,
+                               "s", "com.example.foo");
+        assert(r >= 0);
+
+        r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                               "ReleaseName", NULL, NULL,
+                               "s", "com.example.foo");
+        assert(r >= 0);
+
+        r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                               "AddMatch", NULL, NULL,
+                               "s", "sender=org.freedesktop.DBus");
+        assert(r >= 0);
+
+        r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                               "RemoveMatch", NULL, NULL,
+                               "s", "sender=org.freedesktop.DBus");
+        assert(r >= 0);
+
+        r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                               "GetId", NULL, NULL,
+                               "");
+        assert(r >= 0);
+
+        r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                               "StartServiceByName", NULL, NULL,
+                               "su", "com.example.foo", 0);
+        assert(r < 0);
+
+        r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                               "UpdateActivationEnvironment", NULL, NULL,
+                               "a{ss}", 0);
+        /* this will fail on the broker and succeed on the daemon in our test */
+
+        r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus.Introspectable",
+                               "Introspect", NULL, NULL,
+                               "");
+        assert(r >= 0);
+
+        r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus.Monitoring",
+                               "BecomeMonitor", NULL, NULL,
+                               "asu", 0, 0);
+        assert(r >= 0);
+
+        /* calling any method after having become monitor forcibly disconnects the peer */
+        r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                               "Hello", NULL, NULL,
+                               "");
+        assert(r < 0);
+}
+
 static void test_driver(struct sockaddr_un *address, socklen_t addrlen) {
         _c_cleanup_(sd_bus_unrefp) sd_bus *bus1 = NULL, *bus2 = NULL;
 
         bus1 = connect_bus(address, addrlen);
         bus2 = connect_bus(address, addrlen);
 
+        test_driver_api(address, addrlen);
         test_driver_names(bus1, bus2);
 }
 
