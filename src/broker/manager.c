@@ -120,7 +120,7 @@ int manager_new(Manager **managerp, int controller_fd) {
         manager->signals_fd = -1;
         manager->signals_file = (DispatchFile)DISPATCH_FILE_NULL(manager->signals_file);
         manager->controller = (Connection)CONNECTION_NULL(manager->controller);
-        bus_init(&manager->bus, 16 * 1024 * 1024, 128, 128, 128, 128);
+        bus_init(&manager->bus, 16 * 1024 * 1024, 1024, 1024, 10 * 1024, 10 * 1024);
 
         manager->bus.controller = &manager->controller;
 
