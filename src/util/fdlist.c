@@ -45,7 +45,7 @@ FDList *fdlist_free(FDList *list) {
 
                 if (list->consumed)
                         for (i = 0; i < n; ++i)
-                                close(p[i]);
+                                c_close(p[i]);
 
                 free(list);
         }
