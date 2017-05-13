@@ -969,30 +969,26 @@ static int driver_method_start_service_by_name(Peer *peer, CDVar *in_v, CDVar *o
         if (flags)
                 return DRIVER_E_UNEXPECTED_FLAGS; /* XXX: should we ignore this silently? */
 
-        if (!strcmp(service, "org.freedesktop.DBus")) {
-                reply = DBUS_START_REPLY_ALREADY_RUNNING;
-        } else {
-                name = name_registry_find_name(&peer->bus->names, service);
-                if (!name)
+        name = name_registry_find_name(&peer->bus->names, service);
+        if (!name)
+                return DRIVER_E_NAME_NOT_ACTIVATABLE;
+
+        ownership = c_list_first_entry(&name->ownership_list, NameOwnership, name_link);
+        if (!ownership) {
+                if (!name->activation)
                         return DRIVER_E_NAME_NOT_ACTIVATABLE;
 
-                ownership = c_list_first_entry(&name->ownership_list, NameOwnership, name_link);
-                if (!ownership) {
-                        if (!name->activation)
-                                return DRIVER_E_NAME_NOT_ACTIVATABLE;
+                if (!name->activation->requested) {
+                        r = activation_send_signal(peer->bus->controller, name->activation->path);
+                        if (r)
+                                return error_fold(r);
 
-                        if (!name->activation->requested) {
-                                r = activation_send_signal(peer->bus->controller, name->activation->path);
-                                if (r)
-                                        return error_fold(r);
-
-                                name->activation->requested = true;
-                        }
-
-                        reply = DBUS_START_REPLY_SUCCESS;
-                } else {
-                        reply = DBUS_START_REPLY_ALREADY_RUNNING;
+                        name->activation->requested = true;
                 }
+
+                reply = DBUS_START_REPLY_SUCCESS;
+        } else {
+                reply = DBUS_START_REPLY_ALREADY_RUNNING;
         }
 
         c_dvar_write(out_v, "(u)", reply);
