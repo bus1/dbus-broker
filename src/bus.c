@@ -4,6 +4,7 @@
 
 #include <c-macro.h>
 #include <stdlib.h>
+#include <sys/auxv.h>
 #include <sys/socket.h>
 #include "bus.h"
 #include "dbus/unique-name.h"
@@ -19,14 +20,20 @@ void bus_init(Bus *bus,
               unsigned int max_peers,
               unsigned int max_names,
               unsigned int max_matches) {
+        void *random;
+
         bus->listener_tree = (CRBTree){};
+
         activation_registry_init(&bus->activations);
         match_registry_init(&bus->wildcard_matches);
         match_registry_init(&bus->driver_matches);
-        /* XXX: initialize guid with random data */
         name_registry_init(&bus->names);
         user_registry_init(&bus->users, max_bytes, max_fds, max_peers, max_names, max_matches);
         peer_registry_init(&bus->peers);
+
+        random = (void *)getauxval(AT_RANDOM);
+        assert(random);
+        memcpy(bus->guid, random, sizeof(bus->guid));
 }
 
 void bus_deinit(Bus *bus) {
