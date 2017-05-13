@@ -92,7 +92,9 @@ int listener_new_with_fd(Listener **listenerp, Bus *bus, const char *path, Dispa
         memcpy((char*)listener->path, path, strlen(path) + 1);
 
         /* make sure the guid is unique per listener */
-        *(uint64_t*)listener->guid += ++ bus->listener_ids;
+        ++ bus->listener_ids;
+        for (size_t i = 0; i < sizeof(uint64_t); i++)
+                listener->guid[i] ^= (bus->listener_ids >> (8 * i)) & 0xff;
 
         r = dispatch_file_init(&listener->socket_file,
                                dispatcher,
