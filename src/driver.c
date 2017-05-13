@@ -409,6 +409,7 @@ const char *driver_error_to_string(int r) {
                 [DRIVER_E_EXPECTED_REPLY_EXISTS]                = "Pending reply with that serial already exists",
                 [DRIVER_E_NAME_RESERVED]                        = "org.freedesktop.DBus is a reserved name",
                 [DRIVER_E_NAME_NOT_FOUND]                       = "The name does not exist",
+                [DRIVER_E_NAME_NOT_ACTIVATABLE]                 = "The name is not activatable",
                 [DRIVER_E_NAME_OWNER_NOT_FOUND]                 = "The name does not have an owner",
                 [DRIVER_E_PEER_NOT_FOUND]                       = "The connection does not exist",
                 [DRIVER_E_DESTINATION_NOT_FOUND]                = "Destination does not exist",
@@ -966,19 +967,19 @@ static int driver_method_start_service_by_name(Peer *peer, CDVar *in_v, CDVar *o
                 return error_trace(r);
 
         if (flags)
-                return DRIVER_E_UNEXPECTED_FLAGS; /* XXX */
+                return DRIVER_E_UNEXPECTED_FLAGS; /* XXX: should we ignore this silently? */
 
         if (!strcmp(service, "org.freedesktop.DBus")) {
                 reply = DBUS_START_REPLY_ALREADY_RUNNING;
         } else {
                 name = name_registry_find_name(&peer->bus->names, service);
                 if (!name)
-                        return DRIVER_E_NAME_NOT_FOUND; /* XXX */
+                        return DRIVER_E_NAME_NOT_ACTIVATABLE;
 
                 ownership = c_list_first_entry(&name->ownership_list, NameOwnership, name_link);
                 if (!ownership) {
                         if (!name->activation)
-                                return DRIVER_E_NAME_NOT_FOUND; /* XXX */
+                                return DRIVER_E_NAME_NOT_ACTIVATABLE;
 
                         if (!name->activation->requested) {
                                 r = activation_send_signal(peer->bus->controller, name->activation->path);
@@ -1843,6 +1844,9 @@ int driver_dispatch(Peer *peer, Message *message) {
         case DRIVER_E_NAME_OWNER_NOT_FOUND:
         case DRIVER_E_DESTINATION_NOT_FOUND:
                 r = driver_send_error(peer, metadata.header.serial, "org.freedesktop.DBus.Error.NameHasNoOwner", driver_error_to_string(r));
+                break;
+        case DRIVER_E_NAME_NOT_ACTIVATABLE:
+                r = driver_send_error(peer, metadata.header.serial, "org.freedesktop.DBus.Error.ServiceUnknown", driver_error_to_string(r));
                 break;
         case DRIVER_E_MATCH_INVALID:
                 r = driver_send_error(peer, metadata.header.serial, "org.freedesktop.DBus.Error.MatchRuleInvalid", driver_error_to_string(r));
