@@ -1324,7 +1324,7 @@ static int driver_method_remove_match(Peer *peer, CDVar *in_v, CDVar *out_v, Nam
 }
 
 static int driver_method_get_id(Peer *peer, CDVar *in_v, CDVar *out_v, NameChange *change) {
-        char buffer[sizeof(peer->bus->guid) * 2];
+        char buffer[sizeof(peer->bus->guid) * 2 + 1] = {};
         int r;
 
         /* verify the input argument */
