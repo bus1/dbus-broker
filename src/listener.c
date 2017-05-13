@@ -42,7 +42,7 @@ static int listener_dispatch(DispatchFile *file, uint32_t events) {
                 }
         }
 
-        r = peer_new_with_fd(&peer, listener->bus, file->context, fd);
+        r = peer_new_with_fd(&peer, listener->bus, listener->guid, file->context, fd);
         if (r == PEER_E_QUOTA)
                 /*
                  * The user has too many open connections, simply drop this.
@@ -88,7 +88,11 @@ int listener_new_with_fd(Listener **listenerp, Bus *bus, const char *path, Dispa
         listener->socket_file = (DispatchFile)DISPATCH_FILE_NULL(listener->socket_file);
         listener->bus_node = (CRBNode)C_RBNODE_INIT(listener->bus_node);
         listener->peer_list = (CList)C_LIST_INIT(listener->peer_list);
+        memcpy(listener->guid, bus->guid, sizeof(listener->guid));
         memcpy((char*)listener->path, path, strlen(path) + 1);
+
+        /* make sure the guid is unique per listener */
+        *(uint64_t*)listener->guid += ++ bus->listener_ids;
 
         r = dispatch_file_init(&listener->socket_file,
                                dispatcher,

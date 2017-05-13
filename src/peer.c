@@ -139,9 +139,10 @@ static int peer_compare(CRBTree *tree, void *k, CRBNode *rb) {
  * peer_new() - XXX
  */
 int peer_new_with_fd(Peer **peerp,
-             Bus *bus,
-             DispatchContext *dispatcher,
-             int fd) {
+                     Bus *bus,
+                     const char guid[],
+                     DispatchContext *dispatcher,
+                     int fd) {
         _c_cleanup_(peer_freep) Peer *peer = NULL;
         _c_cleanup_(user_unrefp) User *user = NULL;
         _c_cleanup_(c_freep) char *seclabel = NULL;
@@ -192,7 +193,7 @@ int peer_new_with_fd(Peer **peerp,
                                    dispatcher,
                                    peer_dispatch,
                                    peer->user,
-                                   bus->guid,
+                                   guid,
                                    fd);
         if (r < 0)
                 return error_fold(r);

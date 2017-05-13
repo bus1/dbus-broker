@@ -22,6 +22,7 @@ enum {
 
 struct Listener {
         Bus *bus;
+        char guid[16];
         int socket_fd;
         DispatchFile socket_file;
         CList peer_list;
