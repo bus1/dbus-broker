@@ -296,8 +296,78 @@ static int manager_fork(Manager *manager, int fd_controller) {
         return 0;
 }
 
-static int manager_on_name_activate(Manager *manager, sd_bus_message *m, const char *id) {
+static int manager_request_activation(Manager *manager, const char *name, const char *unit) {
         _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *signal = NULL;
+        int r;
+
+        if (main_arg_verbose)
+                fprintf(stderr, "Activation request for '%s' -> '%s'\n", name, unit);
+
+        r = sd_bus_message_new_signal(manager->bus_regular, &signal, "/org/freedesktop/DBus", "org.freedesktop.systemd1.Activator", "ActivationRequest");
+        if (r < 0)
+                return error_origin(r);
+
+        r = sd_bus_message_append(signal, "s", unit);
+        if (r < 0)
+                return error_origin(r);
+
+        r = sd_bus_message_set_destination(signal, "org.freedesktop.systemd1");
+        if (r < 0)
+                return error_origin(r);
+
+        r = sd_bus_send(manager->bus_regular, signal, NULL);
+        if (r < 0)
+                return error_origin(r);
+
+        return 0;
+}
+
+static int manager_start_transient_unit(Manager *manager, const char *name, const char *exec) {
+        _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *method_call = NULL;
+        _c_cleanup_(c_freep) char *unit = NULL;
+        int r;
+
+        if (main_arg_verbose)
+                fprintf(stderr, "Activation request for '%s'\n", name);
+
+        r = asprintf(&unit, "dbus-%s.service", name);
+        if (r < 0)
+                return error_origin(-errno);
+
+        r = sd_bus_message_new_method_call(manager->bus_regular, &method_call,
+                                           "org.freedesktop.systemd1",
+                                           "/org/freedesktop/systemd1",
+                                           "org.freedesktop.systemd1.Manager",
+                                           "StartTransientUnit");
+
+        r = sd_bus_message_append(method_call, "ss", unit, "fail");
+        if (r < 0)
+                return error_origin(r);
+
+        r = sd_bus_message_open_container(method_call, 'a', "(sv)");
+        if (r < 0)
+                return error_origin(r);
+
+        r = sd_bus_message_append(method_call, "(sv)", "ExecStart", "a(sasb)", 1, exec, 1, exec, true);
+        if (r < 0)
+                return error_origin(r);
+
+        r = sd_bus_message_close_container(method_call);
+        if (r < 0)
+                return error_origin(r);
+
+        r = sd_bus_message_append(method_call, "a(sa(sv))", 0);
+        if (r < 0)
+                return error_origin(r);
+
+        r = sd_bus_send(manager->bus_regular, method_call, NULL);
+        if (r < 0)
+                return error_origin(r);
+
+        return 0;
+}
+
+static int manager_on_name_activate(Manager *manager, sd_bus_message *m, const char *id) {
         Service *service;
         int r;
 
@@ -312,29 +382,17 @@ static int manager_on_name_activate(Manager *manager, sd_bus_message *m, const c
         } else if (!strcmp(service->name, "org.freedesktop.systemd1")) {
                 /* pid1 activation requests are silently ignored */
                 return 0;
-        } else if (!service->unit) {
-                fprintf(stderr, "Missing systemd service to serve activation request on name '%s'\n", service->name);
-                return 0;
         }
 
-        if (main_arg_verbose)
-                fprintf(stderr, "Activation request for '%s' -> '%s'\n", service->name, service->unit);
-
-        r = sd_bus_message_new_signal(manager->bus_regular, &signal, "/org/freedesktop/DBus", "org.freedesktop.systemd1.Activator", "ActivationRequest");
-        if (r < 0)
-                return error_origin(r);
-
-        r = sd_bus_message_append(signal, "s", service->unit);
-        if (r < 0)
-                return error_origin(r);
-
-        r = sd_bus_message_set_destination(signal, "org.freedesktop.systemd1");
-        if (r < 0)
-                return error_origin(r);
-
-        r = sd_bus_send(manager->bus_regular, signal, NULL);
-        if (r < 0)
-                return error_origin(r);
+        if (service->unit) {
+                r = manager_request_activation(manager, service->name, service->unit);
+                if (r)
+                        return error_trace(r);
+        } else {
+                r = manager_start_transient_unit(manager, service->name, service->exec);
+                if (r)
+                        return error_trace(r);
+        }
 
         return 0;
 }
