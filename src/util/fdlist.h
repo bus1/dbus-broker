@@ -25,7 +25,10 @@ static inline int *fdlist_data(FDList *list) {
 }
 
 static inline size_t fdlist_count(FDList *list) {
-        return (list->cmsg->cmsg_len - CMSG_LEN(0)) / sizeof(int);
+        if (!list)
+                return 0;
+        else
+                return (list->cmsg->cmsg_len - CMSG_LEN(0)) / sizeof(int);
 }
 
 static inline int fdlist_get(FDList *list, size_t index) {
