@@ -916,6 +916,7 @@ static int driver_method_list_activatable_names(Peer *peer, CDVar *in_v, CDVar *
                 return error_trace(r);
 
         c_dvar_write(out_v, "([");
+        c_dvar_write(out_v, "s", "org.freedesktop.DBus");
         for (CRBNode *n = c_rbtree_first(&peer->bus->names.name_tree); n; n = c_rbnode_next(n)) {
                 Name *name = c_container_of(n, Name, registry_node);
 
@@ -967,26 +968,30 @@ static int driver_method_start_service_by_name(Peer *peer, CDVar *in_v, CDVar *o
         if (flags)
                 return DRIVER_E_UNEXPECTED_FLAGS; /* XXX */
 
-        name = name_registry_find_name(&peer->bus->names, service);
-        if (!name)
-                return DRIVER_E_NAME_NOT_FOUND; /* XXX */
-
-        ownership = c_list_first_entry(&name->ownership_list, NameOwnership, name_link);
-        if (!ownership) {
-                if (!name->activation)
+        if (!strcmp(service, "org.freedesktop.DBus")) {
+                reply = DBUS_START_REPLY_ALREADY_RUNNING;
+        } else {
+                name = name_registry_find_name(&peer->bus->names, service);
+                if (!name)
                         return DRIVER_E_NAME_NOT_FOUND; /* XXX */
 
-                if (!name->activation->requested) {
-                        r = activation_send_signal(peer->bus->controller, name->activation->path);
-                        if (r)
-                                return error_fold(r);
+                ownership = c_list_first_entry(&name->ownership_list, NameOwnership, name_link);
+                if (!ownership) {
+                        if (!name->activation)
+                                return DRIVER_E_NAME_NOT_FOUND; /* XXX */
 
-                        name->activation->requested = true;
+                        if (!name->activation->requested) {
+                                r = activation_send_signal(peer->bus->controller, name->activation->path);
+                                if (r)
+                                        return error_fold(r);
+
+                                name->activation->requested = true;
+                        }
+
+                        reply = DBUS_START_REPLY_SUCCESS;
+                } else {
+                        reply = DBUS_START_REPLY_ALREADY_RUNNING;
                 }
-
-                reply = DBUS_START_REPLY_SUCCESS;
-        } else {
-                reply = DBUS_START_REPLY_ALREADY_RUNNING;
         }
 
         c_dvar_write(out_v, "(u)", reply);
