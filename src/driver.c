@@ -312,33 +312,6 @@ static int driver_queue_message_on_peer(Peer *receiver, Peer *sender, Message *m
                         return error_fold(r);
         }
 
-        if (receiver->bus->n_eavesdrop) {
-                MessageMetadata metadata;
-                MatchFilter filter = {};
-
-                /* someone is eavesdropping, this message must be broadcast */
-
-                r = message_parse_metadata(message, &metadata);
-                if (r) /*
-                        * Any parsing error at this stage should be fatal, either
-                        * this was a message we already parsed or it was one sent
-                        * by us.
-                        */
-                        return error_fold(r);
-
-                filter.type = message->header->type;
-                filter.destination = receiver->id;
-                filter.interface = metadata.fields.interface;
-                filter.member = metadata.fields.member;
-                filter.path = metadata.fields.path;
-
-                /* XXX: parse the message body */
-
-                r = bus_broadcast(receiver->bus, sender, &filter, message);
-                if (r)
-                        return error_trace(r);
-        }
-
         r = connection_queue_message(&receiver->connection, message);
         if (r)
                 return error_fold(r);
@@ -1690,7 +1663,27 @@ int driver_goodbye(Peer *peer, bool silent) {
 }
 
 static int driver_dispatch_internal(Peer *peer, MessageMetadata *metadata, Message *message) {
-        if (_c_unlikely_(c_string_equal(metadata->fields.destination, "org.freedesktop.DBus")))
+        MatchFilter filter = {
+                .type = DBUS_MESSAGE_TYPE_SIGNAL,
+                .destination = metadata->fields.destination ? (uint64_t)-2 : UNIQUE_NAME_ID_INVALID, /* get the real destination */
+                .interface = metadata->fields.interface,
+                .member = metadata->fields.member,
+                .path = metadata->fields.path,
+        };
+        int r;
+
+        /* XXX: parse the message body */
+
+        r = bus_broadcast(peer->bus, peer, &filter, message);
+        if (r)
+                return error_trace(r);
+
+        if (!metadata->fields.destination) {
+                if (metadata->header.type == DBUS_MESSAGE_TYPE_SIGNAL)
+                        return 0; /* already broadcast */
+                else
+                        return DRIVER_E_UNEXPECTED_MESSAGE_TYPE;
+        } else if (_c_unlikely_(!strcmp(metadata->fields.destination, "org.freedesktop.DBus"))) {
                 return error_trace(driver_dispatch_interface(peer,
                                                              metadata->header.serial,
                                                              metadata->fields.interface,
@@ -1698,25 +1691,6 @@ static int driver_dispatch_internal(Peer *peer, MessageMetadata *metadata, Messa
                                                              metadata->fields.path,
                                                              metadata->fields.signature,
                                                              message));
-
-        if (!metadata->fields.destination) {
-                MatchFilter filter = {
-                        .type = DBUS_MESSAGE_TYPE_SIGNAL,
-                        .destination = UNIQUE_NAME_ID_INVALID,
-                        .interface = metadata->fields.interface,
-                        .member = metadata->fields.member,
-                        .path = metadata->fields.path,
-                };
-
-                if (metadata->header.type != DBUS_MESSAGE_TYPE_SIGNAL)
-                        return DRIVER_E_UNEXPECTED_MESSAGE_TYPE;
-
-                /* XXX: parse the message body */
-
-                return error_trace(bus_broadcast(peer->bus,
-                                                 peer,
-                                                 &filter,
-                                                 message));
         }
 
         switch (metadata->header.type) {
