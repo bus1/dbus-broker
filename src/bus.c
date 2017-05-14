@@ -64,3 +64,50 @@ Peer *bus_find_peer_by_name(Bus *bus, const char *name) {
                 return peer_registry_find_peer(&bus->peers, id);
         }
 }
+
+static int bus_broadcast_to_matches(MatchRegistry *matches, MatchFilter *filter, Message *message) {
+        MatchRule *rule;
+        int r;
+
+        for (rule = match_rule_next(matches, NULL, filter); rule; rule = match_rule_next(matches, rule, filter)) {
+                Peer *peer = c_container_of(rule->owner, Peer, owned_matches);
+
+                r = connection_queue_message(&peer->connection, message);
+                if (r)
+                        return error_fold(r);
+        }
+
+        return 0;
+}
+
+int bus_broadcast(Bus *bus, Peer *sender, MatchFilter *filter, Message *message) {
+        int r;
+
+        r = bus_broadcast_to_matches(&bus->wildcard_matches, filter, message);
+        if (r)
+                return error_trace(r);
+
+        if (sender) {
+                for (CRBNode *node = c_rbtree_first(&sender->owned_names.ownership_tree); node; node = c_rbnode_next(node)) {
+                        NameOwnership *ownership = c_container_of(node, NameOwnership, owner_node);
+
+                        if (!name_ownership_is_primary(ownership))
+                                continue;
+
+                        r = bus_broadcast_to_matches(&ownership->name->matches, filter, message);
+                        if (r)
+                                return error_trace(r);
+                }
+
+                r = bus_broadcast_to_matches(&sender->matches, filter, message);
+                if (r)
+                        return error_trace(r);
+        } else {
+                /* sent from the driver */
+                r = bus_broadcast_to_matches(&bus->driver_matches, filter, message);
+                if (r)
+                        return error_trace(r);
+        }
+
+        return 0;
+}

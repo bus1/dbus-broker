@@ -298,53 +298,6 @@ int activation_send_signal(Connection *controller, const char *path) {
         return 0;
 }
 
-static int driver_send_broadcast_to_matches(MatchRegistry *matches, MatchFilter *filter, Message *message) {
-        MatchRule *rule;
-        int r;
-
-        for (rule = match_rule_next(matches, NULL, filter); rule; rule = match_rule_next(matches, rule, filter)) {
-                Peer *peer = c_container_of(rule->owner, Peer, owned_matches);
-
-                r = connection_queue_message(&peer->connection, message);
-                if (r)
-                        return error_fold(r);
-        }
-
-        return 0;
-}
-
-static int driver_forward_broadcast(Bus *bus, Peer *sender, MatchFilter *filter, Message *message) {
-        int r;
-
-        r = driver_send_broadcast_to_matches(&bus->wildcard_matches, filter, message);
-        if (r)
-                return error_trace(r);
-
-        if (sender) {
-                for (CRBNode *node = c_rbtree_first(&sender->owned_names.ownership_tree); node; node = c_rbnode_next(node)) {
-                        NameOwnership *ownership = c_container_of(node, NameOwnership, owner_node);
-
-                        if (!name_ownership_is_primary(ownership))
-                                continue;
-
-                        r = driver_send_broadcast_to_matches(&ownership->name->matches, filter, message);
-                        if (r)
-                                return error_trace(r);
-                }
-
-                r = driver_send_broadcast_to_matches(&sender->matches, filter, message);
-                if (r)
-                        return error_trace(r);
-        } else {
-                /* sent from the driver */
-                r = driver_send_broadcast_to_matches(&bus->driver_matches, filter, message);
-                if (r)
-                        return error_trace(r);
-        }
-
-        return 0;
-}
-
 static int driver_queue_message_on_peer(Peer *receiver, Peer *sender, Message *message) {
         _c_cleanup_(reply_slot_freep) ReplySlot *slot = NULL;
         int r;
@@ -381,7 +334,7 @@ static int driver_queue_message_on_peer(Peer *receiver, Peer *sender, Message *m
 
                 /* XXX: parse the message body */
 
-                r = driver_forward_broadcast(receiver->bus, sender, &filter, message);
+                r = bus_broadcast(receiver->bus, sender, &filter, message);
                 if (r)
                         return error_trace(r);
         }
@@ -674,7 +627,7 @@ static int driver_notify_name_owner_changed(Bus *bus, const char *name, Peer *ol
                 filter.argpaths[2] = "";
         }
 
-        r = driver_forward_broadcast(bus, NULL, &filter, message);
+        r = bus_broadcast(bus, NULL, &filter, message);
         if (r)
                 return error_trace(r);
 
@@ -1770,10 +1723,10 @@ static int driver_dispatch_internal(Peer *peer, MessageMetadata *metadata, Messa
 
                 /* XXX: parse the message body */
 
-                return error_trace(driver_forward_broadcast(peer->bus,
-                                                            peer,
-                                                            &filter,
-                                                            message));
+                return error_trace(bus_broadcast(peer->bus,
+                                                 peer,
+                                                 &filter,
+                                                 message));
         }
 
         switch (metadata->header.type) {

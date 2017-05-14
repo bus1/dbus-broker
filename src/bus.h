@@ -22,6 +22,7 @@ enum {
 
 typedef struct Bus Bus;
 typedef struct Connection Connection;
+typedef struct Message Message;
 
 struct Bus {
         Connection *controller;
@@ -48,3 +49,4 @@ void bus_init(Bus *bus,
 void bus_deinit(Bus *bus);
 
 Peer *bus_find_peer_by_name(Bus *bus, const char *name);
+int bus_broadcast(Bus *bus, Peer *sender, MatchFilter *filter, Message *message);
