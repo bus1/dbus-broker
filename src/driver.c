@@ -1708,16 +1708,18 @@ static int driver_dispatch_internal(Peer *peer, MessageMetadata *metadata, Messa
 
         /* XXX: parse the message body */
 
+        if (!peer->registered && !metadata->fields.destination)
+                /* make sure unregistered peers can only send messages to eavesdroppers */
+                filter.destination = (uint64_t)-2; /* XXX: come up with a better way to do this */
+
         r = bus_broadcast(peer->bus, peer, &filter, message);
         if (r)
                 return error_trace(r);
 
-        if (!metadata->fields.destination) {
-                if (metadata->header.type == DBUS_MESSAGE_TYPE_SIGNAL)
-                        return 0; /* already broadcast */
-                else
-                        return DRIVER_E_UNEXPECTED_MESSAGE_TYPE;
-        } else if (_c_unlikely_(!strcmp(metadata->fields.destination, "org.freedesktop.DBus"))) {
+        if (peer->monitor)
+                return DRIVER_E_DISCONNECT;
+
+        if (_c_unlikely_(c_string_equal(metadata->fields.destination, "org.freedesktop.DBus"))) {
                 return error_trace(driver_dispatch_interface(peer,
                                                              metadata->header.serial,
                                                              metadata->fields.interface,
@@ -1725,6 +1727,16 @@ static int driver_dispatch_internal(Peer *peer, MessageMetadata *metadata, Messa
                                                              metadata->fields.path,
                                                              metadata->fields.signature,
                                                              message));
+        }
+
+        if (!peer->registered)
+                return DRIVER_E_DISCONNECT;
+
+        if (!metadata->fields.destination) {
+                if (metadata->header.type == DBUS_MESSAGE_TYPE_SIGNAL)
+                        return 0; /* already broadcast */
+                else
+                        return DRIVER_E_UNEXPECTED_MESSAGE_TYPE;
         }
 
         switch (metadata->header.type) {
@@ -1747,9 +1759,6 @@ static int driver_dispatch_internal(Peer *peer, MessageMetadata *metadata, Messa
 int driver_dispatch(Peer *peer, Message *message) {
         MessageMetadata metadata;
         int r;
-
-        if (peer->monitor)
-                return DRIVER_E_DISCONNECT;
 
         r = message_parse_metadata(message, &metadata);
         if (r > 0)
