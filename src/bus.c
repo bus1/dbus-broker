@@ -72,6 +72,10 @@ static int bus_broadcast_to_matches(MatchRegistry *matches, MatchFilter *filter,
         for (rule = match_rule_next(matches, NULL, filter); rule; rule = match_rule_next(matches, rule, filter)) {
                 Peer *peer = c_container_of(rule->owner, Peer, owned_matches);
 
+                /* exclude the destination from broadcasts */
+                if (filter->destination == peer->id)
+                        continue;
+
                 r = connection_queue_message(&peer->connection, message);
                 if (r)
                         return error_fold(r);
