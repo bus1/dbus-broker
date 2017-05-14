@@ -302,8 +302,7 @@ static int driver_queue_message_on_peer(Peer *receiver, Peer *sender, Message *m
         _c_cleanup_(reply_slot_freep) ReplySlot *slot = NULL;
         int r;
 
-        if (sender &&
-            (message->header->type == DBUS_MESSAGE_TYPE_METHOD_CALL) &&
+        if ((message->header->type == DBUS_MESSAGE_TYPE_METHOD_CALL) &&
             !(message->header->flags & DBUS_HEADER_FLAG_NO_REPLY_EXPECTED)) {
                 r = reply_slot_new(&slot, &receiver->replies_outgoing, &sender->owned_replies, sender->id, message_read_serial(message));
                 if (r == REPLY_E_EXISTS)
@@ -476,7 +475,7 @@ static int driver_forward_reply(Peer *sender, const char *destination, uint32_t 
 
         receiver = c_container_of(slot->owner, Peer, owned_replies);
 
-        r = driver_queue_message_on_peer(receiver, NULL, message);
+        r = connection_queue_message(&receiver->connection, message);
         if (r)
                 return error_fold(r);
 
