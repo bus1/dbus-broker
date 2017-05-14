@@ -37,7 +37,6 @@ struct Bus {
         PeerRegistry peers;
 
         uint64_t listener_ids;
-        size_t n_eavesdrop;
 };
 
 void bus_init(Bus *bus,
