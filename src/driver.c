@@ -349,7 +349,28 @@ const char *driver_error_to_string(int r) {
         return error_strings[r];
 }
 
-static int driver_send_error(Peer *peer, uint32_t serial, const char *error, const char *error_message) {
+static int driver_send_unicast(Peer *receiver, MatchFilter *filter, Message *message) {
+        int r;
+
+        /* for eavesdropping */
+        r = bus_broadcast(receiver->bus, NULL, filter, message);
+        if (r)
+                return error_trace(r);
+
+        r = connection_queue_message(&receiver->connection, message);
+        if (r)
+                return error_fold(r);
+
+        return 0;
+}
+
+static int driver_send_error(Peer *receiver, uint32_t serial, const char *error, const char *error_message) {
+        MatchFilter filter = {
+                .type = DBUS_MESSAGE_TYPE_ERROR,
+                .destination = receiver->id,
+                .args[0] = error_message,
+                .argpaths[0] = error_message,
+        };
         static const CDVarType type[] = {
                 C_DVAR_T_INIT(
                         DRIVER_T_MESSAGE(
@@ -373,7 +394,7 @@ static int driver_send_error(Peer *peer, uint32_t serial, const char *error, con
                      DBUS_MESSAGE_FIELD_ERROR_NAME, c_dvar_type_s, error,
                      DBUS_MESSAGE_FIELD_SIGNATURE, c_dvar_type_g, "s",
                      DBUS_MESSAGE_FIELD_DESTINATION, c_dvar_type_s);
-        driver_dvar_write_unique_name(&var, peer);
+        driver_dvar_write_unique_name(&var, receiver);
         c_dvar_write(&var, ">)])(s))", error_message);
 
         r = c_dvar_end_write(&var, &data, &n_data);
@@ -384,9 +405,9 @@ static int driver_send_error(Peer *peer, uint32_t serial, const char *error, con
         if (r)
                 return error_fold(r);
 
-        r = driver_queue_message_on_peer(peer, NULL, message);
+        r = driver_send_unicast(receiver, &filter, message);
         if (r)
-                return error_fold(r);
+                return error_trace(r);
 
         return 0;
 }
@@ -465,6 +486,15 @@ static int driver_forward_reply(Peer *sender, const char *destination, uint32_t 
 }
 
 static int driver_notify_name_acquired(Peer *peer, const char *name) {
+        MatchFilter filter = {
+                .type = DBUS_MESSAGE_TYPE_SIGNAL,
+                .destination = peer->id,
+                .interface = "org.freedesktop.DBus",
+                .member = "NameAcquired",
+                .path = "/org/freedesktop/DBus",
+                .args[0] = name,
+                .argpaths[0] = name,
+        };
         static const CDVarType type[] = {
                 C_DVAR_T_INIT(
                         DRIVER_T_MESSAGE(
@@ -493,14 +523,23 @@ static int driver_notify_name_acquired(Peer *peer, const char *name) {
         if (r)
                 return error_fold(r);
 
-        r = driver_queue_message_on_peer(peer, NULL, message);
+        r = driver_send_unicast(peer, &filter, message);
         if (r)
-                return error_fold(r);
+                return error_trace(r);
 
         return 0;
 }
 
 static int driver_notify_name_lost(Peer *peer, const char *name) {
+        MatchFilter filter = {
+                .type = DBUS_MESSAGE_TYPE_SIGNAL,
+                .destination = peer->id,
+                .interface = "org.freedesktop.DBus",
+                .member = "NameLost",
+                .path = "/org/freedesktop/DBus",
+                .args[0] = name,
+                .argpaths[0] = name,
+        };
         static const CDVarType type[] = {
                 C_DVAR_T_INIT(
                         DRIVER_T_MESSAGE(
@@ -529,9 +568,9 @@ static int driver_notify_name_lost(Peer *peer, const char *name) {
         if (r)
                 return error_fold(r);
 
-        r = driver_queue_message_on_peer(peer, NULL, message);
+        r = driver_send_unicast(peer, &filter, message);
         if (r)
-                return error_fold(r);
+                return error_trace(r);
 
         return 0;
 }
@@ -1440,6 +1479,11 @@ error:
 }
 
 static int driver_handle_method(const DriverMethod *method, Peer *peer, const char *path, uint32_t serial, const char *signature_in, Message *message_in) {
+        MatchFilter filter = {
+                .type = DBUS_MESSAGE_TYPE_METHOD_RETURN,
+                .destination = peer->id,
+                /* XXX: fill in args[0] and argpaths[0] for GetId(), GetNameOwner() and Hello() */
+        };
         _c_cleanup_(c_dvar_deinitp) CDVar var_in = C_DVAR_INIT, var_out = C_DVAR_INIT;
         _c_cleanup_(message_unrefp) Message *message_out = NULL;
         NameChange change = {};
@@ -1493,9 +1537,9 @@ static int driver_handle_method(const DriverMethod *method, Peer *peer, const ch
         if (r)
                 return error_fold(r);
 
-        r = driver_queue_message_on_peer(peer, NULL, message_out);
+        r = driver_send_unicast(peer, &filter, message_out);
         if (r)
-                return error_fold(r);
+                return error_trace(r);
 
         if (change.name) {
                 Peer *old_peer = NULL, *new_peer = NULL;
