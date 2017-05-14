@@ -35,6 +35,8 @@ struct Connection {
         bool hangup : 1;
         bool lingering : 1;
         bool authenticated : 1;
+
+        uint64_t transaction_id;
 };
 
 #define CONNECTION_NULL(_x) {                                           \
@@ -64,7 +66,7 @@ int connection_dispatch(Connection *connection, uint32_t events);
 
 int connection_dequeue(Connection *connection, Message **messagep);
 int connection_queue(Connection *connection, SocketBuffer *skb);
-int connection_queue_message(Connection *connection, Message *message);
+int connection_queue_message(Connection *connection, uint64_t transaction_id, Message *message);
 
 C_DEFINE_CLEANUP(Connection *, connection_deinit);
 

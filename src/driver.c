@@ -291,7 +291,7 @@ int activation_send_signal(Connection *controller, const char *path) {
                 return error_fold(r);
 
         /* XXX: this is excluded from monitoring as it is on our private connection */
-        r = connection_queue_message(controller, message);
+        r = connection_queue_message(controller, 0, message);
         if (r)
                 return error_fold(r);
 
@@ -311,7 +311,7 @@ static int driver_queue_message_on_peer(Peer *receiver, Peer *sender, Message *m
                         return error_fold(r);
         }
 
-        r = connection_queue_message(&receiver->connection, message);
+        r = connection_queue_message(&receiver->connection, 0, message);
         if (r)
                 return error_fold(r);
 
@@ -356,7 +356,7 @@ static int driver_send_unicast(Peer *receiver, MatchFilter *filter, Message *mes
         if (r)
                 return error_trace(r);
 
-        r = connection_queue_message(&receiver->connection, message);
+        r = connection_queue_message(&receiver->connection, 0, message);
         if (r)
                 return error_fold(r);
 
@@ -475,7 +475,7 @@ static int driver_forward_reply(Peer *sender, const char *destination, uint32_t 
 
         receiver = c_container_of(slot->owner, Peer, owned_replies);
 
-        r = connection_queue_message(&receiver->connection, message);
+        r = connection_queue_message(&receiver->connection, 0, message);
         if (r)
                 return error_fold(r);
 
@@ -1013,7 +1013,7 @@ static int driver_method_update_activation_environment(Peer *peer, CDVar *in_v, 
                 return error_fold(r);
 
         /* XXX: this is excluded from monitoring as it is on our private connection */
-        r = connection_queue_message(peer->bus->controller, message);
+        r = connection_queue_message(peer->bus->controller, 0, message);
         if (r)
                 return error_fold(r);
 

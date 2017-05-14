@@ -250,9 +250,19 @@ int connection_queue(Connection *connection, SocketBuffer *skb) {
 /**
  * connection_queue_message() - XXX
  */
-int connection_queue_message(Connection *connection, Message *message) {
+int connection_queue_message(Connection *connection, uint64_t transaction_id, Message *message) {
         SocketBuffer *skb;
         int r;
+
+        if (transaction_id) {
+                if (transaction_id == connection->transaction_id) {
+                        /* this connection already received this message */
+                        return 0;
+                } else {
+                        assert(connection->transaction_id < transaction_id);
+                        connection->transaction_id = transaction_id;
+                }
+        }
 
         r = socket_buffer_new_message(&skb, message);
         if (r)

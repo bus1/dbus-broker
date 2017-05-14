@@ -163,7 +163,7 @@ static int controller_send_error(Connection *connection, uint32_t serial, const 
         if (r)
                 return error_fold(r);
 
-        r = connection_queue_message(connection, message);
+        r = connection_queue_message(connection, 0, message);
         if (r)
                 return error_fold(r);
 
@@ -348,7 +348,7 @@ static int controller_handle_method(const ControllerMethod *method, Bus *bus, co
         if (r)
                 return error_fold(r);
 
-        r = connection_queue_message(bus->controller, message_out);
+        r = connection_queue_message(bus->controller, 0, message_out);
         if (r)
                 return error_fold(r);
 

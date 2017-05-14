@@ -36,6 +36,7 @@ struct Bus {
         MatchRegistry driver_matches;
         PeerRegistry peers;
 
+        uint64_t transaction_ids;
         uint64_t listener_ids;
 };
 

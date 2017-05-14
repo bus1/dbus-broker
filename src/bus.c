@@ -64,7 +64,7 @@ Peer *bus_find_peer_by_name(Bus *bus, const char *name) {
         }
 }
 
-static int bus_broadcast_to_matches(MatchRegistry *matches, MatchFilter *filter, Message *message) {
+static int bus_broadcast_to_matches(MatchRegistry *matches, MatchFilter *filter, uint64_t transaction_id, Message *message) {
         MatchRule *rule;
         int r;
 
@@ -75,7 +75,7 @@ static int bus_broadcast_to_matches(MatchRegistry *matches, MatchFilter *filter,
                 if (filter->destination == peer->id)
                         continue;
 
-                r = connection_queue_message(&peer->connection, message);
+                r = connection_queue_message(&peer->connection, transaction_id, message);
                 if (r)
                         return error_fold(r);
         }
@@ -86,7 +86,10 @@ static int bus_broadcast_to_matches(MatchRegistry *matches, MatchFilter *filter,
 int bus_broadcast(Bus *bus, Peer *sender, MatchFilter *filter, Message *message) {
         int r;
 
-        r = bus_broadcast_to_matches(&bus->wildcard_matches, filter, message);
+        /* start a new transaction, to avoid duplicates */
+        ++bus->transaction_ids;
+
+        r = bus_broadcast_to_matches(&bus->wildcard_matches, filter, bus->transaction_ids, message);
         if (r)
                 return error_trace(r);
 
@@ -97,17 +100,17 @@ int bus_broadcast(Bus *bus, Peer *sender, MatchFilter *filter, Message *message)
                         if (!name_ownership_is_primary(ownership))
                                 continue;
 
-                        r = bus_broadcast_to_matches(&ownership->name->matches, filter, message);
+                        r = bus_broadcast_to_matches(&ownership->name->matches, filter, bus->transaction_ids, message);
                         if (r)
                                 return error_trace(r);
                 }
 
-                r = bus_broadcast_to_matches(&sender->matches, filter, message);
+                r = bus_broadcast_to_matches(&sender->matches, filter, bus->transaction_ids, message);
                 if (r)
                         return error_trace(r);
         } else {
                 /* sent from the driver */
-                r = bus_broadcast_to_matches(&bus->driver_matches, filter, message);
+                r = bus_broadcast_to_matches(&bus->driver_matches, filter, bus->transaction_ids, message);
                 if (r)
                         return error_trace(r);
         }
