@@ -358,7 +358,8 @@ int match_rule_new(MatchRule **rulep, MatchOwner *owner, const char *rule_string
 }
 
 MatchRule *match_rule_free(MatchRule *rule) {
-        c_list_unlink(&rule->registry_link);
+        match_rule_unlink(rule);
+
         c_rbtree_remove_init(&rule->owner->rule_tree, &rule->owner_node);
 
         free(rule);
@@ -392,11 +393,25 @@ MatchRule *match_rule_user_unref(MatchRule *rule) {
 }
 
 void match_rule_link(MatchRule *rule, MatchRegistry *registry) {
-        if (c_list_is_linked(&rule->registry_link))
+        if (c_list_is_linked(&rule->registry_link)) {
                 assert(rule->registry == registry);
-        else
-                c_list_link_tail(&registry->rule_list, &rule->registry_link);
+                return;
+        }
+
         rule->registry = registry;
+        if (rule->keys.eavesdrop)
+                ++registry->n_eavesdrop;
+        c_list_link_tail(&registry->rule_list, &rule->registry_link);
+}
+
+void match_rule_unlink(MatchRule *rule) {
+        if (!rule->registry)
+                return;
+
+        c_list_unlink_init(&rule->registry_link);
+        if (rule->keys.eavesdrop)
+                --rule->registry->n_eavesdrop;
+        rule->registry = NULL;
 }
 
 int match_rule_get(MatchRule **rulep, MatchOwner *owner, const char *rule_string) {
@@ -419,6 +434,11 @@ int match_rule_get(MatchRule **rulep, MatchOwner *owner, const char *rule_string
 
 MatchRule *match_rule_next(MatchRegistry *registry, MatchRule *rule, MatchFilter *filter) {
         CList *link;
+
+        if (filter->destination != UNIQUE_NAME_ID_INVALID &&
+            !registry->n_eavesdrop)
+                /* only eavesdroppers can receive broadcasts with a destination */
+                return NULL;
 
         if (!rule)
                 link = c_list_loop_first(&registry->rule_list);
@@ -443,6 +463,7 @@ void match_registry_init(MatchRegistry *registry) {
 
 void match_registry_deinit(MatchRegistry *registry) {
         assert(c_list_is_empty(&registry->rule_list));
+        assert(!registry->n_eavesdrop);
 }
 
 void match_owner_init(MatchOwner *owner) {
