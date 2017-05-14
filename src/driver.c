@@ -1690,24 +1690,14 @@ int driver_goodbye(Peer *peer, bool silent) {
 }
 
 static int driver_dispatch_internal(Peer *peer, MessageMetadata *metadata, Message *message) {
-        const char *signature;
-        int r;
-
-        /* no signature implies empty signature */
-        signature = metadata->fields.signature ?: "";
-
         if (_c_unlikely_(c_string_equal(metadata->fields.destination, "org.freedesktop.DBus")))
                 return error_trace(driver_dispatch_interface(peer,
                                                              metadata->header.serial,
                                                              metadata->fields.interface,
                                                              metadata->fields.member,
                                                              metadata->fields.path,
-                                                             signature,
+                                                             metadata->fields.signature,
                                                              message));
-
-        r = message_stitch_sender(message, peer->id);
-        if (r)
-                return error_fold(r);
 
         if (!metadata->fields.destination) {
                 MatchFilter filter = {
@@ -1757,6 +1747,13 @@ int driver_dispatch(Peer *peer, Message *message) {
         if (r > 0)
                 return DRIVER_E_DISCONNECT;
         else if (r < 0)
+                return error_fold(r);
+
+        /* no signature implies empty signature */
+        metadata.fields.signature = metadata.fields.signature ?: "";
+
+        r = message_stitch_sender(message, peer->id);
+        if (r)
                 return error_fold(r);
 
         r = driver_dispatch_internal(peer, &metadata, message);
