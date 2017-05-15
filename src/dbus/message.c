@@ -140,10 +140,7 @@ void message_free(_Atomic unsigned long *n_refs, void *userdata) {
         free(message);
 }
 
-/**
- * message_parse_metadata() - XXX
- */
-int message_parse_metadata(Message *message, MessageMetadata *metadata) {
+static int message_parse_header(Message *message, MessageMetadata *metadata) {
         static const CDVarType type[] = {
                 C_DVAR_T_INIT(
                         C_DVAR_T_TUPLE7(
@@ -166,8 +163,6 @@ int message_parse_metadata(Message *message, MessageMetadata *metadata) {
         unsigned int mask;
         uint8_t field;
         int r;
-
-        *metadata = (MessageMetadata){};
 
         c_dvar_begin_read(&v, message->big_endian, type, 1, message->header, message->n_header);
 
@@ -333,6 +328,27 @@ int message_parse_metadata(Message *message, MessageMetadata *metadata) {
                 return MESSAGE_E_INVALID_HEADER;
         else if (r)
                 return error_fold(r);
+
+        return 0;
+}
+
+/**
+ * message_parse_metadata() - XXX
+ */
+int message_parse_metadata(Message *message, MessageMetadata *metadata) {
+        int r;
+
+        assert(!message->parsed);
+
+        *metadata = (MessageMetadata){};
+
+        /*
+         * As first step, parse the static header and the dynamic header
+         * fields. Any error there is fatal.
+         */
+        r = message_parse_header(message, metadata);
+        if (r)
+                return error_trace(r);
 
         /*
          * XXX: Validate padding between header and body!
