@@ -21,6 +21,7 @@ enum {
         MESSAGE_E_CORRUPT_HEADER,
         MESSAGE_E_TOO_LARGE,
         MESSAGE_E_INVALID_HEADER,
+        MESSAGE_E_INVALID_BODY,
 };
 
 struct Message {
@@ -76,6 +77,11 @@ struct MessageMetadata {
                 const char *signature;
                 uint32_t unix_fds;
         } fields;
+
+        struct {
+                char element;
+                void *value;
+        } args[64];
 };
 
 int message_new_incoming(Message **messagep, MessageHeader header);

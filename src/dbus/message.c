@@ -332,6 +332,64 @@ static int message_parse_header(Message *message, MessageMetadata *metadata) {
         return 0;
 }
 
+static int message_parse_body(Message *message, MessageMetadata *metadata) {
+        _c_cleanup_(c_dvar_deinitp) CDVar v = C_DVAR_INIT;
+        const char *signature = metadata->fields.signature ?: "";
+        size_t i, n_signature, n_types;
+        CDVarType *t, *types;
+        int r;
+
+        /*
+         * Parse body-signature into CDVarType array. We use a single array
+         * with all the argument-types concatenated.
+         */
+
+        n_signature = strlen(signature);
+        assert(n_signature < 256);
+        types = alloca(n_signature * sizeof(CDVarType));
+        n_types = 0;
+
+        for (i = 0; i < n_signature; i += types[i].length) {
+                t = types + i;
+                r = c_dvar_type_new_from_signature(&t, signature + i, n_signature - i);
+                if (r)
+                        return r < 0 ? error_origin(r) : MESSAGE_E_INVALID_HEADER;
+
+                ++n_types;
+        }
+
+        /*
+         * Now that we know the argument types, use c_dvar_skip() to verify
+         * them. While at it, cache all the string/path arguments, so the match
+         * rule processing can access them directly.
+         */
+
+        c_dvar_begin_read(&v, message->big_endian, types, n_types, message->body, message->n_body);
+
+        for (i = 0, t = types; i < n_types; ++i, t += t->length) {
+                switch (t->element) {
+                case 's':
+                case 'o':
+                        if (i < C_ARRAY_SIZE(metadata->args)) {
+                                metadata->args[i].element = t->element;
+                                c_dvar_read(&v, (char[2]){ t->element, 0 }, &metadata->args[i].value);
+                                break;
+                        }
+
+                        /* fallthrough */
+                default:
+                        c_dvar_skip(&v, "*");
+                        break;
+                }
+        }
+
+        r = c_dvar_end_read(&v);
+        if (r)
+                return r < 0 ? error_origin(r) : MESSAGE_E_INVALID_BODY;
+
+        return 0;
+}
+
 /**
  * message_parse_metadata() - XXX
  */
@@ -361,8 +419,14 @@ int message_parse_metadata(Message *message, MessageMetadata *metadata) {
                         return MESSAGE_E_INVALID_HEADER;
 
         /*
-         * XXX: Validate body!
+         * Now that the header is validated, we read through the message body.
+         * Again, this is required for compatibility with dbus-daemon(1), but
+         * also to fetch the arguments for match-filters used by eavesdropping
+         * and common broadcasts.
          */
+        r = message_parse_body(message, metadata);
+        if (r)
+                return error_trace(r);
 
         /*
          * dbus-daemon(1) only ever fetches the correct number of FDs from its

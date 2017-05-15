@@ -54,6 +54,10 @@ static Message *test_new_message(size_t before, const char *sender_early, size_t
                      1,
                      0,
                      (uint32_t)-1);
+        c_dvar_write(&v, "(y<g>)",
+                     DBUS_MESSAGE_FIELD_SIGNATURE,
+                     &c_dvar_type_g,
+                     "uuu");
 
         if (before) {
                 p = malloc(before + 1);
