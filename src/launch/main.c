@@ -32,8 +32,9 @@ struct Service {
         Manager *manager;
         CRBNode rb;
         char *name;
-        char *exec;
         char *unit;
+        char **exec;
+        size_t n_exec;
         char id[];
 };
 
@@ -64,8 +65,10 @@ static Service *service_free(Service *service) {
                 return NULL;
 
         c_rbtree_remove_init(&service->manager->services, &service->rb);
-        free(service->unit);
+        for (size_t i = 0; i < service->n_exec; ++i)
+                free(service->exec[i]);
         free(service->exec);
+        free(service->unit);
         free(service->name);
         free(service);
 
@@ -74,7 +77,7 @@ static Service *service_free(Service *service) {
 
 C_DEFINE_CLEANUP(Service *, service_free);
 
-static int service_new(Service **servicep, Manager *manager, const char *name, const char *exec, const char *unit) {
+static int service_new(Service **servicep, Manager *manager, const char *name, const char *unit, char **exec, size_t n_exec) {
         _c_cleanup_(service_freep) Service *service = NULL;
         CRBNode **slot, *parent;
 
@@ -90,16 +93,24 @@ static int service_new(Service **servicep, Manager *manager, const char *name, c
         if (!service->name)
                 return error_origin(-ENOMEM);
 
-        if (exec) {
-                service->exec = strdup(exec);
-                if (!service->exec)
-                        return error_origin(-ENOMEM);
-        }
-
         if (unit) {
                 service->unit = strdup(unit);
                 if (!service->unit)
                         return error_origin(-ENOMEM);
+        }
+
+        if (exec) {
+                service->exec = calloc(1, n_exec * sizeof(char*));
+                if (!service->exec)
+                        return error_origin(-ENOMEM);
+
+                service->n_exec = n_exec;
+
+                for (size_t i = 0; i < n_exec; ++i) {
+                        service->exec[i] = strdup(exec[i]);
+                        if (!service->exec[i])
+                                return error_origin(-ENOMEM);
+                }
         }
 
         slot = c_rbtree_find_slot(&manager->services, service_compare, service->id, &parent);
@@ -322,7 +333,7 @@ static int manager_request_activation(Manager *manager, const char *name, const 
         return 0;
 }
 
-static int manager_start_transient_unit(Manager *manager, const char *name, const char *exec) {
+static int manager_start_transient_unit(Manager *manager, const char *name, char **exec, size_t n_exec) {
         _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *method_call = NULL;
         _c_cleanup_(c_freep) char *unit = NULL;
         int r;
@@ -348,9 +359,75 @@ static int manager_start_transient_unit(Manager *manager, const char *name, cons
         if (r < 0)
                 return error_origin(r);
 
-        r = sd_bus_message_append(method_call, "(sv)", "ExecStart", "a(sasb)", 1, exec, 1, exec, true);
-        if (r < 0)
-                return error_origin(r);
+        {
+                r = sd_bus_message_open_container(method_call, 'r', "sv");
+                if (r < 0)
+                        return error_origin(r);
+
+                {
+                        r = sd_bus_message_append(method_call, "s", "ExecStart");
+                        if (r < 0)
+                                return error_origin(r);
+
+                        r = sd_bus_message_open_container(method_call, 'v', "a(sasb)");
+                        if (r < 0)
+                                return error_origin(r);
+
+                        {
+                                r = sd_bus_message_open_container(method_call, 'a', "(sasb)");
+                                if (r < 0)
+                                        return error_origin(r);
+
+                                {
+                                        r = sd_bus_message_open_container(method_call, 'r', "sasb");
+                                        if (r < 0)
+                                                return error_origin(r);
+
+                                        {
+                                                r = sd_bus_message_append(method_call, "s", exec[0]);
+                                                if (r < 0)
+                                                        return error_origin(r);
+
+                                                r = sd_bus_message_open_container(method_call, 'a', "s");
+                                                if (r < 0)
+                                                        return error_origin(r);
+
+                                                {
+                                                        for (size_t i = 0; i < n_exec; ++i) {
+                                                                r = sd_bus_message_append(method_call, "s", exec[i]);
+                                                                if (r < 0)
+                                                                        return error_origin(r);
+                                                        }
+                                                }
+
+                                                r = sd_bus_message_close_container(method_call);
+                                                if (r < 0)
+                                                        return error_origin(r);
+
+                                                r = sd_bus_message_append(method_call, "b", true);
+                                                if (r < 0)
+                                                        return error_origin(r);
+                                        }
+
+                                        r = sd_bus_message_close_container(method_call);
+                                        if (r < 0)
+                                                return error_origin(r);
+                                }
+
+                                r = sd_bus_message_close_container(method_call);
+                                if (r < 0)
+                                        return error_origin(r);
+                        }
+
+                        r = sd_bus_message_close_container(method_call);
+                        if (r < 0)
+                                return error_origin(r);
+                }
+
+                r = sd_bus_message_close_container(method_call);
+                if (r < 0)
+                        return error_origin(r);
+        }
 
         r = sd_bus_message_close_container(method_call);
         if (r < 0)
@@ -389,7 +466,7 @@ static int manager_on_name_activate(Manager *manager, sd_bus_message *m, const c
                 if (r)
                         return error_trace(r);
         } else {
-                r = manager_start_transient_unit(manager, service->name, service->exec);
+                r = manager_start_transient_unit(manager, service->name, service->exec, service->n_exec);
                 if (r)
                         return error_trace(r);
         }
@@ -477,7 +554,8 @@ static int manager_on_message(sd_bus_message *m, void *userdata, sd_bus_error *e
 }
 
 static int manager_load_service(Manager *manager, const char *path) {
-        gchar *name = NULL, *exec = NULL, *user = NULL, *unit = NULL;
+        gchar *name = NULL, *user = NULL, *unit = NULL, **exec = NULL;
+        gsize n_exec = 0;
         _c_cleanup_(service_freep) Service *service = NULL;
         _c_cleanup_(c_freep) char *object_path = NULL;
         GKeyFile *f;
@@ -504,12 +582,20 @@ static int manager_load_service(Manager *manager, const char *path) {
         }
 
         name = g_key_file_get_string(f, "D-BUS Service", "Name", NULL);
-        exec = g_key_file_get_string(f, "D-BUS Service", "Exec", NULL);
         user = g_key_file_get_string(f, "D-BUS Service", "User", NULL);
         unit = g_key_file_get_string(f, "D-BUS Service", "SystemdService", NULL);
 
+        g_key_file_set_list_separator(f, ' ');
+        exec = g_key_file_get_string_list(f, "D-BUS Service", "Exec", &n_exec, NULL);
+
         if (!name) {
                 fprintf(stderr, "Missing name in service file '%s'\n", path);
+                r = 0;
+                goto exit;
+        }
+
+        if (!unit && !exec) {
+                fprintf(stderr, "Missing exec or unit in service file '%s'\n", path);
                 r = 0;
                 goto exit;
         }
@@ -521,7 +607,7 @@ static int manager_load_service(Manager *manager, const char *path) {
          *      For now, using 'root' seems good enough.
          */
 
-        r = service_new(&service, manager, name, exec, unit);
+        r = service_new(&service, manager, name, unit, exec, n_exec);
         if (r) {
                 r = error_trace(r);
                 goto exit;
@@ -555,8 +641,8 @@ static int manager_load_service(Manager *manager, const char *path) {
 exit:
         g_free(unit);
         g_free(user);
-        g_free(exec);
         g_free(name);
+        g_strfreev(exec);
         g_key_file_free(f);
         return r;
 }
