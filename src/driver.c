@@ -1645,15 +1645,19 @@ void driver_matches_cleanup(MatchOwner *owner, Bus *bus, User *user) {
 }
 
 int driver_goodbye(Peer *peer, bool silent) {
-        ReplySlot *reply, *safe;
+        ReplySlot *reply, *safe_reply;
+        MatchRule *rule, *safe_rule;
         CRBNode *node;
         int r;
 
         if (!peer_is_registered(peer))
                 return 0;
 
-        c_list_for_each_entry_safe(reply, safe, &peer->owned_replies.reply_list, owner_link)
+        c_list_for_each_entry_safe(reply, safe_reply, &peer->owned_replies.reply_list, owner_link)
                 reply_slot_free(reply);
+
+        c_list_for_each_entry_safe(rule, safe_rule, &peer->matches.rule_list, registry_link)
+                match_rule_unlink(rule);
 
         while ((node = peer->owned_names.ownership_tree.root)) {
                 NameOwnership *ownership = c_container_of(node, NameOwnership, owner_node);
