@@ -336,6 +336,7 @@ static int message_parse_header(Message *message, MessageMetadata *metadata) {
  * message_parse_metadata() - XXX
  */
 int message_parse_metadata(Message *message, MessageMetadata *metadata) {
+        void *p;
         int r;
 
         assert(!message->parsed);
@@ -351,8 +352,13 @@ int message_parse_metadata(Message *message, MessageMetadata *metadata) {
                 return error_trace(r);
 
         /*
-         * XXX: Validate padding between header and body!
+         * Validate the padding between the header and body. Those must be 0!
+         * We usually wouldn't care but must be compatible to dbus-daemon(1),
+         * so lets verify them.
          */
+        for (p = (void *)message->header + message->n_header; p < message->body; ++p)
+                if (*(const uint8_t *)p)
+                        return MESSAGE_E_INVALID_HEADER;
 
         /*
          * XXX: Validate body!
