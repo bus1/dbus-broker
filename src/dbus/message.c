@@ -26,6 +26,7 @@ static int message_new(Message **messagep, bool big_endian, size_t n_extra) {
         message->n_refs = C_REF_INIT;
         message->big_endian = big_endian;
         message->allocated_data = false;
+        message->parsed = false;
         message->sender_id = UNIQUE_NAME_ID_INVALID;
         message->fds = NULL;
         message->n_data = 0;
