@@ -1745,91 +1745,6 @@ static int driver_dispatch_internal(Peer *peer, MessageMetadata *metadata, Match
         }
 }
 
-static int driver_verify_message_body(Message *message, const char *signature, MatchFilter *filter) {
-        _c_cleanup_(c_dvar_deinitp) CDVar var = C_DVAR_INIT;
-        size_t n_signature = strlen(signature);
-        CDVarType type[n_signature];
-        CDVarType *t = type;
-        size_t n_type = 0;
-        //size_t arg = 0;
-        int r;
-
-        while (n_signature) {
-                r = c_dvar_type_new_from_signature(&t, signature, n_signature);
-                if (r)
-                        return DRIVER_E_INVALID_MESSAGE;
-
-                n_signature -= t->length;
-                signature += t->length;
-                t += t->length;
-                ++n_type;
-        }
-
-        /* XXX: actually verify the message body and read out the strings for our filter
-        c_dvar_begin_read(&var, message->big_endian, type, n_type, message->body, message->n_body);
-
-        while (var.current->n_type) {
-                char c;
-                const char *str;
-
-                do {
-                        void *p = NULL;
-
-                        if (var.current->n_type) {
-                                c = var.current->i_type->element;
-                                if (c == 'a')
-                                        c = '[';
-                                else if (c == 'v')
-                                        c = '<';
-                        } else {
-                                switch (var.current->container) {
-                                case 'v':
-                                        c = '>';
-                                        break;
-                                case '(':
-                                        c = ')';
-                                        break;
-                                case '{':
-                                        c = '}';
-                                        break;
-                                default:
-                                        return error_origin(-ENOTRECOVERABLE);
-                                }
-                        }
-
-                        if ((var.current->container == 'a') &&
-                            (var.current->i_type == var.current->parent_types + 1) &&
-                            !var.current->n_buffer)
-                                c = ']';
-
-                        if (c == 's' || c == 'o')
-                                p = &str;
-                        else
-                                p = NULL;
-
-                        c_dvar_read(&var, (char [2]) {c, 0}, p);
-                } while (var.current != var.levels);
-
-                if (arg < 64) {
-                        if (c == 's') {
-                                filter->args[arg] = str;
-                                filter->argpaths[arg] = str;
-                        } else if (c == 'o') {
-                                filter->argpaths[arg] = str;
-                        }
-                }
-
-                ++arg;
-        }
-
-        r = driver_end_read(&var);
-        if (r)
-                return error_trace(r);
-        */
-
-        return 0;
-}
-
 int driver_dispatch(Peer *peer, Message *message) {
         MessageMetadata metadata;
         MatchFilter filter;
@@ -1850,17 +1765,20 @@ int driver_dispatch(Peer *peer, Message *message) {
 
         match_filter_init(&filter);
 
-        filter.type = metadata.header.type,
-        filter.destination = metadata.fields.destination ? (uint64_t)-2 : UNIQUE_NAME_ID_INVALID, /* get the real destination */
-        filter.interface = metadata.fields.interface,
+        filter.type = metadata.header.type;
+        filter.destination = metadata.fields.destination ? (uint64_t)-2 : UNIQUE_NAME_ID_INVALID; /* get the real destination */
+        filter.interface = metadata.fields.interface;
         filter.member = metadata.fields.member,
-        filter.path = metadata.fields.path,
+        filter.path = metadata.fields.path;
 
-        r = driver_verify_message_body(message, metadata.fields.signature, &filter);
-        if (r > 0)
-                return DRIVER_E_DISCONNECT;
-        else if (r < 0)
-                return error_fold(r);
+        for (size_t i = 0; i < 64; ++i) {
+                if (metadata.args[i].element == 's') {
+                        filter.args[i] = metadata.args[i].value;
+                        filter.argpaths[i] = metadata.args[i].value;
+                } else if (metadata.args[i].element == 'o') {
+                        filter.argpaths[i] = metadata.args[i].value;
+                }
+        }
 
         r = driver_dispatch_internal(peer, &metadata, &filter, message);
         switch (r) {
