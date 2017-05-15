@@ -22,8 +22,7 @@ void bus_init(Bus *bus,
               unsigned int max_matches) {
         void *random;
 
-        bus->listener_tree = (CRBTree){};
-
+        bus->listener_tree = (CRBTree)C_RBTREE_INIT;
         activation_registry_init(&bus->activations);
         match_registry_init(&bus->wildcard_matches);
         match_registry_init(&bus->driver_matches);
@@ -37,14 +36,13 @@ void bus_init(Bus *bus,
 }
 
 void bus_deinit(Bus *bus) {
-        assert(!bus->listener_tree.root);
-
         peer_registry_deinit(&bus->peers);
         user_registry_deinit(&bus->users);
         name_registry_deinit(&bus->names);
         match_registry_deinit(&bus->driver_matches);
         match_registry_deinit(&bus->wildcard_matches);
         activation_registry_deinit(&bus->activations);
+        assert(c_rbtree_is_empty(&bus->listener_tree));
 }
 
 /* XXX: use proper return codes */

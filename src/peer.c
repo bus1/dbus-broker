@@ -258,12 +258,12 @@ void peer_unregister(Peer *peer) {
 }
 
 void peer_registry_init(PeerRegistry *registry) {
-        registry->peer_tree = (CRBTree){};
+        c_rbtree_init(&registry->peer_tree);
         registry->ids = 0;
 }
 
 void peer_registry_deinit(PeerRegistry *registry) {
-        assert(!registry->peer_tree.root);
+        assert(c_rbtree_is_empty(&registry->peer_tree));
         registry->ids = 0;
 }
 

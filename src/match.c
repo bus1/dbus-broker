@@ -471,7 +471,7 @@ void match_owner_init(MatchOwner *owner) {
 }
 
 void match_owner_deinit(MatchOwner *owner) {
-        assert(!owner->rule_tree.root);
+        assert(c_rbtree_is_empty(&owner->rule_tree));
 }
 
 void match_filter_init(MatchFilter *filter) {

@@ -238,7 +238,7 @@ void name_registry_init(NameRegistry *registry) {
 }
 
 void name_registry_deinit(NameRegistry *registry) {
-        assert(!registry->name_tree.root);
+        assert(c_rbtree_is_empty(&registry->name_tree.root));
 }
 
 int name_registry_request_name(NameRegistry *registry, NameOwner *owner, const char *name_str, uint32_t flags, NameChange *change) {

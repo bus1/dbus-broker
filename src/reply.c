@@ -90,7 +90,7 @@ void reply_registry_init(ReplyRegistry *registry) {
 }
 
 void reply_registry_deinit(ReplyRegistry *registry) {
-        assert(!registry->reply_tree.root);
+        assert(c_rbtree_is_empty(&registry->reply_tree));
 }
 
 void reply_owner_init(ReplyOwner *owner) {

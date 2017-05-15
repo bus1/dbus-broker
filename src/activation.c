@@ -84,7 +84,7 @@ void activation_registry_init(ActivationRegistry *registry) {
 }
 
 void activation_registry_deinit(ActivationRegistry *registry) {
-        assert(!registry->activation_tree.root);
+        assert(c_rbtree_is_empty(&registry->activation_tree));
 }
 
 Activation *activation_registry_find(ActivationRegistry *registry, const char *path) {

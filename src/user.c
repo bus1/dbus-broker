@@ -172,7 +172,7 @@ static int user_new(User **userp,
 void user_free(_Atomic unsigned long *n_refs, void *userdata) {
         User *user = c_container_of(n_refs, User, n_refs);
 
-        assert(!user->usage_tree.root);
+        assert(c_rbtree_is_empty(&user->usage_tree));
         assert(user->n_usages == 0);
 
         assert(user->n_bytes == user->max_bytes);
@@ -314,7 +314,7 @@ void user_registry_init(UserRegistry *registry,
  * before the registry is deinitialized.
  */
 void user_registry_deinit(UserRegistry *registry) {
-        assert(!registry->user_tree.root);
+        assert(c_rbtree_is_empty(&registry->user_tree));
 
         *registry = (UserRegistry){};
 }
