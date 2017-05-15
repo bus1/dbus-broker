@@ -840,6 +840,8 @@ static int driver_method_list_queued_owners(Peer *peer, CDVar *in_v, CDVar *out_
 }
 
 static int driver_method_list_names(Peer *peer, CDVar *in_v, CDVar *out_v, NameChange *change) {
+        Peer *p;
+        Name *name;
         int r;
 
         c_dvar_read(in_v, "()");
@@ -850,17 +852,13 @@ static int driver_method_list_names(Peer *peer, CDVar *in_v, CDVar *out_v, NameC
 
         c_dvar_write(out_v, "([");
         c_dvar_write(out_v, "s", "org.freedesktop.DBus");
-        for (CRBNode *n = c_rbtree_first(&peer->bus->peers.peer_tree); n; n = c_rbnode_next(n)) {
-                Peer *p = c_container_of(n, Peer, registry_node);
-
+        c_rbtree_for_each_entry(p, &peer->bus->peers.peer_tree, registry_node) {
                 if (!peer_is_registered(p))
                         continue;
 
                 driver_dvar_write_unique_name(out_v, p);
         }
-        for (CRBNode *n = c_rbtree_first(&peer->bus->names.name_tree); n; n = c_rbnode_next(n)) {
-                Name *name = c_container_of(n, Name, registry_node);
-
+        c_rbtree_for_each_entry(name, &peer->bus->names.name_tree, registry_node) {
                 if (!name_is_owned(name))
                         continue;
 
@@ -872,6 +870,7 @@ static int driver_method_list_names(Peer *peer, CDVar *in_v, CDVar *out_v, NameC
 }
 
 static int driver_method_list_activatable_names(Peer *peer, CDVar *in_v, CDVar *out_v, NameChange *change) {
+        Name *name;
         int r;
 
         c_dvar_read(in_v, "()");
@@ -882,9 +881,7 @@ static int driver_method_list_activatable_names(Peer *peer, CDVar *in_v, CDVar *
 
         c_dvar_write(out_v, "([");
         c_dvar_write(out_v, "s", "org.freedesktop.DBus");
-        for (CRBNode *n = c_rbtree_first(&peer->bus->names.name_tree); n; n = c_rbnode_next(n)) {
-                Name *name = c_container_of(n, Name, registry_node);
-
+        c_rbtree_for_each_entry(name, &peer->bus->names.name_tree, registry_node) {
                 if (!name->activation)
                         continue;
 

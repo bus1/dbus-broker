@@ -47,6 +47,8 @@ int activation_queue_message(Activation *activation, Message *message);
 void activation_registry_init(ActivationRegistry *registry);
 void activation_registry_deinit(ActivationRegistry *registry);
 
+void activation_registry_flush(ActivationRegistry *registry);
+
 Activation *activation_registry_find(ActivationRegistry *registry, const char *path);
 
 C_DEFINE_CLEANUP(Activation *, activation_free);

@@ -90,3 +90,10 @@ void activation_registry_deinit(ActivationRegistry *registry) {
 Activation *activation_registry_find(ActivationRegistry *registry, const char *path) {
         return c_rbtree_find_entry(&registry->activation_tree, activation_compare, path, Activation, registry_node);
 }
+
+void activation_registry_flush(ActivationRegistry *registry) {
+        Activation *activation, *safe;
+
+        c_rbtree_for_each_entry_unlink(activation, safe, &registry->activation_tree, registry_node)
+                activation_free(activation);
+}

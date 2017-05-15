@@ -180,7 +180,7 @@ Manager *manager_free(Manager *manager) {
 
 int manager_run(Manager *manager) {
         sigset_t signew, sigold;
-        CRBNode *node;
+        Listener *listener, *safe;
         int r;
 
         sigemptyset(&signew);
@@ -204,16 +204,9 @@ int manager_run(Manager *manager) {
         } while (!r);
 
         peer_registry_flush(&manager->bus.peers);
-        while ((node = c_rbtree_first(&manager->bus.listener_tree))) {
-                Listener *listener = c_container_of(node, Listener, bus_node);
-
+        activation_registry_flush(&manager->bus.activations);
+        c_rbtree_for_each_entry_unlink(listener, safe, &manager->bus.listener_tree, bus_node)
                 listener_free(listener);
-        }
-        while ((node = c_rbtree_first(&manager->bus.activations.activation_tree))) {
-                Activation *activation = c_container_of(node, Activation, registry_node);
-
-                activation_free(activation);
-        }
 
         sigprocmask(SIG_SETMASK, &sigold, NULL);
 

@@ -268,12 +268,10 @@ void peer_registry_deinit(PeerRegistry *registry) {
 }
 
 void peer_registry_flush(PeerRegistry *registry) {
-        CRBNode *node;
+        Peer *peer, *safe;
         int r;
 
-        while ((node = registry->peer_tree.root)) {
-                Peer *peer = c_container_of(node, Peer, registry_node);
-
+        c_rbtree_for_each_entry_unlink(peer, safe, &registry->peer_tree, registry_node) {
                 driver_matches_cleanup(&peer->owned_matches, peer->bus, peer->user);
                 r = driver_goodbye(peer, true);
                 assert(!r); /* can not fail in silent mode */

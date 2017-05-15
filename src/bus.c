@@ -92,9 +92,9 @@ int bus_broadcast(Bus *bus, Peer *sender, MatchFilter *filter, Message *message)
                 return error_trace(r);
 
         if (sender) {
-                for (CRBNode *node = c_rbtree_first(&sender->owned_names.ownership_tree); node; node = c_rbnode_next(node)) {
-                        NameOwnership *ownership = c_container_of(node, NameOwnership, owner_node);
+                NameOwnership *ownership;
 
+                c_rbtree_for_each_entry(ownership, &sender->owned_names.ownership_tree, owner_node) {
                         if (!name_ownership_is_primary(ownership))
                                 continue;
 
