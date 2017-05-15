@@ -1194,22 +1194,21 @@ static int driver_add_match(Peer *peer, const char *rule_string, bool force_eave
                 Peer *sender;
                 uint64_t id;
 
-                /*
-                 * XXX: we refuse matches on unique sender names that do not exist,
-                 *      this we may need to reconsider due to backwards compatibility.
-                 */
-
                 r = unique_name_to_id(rule->keys.sender, &id);
-                if (r > 0)
-                        return DRIVER_E_MATCH_INVALID;
-                else
-                        return error_fold(r);
+                if (r) {
+                        if (r < 0)
+                                return error_fold(r);
+                        /* got a valid unique name that is not in our namespace */
+                } else {
+                        sender = peer_registry_find_peer(&peer->bus->peers, id);
+                        if (sender)
+                                match_rule_link(rule, &sender->matches);
+                        else if (id >= peer->bus->peers.ids)
+                                /* XXX: for backwards compatibility we need to hook this up too */
+                                return DRIVER_E_MATCH_INVALID;
 
-                sender = peer_registry_find_peer(&peer->bus->peers, id);
-                if (!sender)
-                        return DRIVER_E_MATCH_INVALID;
-
-                match_rule_link(rule, &sender->matches);
+                        /* the peer has already disconnected and will never reappear */
+                }
         } else if (strcmp(rule->keys.sender, "org.freedesktop.DBus") == 0) {
                 match_rule_link(rule, &peer->bus->driver_matches);
         } else {
