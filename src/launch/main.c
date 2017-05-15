@@ -112,12 +112,12 @@ static int service_new(Service **servicep, Manager *manager, const char *name, c
 }
 
 static Manager *manager_free(Manager *manager) {
-        Service *service;
+        Service *service, *safe;
 
         if (!manager)
                 return NULL;
 
-        while ((service = c_container_of(manager->services.root, Service, rb)))
+        c_rbtree_for_each_entry_unlink(service, safe, &manager->services, rb)
                 service_free(service);
 
         c_close(manager->fd_listen);
