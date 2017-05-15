@@ -69,7 +69,7 @@ ReplySlot *reply_slot_free(ReplySlot *slot) {
                 return NULL;
 
         c_list_unlink(&slot->owner_link);
-        c_rbtree_remove(&slot->registry->reply_tree, &slot->registry_node);
+        c_rbtree_remove_init(&slot->registry->reply_tree, &slot->registry_node);
 
         free(slot);
 
