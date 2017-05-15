@@ -1642,22 +1642,21 @@ void driver_matches_cleanup(MatchOwner *owner, Bus *bus, User *user) {
 }
 
 int driver_goodbye(Peer *peer, bool silent) {
-        ReplySlot *reply, *safe_reply;
-        MatchRule *rule, *safe_rule;
-        CRBNode *node;
+        ReplySlot *reply, *reply_safe;
+        MatchRule *rule, *rule_safe;
+        NameOwnership *ownership, *ownership_safe;
         int r;
 
         if (!peer_is_registered(peer))
                 return 0;
 
-        c_list_for_each_entry_safe(reply, safe_reply, &peer->owned_replies.reply_list, owner_link)
+        c_list_for_each_entry_safe(reply, reply_safe, &peer->owned_replies.reply_list, owner_link)
                 reply_slot_free(reply);
 
-        c_list_for_each_entry_safe(rule, safe_rule, &peer->matches.rule_list, registry_link)
+        c_list_for_each_entry_safe(rule, rule_safe, &peer->matches.rule_list, registry_link)
                 match_rule_unlink(rule);
 
-        while ((node = peer->owned_names.ownership_tree.root)) {
-                NameOwnership *ownership = c_container_of(node, NameOwnership, owner_node);
+        c_rbtree_for_each_entry_unlink(ownership, ownership_safe, &peer->owned_names.ownership_tree, owner_node) {
                 NameChange change;
                 int r = 0;
 
@@ -1680,17 +1679,16 @@ int driver_goodbye(Peer *peer, bool silent) {
         }
         peer_unregister(peer);
 
-        while ((node = peer->replies_outgoing.reply_tree.root)) {
-                ReplySlot *slot = c_container_of(node, ReplySlot, registry_node);
-                Peer *sender = c_container_of(slot->owner, Peer, owned_replies);
+        c_list_for_each_entry_safe(reply, reply_safe, &peer->owned_replies.reply_list, owner_link) {
+                Peer *sender = c_container_of(reply->owner, Peer, owned_replies);
 
                 if (!silent) {
-                        r = driver_send_error(sender, slot->serial, "org.freedesktop.DBus.Error.NoReply", "Pending reply cancelled");
+                        r = driver_send_error(sender, reply->serial, "org.freedesktop.DBus.Error.NoReply", "Pending reply cancelled");
                         if (r)
                                 return error_trace(r);
                 }
 
-                reply_slot_free(slot);
+                reply_slot_free(reply);
         }
 
         return 0;
