@@ -52,10 +52,13 @@ int activation_new(Activation **activationp, ActivationRegistry *registry, const
  * activation_free() - XXX
  */
 Activation *activation_free(Activation *activation) {
+        SocketBuffer *skb;
+
         if (!activation)
                 return NULL;
 
-        assert(c_list_is_empty(&activation->socket_buffers));
+        while ((skb = c_list_first_entry(&activation->socket_buffers, SocketBuffer, link)))
+                socket_buffer_free(skb);
 
         activation->user = user_unref(activation->user);
         activation->name->activation = NULL;
