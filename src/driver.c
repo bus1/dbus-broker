@@ -1683,7 +1683,7 @@ int driver_goodbye(Peer *peer, bool silent) {
                 Peer *sender = c_container_of(reply->owner, Peer, owned_replies);
 
                 if (!silent) {
-                        r = driver_send_error(sender, reply->serial, "org.freedesktop.DBus.Error.NoReply", "Pending reply cancelled");
+                        r = driver_send_error(sender, reply->serial, "org.freedesktop.DBus.Error.NoReply", "Remote peer disconnected");
                         if (r)
                                 return error_trace(r);
                 }
