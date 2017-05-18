@@ -74,9 +74,6 @@ static bool match_rule_keys_match_filter(MatchRuleKeys *keys, MatchFilter *filte
         if (keys->filter.type && keys->filter.type != filter->type)
                 return false;
 
-        if (!keys->eavesdrop && filter->destination != UNIQUE_NAME_ID_INVALID)
-                return false;
-
         if (keys->filter.destination != UNIQUE_NAME_ID_INVALID && keys->filter.destination != filter->destination)
                 return false;
 
@@ -400,8 +397,9 @@ void match_rule_link(MatchRule *rule, MatchRegistry *registry) {
 
         rule->registry = registry;
         if (rule->keys.eavesdrop)
-                ++registry->n_eavesdrop;
-        c_list_link_tail(&registry->rule_list, &rule->registry_link);
+                c_list_link_tail(&registry->eavesdrop_list, &rule->registry_link);
+        else
+                c_list_link_tail(&registry->rule_list, &rule->registry_link);
 }
 
 void match_rule_unlink(MatchRule *rule) {
@@ -409,8 +407,6 @@ void match_rule_unlink(MatchRule *rule) {
                 return;
 
         c_list_unlink_init(&rule->registry_link);
-        if (rule->keys.eavesdrop)
-                --rule->registry->n_eavesdrop;
         rule->registry = NULL;
 }
 
@@ -432,27 +428,36 @@ int match_rule_get(MatchRule **rulep, MatchOwner *owner, const char *rule_string
         return 0;
 }
 
-MatchRule *match_rule_next(MatchRegistry *registry, MatchRule *rule, MatchFilter *filter) {
-        CList *link;
-
-        if (filter->destination != UNIQUE_NAME_ID_INVALID &&
-            !registry->n_eavesdrop)
-                /* only eavesdroppers can receive broadcasts with a destination */
-                return NULL;
-
-        if (!rule)
-                link = c_list_loop_first(&registry->rule_list);
-        else
-                link = c_list_loop_next(&rule->registry_link);
-
-        while (link != &registry->rule_list) {
-                rule = c_list_entry(link, MatchRule, registry_link);
-
-                if (match_rule_keys_match_filter(&rule->keys, filter))
+static MatchRule *match_rule_next(MatchRegistry *registry, MatchRule *rule, bool unicast) {
+        if (!rule) {
+                rule = c_list_first_entry(&registry->eavesdrop_list, MatchRule, registry_link);
+                if (rule)
                         return rule;
 
-                link = c_list_loop_next(link);
+                if (unicast)
+                        return NULL;
+
+                return c_list_first_entry(&registry->rule_list, MatchRule, registry_link);
+        } else if (rule->keys.eavesdrop) {
+                if (rule != c_list_last_entry(&registry->eavesdrop_list, MatchRule, registry_link))
+                        return c_list_entry(rule->registry_link.next, MatchRule, registry_link);
+                if (unicast)
+                        return NULL;
+                return c_list_first_entry(&registry->rule_list, MatchRule, registry_link);
+        } else {
+                if (rule != c_list_last_entry(&registry->rule_list, MatchRule, registry_link))
+                        return c_list_entry(&registry->rule_list.next, MatchRule, registry_link);
         }
+
+        return NULL;
+}
+
+MatchRule *match_rule_next_match(MatchRegistry *registry, MatchRule *rule, MatchFilter *filter) {
+        bool unicast = filter->destination != UNIQUE_NAME_ID_INVALID;
+
+        for (rule = match_rule_next(registry, rule, unicast); rule; rule = match_rule_next(registry, rule, unicast))
+                if (match_rule_keys_match_filter(&rule->keys, filter))
+                        return rule;
 
         return NULL;
 }
@@ -463,7 +468,7 @@ void match_registry_init(MatchRegistry *registry) {
 
 void match_registry_deinit(MatchRegistry *registry) {
         assert(c_list_is_empty(&registry->rule_list));
-        assert(!registry->n_eavesdrop);
+        assert(c_list_is_empty(&registry->eavesdrop_list));
 }
 
 void match_owner_init(MatchOwner *owner) {

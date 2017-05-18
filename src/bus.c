@@ -66,7 +66,7 @@ static int bus_broadcast_to_matches(MatchRegistry *matches, MatchFilter *filter,
         MatchRule *rule;
         int r;
 
-        for (rule = match_rule_next(matches, NULL, filter); rule; rule = match_rule_next(matches, rule, filter)) {
+        for (rule = match_rule_next_match(matches, NULL, filter); rule; rule = match_rule_next_match(matches, rule, filter)) {
                 Peer *peer = c_container_of(rule->owner, Peer, owned_matches);
 
                 /* exclude the destination from broadcasts */

@@ -142,7 +142,7 @@ static bool test_match(const char *match_string, MatchFilter *filter) {
 
         match_rule_link(rule, &registry);
 
-        rule1 = match_rule_next(&registry, NULL, filter);
+        rule1 = match_rule_next_match(&registry, NULL, filter);
         assert(!rule1 || rule1 == rule);
 
         match_rule_free(rule);

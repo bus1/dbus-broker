@@ -57,7 +57,7 @@ struct MatchRule {
 
 struct MatchRegistry {
         CList rule_list;
-        size_t n_eavesdrop;
+        CList eavesdrop_list;
 };
 
 struct MatchOwner {
@@ -73,11 +73,11 @@ void match_rule_link(MatchRule *rule, MatchRegistry *registry);
 void match_rule_unlink(MatchRule *rule);
 int match_rule_get(MatchRule **rulep, MatchOwner *owner, const char *rule_string);
 
-MatchRule *match_rule_next(MatchRegistry *registry, MatchRule *rule, MatchFilter *filter);
+MatchRule *match_rule_next_match(MatchRegistry *registry, MatchRule *rule, MatchFilter *filter);
 
-#define MATCH_REGISTRY_INIT(_x) {                                       \
-                .rule_list = (CList)C_LIST_INIT((_x).rule_list),        \
-                .n_eavesdrop = 0,                                       \
+#define MATCH_REGISTRY_INIT(_x) {                                               \
+                .rule_list = (CList)C_LIST_INIT((_x).rule_list),                \
+                .eavesdrop_list = (CList)C_LIST_INIT((_x).eavesdrop_list),      \
         }
 
 void match_registry_init(MatchRegistry *registry);
