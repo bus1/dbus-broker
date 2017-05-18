@@ -71,10 +71,13 @@ static bool match_string_prefix(const char *string, const char *prefix, char del
 }
 
 static bool match_rule_keys_match_filter(MatchRuleKeys *keys, MatchFilter *filter) {
-        if (keys->filter.type && keys->filter.type != filter->type)
+        if (keys->filter.type != DBUS_MESSAGE_TYPE_INVALID && keys->filter.type != filter->type)
                 return false;
 
         if (keys->filter.destination != UNIQUE_NAME_ID_INVALID && keys->filter.destination != filter->destination)
+                return false;
+
+        if (keys->filter.sender != UNIQUE_NAME_ID_INVALID && keys->filter.sender != filter->sender)
                 return false;
 
         if (keys->filter.interface && !c_string_equal(keys->filter.interface, filter->interface))
@@ -279,6 +282,7 @@ int match_rule_keys_parse(MatchRuleKeys *keys, char *buffer, size_t n_buffer, co
 
         keys->filter.type = DBUS_MESSAGE_TYPE_INVALID;
         keys->filter.destination = UNIQUE_NAME_ID_INVALID;
+        keys->filter.sender = UNIQUE_NAME_ID_INVALID;
 
         while (i < n_buffer) {
                 const char *key, *value;

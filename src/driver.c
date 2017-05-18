@@ -1198,11 +1198,14 @@ static int driver_add_match(Peer *peer, const char *rule_string, bool force_eave
                         /* got a valid unique name that is not in our namespace */
                 } else {
                         sender = peer_registry_find_peer(&peer->bus->peers, id);
-                        if (sender)
+                        if (sender) {
                                 match_rule_link(rule, &sender->matches);
-                        else if (id >= peer->bus->peers.ids)
-                                /* XXX: for backwards compatibility we need to hook this up too */
-                                return DRIVER_E_MATCH_INVALID;
+                        } else if (id >= peer->bus->peers.ids) {
+                                /* this peer does not yet exist, but it could appear, keep it
+                                 * with the wildcards. */
+                                rule->keys.filter.sender = id;
+                                match_rule_link(rule, &peer->bus->wildcard_matches);
+                        }
 
                         /* the peer has already disconnected and will never reappear */
                 }
@@ -1767,6 +1770,7 @@ int driver_dispatch(Peer *peer, Message *message) {
 
         filter.type = metadata.header.type;
         filter.destination = metadata.fields.destination ? (uint64_t)-2 : UNIQUE_NAME_ID_INVALID; /* get the real destination */
+        filter.sender = peer->id;
         filter.interface = metadata.fields.interface;
         filter.member = metadata.fields.member,
         filter.path = metadata.fields.path;
