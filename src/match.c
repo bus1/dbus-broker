@@ -445,12 +445,14 @@ static MatchRule *match_rule_next(MatchRegistry *registry, MatchRule *rule, bool
         } else if (rule->keys.eavesdrop) {
                 if (rule != c_list_last_entry(&registry->eavesdrop_list, MatchRule, registry_link))
                         return c_list_entry(rule->registry_link.next, MatchRule, registry_link);
+
                 if (unicast)
                         return NULL;
+
                 return c_list_first_entry(&registry->rule_list, MatchRule, registry_link);
         } else {
                 if (rule != c_list_last_entry(&registry->rule_list, MatchRule, registry_link))
-                        return c_list_entry(&registry->rule_list.next, MatchRule, registry_link);
+                        return c_list_entry(rule->registry_link.next, MatchRule, registry_link);
         }
 
         return NULL;

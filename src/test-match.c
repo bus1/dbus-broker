@@ -258,6 +258,63 @@ static void test_individual_matches(void) {
         assert(!test_match("arg0namespace=com.example", &filter));
 }
 
+void test_iterator(void) {
+        MatchRegistry registry;
+        MatchOwner owner1, owner2;
+        MatchFilter filter;
+        MatchRule *rule, *rule1, *rule2, *rule3, *rule4;
+        int r;
+
+        match_registry_init(&registry);
+        match_owner_init(&owner1);
+        match_owner_init(&owner2);
+        match_filter_init(&filter);
+
+        r = match_rule_new(&rule1, &owner1, "eavesdrop=true");
+        assert(!r);
+
+        match_rule_link(rule1, &registry);
+
+        r = match_rule_new(&rule2, &owner1, "");
+        assert(!r);
+
+        match_rule_link(rule2, &registry);
+
+        r = match_rule_new(&rule3, &owner2, "eavesdrop=true");
+        assert(!r);
+
+        match_rule_link(rule3, &registry);
+
+        r = match_rule_new(&rule4, &owner2, "");
+        assert(!r);
+
+        match_rule_link(rule4, &registry);
+
+        rule = match_rule_next_match(&registry, NULL, &filter);
+        assert(rule == rule1);
+
+        rule = match_rule_next_match(&registry, rule, &filter);
+        assert(rule == rule3);
+
+        rule = match_rule_next_match(&registry, rule, &filter);
+        assert(rule == rule2);
+
+        rule = match_rule_next_match(&registry, rule, &filter);
+        assert(rule == rule4);
+
+        rule = match_rule_next_match(&registry, rule, &filter);
+        assert(!rule);
+
+        match_rule_free(rule4);
+        match_rule_free(rule3);
+        match_rule_free(rule2);
+        match_rule_free(rule1);
+        match_owner_deinit(&owner2);
+        match_owner_deinit(&owner1);
+        match_registry_deinit(&registry);
+
+}
+
 int main(int argc, char **argv) {
         MatchOwner owner = {};
 
@@ -268,6 +325,8 @@ int main(int argc, char **argv) {
         test_validate_keys(&owner);
 
         test_individual_matches();
+
+        test_iterator();
 
         match_owner_deinit(&owner);
         return 0;
