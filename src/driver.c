@@ -921,14 +921,12 @@ static int driver_method_start_service_by_name(Peer *peer, CDVar *in_v, CDVar *o
         uint32_t flags, reply;
         int r;
 
+        /* flags are silently ignored */
         c_dvar_read(in_v, "(su)", &service, &flags);
 
         r = driver_end_read(in_v);
         if (r)
                 return error_trace(r);
-
-        if (flags)
-                return DRIVER_E_UNEXPECTED_FLAGS; /* XXX: should we ignore this silently? */
 
         name = name_registry_find_name(&peer->bus->names, service);
         if (!name)
