@@ -435,8 +435,12 @@ int peer_queue_reply(Peer *sender, const char *destination, uint32_t reply_seria
         int r;
 
         r = unique_name_to_id(destination, &id);
-        if (r)
+        if (r) {
+                if (r > 0)
+                        return PEER_E_UNEXPECTED_REPLY;
+
                 return error_fold(r);
+        }
 
         slot = reply_slot_get_by_id(&sender->replies_outgoing, id, reply_serial);
         if (!slot)
