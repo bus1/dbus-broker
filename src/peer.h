@@ -25,6 +25,13 @@ enum {
         _PEER_E_SUCCESS,
 
         PEER_E_QUOTA,
+
+        PEER_E_NAME_RESERVED,
+        PEER_E_NAME_ALREADY_OWNER,
+        PEER_E_NAME_IN_QUEUE,
+        PEER_E_NAME_EXISTS,
+        PEER_E_NAME_NOT_FOUND,
+        PEER_E_NAME_NOT_OWNER,
 };
 
 struct Peer {
@@ -62,6 +69,9 @@ int peer_spawn(Peer *peer);
 
 void peer_register(Peer *peer);
 void peer_unregister(Peer *peer);
+
+int peer_request_name(Peer *peer, const char *name, uint32_t flags, NameChange *change);
+int peer_release_name(Peer *peer, const char *name, NameChange *change);
 
 void peer_registry_init(PeerRegistry *registry);
 void peer_registry_deinit(PeerRegistry *registry);

@@ -257,6 +257,56 @@ void peer_unregister(Peer *peer) {
         peer->registered = false;
 }
 
+int peer_request_name(Peer *peer, const char *name, uint32_t flags, NameChange *change) {
+        int r;
+
+        if (peer->user->n_names == 0)
+                return PEER_E_QUOTA;
+
+        if (!strcmp(name, "org.freedesktop.DBus"))
+                return PEER_E_NAME_RESERVED;
+
+        r = name_registry_request_name(&peer->bus->names, &peer->owned_names, name, flags, change);
+        switch (r) {
+        case 0:
+                return PEER_E_NAME_ALREADY_OWNER;
+        case NAME_E_OWNER_NEW:
+                --peer->user->n_names;
+                /* fall-through */
+        case NAME_E_OWNER_UPDATED:
+                return 0;
+        case NAME_E_IN_QUEUE_NEW:
+                --peer->user->n_names;
+                /* fall-through */
+        case NAME_E_IN_QUEUE_UPDATED:
+                return PEER_E_NAME_IN_QUEUE;
+        case NAME_E_EXISTS:
+                return PEER_E_NAME_EXISTS;
+        }
+
+        return error_fold(r);
+}
+
+int peer_release_name(Peer *peer, const char *name, NameChange *change) {
+        int r;
+
+        if (!strcmp(name, "org.freedesktop.DBus"))
+                return PEER_E_NAME_RESERVED;
+
+        r = name_registry_release_name(&peer->bus->names, &peer->owned_names, name, change);
+        if (!r) {
+                ++peer->user->n_names;
+                return 0;
+        } else if (r == NAME_E_NOT_FOUND) {
+                return PEER_E_NAME_NOT_FOUND;
+        } else if (r == NAME_E_NOT_OWNER) {
+                return PEER_E_NAME_NOT_OWNER;
+        } else {
+                return error_fold(r);
+        }
+
+}
+
 void peer_registry_init(PeerRegistry *registry) {
         c_rbtree_init(&registry->peer_tree);
         registry->ids = 0;
