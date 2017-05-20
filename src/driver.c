@@ -298,26 +298,6 @@ int activation_send_signal(Connection *controller, const char *path) {
         return 0;
 }
 
-static int driver_queue_message_on_peer(Peer *receiver, Peer *sender, Message *message) {
-        _c_cleanup_(reply_slot_freep) ReplySlot *slot = NULL;
-        int r;
-
-        if ((message->header->type == DBUS_MESSAGE_TYPE_METHOD_CALL) &&
-            !(message->header->flags & DBUS_HEADER_FLAG_NO_REPLY_EXPECTED)) {
-                r = reply_slot_new(&slot, &receiver->replies_outgoing, &sender->owned_replies, sender->id, message_read_serial(message));
-                if (r == REPLY_E_EXISTS)
-                        return DRIVER_E_EXPECTED_REPLY_EXISTS;
-                else if (r)
-                        return error_fold(r);
-        }
-
-        r = connection_queue_message(&receiver->connection, 0, message);
-        if (r)
-                return error_fold(r);
-
-        slot = NULL;
-        return 0;
-}
 const char *driver_error_to_string(int r) {
         static const char *error_strings[_DRIVER_E_MAX] = {
                 [DRIVER_E_INVALID_MESSAGE]                      = "Invalid message body",
@@ -456,30 +436,13 @@ static int driver_forward_unicast(Peer *sender, const char *destination, Message
                         return DRIVER_E_DESTINATION_NOT_FOUND;
         }
 
-        return error_trace(driver_queue_message_on_peer(receiver, sender, message));
-}
+        r = peer_queue_call(receiver, sender, message);
+        if (r) {
+                if (r == PEER_E_EXPECTED_REPLY_EXISTS)
+                        return DRIVER_E_EXPECTED_REPLY_EXISTS;
 
-static int driver_forward_reply(Peer *sender, const char *destination, uint32_t reply_serial, Message *message) {
-        ReplySlot *slot;
-        Peer *receiver;
-        uint64_t id;
-        int r;
-
-        r = unique_name_to_id(destination, &id);
-        if (r)
                 return error_fold(r);
-
-        slot = reply_slot_get_by_id(&sender->replies_outgoing, id, reply_serial);
-        if (!slot)
-                return DRIVER_E_UNEXPECTED_REPLY;
-
-        receiver = c_container_of(slot->owner, Peer, owned_replies);
-
-        r = connection_queue_message(&receiver->connection, 0, message);
-        if (r)
-                return error_fold(r);
-
-        reply_slot_free(slot);
+        }
 
         return 0;
 }
@@ -693,9 +656,9 @@ static int driver_name_activated(Activation *activation, Peer *receiver) {
 
                 sender = peer_registry_find_peer(&receiver->bus->peers, message->sender_id);
 
-                r = driver_queue_message_on_peer(receiver, sender, message);
+                r = peer_queue_call(receiver, sender, message);
                 if (r) {
-                        if (r == DRIVER_E_EXPECTED_REPLY_EXISTS)
+                        if (r == PEER_E_EXPECTED_REPLY_EXISTS)
                                 r = driver_send_error(sender, message_read_serial(message), "org.freedesktop.DBus.Error.AccessDenied", driver_error_to_string(r));
 
                         return error_fold(r);
@@ -1153,67 +1116,6 @@ static int driver_method_get_connection_selinux_security_context(Peer *peer, CDV
         return 0;
 }
 
-static int driver_add_match(Peer *peer, const char *rule_string, bool force_eavesdrop) {
-        _c_cleanup_(match_rule_user_unrefp) MatchRule *rule = NULL;
-        int r;
-
-        if (peer->user->n_matches == 0)
-                return DRIVER_E_QUOTA;
-
-        r = match_rule_new(&rule, &peer->owned_matches, rule_string);
-        if (r) {
-                if (r == MATCH_E_INVALID)
-                        return DRIVER_E_MATCH_INVALID;
-                else
-                        return error_fold(r);
-        }
-
-        if (force_eavesdrop)
-                rule->keys.eavesdrop = true;
-
-        if (!rule->keys.sender) {
-                match_rule_link(rule, &peer->bus->wildcard_matches);
-        } else if (*rule->keys.sender == ':') {
-                Peer *sender;
-                uint64_t id;
-
-                r = unique_name_to_id(rule->keys.sender, &id);
-                if (r) {
-                        if (r < 0)
-                                return error_fold(r);
-                        /* got a valid unique name that is not in our namespace */
-                } else {
-                        sender = peer_registry_find_peer(&peer->bus->peers, id);
-                        if (sender) {
-                                match_rule_link(rule, &sender->matches);
-                        } else if (id >= peer->bus->peers.ids) {
-                                /* this peer does not yet exist, but it could appear, keep it
-                                 * with the wildcards. */
-                                rule->keys.filter.sender = id;
-                                match_rule_link(rule, &peer->bus->wildcard_matches);
-                        }
-
-                        /* the peer has already disconnected and will never reappear */
-                }
-        } else if (strcmp(rule->keys.sender, "org.freedesktop.DBus") == 0) {
-                match_rule_link(rule, &peer->bus->driver_matches);
-        } else {
-                _c_cleanup_(name_unrefp) Name *name = NULL;
-
-                r = name_get(&name, &peer->bus->names, rule->keys.sender);
-                if (r)
-                        return error_fold(r);
-
-                match_rule_link(rule, &name->matches);
-                name_ref(name); /* this reference must be explicitly released */
-        }
-
-        --peer->user->n_matches;
-        rule = NULL;
-
-        return 0;
-}
-
 static int driver_method_add_match(Peer *peer, CDVar *in_v, CDVar *out_v, NameChange *change) {
         const char *rule_string;
         int r;
@@ -1224,7 +1126,7 @@ static int driver_method_add_match(Peer *peer, CDVar *in_v, CDVar *out_v, NameCh
         if (r)
                 return error_trace(r);
 
-        r = driver_add_match(peer, rule_string, false);
+        r = peer_add_match(peer, rule_string, false);
         if (r)
                 return error_trace(r);
 
@@ -1234,8 +1136,6 @@ static int driver_method_add_match(Peer *peer, CDVar *in_v, CDVar *out_v, NameCh
 }
 
 static int driver_method_remove_match(Peer *peer, CDVar *in_v, CDVar *out_v, NameChange *change) {
-        _c_cleanup_(name_unrefp) Name *name = NULL;
-        MatchRule *rule;
         const char *rule_string;
         int r;
 
@@ -1245,21 +1145,15 @@ static int driver_method_remove_match(Peer *peer, CDVar *in_v, CDVar *out_v, Nam
         if (r)
                 return error_trace(r);
 
-        r = match_rule_get(&rule, &peer->owned_matches, rule_string);
+        r = peer_remove_match(peer, rule_string);
         if (r) {
-                if (r == MATCH_E_NOT_FOUND)
+                if (r == PEER_E_MATCH_NOT_FOUND)
                         return DRIVER_E_MATCH_NOT_FOUND;
-                else if (r == MATCH_E_INVALID)
+                else if (r == PEER_E_MATCH_INVALID)
                         return DRIVER_E_MATCH_INVALID;
                 else
                         return error_fold(r);
         }
-
-        if (rule->keys.sender && *rule->keys.sender != ':' && strcmp(rule->keys.sender, "org.freedesktop.DBus") != 0)
-                name = c_container_of(rule->registry, Name, matches);
-
-        match_rule_user_unref(rule);
-        ++peer->user->n_matches;
 
         c_dvar_write(out_v, "()");
 
@@ -1408,7 +1302,7 @@ static int driver_method_become_monitor(Peer *peer, CDVar *in_v, CDVar *out_v, N
         c_dvar_read(in_v, "([");
         if (!c_dvar_more(in_v)) {
                 /* if no matches are passed, install a wildcard */
-                r = driver_add_match(peer, "", true);
+                r = peer_add_match(peer, "", true);
                 if (r)
                         poison = error_trace(r);
         } else {
@@ -1417,7 +1311,7 @@ static int driver_method_become_monitor(Peer *peer, CDVar *in_v, CDVar *out_v, N
 
                         c_dvar_read(in_v, "s", &match_string);
 
-                        r = driver_add_match(peer, match_string, true);
+                        r = peer_add_match(peer, match_string, true);
                         if (r)
                                 poison = error_trace(r);
                 }
@@ -1442,7 +1336,7 @@ static int driver_method_become_monitor(Peer *peer, CDVar *in_v, CDVar *out_v, N
         }
 
         /* only fatal errors from here on */
-        driver_matches_cleanup(&owned_matches, peer->bus, peer->user);
+        peer_flush_matches(peer);
 
         /* write the output message */
         c_dvar_write(out_v, "()");
@@ -1451,7 +1345,7 @@ static int driver_method_become_monitor(Peer *peer, CDVar *in_v, CDVar *out_v, N
 
 error:
         /* restore the old matches */
-        driver_matches_cleanup(&peer->owned_matches, peer->bus, peer->user);
+        peer_flush_matches(peer);
         peer->owned_matches = owned_matches;
         return r;
 }
@@ -1615,21 +1509,6 @@ static int driver_dispatch_interface(Peer *peer, uint32_t serial, const char *in
         return driver_dispatch_method(peer, serial, member, path, signature, message);
 }
 
-void driver_matches_cleanup(MatchOwner *owner, Bus *bus, User *user) {
-        CRBNode *node;
-
-        while ((node = owner->rule_tree.root)) {
-                _c_cleanup_(name_unrefp) Name *name = NULL;
-                MatchRule *rule = c_container_of(node, MatchRule, owner_node);
-
-                if (rule->keys.sender && *rule->keys.sender != ':' && strcmp(rule->keys.sender, "org.freedesktop.DBus") != 0)
-                        name = c_container_of(rule->registry, Name, matches);
-
-                match_rule_user_unref(rule);
-                ++user->n_matches;
-        }
-}
-
 int driver_goodbye(Peer *peer, bool silent) {
         ReplySlot *reply, *reply_safe;
         MatchRule *rule, *rule_safe;
@@ -1725,10 +1604,13 @@ static int driver_dispatch_internal(Peer *peer, MessageMetadata *metadata, Match
                                                           message));
         case DBUS_MESSAGE_TYPE_METHOD_RETURN:
         case DBUS_MESSAGE_TYPE_ERROR:
-                return error_trace(driver_forward_reply(peer,
-                                                        metadata->fields.destination,
-                                                        metadata->fields.reply_serial,
-                                                        message));
+                r = peer_queue_reply(peer, metadata->fields.destination, metadata->fields.reply_serial, message);
+                if (r) {
+                        if (r == PEER_E_UNEXPECTED_REPLY)
+                                return DRIVER_E_UNEXPECTED_REPLY;
+
+                        return error_fold(r);
+                }
         default:
                 return DRIVER_E_UNEXPECTED_MESSAGE_TYPE;
         }

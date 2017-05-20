@@ -32,6 +32,12 @@ enum {
         PEER_E_NAME_EXISTS,
         PEER_E_NAME_NOT_FOUND,
         PEER_E_NAME_NOT_OWNER,
+
+        PEER_E_MATCH_INVALID,
+        PEER_E_MATCH_NOT_FOUND,
+
+        PEER_E_EXPECTED_REPLY_EXISTS,
+        PEER_E_UNEXPECTED_REPLY,
 };
 
 struct Peer {
@@ -72,6 +78,13 @@ void peer_unregister(Peer *peer);
 
 int peer_request_name(Peer *peer, const char *name, uint32_t flags, NameChange *change);
 int peer_release_name(Peer *peer, const char *name, NameChange *change);
+
+int peer_add_match(Peer *peer, const char *rule_string, bool force_eavesdrop);
+int peer_remove_match(Peer *peer, const char *rule_string);
+void peer_flush_matches(Peer *peer);
+
+int peer_queue_call(Peer *destination, Peer *sender, Message *message);
+int peer_queue_reply(Peer *sender, const char *destination, uint32_t reply_serial, Message *message);
 
 void peer_registry_init(PeerRegistry *registry);
 void peer_registry_deinit(PeerRegistry *registry);

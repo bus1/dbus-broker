@@ -45,14 +45,14 @@ int peer_dispatch(DispatchFile *file, uint32_t mask) {
 
                 r = connection_dequeue(&peer->connection, &m);
                 if (r == CONNECTION_E_EOF) {
-                        driver_matches_cleanup(&peer->owned_matches, peer->bus, peer->user);
+                        peer_flush_matches(peer);
                         r = driver_goodbye(peer, false);
                         if (r)
                                 return error_fold(r);
                         connection_shutdown(&peer->connection);
                         break;
                 } else if (r == CONNECTION_E_RESET) {
-                        driver_matches_cleanup(&peer->owned_matches, peer->bus, peer->user);
+                        peer_flush_matches(peer);
                         r = driver_goodbye(peer, false);
                         if (r)
                                 return error_fold(r);
@@ -68,7 +68,7 @@ int peer_dispatch(DispatchFile *file, uint32_t mask) {
                 r = driver_dispatch(peer, m);
                 metrics_sample_end(&peer->metrics);
                 if (r == DRIVER_E_DISCONNECT) {
-                        driver_matches_cleanup(&peer->owned_matches, peer->bus, peer->user);
+                        peer_flush_matches(peer);
                         r = driver_goodbye(peer, false);
                         if (r)
                                 return error_fold(r);
@@ -307,6 +307,152 @@ int peer_release_name(Peer *peer, const char *name, NameChange *change) {
 
 }
 
+int peer_add_match(Peer *peer, const char *rule_string, bool force_eavesdrop) {
+        _c_cleanup_(match_rule_user_unrefp) MatchRule *rule = NULL;
+        int r;
+
+        if (peer->user->n_matches == 0)
+                return PEER_E_QUOTA;
+
+        r = match_rule_new(&rule, &peer->owned_matches, rule_string);
+        if (r) {
+                if (r == MATCH_E_INVALID)
+                        return PEER_E_MATCH_INVALID;
+                else
+                        return error_fold(r);
+        }
+
+        if (force_eavesdrop)
+                rule->keys.eavesdrop = true;
+
+        if (!rule->keys.sender) {
+                match_rule_link(rule, &peer->bus->wildcard_matches);
+        } else if (*rule->keys.sender == ':') {
+                Peer *sender;
+                uint64_t id;
+
+                r = unique_name_to_id(rule->keys.sender, &id);
+                if (r) {
+                        if (r < 0)
+                                return error_fold(r);
+                        /* got a valid unique name that is not in our namespace */
+                } else {
+                        sender = peer_registry_find_peer(&peer->bus->peers, id);
+                        if (sender) {
+                                match_rule_link(rule, &sender->matches);
+                        } else if (id >= peer->bus->peers.ids) {
+                                /* this peer does not yet exist, but it could appear, keep it
+                                 * with the wildcards. */
+                                rule->keys.filter.sender = id;
+                                match_rule_link(rule, &peer->bus->wildcard_matches);
+                        }
+
+                        /* the peer has already disconnected and will never reappear */
+                }
+        } else if (strcmp(rule->keys.sender, "org.freedesktop.DBus") == 0) {
+                match_rule_link(rule, &peer->bus->driver_matches);
+        } else {
+                _c_cleanup_(name_unrefp) Name *name = NULL;
+
+                r = name_get(&name, &peer->bus->names, rule->keys.sender);
+                if (r)
+                        return error_fold(r);
+
+                match_rule_link(rule, &name->matches);
+                name_ref(name); /* this reference must be explicitly released */
+        }
+
+        --peer->user->n_matches;
+        rule = NULL;
+
+        return 0;
+}
+
+int peer_remove_match(Peer *peer, const char *rule_string) {
+        _c_cleanup_(name_unrefp) Name *name = NULL;
+        MatchRule *rule;
+        int r;
+
+        r = match_rule_get(&rule, &peer->owned_matches, rule_string);
+        if (r) {
+                if (r == MATCH_E_NOT_FOUND)
+                        return PEER_E_MATCH_NOT_FOUND;
+                else if (r == MATCH_E_INVALID)
+                        return PEER_E_MATCH_INVALID;
+                else
+                        return error_fold(r);
+        }
+
+        if (rule->keys.sender && *rule->keys.sender != ':' && strcmp(rule->keys.sender, "org.freedesktop.DBus") != 0)
+                name = c_container_of(rule->registry, Name, matches);
+
+        match_rule_user_unref(rule);
+        ++peer->user->n_matches;
+
+        return 0;
+}
+
+void peer_flush_matches(Peer *peer) {
+        CRBNode *node;
+
+        while ((node = peer->owned_matches.rule_tree.root)) {
+                _c_cleanup_(name_unrefp) Name *name = NULL;
+                MatchRule *rule = c_container_of(node, MatchRule, owner_node);
+
+                if (rule->keys.sender && *rule->keys.sender != ':' && strcmp(rule->keys.sender, "org.freedesktop.DBus") != 0)
+                        name = c_container_of(rule->registry, Name, matches);
+
+                match_rule_user_unref(rule);
+                ++peer->user->n_matches;
+        }
+}
+
+int peer_queue_call(Peer *receiver, Peer *sender, Message *message) {
+        _c_cleanup_(reply_slot_freep) ReplySlot *slot = NULL;
+        int r;
+
+        if ((message->header->type == DBUS_MESSAGE_TYPE_METHOD_CALL) &&
+            !(message->header->flags & DBUS_HEADER_FLAG_NO_REPLY_EXPECTED)) {
+                r = reply_slot_new(&slot, &receiver->replies_outgoing, &sender->owned_replies, sender->id, message_read_serial(message));
+                if (r == REPLY_E_EXISTS)
+                        return PEER_E_EXPECTED_REPLY_EXISTS;
+                else if (r)
+                        return error_fold(r);
+        }
+
+        r = connection_queue_message(&receiver->connection, 0, message);
+        if (r)
+                return error_fold(r);
+
+        slot = NULL;
+        return 0;
+}
+
+int peer_queue_reply(Peer *sender, const char *destination, uint32_t reply_serial, Message *message) {
+        ReplySlot *slot;
+        Peer *receiver;
+        uint64_t id;
+        int r;
+
+        r = unique_name_to_id(destination, &id);
+        if (r)
+                return error_fold(r);
+
+        slot = reply_slot_get_by_id(&sender->replies_outgoing, id, reply_serial);
+        if (!slot)
+                return PEER_E_UNEXPECTED_REPLY;
+
+        receiver = c_container_of(slot->owner, Peer, owned_replies);
+
+        r = connection_queue_message(&receiver->connection, 0, message);
+        if (r)
+                return error_fold(r);
+
+        reply_slot_free(slot);
+
+        return 0;
+}
+
 void peer_registry_init(PeerRegistry *registry) {
         c_rbtree_init(&registry->peer_tree);
         registry->ids = 0;
@@ -322,7 +468,7 @@ void peer_registry_flush(PeerRegistry *registry) {
         int r;
 
         c_rbtree_for_each_entry_unlink(peer, safe, &registry->peer_tree, registry_node) {
-                driver_matches_cleanup(&peer->owned_matches, peer->bus, peer->user);
+                peer_flush_matches(peer);
                 r = driver_goodbye(peer, true);
                 assert(!r); /* can not fail in silent mode */
                 connection_close(&peer->connection);
