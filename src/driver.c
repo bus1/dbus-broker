@@ -391,62 +391,6 @@ static int driver_send_error(Peer *receiver, uint32_t serial, const char *error,
         return 0;
 }
 
-static int driver_forward_unicast(Peer *sender, const char *destination, Message *message) {
-        Peer *receiver;
-        int r;
-
-        if (*destination != ':') {
-                Name *name;
-                NameOwnership *ownership;
-
-                name = name_registry_find_name(&sender->bus->names, destination);
-                if (!name)
-                        return DRIVER_E_DESTINATION_NOT_FOUND;
-
-                ownership = c_list_first_entry(&name->ownership_list, NameOwnership, name_link);
-                if (!ownership) {
-                        if (!name->activation)
-                                return DRIVER_E_DESTINATION_NOT_FOUND;
-
-                        r = activation_queue_message(name->activation, message);
-                        if (r)
-                                return error_fold(r);
-
-                        if (!name->activation->requested) {
-                                r = activation_send_signal(sender->bus->controller, name->activation->path);
-                                if (r)
-                                        return error_fold(r);
-
-                                name->activation->requested = true;
-                        }
-
-                        return 0;
-                } else {
-                        receiver = c_container_of(ownership->owner, Peer, owned_names);
-                }
-        } else {
-                uint64_t id;
-
-                r = unique_name_to_id(destination, &id);
-                if (r)
-                        return error_trace(r);
-
-                receiver = peer_registry_find_peer(&sender->bus->peers, id);
-                if (!receiver)
-                        return DRIVER_E_DESTINATION_NOT_FOUND;
-        }
-
-        r = peer_queue_call(receiver, sender, message);
-        if (r) {
-                if (r == PEER_E_EXPECTED_REPLY_EXISTS)
-                        return DRIVER_E_EXPECTED_REPLY_EXISTS;
-
-                return error_fold(r);
-        }
-
-        return 0;
-}
-
 static int driver_notify_name_acquired(Peer *peer, const char *name) {
         MatchFilter filter = {
                 .type = DBUS_MESSAGE_TYPE_SIGNAL,
@@ -690,19 +634,16 @@ static int driver_method_hello(Peer *peer, CDVar *in_v, CDVar *out_v, NameChange
         if (_c_unlikely_(peer_is_registered(peer)))
                 return DRIVER_E_PEER_ALREADY_REGISTERED;
 
-        /* verify the input argument */
         c_dvar_read(in_v, "()");
 
         r = driver_end_read(in_v);
         if (r)
                 return error_trace(r);
 
-        /* write the output message */
         c_dvar_write(out_v, "(");
         driver_dvar_write_unique_name(out_v, peer);
         c_dvar_write(out_v, ")");
 
-        /* register on the bus */
         peer_register(peer);
 
         return 0;
@@ -1557,6 +1498,66 @@ int driver_goodbye(Peer *peer, bool silent) {
                 }
 
                 reply_slot_free(reply);
+        }
+
+        return 0;
+}
+
+static int driver_forward_unicast(Peer *sender, const char *destination, Message *message) {
+        Peer *receiver;
+        int r;
+
+        if (*destination == ':') {
+                uint64_t id;
+
+                r = unique_name_to_id(destination, &id);
+                if (r) {
+                        if (r > 0)
+                                return DRIVER_E_DESTINATION_NOT_FOUND;
+
+                        return error_trace(r);
+                }
+
+                receiver = peer_registry_find_peer(&sender->bus->peers, id);
+                if (!receiver)
+                        return DRIVER_E_DESTINATION_NOT_FOUND;
+        } else {
+                Name *name;
+                NameOwnership *ownership;
+
+                name = name_registry_find_name(&sender->bus->names, destination);
+                if (!name)
+                        return DRIVER_E_DESTINATION_NOT_FOUND;
+
+                ownership = c_list_first_entry(&name->ownership_list, NameOwnership, name_link);
+                if (!ownership) {
+                        if (!name->activation)
+                                return DRIVER_E_DESTINATION_NOT_FOUND;
+
+                        r = activation_queue_message(name->activation, message);
+                        if (r)
+                                return error_fold(r);
+
+                        if (!name->activation->requested) {
+                                r = activation_send_signal(sender->bus->controller, name->activation->path);
+                                if (r)
+                                        return error_fold(r);
+
+                                name->activation->requested = true;
+                        }
+
+                        return 0;
+                } else {
+                        receiver = c_container_of(ownership->owner, Peer, owned_names);
+                }
+        }
+
+        r = peer_queue_call(receiver, sender, message);
+        if (r) {
+                if (r == PEER_E_EXPECTED_REPLY_EXISTS)
+                        return DRIVER_E_EXPECTED_REPLY_EXISTS;
+
+                return error_fold(r);
         }
 
         return 0;
