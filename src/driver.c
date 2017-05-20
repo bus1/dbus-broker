@@ -995,7 +995,7 @@ static int driver_method_update_activation_environment(Peer *peer, CDVar *in_v, 
         if (r)
                 return error_fold(r);
 
-        /* XXX: this is excluded from monitoring as it is on our private connection */
+        /* this is excluded from monitoring as it is on our private connection */
         r = connection_queue_message(peer->bus->controller, 0, message);
         if (r)
                 return error_fold(r);
