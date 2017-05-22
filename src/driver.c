@@ -1697,12 +1697,10 @@ static int driver_dispatch_internal(Peer *peer, MessageMetadata *metadata, Match
         case DBUS_MESSAGE_TYPE_METHOD_RETURN:
         case DBUS_MESSAGE_TYPE_ERROR:
                 r = peer_queue_reply(peer, metadata->fields.destination, metadata->fields.reply_serial, message);
-                if (r) {
-                        if (r == PEER_E_UNEXPECTED_REPLY)
-                                return DRIVER_E_UNEXPECTED_REPLY;
-
+                if (r == PEER_E_UNEXPECTED_REPLY)
+                        return DRIVER_E_UNEXPECTED_REPLY;
+                else
                         return error_fold(r);
-                }
         default:
                 return DRIVER_E_UNEXPECTED_MESSAGE_TYPE;
         }
