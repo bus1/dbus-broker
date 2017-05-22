@@ -621,7 +621,6 @@ static int driver_end_read(CDVar *var) {
         switch (r) {
         case C_DVAR_E_CORRUPT_DATA:
         case C_DVAR_E_OUT_OF_BOUNDS:
-        case C_DVAR_E_TYPE_MISMATCH:
                 return DRIVER_E_INVALID_MESSAGE;
         default:
                 return error_origin(r);
