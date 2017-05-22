@@ -391,6 +391,43 @@ static int driver_send_error(Peer *receiver, uint32_t serial, const char *error,
         return 0;
 }
 
+/* XXX: fill in args[0] and argpaths[0] for GetId(), GetNameOwner() and Hello() */
+static int driver_send_reply(Peer *peer, CDVar *var, const char *arg0) {
+        MatchFilter filter = {
+                .type = DBUS_MESSAGE_TYPE_METHOD_RETURN,
+                .destination = peer->id,
+                .args[0] = arg0,
+                .argpaths[0] = arg0,
+        };
+        _c_cleanup_(message_unrefp) Message *message = NULL;
+        void *data;
+        size_t n_data;
+        int r;
+
+        /*
+         * The message was correctly handled and the reply is serialized in
+         * @var. Lets finish it up and queue the reply on the destination.
+         * Note that any failure in doing so must be a fatal error, so there is
+         * no point in reverting the operation on failure.
+         */
+
+        c_dvar_write(var, ")");
+
+        r = c_dvar_end_write(var, &data, &n_data);
+        if (r)
+                return error_origin(r);
+
+        r = message_new_outgoing(&message, data, n_data);
+        if (r)
+                return error_fold(r);
+
+        r = driver_send_unicast(peer, &filter, message);
+        if (r)
+                return error_trace(r);
+
+        return 0;
+}
+
 static int driver_notify_name_acquired(Peer *peer, const char *name) {
         MatchFilter filter = {
                 .type = DBUS_MESSAGE_TYPE_SIGNAL,
@@ -1297,16 +1334,8 @@ error:
 }
 
 static int driver_handle_method(const DriverMethod *method, Peer *peer, const char *path, uint32_t serial, const char *signature_in, Message *message_in) {
-        MatchFilter filter = {
-                .type = DBUS_MESSAGE_TYPE_METHOD_RETURN,
-                .destination = peer->id,
-                /* XXX: fill in args[0] and argpaths[0] for GetId(), GetNameOwner() and Hello() */
-        };
         _c_cleanup_(c_dvar_deinitp) CDVar var_in = C_DVAR_INIT, var_out = C_DVAR_INIT;
-        _c_cleanup_(message_unrefp) Message *message_out = NULL;
         NameChange change = {};
-        void *data;
-        size_t n_data;
         int r;
 
         /*
@@ -1338,24 +1367,7 @@ static int driver_handle_method(const DriverMethod *method, Peer *peer, const ch
         if (r)
                 return error_trace(r);
 
-        c_dvar_write(&var_out, ")");
-
-        /*
-         * The message was correctly handled and the reply is serialized in
-         * @var_out. Lets finish it up and queue the reply on the destination.
-         * Note that any failure in doing so must be a fatal error, so there is
-         * no point in reverting the operation on failure.
-         */
-
-        r = c_dvar_end_write(&var_out, &data, &n_data);
-        if (r)
-                return error_origin(r);
-
-        r = message_new_outgoing(&message_out, data, n_data);
-        if (r)
-                return error_fold(r);
-
-        r = driver_send_unicast(peer, &filter, message_out);
+        r = driver_send_reply(peer, &var_out, NULL);
         if (r)
                 return error_trace(r);
 
