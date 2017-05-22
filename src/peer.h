@@ -75,6 +75,7 @@ int peer_spawn(Peer *peer);
 
 void peer_register(Peer *peer);
 void peer_unregister(Peer *peer);
+void peer_become_monitor(Peer *peer);
 
 int peer_request_name(Peer *peer, const char *name, uint32_t flags, NameChange *change);
 int peer_release_name(Peer *peer, const char *name, NameChange *change);
@@ -94,6 +95,10 @@ Peer *peer_registry_find_peer(PeerRegistry *registry, uint64_t id);
 
 static inline bool peer_is_registered(Peer *peer) {
         return peer->registered;
+}
+
+static inline bool peer_is_monitor(Peer *peer) {
+        return peer->monitor;
 }
 
 C_DEFINE_CLEANUP(Peer *, peer_free);

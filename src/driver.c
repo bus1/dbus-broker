@@ -290,7 +290,7 @@ int activation_send_signal(Connection *controller, const char *path) {
         if (r)
                 return error_fold(r);
 
-        /* XXX: this is excluded from monitoring as it is on our private connection */
+        /* this is excluded from monitoring as it is on our private connection */
         r = connection_queue_message(controller, 0, message);
         if (r)
                 return error_fold(r);
@@ -1437,7 +1437,7 @@ static int driver_method_become_monitor(Peer *peer, CDVar *in_v, CDVar *out_v) {
         if (r)
                 return error_trace(r);
 
-        peer->monitor = true;
+        peer_become_monitor(peer);
 
         return 0;
 
@@ -1665,7 +1665,7 @@ static int driver_dispatch_internal(Peer *peer, MessageMetadata *metadata, Match
         if (r)
                 return error_trace(r);
 
-        if (peer->monitor)
+        if (peer_is_monitor(peer))
                 return DRIVER_E_DISCONNECT;
 
         if (_c_unlikely_(c_string_equal(metadata->fields.destination, "org.freedesktop.DBus"))) {

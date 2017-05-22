@@ -247,14 +247,23 @@ int peer_spawn(Peer *peer) {
 
 void peer_register(Peer *peer) {
         assert(!peer->registered);
+        assert(!peer->monitor);
 
         peer->registered = true;
 }
 
 void peer_unregister(Peer *peer) {
         assert(peer->registered);
+        assert(!peer->monitor);
 
         peer->registered = false;
+}
+
+void peer_become_monitor(Peer *peer) {
+        assert(!peer->registered);
+        assert(!peer->monitor);
+
+        peer->monitor = true;
 }
 
 int peer_request_name(Peer *peer, const char *name, uint32_t flags, NameChange *change) {
