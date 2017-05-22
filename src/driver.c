@@ -686,6 +686,10 @@ static int driver_method_hello(Peer *peer, CDVar *in_v, CDVar *out_v, NameChange
         if (r)
                 return error_trace(r);
 
+        r = driver_name_owner_changed(NULL, NULL, peer);
+        if (r)
+                return error_trace(r);
+
         return 0;
 }
 
@@ -1402,6 +1406,12 @@ static int driver_method_become_monitor(Peer *peer, CDVar *in_v, CDVar *out_v, N
         if (r)
                 return error_trace(r);
 
+        r = driver_goodbye(peer, false);
+        if (r)
+                return error_trace(r);
+
+        peer->monitor = true;
+
         return 0;
 
 error:
@@ -1465,20 +1475,7 @@ static int driver_handle_method(const DriverMethod *method, Peer *peer, const ch
                 }
 
                 name_change_deinit(&change);
-        } else if (strcmp(method->name, "Hello") == 0) {
-                /* XXX: special casing this is a bit of a hack */
-                r = driver_name_owner_changed(NULL, NULL, peer);
-                if (r)
-                        return error_trace(r);
-        } else if (strcmp(method->name, "BecomeMonitor") == 0) {
-                /* XXX: ditto */
-                r = driver_goodbye(peer, false);
-                if (r)
-                        return error_trace(r);
-
-                peer->monitor = true;
         }
-
 
         return 0;
 }
