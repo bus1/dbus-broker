@@ -20,7 +20,7 @@
 #include "util/error.h"
 
 typedef struct DriverMethod DriverMethod;
-typedef int (*DriverMethodFn) (Peer *peer, CDVar *var_in, CDVar *var_out, NameChange *change);
+typedef int (*DriverMethodFn) (Peer *peer, CDVar *var_in, CDVar *var_out);
 
 struct DriverMethod {
         const char *name;
@@ -663,7 +663,7 @@ static int driver_end_read(CDVar *var) {
         }
 }
 
-static int driver_method_hello(Peer *peer, CDVar *in_v, CDVar *out_v, NameChange *change) {
+static int driver_method_hello(Peer *peer, CDVar *in_v, CDVar *out_v) {
         int r;
 
         if (_c_unlikely_(peer_is_registered(peer)))
@@ -693,7 +693,8 @@ static int driver_method_hello(Peer *peer, CDVar *in_v, CDVar *out_v, NameChange
         return 0;
 }
 
-static int driver_method_request_name(Peer *peer, CDVar *in_v, CDVar *out_v, NameChange *change) {
+static int driver_method_request_name(Peer *peer, CDVar *in_v, CDVar *out_v) {
+        NameChange change = {};
         const char *name;
         uint32_t flags, reply;
         int r;
@@ -704,7 +705,7 @@ static int driver_method_request_name(Peer *peer, CDVar *in_v, CDVar *out_v, Nam
         if (r)
                 return error_trace(r);
 
-        r = peer_request_name(peer, name, flags, change);
+        r = peer_request_name(peer, name, flags, &change);
         if (!r)
                 reply = DBUS_REQUEST_NAME_REPLY_PRIMARY_OWNER;
         else if (r == PEER_E_NAME_ALREADY_OWNER)
@@ -726,10 +727,26 @@ static int driver_method_request_name(Peer *peer, CDVar *in_v, CDVar *out_v, Nam
         if (r)
                 return error_trace(r);
 
+        if (change.name) {
+                r = driver_name_owner_changed(change.name->name,
+                                              c_container_of(change.old_owner, Peer, owned_names),
+                                              c_container_of(change.new_owner, Peer, owned_names));
+                if (r)
+                        return error_trace(r);
+
+                r = driver_name_activated(change.name->activation,
+                                          c_container_of(change.new_owner, Peer, owned_names));
+                if (r)
+                        return error_trace(r);
+        }
+
+        name_change_deinit(&change);
+
         return 0;
 }
 
-static int driver_method_release_name(Peer *peer, CDVar *in_v, CDVar *out_v, NameChange *change) {
+static int driver_method_release_name(Peer *peer, CDVar *in_v, CDVar *out_v) {
+        NameChange change = {};
         const char *name;
         uint32_t reply;
         int r;
@@ -740,7 +757,7 @@ static int driver_method_release_name(Peer *peer, CDVar *in_v, CDVar *out_v, Nam
         if (r)
                 return error_trace(r);
 
-        r = peer_release_name(peer, name, change);
+        r = peer_release_name(peer, name, &change);
         if (!r)
                 reply = DBUS_RELEASE_NAME_REPLY_RELEASED;
         else if (r == PEER_E_NAME_NOT_FOUND)
@@ -756,10 +773,20 @@ static int driver_method_release_name(Peer *peer, CDVar *in_v, CDVar *out_v, Nam
         if (r)
                 return error_trace(r);
 
+        if (change.name) {
+                r = driver_name_owner_changed(change.name->name,
+                                              c_container_of(change.old_owner, Peer, owned_names),
+                                              c_container_of(change.new_owner, Peer, owned_names));
+                if (r)
+                        return error_trace(r);
+        }
+
+        name_change_deinit(&change);
+
         return 0;
 }
 
-static int driver_method_list_queued_owners(Peer *peer, CDVar *in_v, CDVar *out_v, NameChange *change) {
+static int driver_method_list_queued_owners(Peer *peer, CDVar *in_v, CDVar *out_v) {
         Name *name;
         NameOwnership *ownership;
         const char *name_str;
@@ -787,7 +814,7 @@ static int driver_method_list_queued_owners(Peer *peer, CDVar *in_v, CDVar *out_
         return 0;
 }
 
-static int driver_method_list_names(Peer *peer, CDVar *in_v, CDVar *out_v, NameChange *change) {
+static int driver_method_list_names(Peer *peer, CDVar *in_v, CDVar *out_v) {
         Peer *p;
         Name *name;
         int r;
@@ -821,7 +848,7 @@ static int driver_method_list_names(Peer *peer, CDVar *in_v, CDVar *out_v, NameC
         return 0;
 }
 
-static int driver_method_list_activatable_names(Peer *peer, CDVar *in_v, CDVar *out_v, NameChange *change) {
+static int driver_method_list_activatable_names(Peer *peer, CDVar *in_v, CDVar *out_v) {
         Name *name;
         int r;
 
@@ -848,7 +875,7 @@ static int driver_method_list_activatable_names(Peer *peer, CDVar *in_v, CDVar *
         return 0;
 }
 
-static int driver_method_name_has_owner(Peer *peer, CDVar *in_v, CDVar *out_v, NameChange *change) {
+static int driver_method_name_has_owner(Peer *peer, CDVar *in_v, CDVar *out_v) {
         Peer *connection;
         const char *name;
         int r;
@@ -874,7 +901,7 @@ static int driver_method_name_has_owner(Peer *peer, CDVar *in_v, CDVar *out_v, N
         return 0;
 }
 
-static int driver_method_start_service_by_name(Peer *peer, CDVar *in_v, CDVar *out_v, NameChange *change) {
+static int driver_method_start_service_by_name(Peer *peer, CDVar *in_v, CDVar *out_v) {
         const char *service;
         Name *name;
         NameOwnership *ownership;
@@ -919,7 +946,7 @@ static int driver_method_start_service_by_name(Peer *peer, CDVar *in_v, CDVar *o
         return 0;
 }
 
-static int driver_method_update_activation_environment(Peer *peer, CDVar *in_v, CDVar *out_v, NameChange *change) {
+static int driver_method_update_activation_environment(Peer *peer, CDVar *in_v, CDVar *out_v) {
         static const CDVarType type[] = {
                 C_DVAR_T_INIT(
                         DRIVER_T_MESSAGE(
@@ -985,7 +1012,7 @@ static int driver_method_update_activation_environment(Peer *peer, CDVar *in_v, 
         return 0;
 }
 
-static int driver_method_get_name_owner(Peer *peer, CDVar *in_v, CDVar *out_v, NameChange *change) {
+static int driver_method_get_name_owner(Peer *peer, CDVar *in_v, CDVar *out_v) {
         const char *name_str;
         int r;
 
@@ -1019,7 +1046,7 @@ static int driver_method_get_name_owner(Peer *peer, CDVar *in_v, CDVar *out_v, N
         return 0;
 }
 
-static int driver_method_get_connection_unix_user(Peer *peer, CDVar *in_v, CDVar *out_v, NameChange *change) {
+static int driver_method_get_connection_unix_user(Peer *peer, CDVar *in_v, CDVar *out_v) {
         Peer *connection;
         const char *name;
         int r;
@@ -1043,7 +1070,7 @@ static int driver_method_get_connection_unix_user(Peer *peer, CDVar *in_v, CDVar
         return 0;
 }
 
-static int driver_method_get_connection_unix_process_id(Peer *peer, CDVar *in_v, CDVar *out_v, NameChange *change) {
+static int driver_method_get_connection_unix_process_id(Peer *peer, CDVar *in_v, CDVar *out_v) {
         Peer *connection;
         const char *name;
         int r;
@@ -1067,7 +1094,7 @@ static int driver_method_get_connection_unix_process_id(Peer *peer, CDVar *in_v,
         return 0;
 }
 
-static int driver_method_get_connection_credentials(Peer *peer, CDVar *in_v, CDVar *out_v, NameChange *change) {
+static int driver_method_get_connection_credentials(Peer *peer, CDVar *in_v, CDVar *out_v) {
         Peer *connection;
         const char *name;
         int r;
@@ -1111,11 +1138,11 @@ static int driver_method_get_connection_credentials(Peer *peer, CDVar *in_v, CDV
         return 0;
 }
 
-static int driver_method_get_adt_audit_session_data(Peer *peer, CDVar *in_v, CDVar *out_v, NameChange *change) {
+static int driver_method_get_adt_audit_session_data(Peer *peer, CDVar *in_v, CDVar *out_v) {
         return DRIVER_E_ADT_NOT_SUPPORTED;
 }
 
-static int driver_method_get_connection_selinux_security_context(Peer *peer, CDVar *in_v, CDVar *out_v, NameChange *change) {
+static int driver_method_get_connection_selinux_security_context(Peer *peer, CDVar *in_v, CDVar *out_v) {
         Peer *connection;
         const char *name;
         int r;
@@ -1154,7 +1181,7 @@ static int driver_method_get_connection_selinux_security_context(Peer *peer, CDV
         return 0;
 }
 
-static int driver_method_add_match(Peer *peer, CDVar *in_v, CDVar *out_v, NameChange *change) {
+static int driver_method_add_match(Peer *peer, CDVar *in_v, CDVar *out_v) {
         const char *rule_string;
         int r;
 
@@ -1183,7 +1210,7 @@ static int driver_method_add_match(Peer *peer, CDVar *in_v, CDVar *out_v, NameCh
         return 0;
 }
 
-static int driver_method_remove_match(Peer *peer, CDVar *in_v, CDVar *out_v, NameChange *change) {
+static int driver_method_remove_match(Peer *peer, CDVar *in_v, CDVar *out_v) {
         const char *rule_string;
         int r;
 
@@ -1212,7 +1239,7 @@ static int driver_method_remove_match(Peer *peer, CDVar *in_v, CDVar *out_v, Nam
         return 0;
 }
 
-static int driver_method_get_id(Peer *peer, CDVar *in_v, CDVar *out_v, NameChange *change) {
+static int driver_method_get_id(Peer *peer, CDVar *in_v, CDVar *out_v) {
         char buffer[sizeof(peer->bus->guid) * 2 + 1] = {};
         int r;
 
@@ -1235,7 +1262,7 @@ static int driver_method_get_id(Peer *peer, CDVar *in_v, CDVar *out_v, NameChang
         return 0;
 }
 
-static int driver_method_introspect(Peer *peer, CDVar *in_v, CDVar *out_v, NameChange *change) {
+static int driver_method_introspect(Peer *peer, CDVar *in_v, CDVar *out_v) {
         static const char *introspection =
                 "<!DOCTYPE node PUBLIC \"-//freedesktop//DTD D-BUS Object Introspection 1.0//EN\"\n"
                 "\"http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd\">\n"
@@ -1351,7 +1378,7 @@ static int driver_method_introspect(Peer *peer, CDVar *in_v, CDVar *out_v, NameC
         return 0;
 }
 
-static int driver_method_become_monitor(Peer *peer, CDVar *in_v, CDVar *out_v, NameChange *change) {
+static int driver_method_become_monitor(Peer *peer, CDVar *in_v, CDVar *out_v) {
         MatchOwner owned_matches;
         uint32_t flags;
         int r, poison = 0;
@@ -1423,7 +1450,6 @@ error:
 
 static int driver_handle_method(const DriverMethod *method, Peer *peer, const char *path, uint32_t serial, const char *signature_in, Message *message_in) {
         _c_cleanup_(c_dvar_deinitp) CDVar var_in = C_DVAR_INIT, var_out = C_DVAR_INIT;
-        NameChange change = {};
         int r;
 
         /*
@@ -1451,31 +1477,9 @@ static int driver_handle_method(const DriverMethod *method, Peer *peer, const ch
         c_dvar_write(&var_out, "(");
         driver_write_reply_header(&var_out, peer, serial, method->out);
 
-        r = method->fn(peer, &var_in, &var_out, &change);
+        r = method->fn(peer, &var_in, &var_out);
         if (r)
                 return error_trace(r);
-
-        if (change.name) {
-                Peer *old_peer = NULL, *new_peer = NULL;
-
-                if (change.old_owner)
-                        old_peer = c_container_of(change.old_owner, Peer, owned_names);
-
-                if (change.new_owner)
-                        new_peer = c_container_of(change.new_owner, Peer, owned_names);
-
-                r = driver_name_owner_changed(change.name->name, old_peer, new_peer);
-                if (r)
-                        return error_trace(r);
-
-                if (new_peer) {
-                        r = driver_name_activated(change.name->activation, new_peer);
-                        if (r)
-                                return error_trace(r);
-                }
-
-                name_change_deinit(&change);
-        }
 
         return 0;
 }
