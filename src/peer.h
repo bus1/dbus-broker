@@ -78,6 +78,7 @@ void peer_unregister(Peer *peer);
 
 int peer_request_name(Peer *peer, const char *name, uint32_t flags, NameChange *change);
 int peer_release_name(Peer *peer, const char *name, NameChange *change);
+void peer_release_name_ownership(Peer *peer, NameOwnership *ownership, NameChange *change);
 
 int peer_add_match(Peer *peer, const char *rule_string, bool force_eavesdrop);
 int peer_remove_match(Peer *peer, const char *rule_string);

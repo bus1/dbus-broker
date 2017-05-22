@@ -307,6 +307,11 @@ int peer_release_name(Peer *peer, const char *name, NameChange *change) {
 
 }
 
+void peer_release_name_ownership(Peer *peer, NameOwnership *ownership, NameChange *change) {
+        name_ownership_release(ownership, change);
+        ++peer->user->n_names;
+}
+
 int peer_add_match(Peer *peer, const char *rule_string, bool force_eavesdrop) {
         _c_cleanup_(match_rule_user_unrefp) MatchRule *rule = NULL;
         int r;

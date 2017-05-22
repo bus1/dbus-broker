@@ -1470,8 +1470,7 @@ int driver_goodbye(Peer *peer, bool silent) {
                 int r = 0;
 
                 name_change_init(&change);
-                name_ownership_release(ownership, &change);
-                ++peer->user->n_names;
+                peer_release_name_ownership(peer, ownership, &change);
                 if (!silent && change.name)
                         r = driver_name_owner_changed(change.name->name,
                                                       c_container_of(change.old_owner, Peer, owned_names),
