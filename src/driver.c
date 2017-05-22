@@ -1068,8 +1068,14 @@ static int driver_method_add_match(Peer *peer, CDVar *in_v, CDVar *out_v, NameCh
                 return error_trace(r);
 
         r = peer_add_match(peer, rule_string, false);
-        if (r)
-                return error_trace(r);
+        if (r) {
+                if (r == PEER_E_QUOTA)
+                        return DRIVER_E_QUOTA;
+                else if (r == PEER_E_MATCH_INVALID)
+                        return DRIVER_E_MATCH_INVALID;
+                else
+                        return error_trace(r);
+        }
 
         c_dvar_write(out_v, "()");
 
