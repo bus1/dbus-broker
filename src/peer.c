@@ -321,23 +321,8 @@ void peer_release_name_ownership(Peer *peer, NameOwnership *ownership, NameChang
         ++peer->user->n_names;
 }
 
-int peer_add_match(Peer *peer, const char *rule_string, bool force_eavesdrop) {
-        _c_cleanup_(match_rule_user_unrefp) MatchRule *rule = NULL;
+static int peer_link_match(Peer *peer, MatchRule *rule) {
         int r;
-
-        if (peer->user->n_matches == 0)
-                return PEER_E_QUOTA;
-
-        r = match_owner_ref_rule(&peer->owned_matches, &rule, rule_string);
-        if (r) {
-                if (r == MATCH_E_INVALID)
-                        return PEER_E_MATCH_INVALID;
-                else
-                        return error_fold(r);
-        }
-
-        if (force_eavesdrop)
-                rule->keys.eavesdrop = true;
 
         if (!rule->keys.sender) {
                 match_rule_link(rule, &peer->bus->wildcard_matches);
@@ -375,6 +360,31 @@ int peer_add_match(Peer *peer, const char *rule_string, bool force_eavesdrop) {
                 match_rule_link(rule, &name->matches);
                 name_ref(name); /* this reference must be explicitly released */
         }
+
+        return 0;
+}
+
+int peer_add_match(Peer *peer, const char *rule_string, bool force_eavesdrop) {
+        _c_cleanup_(match_rule_user_unrefp) MatchRule *rule = NULL;
+        int r;
+
+        if (peer->user->n_matches == 0)
+                return PEER_E_QUOTA;
+
+        r = match_owner_ref_rule(&peer->owned_matches, &rule, rule_string);
+        if (r) {
+                if (r == MATCH_E_INVALID)
+                        return PEER_E_MATCH_INVALID;
+                else
+                        return error_fold(r);
+        }
+
+        if (force_eavesdrop)
+                rule->keys.eavesdrop = true;
+
+        r = peer_link_match(peer, rule);
+        if (r)
+                return error_trace(r);
 
         --peer->user->n_matches;
         rule = NULL;
