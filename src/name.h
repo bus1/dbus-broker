@@ -71,22 +71,23 @@ void name_change_deinit(NameChange *change);
 void name_ownership_release(NameOwnership *owner, NameChange *change);
 bool name_ownership_is_primary(NameOwnership *owner);
 
-int name_get(Name **namep, NameRegistry *registry, const char *name_str);
 void name_free(_Atomic unsigned long *n_refs, void *userpointer);
 
 bool name_is_owned(Name *name);
 
-Name *name_registry_find_name(NameRegistry *registry, const char *name_str);
-NameOwner *name_registry_resolve_owner(NameRegistry *registry, const char *name_str);
+void name_owner_init(NameOwner *owner);
+void name_owner_deinit(NameOwner *owner);
 
 void name_registry_init(NameRegistry *registry);
 void name_registry_deinit(NameRegistry *registry);
 
+int name_registry_ref_name(NameRegistry *registry, Name **namep, const char *name_str);
+
+Name *name_registry_find_name(NameRegistry *registry, const char *name_str);
+NameOwner *name_registry_resolve_owner(NameRegistry *registry, const char *name_str);
+
 int name_registry_request_name(NameRegistry *registry, NameOwner *owner, const char *name_str, uint32_t flags, NameChange *change);
 int name_registry_release_name(NameRegistry *registry, NameOwner *owner, const char *name_str, NameChange *change);
-
-void name_owner_init(NameOwner *owner);
-void name_owner_deinit(NameOwner *owner);
 
 static inline Name *name_ref(Name *name) {
         if (name)

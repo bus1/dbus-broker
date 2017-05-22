@@ -65,8 +65,6 @@ struct MatchOwner {
         CRBTree rule_tree;
 };
 
-int match_rule_new(MatchRule **rulep, MatchOwner *owner, const char *rule_string);
-MatchRule *match_rule_free(MatchRule *rule);
 MatchRule *match_rule_user_ref(MatchRule *rule);
 MatchRule *match_rule_user_unref(MatchRule *rule);
 
@@ -87,7 +85,8 @@ void match_registry_deinit(MatchRegistry *registry);
 void match_owner_init(MatchOwner *owner);
 void match_owner_deinit(MatchOwner *owner);
 
+int match_owner_ref_rule(MatchOwner *owner, MatchRule **rulep, const char *rule_string);
+
 void match_filter_init(MatchFilter *filter);
 
-C_DEFINE_CLEANUP(MatchRule *, match_rule_free);
 C_DEFINE_CLEANUP(MatchRule *, match_rule_user_unref);

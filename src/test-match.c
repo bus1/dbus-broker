@@ -12,10 +12,10 @@
 static void test_arg(MatchOwner *owner,
                      const char *match,
                      const char *arg0) {
-        _c_cleanup_(match_rule_freep) MatchRule *rule = NULL;
+        _c_cleanup_(match_rule_user_unrefp) MatchRule *rule = NULL;
         int r;
 
-        r = match_rule_new(&rule, owner, match);
+        r = match_owner_ref_rule(owner, &rule, match);
         assert(r == 0);
         assert(strcmp(rule->keys.filter.args[0], arg0) == 0);
 }
@@ -32,10 +32,10 @@ static void test_args(MatchOwner *owner,
                       const char *arg1,
                       const char *arg2,
                       const char *arg3) {
-        _c_cleanup_(match_rule_freep) MatchRule *rule = NULL;
+        _c_cleanup_(match_rule_user_unrefp) MatchRule *rule = NULL;
         int r;
 
-        r = match_rule_new(&rule, owner, match);
+        r = match_owner_ref_rule(owner, &rule, match);
         assert(r == 0);
         assert(strcmp(rule->keys.filter.args[0], arg0) == 0);
         assert(strcmp(rule->keys.filter.args[1], arg1) == 0);
@@ -60,10 +60,10 @@ static void test_parse_value(MatchOwner *owner) {
 }
 
 static bool test_validity(MatchOwner *owner, const char *match) {
-        _c_cleanup_(match_rule_freep) MatchRule *rule = NULL;
+        _c_cleanup_(match_rule_user_unrefp) MatchRule *rule = NULL;
         int r;
 
-        r = match_rule_new(&rule, owner, match);
+        r = match_owner_ref_rule(owner, &rule, match);
         assert(r == 0 || r == MATCH_E_INVALID);
 
         return !r;
@@ -82,10 +82,10 @@ static void test_wildcard(MatchOwner *owner) {
 }
 
 static void test_eavesdrop(MatchOwner *owner, const char *match, bool eavesdrop) {
-        _c_cleanup_(match_rule_freep) MatchRule *rule = NULL;
+        _c_cleanup_(match_rule_user_unrefp) MatchRule *rule = NULL;
         int r;
 
-        r = match_rule_new(&rule, owner, match);
+        r = match_owner_ref_rule(owner, &rule, match);
         assert(r == 0);
         assert(rule->keys.eavesdrop == eavesdrop);
 }
@@ -137,7 +137,7 @@ static bool test_match(const char *match_string, MatchFilter *filter) {
         match_registry_init(&registry);
         match_owner_init(&owner);
 
-        r = match_rule_new(&rule, &owner, match_string);
+        r = match_owner_ref_rule(&owner, &rule, match_string);
         assert(!r);
 
         match_rule_link(rule, &registry);
@@ -145,7 +145,7 @@ static bool test_match(const char *match_string, MatchFilter *filter) {
         rule1 = match_rule_next_match(&registry, NULL, filter);
         assert(!rule1 || rule1 == rule);
 
-        match_rule_free(rule);
+        match_rule_user_unref(rule);
         match_owner_deinit(&owner);
         match_registry_deinit(&registry);
 
@@ -270,22 +270,22 @@ void test_iterator(void) {
         match_owner_init(&owner2);
         match_filter_init(&filter);
 
-        r = match_rule_new(&rule1, &owner1, "eavesdrop=true");
+        r = match_owner_ref_rule(&owner1, &rule1, "eavesdrop=true");
         assert(!r);
 
         match_rule_link(rule1, &registry);
 
-        r = match_rule_new(&rule2, &owner1, "");
+        r = match_owner_ref_rule(&owner1, &rule2, "");
         assert(!r);
 
         match_rule_link(rule2, &registry);
 
-        r = match_rule_new(&rule3, &owner2, "eavesdrop=true");
+        r = match_owner_ref_rule(&owner2, &rule3, "eavesdrop=true");
         assert(!r);
 
         match_rule_link(rule3, &registry);
 
-        r = match_rule_new(&rule4, &owner2, "");
+        r = match_owner_ref_rule(&owner2, &rule4, "");
         assert(!r);
 
         match_rule_link(rule4, &registry);
@@ -305,10 +305,10 @@ void test_iterator(void) {
         rule = match_rule_next_match(&registry, rule, &filter);
         assert(!rule);
 
-        match_rule_free(rule4);
-        match_rule_free(rule3);
-        match_rule_free(rule2);
-        match_rule_free(rule1);
+        match_rule_user_unref(rule4);
+        match_rule_user_unref(rule3);
+        match_rule_user_unref(rule2);
+        match_rule_user_unref(rule1);
         match_owner_deinit(&owner2);
         match_owner_deinit(&owner1);
         match_registry_deinit(&registry);

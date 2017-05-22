@@ -67,22 +67,6 @@ static int name_ownership_compare(CRBTree *tree, void *k, CRBNode *rb) {
         return 0;
 }
 
-static int name_ownership_get(NameOwnership **ownershipp, NameOwner *owner, Name *name) {
-        CRBNode **slot, *parent;
-        int r;
-
-        slot = c_rbtree_find_slot(&owner->ownership_tree, name_ownership_compare, name, &parent);
-        if (!slot) {
-                *ownershipp = c_container_of(parent, NameOwnership, owner_node);
-        } else {
-                r = name_ownership_new(ownershipp, owner, name, parent, slot);
-                if (r)
-                        return error_trace(r);
-        }
-
-        return 0;
-}
-
 bool name_ownership_is_primary(NameOwnership *ownership) {
         return (c_list_first(&ownership->name->ownership_list) == &ownership->name_link);
 }
@@ -217,7 +201,38 @@ static int name_compare(CRBTree *tree, void *k, CRBNode *rb) {
         return strcmp(k, name->name);
 }
 
-int name_get(Name **namep, NameRegistry *registry, const char *name_str) {
+void name_owner_init(NameOwner *owner) {
+        *owner = (NameOwner){};
+}
+
+void name_owner_deinit(NameOwner *owner) {
+        assert(c_rbtree_is_empty(&owner->ownership_tree));
+}
+
+static int name_owner_get_ownership(NameOwner *owner, NameOwnership **ownershipp, Name *name) {
+        CRBNode **slot, *parent;
+        int r;
+
+        slot = c_rbtree_find_slot(&owner->ownership_tree, name_ownership_compare, name, &parent);
+        if (!slot) {
+                *ownershipp = c_container_of(parent, NameOwnership, owner_node);
+        } else {
+                r = name_ownership_new(ownershipp, owner, name, parent, slot);
+                if (r)
+                        return error_trace(r);
+        }
+
+        return 0;
+}
+void name_registry_init(NameRegistry *registry) {
+        *registry = (NameRegistry) {};
+}
+
+void name_registry_deinit(NameRegistry *registry) {
+        assert(c_rbtree_is_empty(&registry->name_tree));
+}
+
+int name_registry_ref_name(NameRegistry *registry, Name **namep, const char *name_str) {
         CRBNode **slot, *parent;
         int r;
 
@@ -233,26 +248,20 @@ int name_get(Name **namep, NameRegistry *registry, const char *name_str) {
         return 0;
 }
 
-void name_registry_init(NameRegistry *registry) {
-        *registry = (NameRegistry) {};
-}
-
-void name_registry_deinit(NameRegistry *registry) {
-        assert(c_rbtree_is_empty(&registry->name_tree));
-}
-
 int name_registry_request_name(NameRegistry *registry, NameOwner *owner, const char *name_str, uint32_t flags, NameChange *change) {
         _c_cleanup_(name_unrefp) Name *name = NULL;
         NameOwnership *ownership;
         int r;
 
-        r = name_get(&name, registry, name_str);
+        r = name_registry_ref_name(registry, &name, name_str);
         if (r)
                 return error_trace(r);
 
-        r = name_ownership_get(&ownership, owner, name);
+        r = name_owner_get_ownership(owner, &ownership, name);
         if (r)
                 return error_trace(r);
+
+        /* this function must not fail, or an ownership object may leak */
 
         r = name_ownership_update(ownership, flags, change);
         if (r)
@@ -293,12 +302,4 @@ NameOwner *name_registry_resolve_owner(NameRegistry *registry, const char *name_
         ownership = c_list_first_entry(&name->ownership_list, NameOwnership, name_link);
 
         return ownership ? ownership->owner : NULL;
-}
-
-void name_owner_init(NameOwner *owner) {
-        *owner = (NameOwner){};
-}
-
-void name_owner_deinit(NameOwner *owner) {
-        assert(c_rbtree_is_empty(&owner->ownership_tree));
 }

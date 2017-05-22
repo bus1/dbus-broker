@@ -317,55 +317,7 @@ int match_rule_keys_parse(MatchRuleKeys *keys, char *buffer, size_t n_buffer, co
                 /* this should not be possible */
                 return error_origin(-ENOTRECOVERABLE);
 
-        /* XXX: verify that no invalid combinations such as path/path_namespace occur */
-
         return 0;
-}
-
-int match_rule_new(MatchRule **rulep, MatchOwner *owner, const char *rule_string) {
-        _c_cleanup_(match_rule_freep) MatchRule *rule = NULL;
-        CRBNode **slot, *parent;
-        size_t n_buffer;
-        int r;
-
-        /* the buffer needs at most the size of the string */
-        n_buffer = strlen(rule_string) + 1;
-
-        rule = calloc(1, sizeof(*rule) + n_buffer);
-        if (!rule)
-                return error_origin(-ENOMEM);
-
-        rule->n_user_refs = 1;
-        rule->owner = owner;
-        rule->registry_link = (CList)C_LIST_INIT(rule->registry_link);
-        rule->owner_node = (CRBNode)C_RBNODE_INIT(rule->owner_node);
-
-        r = match_rule_keys_parse(&rule->keys, rule->buffer, n_buffer, rule_string);
-        if (r)
-                return error_trace(r);
-
-        slot = c_rbtree_find_slot(&owner->rule_tree, match_rules_compare, &rule->keys, &parent);
-        if (!slot) {
-                /* one already exists, take a ref on that instead and drop the one we created */
-                *rulep = match_rule_user_ref(c_container_of(parent, MatchRule, owner_node));
-        } else {
-                /* link the new rule into the rbtree */
-                c_rbtree_add(&owner->rule_tree, parent, slot, &rule->owner_node);
-                *rulep = rule;
-                rule = NULL;
-        }
-
-        return 0;
-}
-
-MatchRule *match_rule_free(MatchRule *rule) {
-        match_rule_unlink(rule);
-
-        c_rbtree_remove_init(&rule->owner->rule_tree, &rule->owner_node);
-
-        free(rule);
-
-        return NULL;
 }
 
 MatchRule *match_rule_user_ref(MatchRule *rule) {
@@ -387,8 +339,11 @@ MatchRule *match_rule_user_unref(MatchRule *rule) {
 
         --rule->n_user_refs;
 
-        if (rule->n_user_refs == 0)
-                match_rule_free(rule);
+        if (rule->n_user_refs == 0) {
+                match_rule_unlink(rule);
+                c_rbtree_remove_init(&rule->owner->rule_tree, &rule->owner_node);
+                free(rule);
+        }
 
         return NULL;
 }
@@ -483,6 +438,42 @@ void match_owner_init(MatchOwner *owner) {
 
 void match_owner_deinit(MatchOwner *owner) {
         assert(c_rbtree_is_empty(&owner->rule_tree));
+}
+
+int match_owner_ref_rule(MatchOwner *owner, MatchRule **rulep, const char *rule_string) {
+        _c_cleanup_(match_rule_user_unrefp) MatchRule *rule = NULL;
+        CRBNode **slot, *parent;
+        size_t n_buffer;
+        int r;
+
+        /* the buffer needs at most the size of the string */
+        n_buffer = strlen(rule_string) + 1;
+
+        rule = calloc(1, sizeof(*rule) + n_buffer);
+        if (!rule)
+                return error_origin(-ENOMEM);
+
+        rule->n_user_refs = 1;
+        rule->owner = owner;
+        rule->registry_link = (CList)C_LIST_INIT(rule->registry_link);
+        rule->owner_node = (CRBNode)C_RBNODE_INIT(rule->owner_node);
+
+        r = match_rule_keys_parse(&rule->keys, rule->buffer, n_buffer, rule_string);
+        if (r)
+                return error_trace(r);
+
+        slot = c_rbtree_find_slot(&owner->rule_tree, match_rules_compare, &rule->keys, &parent);
+        if (!slot) {
+                /* one already exists, take a ref on that instead and drop the one we created */
+                *rulep = match_rule_user_ref(c_container_of(parent, MatchRule, owner_node));
+        } else {
+                /* link the new rule into the rbtree */
+                c_rbtree_add(&owner->rule_tree, parent, slot, &rule->owner_node);
+                *rulep = rule;
+                rule = NULL;
+        }
+
+        return 0;
 }
 
 void match_filter_init(MatchFilter *filter) {

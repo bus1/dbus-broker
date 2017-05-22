@@ -314,7 +314,7 @@ int peer_add_match(Peer *peer, const char *rule_string, bool force_eavesdrop) {
         if (peer->user->n_matches == 0)
                 return PEER_E_QUOTA;
 
-        r = match_rule_new(&rule, &peer->owned_matches, rule_string);
+        r = match_owner_ref_rule(&peer->owned_matches, &rule, rule_string);
         if (r) {
                 if (r == MATCH_E_INVALID)
                         return PEER_E_MATCH_INVALID;
@@ -354,7 +354,7 @@ int peer_add_match(Peer *peer, const char *rule_string, bool force_eavesdrop) {
         } else {
                 _c_cleanup_(name_unrefp) Name *name = NULL;
 
-                r = name_get(&name, &peer->bus->names, rule->keys.sender);
+                r = name_registry_ref_name(&peer->bus->names, &name, rule->keys.sender);
                 if (r)
                         return error_fold(r);
 
