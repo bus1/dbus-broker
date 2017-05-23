@@ -97,6 +97,9 @@ endif
 if dep_systemd.found()
         test_broker = executable('test-broker', ['broker/test-broker.c'], dependencies: [ libdbus_broker_dep, dep_thread, dep_systemd ])
         test('Instance of broker + controller', test_broker)
+
+        test_driver = executable('test-driver', ['broker/test-driver.c'], dependencies: [ libdbus_broker_dep, dep_thread, dep_systemd ])
+        test('Driver API', test_driver)
 endif
 
 test_dispatch = executable('test-dispatch', ['util/test-dispatch.c'], dependencies: libdbus_broker_dep)
