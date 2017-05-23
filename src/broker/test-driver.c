@@ -463,7 +463,7 @@ static void test_driver_api(struct sockaddr_un *address, socklen_t addrlen) {
         r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                "UpdateActivationEnvironment", NULL, NULL,
                                "a{ss}", 0);
-        /* this will fail on the broker and succeed on the daemon in our test */
+        assert(r >= 0);
 
         r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus.Introspectable",
                                "Introspect", NULL, NULL,
