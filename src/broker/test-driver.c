@@ -178,7 +178,7 @@ static void test_driver_request_name(struct sockaddr_un *address, socklen_t addr
         /* request a name */
         r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                "RequestName", NULL, NULL,
-                               "su", "com.example.foo1", 0);
+                               "su", "com.example.foo", 0);
         assert(r >= 0);
 
         /* request a reserved name */
@@ -198,6 +198,12 @@ static void test_driver_request_name(struct sockaddr_un *address, socklen_t addr
         sd_bus_error_free(&error);
 
         /* XXX: test invalid name */
+
+        /* clean up the name */
+        r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                               "ReleaseName", NULL, NULL,
+                               "s", "com.example.foo");
+        assert(r >= 0);
 }
 
 static void test_driver_release_name(struct sockaddr_un *address, socklen_t addrlen) {
@@ -216,13 +222,13 @@ static void test_driver_release_name(struct sockaddr_un *address, socklen_t addr
         /* request a name */
         r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                "RequestName", NULL, NULL,
-                               "su", "com.example.foo2", 0);
+                               "su", "com.example.foo", 0);
         assert(r >= 0);
 
         /* release the name */
         r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                "ReleaseName", NULL, NULL,
-                               "s", "com.example.foo2");
+                               "s", "com.example.foo");
         assert(r >= 0);
 
         /* releaese a reserved name */
@@ -261,13 +267,13 @@ static void test_driver_get_name_owner(struct sockaddr_un *address, socklen_t ad
         /* request a name */
         r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                "RequestName", NULL, NULL,
-                               "su", "com.example.foo3", 0);
+                               "su", "com.example.foo", 0);
         assert(r >= 0);
 
         /* get the owner */
         r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                "GetNameOwner", NULL, &reply,
-                               "s", "com.example.foo3");
+                               "s", "com.example.foo");
         assert(r >= 0);
         r = sd_bus_message_read(reply, "s", &owner);
         assert(r >= 0);
@@ -303,6 +309,12 @@ static void test_driver_get_name_owner(struct sockaddr_un *address, socklen_t ad
         sd_bus_error_free(&error);
 
         /* XXX: test invalid name */
+
+        /* clean up the name */
+        r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                               "ReleaseName", NULL, NULL,
+                               "s", "com.example.foo");
+        assert(r >= 0);
 }
 
 static void test_driver_name_has_owner(struct sockaddr_un *address, socklen_t addrlen) {
@@ -321,13 +333,13 @@ static void test_driver_name_has_owner(struct sockaddr_un *address, socklen_t ad
         /* request a name */
         r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                "RequestName", NULL, NULL,
-                               "su", "com.example.foo4", 0);
+                               "su", "com.example.foo", 0);
         assert(r >= 0);
 
         /* check if owned */
         r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                "NameHasOwner", NULL, &reply,
-                               "s", "com.example.foo4");
+                               "s", "com.example.foo");
         assert(r >= 0);
         r = sd_bus_message_read(reply, "b", &owned);
         assert(r >= 0);
