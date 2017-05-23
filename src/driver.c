@@ -175,11 +175,6 @@ static void driver_write_bytes(CDVar *var, char *bytes, size_t n_bytes) {
 static void driver_dvar_write_unique_name(CDVar *var, Peer *peer) {
         char unique_name[UNIQUE_NAME_STRING_MAX + 1];
 
-        if (!peer) {
-                c_dvar_write(var, "s", "");
-                return;
-        }
-
         unique_name_from_id(unique_name, peer->id);
 
         c_dvar_write(var, "s", unique_name);
@@ -517,16 +512,20 @@ static int driver_notify_name_lost(Peer *peer, const char *name) {
         return 0;
 }
 
-static int driver_notify_name_owner_changed(Bus *bus, const char *name, Peer *old_owner, Peer *new_owner) {
+static int driver_notify_name_owner_changed(Bus *bus, const char *name, const char *old_owner, const char *new_owner) {
         MatchFilter filter = {
                 .type = DBUS_MESSAGE_TYPE_SIGNAL,
                 .destination = UNIQUE_NAME_ID_INVALID,
                 .interface = "org.freedesktop.DBus",
                 .member = "NameOwnerChanged",
                 .path = "/org/freedesktop/DBus",
+                .args[0] = name,
+                .argpaths[0] = name,
+                .args[1] = old_owner,
+                .argpaths[1] = old_owner,
+                .args[2] = new_owner,
+                .argpaths[2] = new_owner,
         };
-        char old_owner_str[UNIQUE_NAME_STRING_MAX + 1],
-             new_owner_str[UNIQUE_NAME_STRING_MAX + 1];
         static const CDVarType type[] = {
                 C_DVAR_T_INIT(
                         DRIVER_T_MESSAGE(
@@ -547,10 +546,7 @@ static int driver_notify_name_owner_changed(Bus *bus, const char *name, Peer *ol
         c_dvar_begin_write(&var, type, 1);
         c_dvar_write(&var, "(");
         driver_write_signal_header(&var, NULL, "NameOwnerChanged", "sss");
-        c_dvar_write(&var, "(s", name);
-        driver_dvar_write_unique_name(&var, old_owner);
-        driver_dvar_write_unique_name(&var, new_owner);
-        c_dvar_write(&var, ")");
+        c_dvar_write(&var, "(sss)", name, old_owner, new_owner);
         c_dvar_write(&var, ")");
         r = c_dvar_end_write(&var, &data, &n_data);
         if (r)
@@ -560,27 +556,6 @@ static int driver_notify_name_owner_changed(Bus *bus, const char *name, Peer *ol
         if (r)
                 return error_fold(r);
 
-        filter.args[0] = name;
-        filter.argpaths[0] = name;
-
-        if (old_owner) {
-                unique_name_from_id(old_owner_str, old_owner->id);
-                filter.args[1] = old_owner_str;
-                filter.argpaths[1] = old_owner_str;
-        } else {
-                filter.args[1] = "";
-                filter.argpaths[1] = "";
-        }
-
-        if (new_owner) {
-                unique_name_from_id(new_owner_str, new_owner->id);
-                filter.args[2] = new_owner_str;
-                filter.argpaths[2] = new_owner_str;
-        } else {
-                filter.args[2] = "";
-                filter.argpaths[2] = "";
-        }
-
         r = bus_broadcast(bus, NULL, &filter, message);
         if (r)
                 return error_trace(r);
@@ -589,16 +564,29 @@ static int driver_notify_name_owner_changed(Bus *bus, const char *name, Peer *ol
 }
 
 static int driver_name_owner_changed(const char *name, Peer *old_owner, Peer *new_owner) {
-        Peer *peer = new_owner ? : old_owner;
-        char unique_name[UNIQUE_NAME_STRING_MAX + 1];
+        Bus *bus;
+        char old_owner_str[UNIQUE_NAME_STRING_MAX + 1], new_owner_str[UNIQUE_NAME_STRING_MAX + 1];
         int r;
 
         assert(old_owner || new_owner);
         assert(name || !old_owner || !new_owner);
 
-        if (!name) {
-                unique_name_from_id(unique_name, peer->id);
-                name = unique_name;
+        if (old_owner) {
+                unique_name_from_id(old_owner_str, old_owner->id);
+                if (!name)
+                        name = old_owner_str;
+                bus = old_owner->bus;
+        } else {
+                old_owner_str[0] = '\0';
+        }
+
+        if (new_owner) {
+                unique_name_from_id(new_owner_str, new_owner->id);
+                if (!name)
+                        name = new_owner_str;
+                bus = new_owner->bus;
+        } else {
+                new_owner_str[0] = '\0';
         }
 
         if (old_owner) {
@@ -607,7 +595,7 @@ static int driver_name_owner_changed(const char *name, Peer *old_owner, Peer *ne
                         return error_trace(r);
         }
 
-        r = driver_notify_name_owner_changed(peer->bus, name, old_owner, new_owner);
+        r = driver_notify_name_owner_changed(bus, name, old_owner_str, new_owner_str);
         if (r)
                 return error_trace(r);
 
