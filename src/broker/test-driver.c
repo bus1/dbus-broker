@@ -39,37 +39,6 @@ static sd_bus *connect_bus(struct sockaddr_un *address, socklen_t addrlen) {
         return bus;
 }
 
-static void *test_run_server(void *userdata) {
-        sd_bus *bus = userdata;
-        _c_cleanup_(sd_event_unrefp) sd_event *event = NULL;
-        sigset_t mask_old, mask_new;
-        int r;
-
-        sigemptyset(&mask_new);
-        sigaddset(&mask_new, SIGTERM);
-        sigaddset(&mask_new, SIGINT);
-        sigprocmask(SIG_BLOCK, &mask_new, &mask_old);
-
-        r = sd_event_default(&event);
-        assert(r >= 0);
-
-        r = sd_event_add_signal(event, NULL, SIGTERM, NULL, NULL);
-        assert(r >= 0);
-
-        r = sd_event_add_signal(event, NULL, SIGINT, NULL, NULL);
-        assert(r >= 0);
-
-        r = sd_bus_attach_event(bus, event, SD_EVENT_PRIORITY_NORMAL);
-        assert(r >= 0);
-
-        r = sd_event_loop(event);
-        assert(r >= 0);
-
-        sigprocmask(SIG_SETMASK, &mask_old, NULL);
-
-        return NULL;
-}
-
 static void test_driver_names(struct sockaddr_un *address, socklen_t addrlen) {
         _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus1 = NULL, *bus2 = NULL;
         sd_bus_message *message = NULL, *reply = NULL;
@@ -149,7 +118,7 @@ static void test_driver_hello(struct sockaddr_un *address, socklen_t addrlen) {
         /* Hello() has already been called, just verify that we have received the correct unique name */
         r = sd_bus_get_unique_name(bus, &unique_name);
         assert(r >= 0);
-        assert(!strcmp(unique_name, ":1.1"));
+        assert(!strcmp(unique_name, ":1.0"));
 
         /* Calling Hello() again should fail with error "Failed" */
         r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
@@ -673,27 +642,8 @@ static void test_driver_api(struct sockaddr_un *address, socklen_t addrlen) {
 }
 
 static void tests(struct sockaddr_un *address, socklen_t addrlen) {
-        _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *server = NULL;
-        const char *unique_name;
-        pthread_t thread;
-        int r;
-
-        server = connect_bus(address, addrlen);
-
-        r = sd_bus_get_unique_name(server, &unique_name);
-        assert(r >= 0);
-
-        r = pthread_create(&thread, NULL, test_run_server, server);
-        assert(r == 0);
-
         test_driver_api(address, addrlen);
         test_driver_names(address, addrlen);
-
-        r = pthread_kill(thread, SIGTERM);
-        assert(r == 0);
-
-        r = pthread_join(thread, NULL);
-        assert(r == 0);
 }
 
 int main(int argc, char **argv) {
