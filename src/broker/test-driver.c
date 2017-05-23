@@ -377,7 +377,209 @@ static void test_driver_name_has_owner(struct sockaddr_un *address, socklen_t ad
         sd_bus_message_unref(reply);
 
         /* XXX: test invalid name */
+
+        /* clean up the name */
+        r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                               "ReleaseName", NULL, NULL,
+                               "s", "com.example.foo");
+        assert(r >= 0);
 }
+
+static void test_driver_list_names(struct sockaddr_un *address, socklen_t addrlen) {
+        _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+        sd_bus_message *reply = NULL;
+        const char *unique_name, *name;
+        bool found_driver_name = false, found_unique_name = false, found_well_known_name = false, found_unexpected_name = false;
+        int r;
+
+        fprintf(stderr, " - ListNames()\n");
+
+        bus = connect_bus(address, addrlen);
+
+        r = sd_bus_get_unique_name(bus, &unique_name);
+        assert(r >= 0);
+
+        /* request a name */
+        r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                               "RequestName", NULL, NULL,
+                               "su", "com.example.foo", 0);
+        assert(r >= 0);
+
+        /* list names */
+        r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                               "ListNames", NULL, &reply,
+                               "");
+        assert(r >= 0);
+        r = sd_bus_message_enter_container(reply, 'a', "s");
+        assert(r >= 0);
+
+        while (!sd_bus_message_at_end(reply, false)) {
+                r = sd_bus_message_read(reply, "s", &name);
+                assert(r >= 0);
+                if (!strcmp(name, "org.freedesktop.DBus")) {
+                        assert(!found_driver_name);
+                        found_driver_name = true;
+                } else if (!strcmp(name, "com.example.foo")) {
+                        assert(!found_well_known_name);
+                        found_well_known_name = true;
+                } else if (!strcmp(name, unique_name)) {
+                        assert(!found_unique_name);
+                        found_unique_name = true;
+                } else if (name[0] != ':')
+                        found_unexpected_name = true;
+        }
+
+        r = sd_bus_message_exit_container(reply);
+        assert(r >= 0);
+        sd_bus_message_unref(reply);
+
+        assert(found_driver_name && found_well_known_name && found_unique_name);
+        assert(!found_unexpected_name);
+
+        /* clean up the name */
+        r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                               "ReleaseName", NULL, NULL,
+                               "s", "com.example.foo");
+        assert(r >= 0);
+}
+
+static void test_driver_list_activatable_names(struct sockaddr_un *address, socklen_t addrlen) {
+        _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+        sd_bus_message *reply = NULL;
+        const char *unique_name, *name;
+        int r;
+
+        fprintf(stderr, " - ListActivatableNames()\n");
+
+        bus = connect_bus(address, addrlen);
+
+        r = sd_bus_get_unique_name(bus, &unique_name);
+        assert(r >= 0);
+
+        /* request a name */
+        r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                               "RequestName", NULL, NULL,
+                               "su", "com.example.foo", 0);
+        assert(r >= 0);
+
+        /*
+         * List activatable names, we don't have any real ones to test, so just verify that the drive is
+         * listed and nothing else.
+         */
+        r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                               "ListActivatableNames", NULL, &reply,
+                               "");
+        assert(r >= 0);
+        r = sd_bus_message_enter_container(reply, 'a', "s");
+        assert(r >= 0);
+        r = sd_bus_message_read(reply, "s", &name);
+        assert(r >= 0);
+        assert(!strcmp(name, "org.freedesktop.DBus"));
+        r = sd_bus_message_exit_container(reply);
+        assert(r >= 0);
+        sd_bus_message_unref(reply);
+
+        /* clean up the name */
+        r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                               "ReleaseName", NULL, NULL,
+                               "s", "com.example.foo");
+        assert(r >= 0);
+}
+
+static void test_driver_list_queued_owners(struct sockaddr_un *address, socklen_t addrlen) {
+        _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus1 = NULL, *bus2 = NULL;
+        sd_bus_message *reply = NULL;
+        sd_bus_error error = SD_BUS_ERROR_NULL;
+        const char *unique_name1, *unique_name2, *owner;
+        int r;
+
+        fprintf(stderr, " - ListQueuedOwners()\n");
+
+        bus1 = connect_bus(address, addrlen);
+        bus2 = connect_bus(address, addrlen);
+
+        r = sd_bus_get_unique_name(bus1, &unique_name1);
+        assert(r >= 0);
+
+        r = sd_bus_get_unique_name(bus2, &unique_name2);
+        assert(r >= 0);
+
+        /*
+         * Request the same name twice, make sure that the order of the queue is different from the order
+         * the names were requested in, and the order of the client's unique names.
+         */
+        r = sd_bus_call_method(bus1, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                               "RequestName", NULL, NULL,
+                               "su", "com.example.foo", DBUS_NAME_FLAG_ALLOW_REPLACEMENT);
+        assert(r >= 0);
+
+        r = sd_bus_call_method(bus2, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                               "RequestName", NULL, NULL,
+                               "su", "com.example.foo", DBUS_NAME_FLAG_REPLACE_EXISTING);
+        assert(r >= 0);
+
+        /* get the owners */
+        r = sd_bus_call_method(bus1, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                               "ListQueuedOwners", NULL, &reply,
+                               "s", "com.example.foo");
+        assert(r >= 0);
+        r = sd_bus_message_enter_container(reply, 'a', "s");
+        assert(r >= 0);
+        r = sd_bus_message_read(reply, "s", &owner);
+        assert(r >= 0);
+        assert(!strcmp(owner, unique_name2));
+        r = sd_bus_message_read(reply, "s", &owner);
+        assert(r >= 0);
+        assert(!strcmp(owner, unique_name1));
+        r = sd_bus_message_exit_container(reply);
+        assert(r >= 0);
+        sd_bus_message_unref(reply);
+
+        /* list owners of a unique name */
+        r = sd_bus_call_method(bus1, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                               "ListQueuedOwners", NULL, &reply,
+                               "s", unique_name1);
+        assert(r >= 0);
+        r = sd_bus_message_enter_container(reply, 'a', "s");
+        assert(r >= 0);
+        r = sd_bus_message_read(reply, "s", &owner);
+        assert(r >= 0);
+        assert(!strcmp(owner, unique_name1));
+        r = sd_bus_message_exit_container(reply);
+        assert(r >= 0);
+        sd_bus_message_unref(reply);
+
+        /* list owners of the driver */
+        r = sd_bus_call_method(bus1, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                               "ListQueuedOwners", NULL, &reply,
+                               "s", "org.freedesktop.DBus");
+        assert(r >= 0);
+        r = sd_bus_message_enter_container(reply, 'a', "s");
+        assert(r >= 0);
+        r = sd_bus_message_read(reply, "s", &owner);
+        assert(r >= 0);
+        assert(!strcmp(owner, "org.freedesktop.DBus"));
+        r = sd_bus_message_exit_container(reply);
+        assert(r >= 0);
+        sd_bus_message_unref(reply);
+
+        /* list the owners of a name that does not exist */
+        r = sd_bus_call_method(bus1, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                               "ListQueuedOwners", &error, NULL,
+                               "s", "com.example.bar");
+        assert(r < 0);
+        assert(!strcmp(error.name, "org.freedesktop.DBus.Error.NameHasNoOwner"));
+        sd_bus_error_free(&error);
+
+        /* XXX: test invalid name */
+
+        /* clean up the name */
+        r = sd_bus_call_method(bus1, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                               "ReleaseName", NULL, NULL,
+                               "s", "com.example.foo");
+        assert(r >= 0);
+}
+
 static void test_driver_api(struct sockaddr_un *address, socklen_t addrlen) {
         _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
         int r;
@@ -387,27 +589,15 @@ static void test_driver_api(struct sockaddr_un *address, socklen_t addrlen) {
         test_driver_release_name(address, addrlen);
         test_driver_get_name_owner(address, addrlen);
         test_driver_name_has_owner(address, addrlen);
+        test_driver_list_names(address, addrlen);
+        test_driver_list_activatable_names(address, addrlen);
+        test_driver_list_queued_owners(address, addrlen);
 
         bus = connect_bus(address, addrlen);
 
         r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                "RequestName", NULL, NULL,
                                "su", "com.example.baz", 0);
-        assert(r >= 0);
-
-        r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
-                               "ListNames", NULL, NULL,
-                               "");
-        assert(r >= 0);
-
-        r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
-                               "ListActivatableNames", NULL, NULL,
-                               "");
-        assert(r >= 0);
-
-        r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
-                               "ListQueuedOwners", NULL, NULL,
-                               "s", "com.example.baz");
         assert(r >= 0);
 
         r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
