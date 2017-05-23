@@ -652,6 +652,7 @@ static int driver_end_read(CDVar *var) {
 }
 
 static int driver_method_hello(Peer *peer, CDVar *in_v, CDVar *out_v) {
+        char unique_name[UNIQUE_NAME_STRING_MAX + 1];
         int r;
 
         if (_c_unlikely_(peer_is_registered(peer)))
@@ -663,14 +664,13 @@ static int driver_method_hello(Peer *peer, CDVar *in_v, CDVar *out_v) {
         if (r)
                 return error_trace(r);
 
+        unique_name_from_id(unique_name, peer->id);
+
         peer_register(peer);
 
-        c_dvar_write(out_v, "(");
-        driver_dvar_write_unique_name(out_v, peer);
-        c_dvar_write(out_v, ")");
+        c_dvar_write(out_v, "(s)", unique_name);
 
-        /* XXX: pass arg0 */
-        r = driver_send_reply(peer, out_v, NULL);
+        r = driver_send_reply(peer, out_v, unique_name);
         if (r)
                 return error_trace(r);
 
@@ -1001,7 +1001,8 @@ static int driver_method_update_activation_environment(Peer *peer, CDVar *in_v, 
 }
 
 static int driver_method_get_name_owner(Peer *peer, CDVar *in_v, CDVar *out_v) {
-        const char *name_str;
+        const char *name_str, *owner_str;
+        char unique_name[UNIQUE_NAME_STRING_MAX + 1];
         int r;
 
         c_dvar_read(in_v, "(s)", &name_str);
@@ -1010,10 +1011,8 @@ static int driver_method_get_name_owner(Peer *peer, CDVar *in_v, CDVar *out_v) {
         if (r)
                 return error_trace(r);
 
-        c_dvar_write(out_v, "(");
-
-        if (strcmp(name_str, "org.freedesktop.DBus") == 0) {
-                c_dvar_write(out_v, "s", "org.freedesktop.DBus");
+        if (!strcmp(name_str, "org.freedesktop.DBus")) {
+                owner_str = "org.freedesktop.DBus";
         } else {
                 Peer *owner;
 
@@ -1021,13 +1020,13 @@ static int driver_method_get_name_owner(Peer *peer, CDVar *in_v, CDVar *out_v) {
                 if (!owner)
                         return DRIVER_E_NAME_OWNER_NOT_FOUND;
 
-                driver_dvar_write_unique_name(out_v, owner);
+                unique_name_from_id(unique_name, owner->id);
+                owner_str = unique_name;
         }
 
-        c_dvar_write(out_v, ")");
+        c_dvar_write(out_v, "(s)", owner_str);
 
-        /* XXX: pass arg0 */
-        r = driver_send_reply(peer, out_v, NULL);
+        r = driver_send_reply(peer, out_v, owner_str);
         if (r)
                 return error_trace(r);
 
@@ -1242,8 +1241,7 @@ static int driver_method_get_id(Peer *peer, CDVar *in_v, CDVar *out_v) {
         c_string_to_hex(peer->bus->guid, sizeof(peer->bus->guid), buffer);
         c_dvar_write(out_v, "(s)", buffer);
 
-        /* XXX: pass arg0 */
-        r = driver_send_reply(peer, out_v, NULL);
+        r = driver_send_reply(peer, out_v, buffer);
         if (r)
                 return error_trace(r);
 
