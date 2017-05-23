@@ -1451,7 +1451,6 @@ static int driver_method_become_monitor(Peer *peer, CDVar *in_v, CDVar *out_v) {
 
         /* only fatal errors from here on */
 
-        peer_flush_matches(peer);
         r = driver_goodbye(peer, false);
         if (r) {
                 r = error_trace(r);
@@ -1575,8 +1574,7 @@ int driver_goodbye(Peer *peer, bool silent) {
         NameOwnership *ownership, *ownership_safe;
         int r;
 
-        if (!peer_is_registered(peer))
-                return 0;
+        peer_flush_matches(peer);
 
         c_list_for_each_entry_safe(reply, reply_safe, &peer->owned_replies.reply_list, owner_link)
                 reply_slot_free(reply);
@@ -1599,12 +1597,14 @@ int driver_goodbye(Peer *peer, bool silent) {
                         return error_fold(r);
         }
 
-        if (!silent) {
-                r = driver_name_owner_changed(NULL, peer, NULL);
-                if (r)
-                        return error_trace(r);
+        if (peer_is_registered(peer)) {
+                if (!silent) {
+                        r = driver_name_owner_changed(NULL, peer, NULL);
+                        if (r)
+                                return error_trace(r);
+                }
+                peer_unregister(peer);
         }
-        peer_unregister(peer);
 
         c_rbtree_for_each_entry_unlink(reply, reply_safe, &peer->replies_outgoing.reply_tree, registry_node) {
                 Peer *sender = c_container_of(reply->owner, Peer, owned_replies);
