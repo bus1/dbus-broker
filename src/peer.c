@@ -545,5 +545,5 @@ Peer *peer_registry_find_peer(PeerRegistry *registry, uint64_t id) {
 
         peer = c_rbtree_find_entry(&registry->peer_tree, peer_compare, &id, Peer, registry_node);
 
-        return peer->registered ? peer : NULL;
+        return peer && peer->registered ? peer : NULL;
 }
