@@ -904,14 +904,11 @@ static int driver_method_start_service_by_name(Peer *peer, CDVar *in_v, CDVar *o
                 return error_trace(r);
 
         name = name_registry_find_name(&peer->bus->names, service);
-        if (!name)
+        if (!name || !name->activation)
                 return DRIVER_E_NAME_NOT_ACTIVATABLE;
 
         ownership = c_list_first_entry(&name->ownership_list, NameOwnership, name_link);
         if (!ownership) {
-                if (!name->activation)
-                        return DRIVER_E_NAME_NOT_ACTIVATABLE;
-
                 if (!name->activation->requested) {
                         r = activation_send_signal(peer->bus->controller, name->activation->path);
                         if (r)
