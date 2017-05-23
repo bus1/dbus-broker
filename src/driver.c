@@ -798,13 +798,34 @@ static int driver_method_list_queued_owners(Peer *peer, CDVar *in_v, CDVar *out_
         if (r)
                 return error_trace(r);
 
-        name = name_registry_find_name(&peer->bus->names, name_str);
-        if (!name)
-                return DRIVER_E_NAME_NOT_FOUND;
-
         c_dvar_write(out_v, "([");
-        c_list_for_each_entry(ownership, &name->ownership_list, name_link)
-                driver_dvar_write_unique_name(out_v, c_container_of(ownership->owner, Peer, owned_names));
+        if (!strcmp(name_str, "org.freedesktop.DBus")) {
+                c_dvar_write(out_v, "s", "org.freedesktop.DBus");
+        } else if (name_str[0] == ':') {
+                Peer *owner;
+                uint64_t id;
+
+                r = unique_name_to_id(name_str, &id);
+                if (r) {
+                        if (r > 0)
+                                return DRIVER_E_NAME_NOT_FOUND;
+                        else
+                                return error_fold(r);
+                }
+
+                owner = peer_registry_find_peer(&peer->bus->peers, id);
+                if (!owner)
+                        return DRIVER_E_NAME_NOT_FOUND;
+
+                driver_dvar_write_unique_name(out_v, owner);
+        } else {
+                name = name_registry_find_name(&peer->bus->names, name_str);
+                if (!name)
+                        return DRIVER_E_NAME_NOT_FOUND;
+
+                c_list_for_each_entry(ownership, &name->ownership_list, name_link)
+                        driver_dvar_write_unique_name(out_v, c_container_of(ownership->owner, Peer, owned_names));
+        }
         c_dvar_write(out_v, "])");
 
         r = driver_send_reply(peer, out_v, NULL);
