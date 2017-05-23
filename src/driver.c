@@ -1380,28 +1380,40 @@ static int driver_method_introspect(Peer *peer, CDVar *in_v, CDVar *out_v) {
 
 static int driver_method_become_monitor(Peer *peer, CDVar *in_v, CDVar *out_v) {
         MatchOwner owned_matches;
+        size_t n_matches = 0;
         uint32_t flags;
         int r, poison = 0;
 
-        /* remember the old matches as long as the call can fail */
-        owned_matches = peer->owned_matches;
-        match_owner_init(&peer->owned_matches);
+        /* first create all the match objects before modifying the peer */
+        match_owner_init(&owned_matches);
 
         c_dvar_read(in_v, "([");
         if (!c_dvar_more(in_v)) {
                 /* if no matches are passed, install a wildcard */
-                r = peer_add_match(peer, "", true);
-                if (r)
-                        poison = error_trace(r);
+                r = match_owner_ref_rule(&owned_matches, NULL, "");
+                if (r) {
+                        if (r == MATCH_E_INVALID)
+                                poison = DRIVER_E_MATCH_INVALID;
+                        else
+                                poison = error_fold(r);
+                }
+
+                ++n_matches;
         } else {
-                while (c_dvar_more(in_v)) {
+                while (c_dvar_more(in_v) && !poison) {
                         const char *match_string;
 
                         c_dvar_read(in_v, "s", &match_string);
 
-                        r = peer_add_match(peer, match_string, true);
-                        if (r)
-                                poison = error_trace(r);
+                        r = match_owner_ref_rule(&owned_matches, NULL, match_string);
+                        if (r) {
+                                if (r == MATCH_E_INVALID)
+                                        poison = DRIVER_E_MATCH_INVALID;
+                                else
+                                        poison = error_fold(r);
+                        }
+
+                        ++n_matches;
                 }
         }
         c_dvar_read(in_v, "]u)", &flags);
@@ -1410,6 +1422,11 @@ static int driver_method_become_monitor(Peer *peer, CDVar *in_v, CDVar *out_v) {
         r = driver_end_read(in_v);
         if (r) {
                 r = error_trace(r);
+                goto error;
+        }
+
+        if (n_matches > peer->user->n_matches) {
+                r = DRIVER_E_QUOTA;
                 goto error;
         }
 
@@ -1423,28 +1440,38 @@ static int driver_method_become_monitor(Peer *peer, CDVar *in_v, CDVar *out_v) {
                 goto error;
         }
 
-        /* only fatal errors from here on */
-        peer_flush_matches(peer);
-
         /* write the output message */
         c_dvar_write(out_v, "()");
 
         r = driver_send_reply(peer, out_v, NULL);
-        if (r)
-                return error_trace(r);
+        if (r) {
+                r = error_trace(r);
+                goto error;
+        }
 
+        /* only fatal errors from here on */
+
+        peer_flush_matches(peer);
         r = driver_goodbye(peer, false);
-        if (r)
-                return error_trace(r);
+        if (r) {
+                r = error_trace(r);
+                goto error;
+        }
 
-        peer_become_monitor(peer);
+        r = peer_become_monitor(peer, &owned_matches);
+        if (r) {
+                r = error_fold(r);
+                goto error;
+        }
+
+        match_owner_deinit(&owned_matches);
 
         return 0;
 
 error:
-        /* restore the old matches */
-        peer_flush_matches(peer);
-        peer->owned_matches = owned_matches;
+        while (owned_matches.rule_tree.root)
+                match_rule_user_unref(c_container_of(owned_matches.rule_tree.root, MatchRule, owner_node));
+
         return r;
 }
 

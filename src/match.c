@@ -465,11 +465,13 @@ int match_owner_ref_rule(MatchOwner *owner, MatchRule **rulep, const char *rule_
         slot = c_rbtree_find_slot(&owner->rule_tree, match_rules_compare, &rule->keys, &parent);
         if (!slot) {
                 /* one already exists, take a ref on that instead and drop the one we created */
-                *rulep = match_rule_user_ref(c_container_of(parent, MatchRule, owner_node));
+                if (rulep)
+                        *rulep = match_rule_user_ref(c_container_of(parent, MatchRule, owner_node));
         } else {
                 /* link the new rule into the rbtree */
                 c_rbtree_add(&owner->rule_tree, parent, slot, &rule->owner_node);
-                *rulep = rule;
+                if (rulep)
+                        *rulep = rule;
                 rule = NULL;
         }
 

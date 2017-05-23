@@ -259,13 +259,6 @@ void peer_unregister(Peer *peer) {
         peer->registered = false;
 }
 
-void peer_become_monitor(Peer *peer) {
-        assert(!peer->registered);
-        assert(!peer->monitor);
-
-        peer->monitor = true;
-}
-
 int peer_request_name(Peer *peer, const char *name, uint32_t flags, NameChange *change) {
         int r;
 
@@ -412,6 +405,43 @@ int peer_remove_match(Peer *peer, const char *rule_string) {
 
         match_rule_user_unref(rule);
         ++peer->user->n_matches;
+
+        return 0;
+}
+
+int peer_become_monitor(Peer *peer, MatchOwner *owned_matches) {
+        MatchRule *rule;
+        size_t n_matches = 0;
+        int r, poison = 0;
+
+        assert(!peer->registered);
+        assert(!peer->monitor);
+        assert(c_rbtree_is_empty(&peer->owned_matches.rule_tree));
+
+        /* only fatal errors may occur after this point */
+        peer->owned_matches = *owned_matches;
+        *owned_matches = (MatchOwner){};
+
+        c_rbtree_for_each_entry(rule, &peer->owned_matches.rule_tree, owner_node) {
+
+                rule->keys.eavesdrop = true;
+                rule->owner = &peer->owned_matches;
+
+                r = peer_link_match(peer, rule);
+                if (r && !poison)
+                        poison = error_trace(r);
+
+                ++n_matches;
+        }
+
+        assert(n_matches <= peer->user->n_matches);
+        peer->user->n_matches -= n_matches;
+
+        if (poison)
+                /* a fatal error occured, the peer was modified, but still consistent */
+                return poison;
+
+        peer->monitor = true;
 
         return 0;
 }
