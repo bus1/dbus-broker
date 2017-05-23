@@ -265,6 +265,11 @@ int peer_request_name(Peer *peer, const char *name, uint32_t flags, NameChange *
         if (!strcmp(name, "org.freedesktop.DBus"))
                 return PEER_E_NAME_RESERVED;
 
+        if (name[0] == ':')
+                return PEER_E_NAME_UNIQUE;
+
+        /* XXX: refuse invalid names */
+
         r = name_registry_request_name(&peer->bus->names, &peer->owned_names, name, flags, change);
         switch (r) {
         case 0:
@@ -291,6 +296,11 @@ int peer_release_name(Peer *peer, const char *name, NameChange *change) {
 
         if (!strcmp(name, "org.freedesktop.DBus"))
                 return PEER_E_NAME_RESERVED;
+
+        if (name[0] == ':')
+                return PEER_E_NAME_UNIQUE;
+
+        /* XXX: refuse invalid names */
 
         r = name_registry_release_name(&peer->bus->names, &peer->owned_names, name, change);
         if (!r) {

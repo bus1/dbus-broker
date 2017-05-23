@@ -308,6 +308,8 @@ const char *driver_error_to_string(int r) {
                 [DRIVER_E_UNEXPECTED_ENVIRONMENT_UPDATE]        = "User is not authorized to update environment variables",
                 [DRIVER_E_EXPECTED_REPLY_EXISTS]                = "Pending reply with that serial already exists",
                 [DRIVER_E_NAME_RESERVED]                        = "org.freedesktop.DBus is a reserved name",
+                [DRIVER_E_NAME_UNIQUE]                          = "The name is a unique name",
+                [DRIVER_E_NAME_INVALID]                         = "The name is not a valid well-known name",
                 [DRIVER_E_NAME_NOT_FOUND]                       = "The name does not exist",
                 [DRIVER_E_NAME_NOT_ACTIVATABLE]                 = "The name is not activatable",
                 [DRIVER_E_NAME_OWNER_NOT_FOUND]                 = "The name does not have an owner",
@@ -706,6 +708,10 @@ static int driver_method_request_name(Peer *peer, CDVar *in_v, CDVar *out_v) {
                 return DRIVER_E_QUOTA;
         else if (r == PEER_E_NAME_RESERVED)
                 return DRIVER_E_NAME_RESERVED;
+        else if (r == PEER_E_NAME_UNIQUE)
+                return DRIVER_E_NAME_UNIQUE;
+        else if (r == PEER_E_NAME_INVALID)
+                return DRIVER_E_NAME_INVALID;
         else
                 return error_fold(r);
 
@@ -752,6 +758,12 @@ static int driver_method_release_name(Peer *peer, CDVar *in_v, CDVar *out_v) {
                 reply = DBUS_RELEASE_NAME_REPLY_NON_EXISTENT;
         else if (r == PEER_E_NAME_NOT_OWNER)
                 reply = DBUS_RELEASE_NAME_REPLY_NOT_OWNER;
+        else if (r == PEER_E_NAME_RESERVED)
+                return DRIVER_E_NAME_RESERVED;
+        else if (r == PEER_E_NAME_UNIQUE)
+                return DRIVER_E_NAME_UNIQUE;
+        else if (r == PEER_E_NAME_INVALID)
+                return DRIVER_E_NAME_INVALID;
         else
                 return error_fold(r);
 
@@ -1776,6 +1788,8 @@ int driver_dispatch(Peer *peer, Message *message) {
         case DRIVER_E_UNEXPECTED_SIGNATURE:
         case DRIVER_E_UNEXPECTED_FLAGS:
         case DRIVER_E_NAME_RESERVED:
+        case DRIVER_E_NAME_UNIQUE:
+        case DRIVER_E_NAME_INVALID:
                 r = driver_send_error(peer, metadata.header.serial, "org.freedesktop.DBus.Error.InvalidArgs", driver_error_to_string(r));
                 break;
         case DRIVER_E_QUOTA:
