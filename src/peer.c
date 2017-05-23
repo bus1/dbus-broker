@@ -45,14 +45,12 @@ int peer_dispatch(DispatchFile *file, uint32_t mask) {
 
                 r = connection_dequeue(&peer->connection, &m);
                 if (r == CONNECTION_E_EOF) {
-                        peer_flush_matches(peer);
                         r = driver_goodbye(peer, false);
                         if (r)
                                 return error_fold(r);
                         connection_shutdown(&peer->connection);
                         break;
                 } else if (r == CONNECTION_E_RESET) {
-                        peer_flush_matches(peer);
                         r = driver_goodbye(peer, false);
                         if (r)
                                 return error_fold(r);
@@ -68,7 +66,6 @@ int peer_dispatch(DispatchFile *file, uint32_t mask) {
                 r = driver_dispatch(peer, m);
                 metrics_sample_end(&peer->metrics);
                 if (r == DRIVER_E_DISCONNECT) {
-                        peer_flush_matches(peer);
                         r = driver_goodbye(peer, false);
                         if (r)
                                 return error_fold(r);
@@ -526,7 +523,6 @@ void peer_registry_flush(PeerRegistry *registry) {
         int r;
 
         c_rbtree_for_each_entry_unlink(peer, safe, &registry->peer_tree, registry_node) {
-                peer_flush_matches(peer);
                 r = driver_goodbye(peer, true);
                 assert(!r); /* can not fail in silent mode */
                 connection_close(&peer->connection);
