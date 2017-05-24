@@ -69,9 +69,7 @@ int peer_dispatch(DispatchFile *file, uint32_t mask) {
                         r = driver_goodbye(peer, false);
                         if (r)
                                 return error_fold(r);
-                        connection_close(&peer->connection);
-                        peer_free(peer);
-                        return 0;
+                        connection_shutdown(&peer->connection);
                 } else if (r)
                         return error_fold(r);
         }
