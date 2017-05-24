@@ -9,6 +9,16 @@
 #include "activation.h"
 #include "util/error.h"
 
+ActivationRequest *activation_request_free(ActivationRequest *request) {
+        if (!request)
+                return NULL;
+
+        c_list_unlink_init(&request->link);
+        free(request);
+
+        return NULL;
+}
+
 static int activation_compare(CRBTree *tree, void *k, CRBNode *rb) {
         Activation *activation = c_container_of(rb, Activation, registry_node);
 
@@ -37,6 +47,7 @@ int activation_new(Activation **activationp, ActivationRegistry *registry, const
         activation->name = name_ref(name);
         activation->user = user_ref(user);
         activation->socket_buffers = (CList)C_LIST_INIT(activation->socket_buffers);
+        activation->activation_requests = (CList)C_LIST_INIT(activation->activation_requests);
         activation->registry_node = (CRBNode)C_RBNODE_INIT(activation->registry_node);
         memcpy((char*)activation->path, path, strlen(path) + 1);
 
@@ -53,12 +64,16 @@ int activation_new(Activation **activationp, ActivationRegistry *registry, const
  */
 Activation *activation_free(Activation *activation) {
         SocketBuffer *skb;
+        ActivationRequest *request;
 
         if (!activation)
                 return NULL;
 
         while ((skb = c_list_first_entry(&activation->socket_buffers, SocketBuffer, link)))
                 socket_buffer_free(skb);
+
+        while ((request = c_list_first_entry(&activation->activation_requests, ActivationRequest, link)))
+                activation_request_free(request);
 
         activation->user = user_unref(activation->user);
         activation->name->activation = NULL;
@@ -78,6 +93,20 @@ int activation_queue_message(Activation *activation, Message *message) {
                 return error_fold(r);
 
         c_list_link_tail(&activation->socket_buffers, &skb->link);
+
+        return 0;
+}
+
+int activation_queue_request(Activation *activation, uint64_t sender_id, uint32_t serial) {
+        ActivationRequest *request;
+
+        request = calloc(1, sizeof(*request));
+        if (!request)
+                return error_origin(-ENOMEM);
+
+        c_list_link_tail(&activation->activation_requests, &request->link);
+        request->sender_id = sender_id;
+        request->serial = serial;
 
         return 0;
 }

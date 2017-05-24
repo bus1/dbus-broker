@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <sys/types.h>
 
+typedef struct ActivationRequest ActivationRequest;
 typedef struct Activation Activation;
 typedef struct ActivationRegistry ActivationRegistry;
 typedef struct Message Message;
@@ -23,12 +24,19 @@ enum {
         ACTIVATION_E_ALREADY_ACTIVATABLE,
 };
 
+struct ActivationRequest {
+        uint64_t sender_id;
+        uint32_t serial;
+        CList link;
+};
+
 struct Activation {
         ActivationRegistry *registry;
         Name *name;
 
         User *user;
         CList socket_buffers;
+        CList activation_requests;
         bool requested : 1;
 
         CRBNode registry_node;
@@ -39,10 +47,13 @@ struct ActivationRegistry {
         CRBTree activation_tree;
 };
 
+ActivationRequest *activation_request_free(ActivationRequest *request);
+
 int activation_new(Activation **activationp, ActivationRegistry *registry, const char *path, Name *name, User *user);
 Activation *activation_free(Activation *free);
 
 int activation_queue_message(Activation *activation, Message *message);
+int activation_queue_request(Activation *activation, uint64_t sender_id, uint32_t serial);
 
 void activation_registry_init(ActivationRegistry *registry);
 void activation_registry_deinit(ActivationRegistry *registry);
