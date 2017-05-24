@@ -296,6 +296,7 @@ int activation_send_signal(Connection *controller, const char *path) {
 const char *driver_error_to_string(int r) {
         static const char *error_strings[_DRIVER_E_MAX] = {
                 [DRIVER_E_INVALID_MESSAGE]                      = "Invalid message body",
+                [DRIVER_E_PEER_NOT_REGISTERED]                  = "Hello() was not the first method called",
                 [DRIVER_E_PEER_ALREADY_REGISTERED]              = "Hello() already called",
                 [DRIVER_E_UNEXPECTED_MESSAGE_TYPE]              = "Unexpected message type",
                 [DRIVER_E_UNEXPECTED_PATH]                      = "Invalid object path",
@@ -1795,8 +1796,13 @@ int driver_dispatch(Peer *peer, Message *message) {
 
         r = driver_dispatch_internal(peer, &metadata, &filter, message);
         switch (r) {
-        case DRIVER_E_INVALID_MESSAGE:
         case DRIVER_E_PEER_NOT_REGISTERED:
+                r = driver_send_error(peer, metadata.header.serial, "org.freedesktop.DBus.Error.AccessDenied", driver_error_to_string(r));
+                if (r)
+                        return error_trace(r);
+
+                /* fall-through */
+        case DRIVER_E_INVALID_MESSAGE:
                 return DRIVER_E_DISCONNECT;
         case DRIVER_E_PEER_ALREADY_REGISTERED:
                 r = driver_send_error(peer, metadata.header.serial, "org.freedesktop.DBus.Error.Failed", driver_error_to_string(r));
