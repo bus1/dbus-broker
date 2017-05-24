@@ -649,7 +649,7 @@ exit:
 
 static int manager_load(Manager *manager) {
         const char suffix[] = ".service";
-        _c_cleanup_(c_closedirp) DIR *dir;
+        _c_cleanup_(c_closedirp) DIR *dir = NULL;
         const char *dirpath;
         struct dirent *de;
         char *path;
