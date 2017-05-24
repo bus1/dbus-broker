@@ -298,6 +298,7 @@ const char *driver_error_to_string(int r) {
                 [DRIVER_E_INVALID_MESSAGE]                      = "Invalid message body",
                 [DRIVER_E_PEER_NOT_REGISTERED]                  = "Hello() was not the first method called",
                 [DRIVER_E_PEER_ALREADY_REGISTERED]              = "Hello() already called",
+                [DRIVER_E_PEER_IS_MONITOR]                      = "Monitors cannot send messages",
                 [DRIVER_E_UNEXPECTED_MESSAGE_TYPE]              = "Unexpected message type",
                 [DRIVER_E_UNEXPECTED_PATH]                      = "Invalid object path",
                 [DRIVER_E_UNEXPECTED_INTERFACE]                 = "Invalid interface",
@@ -1718,7 +1719,7 @@ static int driver_dispatch_internal(Peer *peer, MessageMetadata *metadata, Match
                 return error_trace(r);
 
         if (peer_is_monitor(peer))
-                return DRIVER_E_DISCONNECT;
+                return DRIVER_E_PEER_IS_MONITOR;
 
         if (_c_unlikely_(c_string_equal(metadata->fields.destination, "org.freedesktop.DBus"))) {
                 return error_trace(driver_dispatch_interface(peer,
@@ -1730,8 +1731,8 @@ static int driver_dispatch_internal(Peer *peer, MessageMetadata *metadata, Match
                                                              message));
         }
 
-        if (!peer->registered)
-                return DRIVER_E_DISCONNECT;
+        if (!peer_is_registered(peer))
+                return DRIVER_E_PEER_NOT_REGISTERED;
 
         if (!metadata->fields.destination) {
                 if (metadata->header.type == DBUS_MESSAGE_TYPE_SIGNAL)
@@ -1797,6 +1798,7 @@ int driver_dispatch(Peer *peer, Message *message) {
         r = driver_dispatch_internal(peer, &metadata, &filter, message);
         switch (r) {
         case DRIVER_E_PEER_NOT_REGISTERED:
+        case DRIVER_E_PEER_IS_MONITOR:
                 r = driver_send_error(peer, metadata.header.serial, "org.freedesktop.DBus.Error.AccessDenied", driver_error_to_string(r));
                 if (r)
                         return error_trace(r);
