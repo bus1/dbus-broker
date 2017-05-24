@@ -102,7 +102,6 @@ static int manager_dispatch_controller(DispatchFile *file, uint32_t events) {
 
 int manager_new(Manager **managerp, int controller_fd) {
         _c_cleanup_(manager_freep) Manager *manager = NULL;
-        _c_cleanup_(user_unrefp) User *user = NULL;
         struct ucred ucred;
         socklen_t z_ucred = sizeof(ucred);
         sigset_t sigmask;
@@ -123,6 +122,10 @@ int manager_new(Manager **managerp, int controller_fd) {
         bus_init(&manager->bus, 16 * 1024 * 1024, 1024, 1024, 10 * 1024, 10 * 1024);
 
         manager->bus.controller = &manager->controller;
+        manager->bus.pid = ucred.pid;
+        r = user_registry_ref_user(&manager->bus.users, &manager->bus.user, ucred.uid);
+        if (r)
+                return error_fold(r);
 
         r = dispatch_context_init(&manager->dispatcher);
         if (r)
@@ -146,14 +149,10 @@ int manager_new(Manager **managerp, int controller_fd) {
 
         dispatch_file_select(&manager->signals_file, EPOLLIN);
 
-        r = user_registry_ref_user(&manager->bus.users, &user, ucred.uid);
-        if (r)
-                return error_fold(r);
-
         r = connection_init_server(&manager->controller,
                                    &manager->dispatcher,
                                    manager_dispatch_controller,
-                                   user,
+                                   manager->bus.user,
                                    "0123456789abcdef",
                                    controller_fd);
         if (r)

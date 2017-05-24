@@ -1074,11 +1074,15 @@ static int driver_method_get_connection_unix_user(Peer *peer, CDVar *in_v, CDVar
         if (r)
                 return error_trace(r);
 
-        connection = bus_find_peer_by_name(peer->bus, name);
-        if (!connection)
-                return DRIVER_E_PEER_NOT_FOUND;
+        if (!strcmp(name, "org.freedesktop.DBus")) {
+                c_dvar_write(out_v, "(u)", peer->bus->user->uid);
+        } else {
+                connection = bus_find_peer_by_name(peer->bus, name);
+                if (!connection)
+                        return DRIVER_E_PEER_NOT_FOUND;
 
-        c_dvar_write(out_v, "(u)", connection->user->uid);
+                c_dvar_write(out_v, "(u)", connection->user->uid);
+        }
 
         r = driver_send_reply(peer, out_v, NULL);
         if (r)
@@ -1098,11 +1102,15 @@ static int driver_method_get_connection_unix_process_id(Peer *peer, CDVar *in_v,
         if (r)
                 return error_trace(r);
 
-        connection = bus_find_peer_by_name(peer->bus, name);
-        if (!connection)
-                return DRIVER_E_PEER_NOT_FOUND;
+        if (!strcmp(name, "org.freedesktop.DBus")) {
+                c_dvar_write(out_v, "(u)", peer->bus->pid);
+        } else {
+                connection = bus_find_peer_by_name(peer->bus, name);
+                if (!connection)
+                        return DRIVER_E_PEER_NOT_FOUND;
 
-        c_dvar_write(out_v, "(u)", connection->pid);
+                c_dvar_write(out_v, "(u)", connection->pid);
+        }
 
         r = driver_send_reply(peer, out_v, NULL);
         if (r)

@@ -29,6 +29,8 @@ void bus_init(Bus *bus,
         name_registry_init(&bus->names);
         user_registry_init(&bus->users, max_bytes, max_fds, max_peers, max_names, max_matches);
         peer_registry_init(&bus->peers);
+        bus->user = NULL;
+        bus->pid = 0;
 
         random = (void *)getauxval(AT_RANDOM);
         assert(random);
@@ -36,6 +38,8 @@ void bus_init(Bus *bus,
 }
 
 void bus_deinit(Bus *bus) {
+        bus->pid = 0;
+        bus->user = user_unref(bus->user);
         peer_registry_deinit(&bus->peers);
         user_registry_deinit(&bus->users);
         name_registry_deinit(&bus->names);

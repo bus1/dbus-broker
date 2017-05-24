@@ -23,9 +23,12 @@ enum {
 typedef struct Bus Bus;
 typedef struct Connection Connection;
 typedef struct Message Message;
+typedef struct User User;
 
 struct Bus {
         Connection *controller;
+        User *user;
+        pid_t pid;
         char guid[16];
 
         CRBTree listener_tree;
