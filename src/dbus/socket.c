@@ -305,9 +305,9 @@ int socket_dequeue(Socket *socket, Message **messagep) {
 
                 r = message_new_incoming(&msg, header);
                 if (r == MESSAGE_E_CORRUPT_HEADER)
-                        return SOCKET_E_RESET;
+                        return SOCKET_E_EOF;
                 else if (r == MESSAGE_E_TOO_LARGE)
-                        return SOCKET_E_RESET;
+                        return SOCKET_E_EOF;
                 else if (r)
                         return error_fold(r);
 
@@ -327,7 +327,7 @@ int socket_dequeue(Socket *socket, Message **messagep) {
 
         if (_c_unlikely_(!n_data && socket->in.fds)) {
                 if (msg->fds)
-                        return SOCKET_E_RESET;
+                        return SOCKET_E_EOF;
 
                 msg->fds = socket->in.fds;
                 socket->in.fds = NULL;
