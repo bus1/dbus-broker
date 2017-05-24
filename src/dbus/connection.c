@@ -142,7 +142,7 @@ void connection_shutdown(Connection *connection) {
  * connection_close() - XXX
  */
 void connection_close(Connection *connection) {
-        dispatch_file_deselect(&connection->socket_file, EPOLLHUP | EPOLLIN | EPOLLOUT);
+        dispatch_file_deselect(&connection->socket_file, EPOLLIN);
         socket_close(&connection->socket);
 }
 

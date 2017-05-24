@@ -729,12 +729,12 @@ void socket_shutdown(Socket *socket) {
  * socket_close() - close both communication directions
  * @socket:                     socket to operate on
  *
- * This closes both communication directions on the socket immediately. This
- * discards all pending data, which will be lost irrecoverably.
+ * This dissalows both further queuing and dequeuing on the socket, but
+ * still flushes out the pending socket buffers to the kernel. Once all
+ * pending output has been sent the remote end is notifiode of the shutdown.
  */
 void socket_close(Socket *socket) {
+        socket_shutdown(socket);
         socket_hangup_input(socket);
-        socket_hangup_output(socket);
         socket_discard_input(socket);
-        socket_discard_output(socket);
 }
