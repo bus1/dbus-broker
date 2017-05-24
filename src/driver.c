@@ -610,7 +610,8 @@ static int driver_name_owner_changed(Bus *bus, const char *name, Peer *old_owner
 }
 
 static int driver_name_activated(Activation *activation, Peer *receiver) {
-        SocketBuffer *skb, *safe;
+        SocketBuffer *skb, *skb_safe;
+        ActivationRequest *request, *request_safe;
         int r;
 
         if (!activation)
@@ -619,7 +620,27 @@ static int driver_name_activated(Activation *activation, Peer *receiver) {
         /* in case the name is dropped again in the future, we should request it again */
         activation->requested = false;
 
-        c_list_for_each_entry_safe(skb, safe, &activation->socket_buffers, link) {
+        c_list_for_each_entry_safe(request, request_safe, &activation->activation_requests, link) {
+                Peer *sender;
+
+                sender = peer_registry_find_peer(&receiver->bus->peers, request->sender_id);
+                if (sender) {
+                        _c_cleanup_(c_dvar_deinitp) CDVar var = C_DVAR_INIT;
+
+                        c_dvar_begin_write(&var, driver_type_out_u, 1);
+                        c_dvar_write(&var, "(");
+                        driver_write_reply_header(&var, sender, request->serial, driver_type_out_u);
+                        c_dvar_write(&var, "(u)", DBUS_START_REPLY_SUCCESS);
+
+                        r = driver_send_reply(sender, &var, NULL);
+                        if (r)
+                                return error_trace(r);
+                }
+
+                activation_request_free(request);
+        }
+
+        c_list_for_each_entry_safe(skb, skb_safe, &activation->socket_buffers, link) {
                 Message *message = skb->message;
                 Peer *sender;
 
@@ -927,7 +948,7 @@ static int driver_method_start_service_by_name(Peer *peer, CDVar *in_v, uint32_t
         const char *service;
         Name *name;
         NameOwnership *ownership;
-        uint32_t flags, reply;
+        uint32_t flags;
         int r;
 
         /* flags are silently ignored */
@@ -942,7 +963,13 @@ static int driver_method_start_service_by_name(Peer *peer, CDVar *in_v, uint32_t
                 return DRIVER_E_NAME_NOT_ACTIVATABLE;
 
         ownership = c_list_first_entry(&name->ownership_list, NameOwnership, name_link);
-        if (!ownership) {
+        if (ownership) {
+                c_dvar_write(out_v, "(u)", DBUS_START_REPLY_ALREADY_RUNNING);
+
+                r = driver_send_reply(peer, out_v, NULL);
+                if (r)
+                        return error_trace(r);
+        } else {
                 if (!name->activation->requested) {
                         r = activation_send_signal(peer->bus->controller, name->activation->path);
                         if (r)
@@ -951,16 +978,10 @@ static int driver_method_start_service_by_name(Peer *peer, CDVar *in_v, uint32_t
                         name->activation->requested = true;
                 }
 
-                reply = DBUS_START_REPLY_SUCCESS;
-        } else {
-                reply = DBUS_START_REPLY_ALREADY_RUNNING;
+                r = activation_queue_request(name->activation, peer->id, serial);
+                if (r)
+                        return error_fold(r);
         }
-
-        c_dvar_write(out_v, "(u)", reply);
-
-        r = driver_send_reply(peer, out_v, NULL);
-        if (r)
-                return error_trace(r);
 
         return 0;
 }
