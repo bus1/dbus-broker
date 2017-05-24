@@ -10,7 +10,7 @@
 #include <sys/un.h>
 #include <sys/wait.h>
 #include <systemd/sd-bus.h>
-#include <systemd/sd-id128.h>
+#include <unistd.h>
 #include "dbus/protocol.h"
 #include "test.h"
 
@@ -432,7 +432,7 @@ static void test_driver_list_activatable_names(struct sockaddr_un *address, sock
         assert(r >= 0);
 
         /*
-         * List activatable names, we don't have any real ones to test, so just verify that the drive is
+         * List activatable names, we don't have any real ones to test, so just verify that the driver is
          * listed and nothing else.
          */
         r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
@@ -549,6 +549,125 @@ static void test_driver_list_queued_owners(struct sockaddr_un *address, socklen_
         assert(r >= 0);
 }
 
+static void test_driver_get_connection_unix_user(struct sockaddr_un *address, socklen_t addrlen) {
+        _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+        sd_bus_message *reply = NULL;
+        const char *unique_name;
+        uid_t uid;
+        int r;
+
+        fprintf(stderr, " - GetConnectionUnixUser()\n");
+
+        bus = connect_bus(address, addrlen);
+
+        r = sd_bus_get_unique_name(bus, &unique_name);
+        assert(r >= 0);
+
+        /* XXX: check invalid flags */
+
+        /* request a name */
+        r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                               "RequestName", NULL, NULL,
+                               "su", "com.example.foo", 0);
+        assert(r >= 0);
+
+        /* get uid of driver */
+        r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                               "GetConnectionUnixUser", NULL, &reply,
+                               "s", "org.freedesktop.DBus", 0);
+        assert(r >= 0);
+        r = sd_bus_message_read(reply, "u", &uid);
+        assert(r >= 0);
+        assert(uid == getuid());
+        sd_bus_message_unref(reply);
+
+        /* get uid of our well-known name */
+        r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                               "GetConnectionUnixUser", NULL, &reply,
+                               "s", "com.example.foo", 0);
+        assert(r >= 0);
+        r = sd_bus_message_read(reply, "u", &uid);
+        assert(r >= 0);
+        assert(uid == getuid());
+        sd_bus_message_unref(reply);
+
+        /* get uid of our unique name */
+        r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                               "GetConnectionUnixUser", NULL, &reply,
+                               "s", unique_name);
+        assert(r >= 0);
+        r = sd_bus_message_read(reply, "u", &uid);
+        assert(r >= 0);
+        assert(uid == getuid());
+        sd_bus_message_unref(reply);
+
+        /* XXX: test invalid name */
+
+        /* clean up the name */
+        r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                               "ReleaseName", NULL, NULL,
+                               "s", "com.example.foo");
+        assert(r >= 0);
+}
+
+static void test_driver_get_connection_unix_process_id(struct sockaddr_un *address, socklen_t addrlen) {
+        _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+        sd_bus_message *reply = NULL;
+        const char *unique_name;
+        pid_t pid;
+        int r;
+
+        fprintf(stderr, " - GetConnectionUnixProcessID()\n");
+
+        bus = connect_bus(address, addrlen);
+
+        r = sd_bus_get_unique_name(bus, &unique_name);
+        assert(r >= 0);
+
+        /* XXX: check invalid flags */
+
+        /* request a name */
+        r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                               "RequestName", NULL, NULL,
+                               "su", "com.example.foo", 0);
+        assert(r >= 0);
+
+        /* get pid of driver */
+        r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                               "GetConnectionUnixProcessID", NULL, NULL,
+                               "s", "org.freedesktop.DBus", 0);
+        assert(r >= 0);
+        /* XXX: verify that this has the right value */
+
+        /* get pid of our well-known name */
+        r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                               "GetConnectionUnixProcessID", NULL, &reply,
+                               "s", "com.example.foo", 0);
+        assert(r >= 0);
+        r = sd_bus_message_read(reply, "u", &pid);
+        assert(r >= 0);
+        assert(pid == getpid());
+        sd_bus_message_unref(reply);
+
+        /* get uid of our unique name */
+        r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                               "GetConnectionUnixProcessID", NULL, &reply,
+                               "s", unique_name);
+        assert(r >= 0);
+        r = sd_bus_message_read(reply, "u", &pid);
+        assert(r >= 0);
+        assert(pid == getpid());
+        sd_bus_message_unref(reply);
+
+        /* XXX: test invalid name */
+
+        /* clean up the name */
+        r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                               "ReleaseName", NULL, NULL,
+                               "s", "com.example.foo");
+        assert(r >= 0);
+}
+
 static void test_driver_api(struct sockaddr_un *address, socklen_t addrlen) {
         _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
         int r;
@@ -561,6 +680,8 @@ static void test_driver_api(struct sockaddr_un *address, socklen_t addrlen) {
         test_driver_list_names(address, addrlen);
         test_driver_list_activatable_names(address, addrlen);
         test_driver_list_queued_owners(address, addrlen);
+        test_driver_get_connection_unix_user(address, addrlen);
+        test_driver_get_connection_unix_process_id(address, addrlen);
 
         bus = connect_bus(address, addrlen);
 
@@ -583,16 +704,6 @@ static void test_driver_api(struct sockaddr_un *address, socklen_t addrlen) {
                                "GetConnectionSELinuxSecurityContext", NULL, NULL,
                                "s", "com.example.baz");
         /* this will fail or succeed depending on whether or not SELinux is enabled */
-
-        r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
-                               "GetConnectionUnixProcessID", NULL, NULL,
-                               "s", "com.example.baz");
-        assert(r >= 0);
-
-        r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
-                               "GetConnectionUnixUser", NULL, NULL,
-                               "s", "com.example.baz");
-        assert(r >= 0);
 
         r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                "AddMatch", NULL, NULL,
