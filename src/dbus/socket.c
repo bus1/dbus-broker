@@ -304,12 +304,13 @@ int socket_dequeue(Socket *socket, Message **messagep) {
                 memcpy(&header, socket->in.data + socket->in.data_start, n);
 
                 r = message_new_incoming(&msg, header);
-                if (r == MESSAGE_E_CORRUPT_HEADER)
+                if (r == MESSAGE_E_CORRUPT_HEADER ||
+                    r == MESSAGE_E_TOO_LARGE) {
+                        socket_hangup_input(socket);
                         return SOCKET_E_EOF;
-                else if (r == MESSAGE_E_TOO_LARGE)
-                        return SOCKET_E_EOF;
-                else if (r)
+                } else if (r) {
                         return error_fold(r);
+                }
 
                 n_data -= n;
                 socket->in.data_start += n;
@@ -326,8 +327,10 @@ int socket_dequeue(Socket *socket, Message **messagep) {
         }
 
         if (_c_unlikely_(!n_data && socket->in.fds)) {
-                if (msg->fds)
+                if (msg->fds) {
+                        socket_hangup_input(socket);
                         return SOCKET_E_EOF;
+                }
 
                 msg->fds = socket->in.fds;
                 socket->in.fds = NULL;
