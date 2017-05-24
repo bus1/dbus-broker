@@ -39,6 +39,28 @@ static sd_bus *connect_bus(struct sockaddr_un *address, socklen_t addrlen) {
         return bus;
 }
 
+static sd_bus *connect_bus_raw(struct sockaddr_un *address, socklen_t addrlen) {
+        sd_bus *bus;
+        int fd, r;
+
+        fd = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
+        assert(fd >= 0);
+
+        r = connect(fd, (struct sockaddr*)address, addrlen);
+        assert(r >= 0);
+
+        r = sd_bus_new(&bus);
+        assert(r >= 0);
+
+        r = sd_bus_set_fd(bus, fd, fd);
+        assert(r >= 0);
+
+        r = sd_bus_start(bus);
+        assert(r >= 0);
+
+        return bus;
+}
+
 static void test_driver_names(struct sockaddr_un *address, socklen_t addrlen) {
         _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus1 = NULL, *bus2 = NULL;
         sd_bus_message *message = NULL, *reply = NULL;
@@ -106,27 +128,52 @@ static void test_driver_names(struct sockaddr_un *address, socklen_t addrlen) {
 }
 
 static void test_driver_hello(struct sockaddr_un *address, socklen_t addrlen) {
-        _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+        sd_bus *bus = NULL;
+        sd_bus_message *reply = NULL;
         sd_bus_error error = SD_BUS_ERROR_NULL;
         const char *unique_name;
         int r;
 
         fprintf(stderr, " - Hello()\n");
 
-        bus = connect_bus(address, addrlen);
+        bus = connect_bus_raw(address, addrlen);
 
-        /* Hello() has already been called, just verify that we have received the correct unique name */
-        r = sd_bus_get_unique_name(bus, &unique_name);
+        /* do the Hello() */
+        r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                               "Hello", NULL, &reply,
+                               "");
+
+        r = sd_bus_message_read(reply, "s", &unique_name);
         assert(r >= 0);
         assert(!strcmp(unique_name, ":1.0"));
+        sd_bus_message_unref(reply);
 
-        /* Calling Hello() again should fail with error "Failed" */
+        /* calling Hello() again is not valid */
         r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                "Hello", &error, NULL,
                                "");
         assert(r < 0);
         assert(!strcmp(error.name, "org.freedesktop.DBus.Error.Failed"));
         sd_bus_error_free(&error);
+        sd_bus_flush_close_unref(bus);
+
+        bus = connect_bus_raw(address, addrlen);
+
+        /* call something other than Hello() */
+        r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                               "RequestName", &error, NULL,
+                               "su", "com.example.foo", 0);
+        assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
+        sd_bus_error_free(&error);
+
+        /* now try to call Hello() (or anything else), to verify that the client was disconnected
+         * XXX: the dbus daemon does not work according to spec here, as far as I can tell
+        r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                               "Hello", NULL, NULL,
+                               "");
+        assert(r == -ECONNRESET);
+        */
+        sd_bus_flush_close_unref(bus);
 }
 
 static void test_driver_request_name(struct sockaddr_un *address, socklen_t addrlen) {
