@@ -475,9 +475,8 @@ static int socket_recvmsg(Socket *socket, void *buffer, size_t n_buffer, size_t 
 
         if (_c_unlikely_(n_fds)) {
                 if (_c_unlikely_(*fdsp)) {
-                        /* treat like EPIPE */
+                        /* treat like shutdown */
                         socket_hangup_input(socket);
-                        socket_hangup_output(socket);
                         r = SOCKET_E_LOST_INTEREST;
                         goto error;
                 }
@@ -532,9 +531,8 @@ static int socket_dispatch_read(Socket *socket) {
                 assert(!socket->lines_done);
 
                 if (socket->in.data_size >= SOCKET_LINE_MAX) {
-                        /* treat like EPIPE */
+                        /* treat like shutdown */
                         socket_hangup_input(socket);
-                        socket_hangup_output(socket);
                         return SOCKET_E_LOST_INTEREST;
                 }
 
