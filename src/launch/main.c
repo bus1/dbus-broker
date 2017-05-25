@@ -478,9 +478,6 @@ static int manager_on_set_activation_environment(Manager *manager, sd_bus_messag
         _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *method_call = NULL;
         int r;
 
-        if (main_arg_verbose)
-                fprintf(stderr, "Setting activation environment:\n");
-
         r = sd_bus_message_new_method_call(manager->bus_regular, &method_call,
                                            "org.freedesktop.systemd1",
                                            "/org/freedesktop/systemd1",
