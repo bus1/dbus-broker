@@ -239,18 +239,7 @@ int connection_dequeue(Connection *connection, Message **messagep) {
 /**
  * connection_queue() - XXX
  */
-int connection_queue(Connection *connection, SocketBuffer *skb) {
-        socket_queue(&connection->socket, skb);
-        if (socket_has_output(&connection->socket))
-                dispatch_file_select(&connection->socket_file, EPOLLOUT);
-
-        return 0;
-}
-
-/**
- * connection_queue_message() - XXX
- */
-int connection_queue_message(Connection *connection, uint64_t transaction_id, Message *message) {
+int connection_queue(Connection *connection, uint64_t transaction_id, Message *message) {
         SocketBuffer *skb;
         int r;
 
@@ -268,9 +257,9 @@ int connection_queue_message(Connection *connection, uint64_t transaction_id, Me
         if (r)
                 return error_fold(r);
 
-        r = connection_queue(connection, skb);
-        if (r)
-                socket_buffer_free(skb);
+        socket_queue(&connection->socket, skb);
+        if (socket_has_output(&connection->socket))
+                dispatch_file_select(&connection->socket_file, EPOLLOUT);
 
-        return error_fold(r);
+        return 0;
 }

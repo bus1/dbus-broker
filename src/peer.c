@@ -478,7 +478,7 @@ int peer_queue_call(Peer *receiver, Peer *sender, Message *message) {
                         return error_fold(r);
         }
 
-        r = connection_queue_message(&receiver->connection, 0, message);
+        r = connection_queue(&receiver->connection, 0, message);
         if (r)
                 return error_fold(r);
 
@@ -506,7 +506,7 @@ int peer_queue_reply(Peer *sender, const char *destination, uint32_t reply_seria
 
         receiver = c_container_of(slot->owner, Peer, owned_replies);
 
-        r = connection_queue_message(&receiver->connection, 0, message);
+        r = connection_queue(&receiver->connection, 0, message);
         if (r)
                 return error_fold(r);
 

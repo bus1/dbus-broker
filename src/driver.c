@@ -286,7 +286,7 @@ int activation_send_signal(Connection *controller, const char *path) {
                 return error_fold(r);
 
         /* this is excluded from monitoring as it is on our private connection */
-        r = connection_queue_message(controller, 0, message);
+        r = connection_queue(controller, 0, message);
         if (r)
                 return error_fold(r);
 
@@ -335,7 +335,7 @@ static int driver_send_unicast(Peer *receiver, MatchFilter *filter, Message *mes
         if (r)
                 return error_trace(r);
 
-        r = connection_queue_message(&receiver->connection, 0, message);
+        r = connection_queue(&receiver->connection, 0, message);
         if (r)
                 return error_fold(r);
 
@@ -1039,7 +1039,7 @@ static int driver_method_update_activation_environment(Peer *peer, CDVar *in_v, 
                 return error_fold(r);
 
         /* this is excluded from monitoring as it is on our private connection */
-        r = connection_queue_message(peer->bus->controller, 0, message);
+        r = connection_queue(peer->bus->controller, 0, message);
         if (r)
                 return error_fold(r);
 

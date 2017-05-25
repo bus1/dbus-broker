@@ -65,8 +65,7 @@ void connection_close(Connection *connection);
 int connection_dispatch(Connection *connection, uint32_t events);
 
 int connection_dequeue(Connection *connection, Message **messagep);
-int connection_queue(Connection *connection, SocketBuffer *skb);
-int connection_queue_message(Connection *connection, uint64_t transaction_id, Message *message);
+int connection_queue(Connection *connection, uint64_t transaction_id, Message *message);
 
 C_DEFINE_CLEANUP(Connection *, connection_deinit);
 
