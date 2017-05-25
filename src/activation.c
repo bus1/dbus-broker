@@ -63,17 +63,11 @@ int activation_new(Activation **activationp, ActivationRegistry *registry, const
  * activation_free() - XXX
  */
 Activation *activation_free(Activation *activation) {
-        SocketBuffer *skb;
-        ActivationRequest *request;
-
         if (!activation)
                 return NULL;
 
-        while ((skb = c_list_first_entry(&activation->socket_buffers, SocketBuffer, link)))
-                socket_buffer_free(skb);
-
-        while ((request = c_list_first_entry(&activation->activation_requests, ActivationRequest, link)))
-                activation_request_free(request);
+        assert(c_list_is_empty(&activation->socket_buffers));
+        assert(c_list_is_empty(&activation->activation_requests));
 
         activation->user = user_unref(activation->user);
         activation->name->activation = NULL;
@@ -82,6 +76,21 @@ Activation *activation_free(Activation *activation) {
         free(activation);
 
         return NULL;
+}
+
+int activation_flush(Activation *activation) {
+        SocketBuffer *skb;
+        ActivationRequest *request;
+
+        /* XXX: send out error replies */
+
+        while ((skb = c_list_first_entry(&activation->socket_buffers, SocketBuffer, link)))
+                socket_buffer_free(skb);
+
+        while ((request = c_list_first_entry(&activation->activation_requests, ActivationRequest, link)))
+                activation_request_free(request);
+
+        return 0;
 }
 
 int activation_queue_message(Activation *activation, Message *message) {

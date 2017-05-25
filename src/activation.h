@@ -55,6 +55,8 @@ Activation *activation_free(Activation *free);
 int activation_queue_message(Activation *activation, Message *message);
 int activation_queue_request(Activation *activation, uint64_t sender_id, uint32_t serial);
 
+int activation_flush(Activation *activation);
+
 void activation_registry_init(ActivationRegistry *registry);
 void activation_registry_deinit(ActivationRegistry *registry);
 
