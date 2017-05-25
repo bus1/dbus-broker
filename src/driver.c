@@ -139,12 +139,12 @@ static const CDVarType driver_type_out_as[] = {
                 )
         )
 };
-static const CDVarType driver_type_out_ab[] = {
+static const CDVarType driver_type_out_ay[] = {
         C_DVAR_T_INIT(
                 DRIVER_T_MESSAGE(
                         C_DVAR_T_TUPLE1(
                                 C_DVAR_T_ARRAY(
-                                        C_DVAR_T_b
+                                        C_DVAR_T_y
                                 )
                         )
                 )
@@ -1571,8 +1571,8 @@ static int driver_dispatch_method(Peer *peer, uint32_t serial, const char *metho
                 { "GetConnectionUnixUser",                      NULL,                           driver_method_get_connection_unix_user,                         driver_type_in_s,       driver_type_out_u },
                 { "GetConnectionUnixProcessID",                 NULL,                           driver_method_get_connection_unix_process_id,                   driver_type_in_s,       driver_type_out_u },
                 { "GetConnectionCredentials",                   NULL,                           driver_method_get_connection_credentials,                       driver_type_in_s,       driver_type_out_apsv },
-                { "GetAdtAuditSessionData",                     NULL,                           driver_method_get_adt_audit_session_data,                       driver_type_in_s,       driver_type_out_ab },
-                { "GetConnectionSELinuxSecurityContext",        NULL,                           driver_method_get_connection_selinux_security_context,          driver_type_in_s,       driver_type_out_ab },
+                { "GetAdtAuditSessionData",                     NULL,                           driver_method_get_adt_audit_session_data,                       driver_type_in_s,       driver_type_out_ay },
+                { "GetConnectionSELinuxSecurityContext",        NULL,                           driver_method_get_connection_selinux_security_context,          driver_type_in_s,       driver_type_out_ay },
                 { "AddMatch",                                   NULL,                           driver_method_add_match,                                        driver_type_in_s,       driver_type_out_unit },
                 { "RemoveMatch",                                NULL,                           driver_method_remove_match,                                     driver_type_in_s,       driver_type_out_unit },
                 { "GetId",                                      NULL,                           driver_method_get_id,                                           c_dvar_type_unit,       driver_type_out_s },
