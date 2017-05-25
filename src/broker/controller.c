@@ -299,6 +299,27 @@ static int controller_method_name_release(Bus *bus, const char *path, CDVar *in_
         return 0;
 }
 
+static int controller_method_name_reset(Bus *bus, const char *path, CDVar *in_v, FDList *fds, CDVar *out_v) {
+        Activation *activation;
+        int r;
+
+        c_dvar_read(in_v, "()");
+
+        r = controller_end_read(in_v);
+        if (r)
+                return error_trace(r);
+
+        activation = activation_registry_find(&bus->activations, path);
+        if (!activation)
+                return CONTROLLER_E_ACTIVATION_NOT_FOUND;
+
+        activation_flush(activation);
+
+        c_dvar_write(out_v, "()");
+
+        return 0;
+}
+
 static int controller_handle_method(const ControllerMethod *method, Bus *bus, const char *path, uint32_t serial, const char *signature_in, Message *message_in) {
         _c_cleanup_(c_dvar_deinitp) CDVar var_in = C_DVAR_INIT, var_out = C_DVAR_INIT;
         _c_cleanup_(message_unrefp) Message *message_out = NULL;
@@ -374,6 +395,7 @@ static int controller_dispatch_controller(Bus *bus, uint32_t serial, const char 
 
 static int controller_dispatch_name(Bus *bus, uint32_t serial, const char *method, const char *path, const char *signature, Message *message) {
         static const ControllerMethod methods[] = {
+                { "Reset",      controller_method_name_reset,   c_dvar_type_unit,       controller_type_out_unit },
                 { "Release",    controller_method_name_release, c_dvar_type_unit,       controller_type_out_unit },
         };
 
