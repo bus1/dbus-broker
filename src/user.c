@@ -241,14 +241,18 @@ int user_charge(User *user,
         _c_cleanup_(user_usage_unrefp) UserUsage *usage = NULL;
         int r;
 
-        assert(!charge->usage);
-
         if (!actor)
                 actor = user;
 
-        r = user_ref_usage(user, &usage, actor);
-        if (r)
-                return error_trace(r);
+        if (charge->usage) {
+                assert(charge->usage->user == user);
+                assert(charge->usage->uid == actor->uid);
+                usage = user_usage_ref(charge->usage);
+        } else {
+                r = user_ref_usage(user, &usage, actor);
+                if (r)
+                        return error_trace(r);
+        }
 
         r = user_charge_check(user->n_bytes,
                               user->n_usages,
@@ -269,10 +273,13 @@ int user_charge(User *user,
         usage->n_bytes += n_bytes;
         usage->n_fds += n_fds;
 
-        charge->n_bytes = n_bytes;
-        charge->n_fds = n_fds;
-        charge->usage = usage;
-        usage = NULL;
+        charge->n_bytes += n_bytes;
+        charge->n_fds += n_fds;
+
+        if (!charge->usage) {
+                charge->usage = usage;
+                usage = NULL;
+        }
 
         return 0;
 }
