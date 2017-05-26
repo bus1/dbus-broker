@@ -97,7 +97,7 @@ int activation_queue_message(Activation *activation, Message *message) {
         SocketBuffer *skb;
         int r;
 
-        r = socket_buffer_new_message(&skb, message);
+        r = socket_buffer_new(&skb, message);
         if (r)
                 return error_fold(r);
 

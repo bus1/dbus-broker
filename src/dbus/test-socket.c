@@ -88,7 +88,7 @@ static void test_message(void) {
         r = message_new_incoming(&message1, header);
         assert(r == 0);
 
-        r = socket_buffer_new_message(&skb, message1);
+        r = socket_buffer_new(&skb, message1);
         assert(!r);
 
         socket_queue(&client, skb);

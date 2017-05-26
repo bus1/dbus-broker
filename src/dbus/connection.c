@@ -253,7 +253,7 @@ int connection_queue(Connection *connection, uint64_t transaction_id, Message *m
                 }
         }
 
-        r = socket_buffer_new_message(&skb, message);
+        r = socket_buffer_new(&skb, message);
         if (r)
                 return error_fold(r);
 

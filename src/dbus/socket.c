@@ -30,7 +30,7 @@ static char *socket_buffer_get_base(SocketBuffer *buffer) {
         return (char *)(buffer->vecs + buffer->n_vecs);
 }
 
-static int socket_buffer_new(SocketBuffer **bufferp, size_t n_vecs, size_t n_line) {
+static int socket_buffer_new_internal(SocketBuffer **bufferp, size_t n_vecs, size_t n_line) {
         SocketBuffer *buffer;
 
         buffer = malloc(sizeof(*buffer) + n_vecs * sizeof(*buffer->vecs) + n_line);
@@ -51,7 +51,7 @@ static int socket_buffer_new_line(SocketBuffer **bufferp, size_t n) {
         SocketBuffer *buffer;
         int r;
 
-        r = socket_buffer_new(&buffer, 1, c_max(n, SOCKET_LINE_PREALLOC));
+        r = socket_buffer_new_internal(&buffer, 1, c_max(n, SOCKET_LINE_PREALLOC));
         if (r)
                 return error_trace(r);
 
@@ -61,11 +61,11 @@ static int socket_buffer_new_line(SocketBuffer **bufferp, size_t n) {
         return 0;
 }
 
-int socket_buffer_new_message(SocketBuffer **bufferp, Message *message) {
+int socket_buffer_new(SocketBuffer **bufferp, Message *message) {
         SocketBuffer *buffer;
         int r;
 
-        r = socket_buffer_new(&buffer, C_ARRAY_SIZE(message->vecs), 0);
+        r = socket_buffer_new_internal(&buffer, C_ARRAY_SIZE(message->vecs), 0);
         if (r)
                 return error_trace(r);
 

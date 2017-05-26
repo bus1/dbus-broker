@@ -44,7 +44,7 @@ struct SocketBuffer {
         struct iovec vecs[];
 };
 
-int socket_buffer_new_message(SocketBuffer **bufferp, Message *message);
+int socket_buffer_new(SocketBuffer **bufferp, Message *message);
 SocketBuffer *socket_buffer_free(SocketBuffer *buffer);
 
 C_DEFINE_CLEANUP(SocketBuffer *, socket_buffer_free);
