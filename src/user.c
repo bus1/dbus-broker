@@ -215,7 +215,7 @@ static int user_ref_usage(User *user,
  * user_charge() - charge a user object
  * @user:      user object to charge
  * @charge:     charge object used to record the charge
- * @actor:      user object charged on behalf of
+ * @actor:      user object charged on behalf of, or NULL
  * @n_bytes:    number of bytes to charge
  * @n_fds:      number of fds to charge
  *
@@ -229,6 +229,8 @@ static int user_ref_usage(User *user,
  * number of actors currently pinning any of @user's resources. If this quota
  * is exceeded the charge fails to apply and this is a no-op.
  *
+ * If @actor is NULL it is taken to be @user itself.
+ *
  * Return: 0 on success, error code on failure.
  */
 int user_charge(User *user,
@@ -240,6 +242,9 @@ int user_charge(User *user,
         int r;
 
         assert(!charge->usage);
+
+        if (!actor)
+                actor = user;
 
         r = user_ref_usage(user, &usage, actor);
         if (r)
