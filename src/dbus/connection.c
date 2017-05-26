@@ -21,9 +21,8 @@ static int connection_init(Connection *connection,
         int r;
 
         *connection = (Connection)CONNECTION_NULL(*connection);
-        connection->user = user_ref(user);
 
-        r = socket_init(&connection->socket, fd);
+        r = socket_init(&connection->socket, user, fd);
         if (r)
                 return error_fold(r);
 
@@ -99,7 +98,6 @@ void connection_deinit(Connection *connection) {
                 sasl_client_deinit(&connection->sasl.client);
         dispatch_file_deinit(&connection->socket_file);
         socket_deinit(&connection->socket);
-        connection->user = user_unref(connection->user);
 }
 
 /**

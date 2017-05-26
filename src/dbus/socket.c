@@ -23,6 +23,7 @@
 #include <sys/un.h>
 #include "dbus/message.h"
 #include "dbus/socket.h"
+#include "user.h"
 #include "util/error.h"
 #include "util/fdlist.h"
 
@@ -38,6 +39,7 @@ static int socket_buffer_new_internal(SocketBuffer **bufferp, size_t n_vecs, siz
                 return error_origin(-ENOMEM);
 
         buffer->link = (CList)C_LIST_INIT(buffer->link);
+        user_charge_init(&buffer->charge);
         buffer->n_total = n_line;
         buffer->message = NULL;
         buffer->n_vecs = n_vecs;
@@ -80,6 +82,7 @@ SocketBuffer *socket_buffer_free(SocketBuffer *buffer) {
         if (!buffer)
                 return NULL;
 
+        user_charge_deinit(&buffer->charge);
         c_list_unlink_init(&buffer->link);
         message_unref(buffer->message);
         free(buffer);
@@ -152,8 +155,9 @@ static void socket_discard_output(Socket *socket) {
 /**
  * socket_init() - XXX
  */
-int socket_init(Socket *socket, int fd) {
+int socket_init(Socket *socket, User *user, int fd) {
         *socket = (Socket){};
+        socket->user = user_ref(user);
         socket->fd = fd;
         socket->in.data_size = SOCKET_DATA_RECV_MAX;
         socket->out.queue = (CList)C_LIST_INIT(socket->out.queue);
@@ -179,6 +183,7 @@ void socket_deinit(Socket *socket) {
 
         socket->in.data = c_free(socket->in.data);
         socket->fd = -1;
+        socket->user = user_unref(socket->user);
 }
 
 static void socket_hangup_input(Socket *socket) {
@@ -371,7 +376,7 @@ int socket_queue_line(Socket *socket, const char *line_in, size_t n) {
         if (!buffer || n + strlen("\r\n") > socket_buffer_get_line_space(buffer)) {
                 r = socket_buffer_new_line(&buffer, n + strlen("\r\n"));
                 if (r)
-                        return error_fold(r);
+                        return error_trace(r);
 
                 c_list_link_tail(&socket->out.queue, &buffer->link);
         }

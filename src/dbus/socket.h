@@ -8,6 +8,7 @@
 #include <c-macro.h>
 #include <stdlib.h>
 #include "dbus/message.h"
+#include "user.h"
 
 typedef struct FDList FDList;
 typedef struct Socket Socket;
@@ -35,6 +36,7 @@ enum {
 
 struct SocketBuffer {
         CList link;
+        UserCharge charge;
 
         size_t n_total;
         Message *message;
@@ -52,6 +54,7 @@ C_DEFINE_CLEANUP(SocketBuffer *, socket_buffer_free);
 /* socket IO */
 
 struct Socket {
+        User *user;
         int fd;
 
         bool lines_done : 1;
@@ -83,7 +86,7 @@ struct Socket {
                 .out.queue = C_LIST_INIT((_x).out.queue),               \
         }
 
-int socket_init(Socket *socket, int fd);
+int socket_init(Socket *socket, User *user, int fd);
 void socket_deinit(Socket *socket);
 
 int socket_dequeue_line(Socket *socket, const char **linep, size_t *np);

@@ -23,7 +23,6 @@ enum {
 };
 
 struct Connection {
-        User *user;
         Socket socket;
         DispatchFile socket_file;
         union {
