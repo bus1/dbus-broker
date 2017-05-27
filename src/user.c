@@ -241,6 +241,11 @@ int user_charge(User *user,
         _c_cleanup_(user_usage_unrefp) UserUsage *usage = NULL;
         int r;
 
+        /* excluded from accounting */
+        if (!user)
+                return 0;
+
+        /* charge to itself */
         if (!actor)
                 actor = user;
 
