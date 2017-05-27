@@ -361,7 +361,7 @@ int socket_dequeue(Socket *socket, Message **messagep) {
 /**
  * socket_queue_line() - XXX
  */
-int socket_queue_line(Socket *socket, const char *line_in, size_t n) {
+int socket_queue_line(Socket *socket, User *user, const char *line_in, size_t n) {
         SocketBuffer *buffer;
         char *line_out;
         size_t *pos;
@@ -378,7 +378,25 @@ int socket_queue_line(Socket *socket, const char *line_in, size_t n) {
                 if (r)
                         return error_trace(r);
 
+                r = user_charge(socket->user, &buffer->charge, user, n + strlen("\r\n"), 0);
+                if (r) {
+                        socket_buffer_free(buffer);
+
+                        if (r == USER_E_QUOTA)
+                                return SOCKET_E_QUOTA;
+                        else
+                                return error_fold(r);
+                }
+
                 c_list_link_tail(&socket->out.queue, &buffer->link);
+        }
+
+        r = user_charge(socket->user, &buffer->charge, user, n + strlen("\r\n"), 0);
+        if (r) {
+                if (r == USER_E_QUOTA)
+                        return SOCKET_E_QUOTA;
+                else
+                        return error_fold(r);
         }
 
         socket_buffer_get_line_cursor(buffer, &line_out, &pos);
@@ -396,20 +414,32 @@ int socket_queue_line(Socket *socket, const char *line_in, size_t n) {
 /**
  * socket_queue() - XXX
  */
-void socket_queue(Socket *socket, SocketBuffer *buffer) {
+int socket_queue(Socket *socket, User *user, SocketBuffer *buffer) {
+        int r;
+
+        assert(buffer->message);
+        assert(!c_list_is_linked(&buffer->link));
+
+        r = user_charge(socket->user, &buffer->charge, user, buffer->message->n_data, fdlist_count(buffer->message->fds));
+        if (r) {
+                if (r == USER_E_QUOTA)
+                        return SOCKET_E_QUOTA;
+                else
+                        return error_fold(r);
+        }
+
         if (_c_unlikely_(!socket->lines_done)) {
                 assert(socket->in.line_cursor == socket->in.data_start);
                 socket->lines_done = true;
                 socket->in.pending_message = NULL;
         }
 
-        assert(buffer->message);
-        assert(!c_list_is_linked(&buffer->link));
-
         if (_c_unlikely_(socket->hup_out || socket->shutdown))
                 socket_buffer_free(buffer);
         else
                 c_list_link_tail(&socket->out.queue, &buffer->link);
+
+        return 0;
 }
 
 static int socket_recvmsg(Socket *socket, void *buffer, size_t n_buffer, size_t *from, size_t *to, FDList **fdsp) {

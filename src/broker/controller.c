@@ -163,9 +163,13 @@ static int controller_send_error(Connection *connection, uint32_t serial, const 
         if (r)
                 return error_fold(r);
 
-        r = connection_queue(connection, 0, message);
-        if (r)
-                return error_fold(r);
+        r = connection_queue(connection, NULL, 0, message);
+        if (r) {
+                if (r == CONNECTION_E_QUOTA)
+                        connection_close(connection);
+                else
+                        return error_fold(r);
+        }
 
         return 0;
 }
@@ -370,9 +374,13 @@ static int controller_handle_method(const ControllerMethod *method, Bus *bus, co
         if (r)
                 return error_fold(r);
 
-        r = connection_queue(bus->controller, 0, message_out);
-        if (r)
-                return error_fold(r);
+        r = connection_queue(bus->controller, NULL, 0, message_out);
+        if (r) {
+                if (r == CONNECTION_E_QUOTA)
+                        connection_close(bus->controller);
+                else
+                        return error_fold(r);
+        }
 
         return 0;
 }

@@ -117,7 +117,7 @@ int connection_open(Connection *connection) {
                         return error_fold(r);
 
                 if (request) {
-                        r = socket_queue_line(&connection->socket, request, n_request);
+                        r = socket_queue_line(&connection->socket, NULL, request, n_request);
                         if (r)
                                 return error_fold(r);
 
@@ -191,7 +191,7 @@ static int connection_feed_sasl(Connection *connection, const char *input, size_
         }
 
         if (output) {
-                r = socket_queue_line(&connection->socket, output, n_output);
+                r = socket_queue_line(&connection->socket, NULL, output, n_output);
                 if (r)
                         return error_fold(r);
 
@@ -252,7 +252,7 @@ int connection_dequeue(Connection *connection, Message **messagep) {
 /**
  * connection_queue() - XXX
  */
-int connection_queue(Connection *connection, uint64_t transaction_id, Message *message) {
+int connection_queue(Connection *connection, User *user, uint64_t transaction_id, Message *message) {
         SocketBuffer *skb;
         int r;
 
@@ -270,7 +270,14 @@ int connection_queue(Connection *connection, uint64_t transaction_id, Message *m
         if (r)
                 return error_fold(r);
 
-        socket_queue(&connection->socket, skb);
+        r = socket_queue(&connection->socket, user, skb);
+        if (r) {
+                if (r == SOCKET_E_QUOTA)
+                        return CONNECTION_E_QUOTA;
+                else
+                        return error_fold(r);
+        }
+
         if (socket_has_output(&connection->socket))
                 dispatch_file_select(&connection->socket_file, EPOLLOUT);
 

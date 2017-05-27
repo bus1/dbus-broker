@@ -39,10 +39,10 @@ static void test_line(void) {
         r = socket_dequeue_line(&server, &line, &n_bytes);
         assert(!r && !line);
 
-        r = socket_queue_line(&client, test, strlen(test));
+        r = socket_queue_line(&client, NULL, test, strlen(test));
         assert(r == 0);
 
-        r = socket_queue_line(&client, test, strlen(test));
+        r = socket_queue_line(&client, NULL, test, strlen(test));
         assert(r == 0);
 
         r = socket_dispatch(&client, EPOLLOUT);
@@ -91,7 +91,7 @@ static void test_message(void) {
         r = socket_buffer_new(&skb, message1);
         assert(!r);
 
-        socket_queue(&client, skb);
+        socket_queue(&client, NULL, skb);
 
         r = socket_dispatch(&client, EPOLLOUT);
         assert(r == SOCKET_E_LOST_INTEREST);

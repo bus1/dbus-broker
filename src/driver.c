@@ -285,8 +285,9 @@ int activation_send_signal(Connection *controller, const char *path) {
         if (r)
                 return error_fold(r);
 
+        /* XXX: accounting */
         /* this is excluded from monitoring as it is on our private connection */
-        r = connection_queue(controller, 0, message);
+        r = connection_queue(controller, NULL, 0, message);
         if (r)
                 return error_fold(r);
 
@@ -335,7 +336,7 @@ static int driver_send_unicast(Peer *receiver, MatchFilter *filter, Message *mes
         if (r)
                 return error_trace(r);
 
-        r = connection_queue(&receiver->connection, 0, message);
+        r = connection_queue(&receiver->connection, NULL, 0, message);
         if (r)
                 return error_fold(r);
 
@@ -648,10 +649,12 @@ static int driver_name_activated(Activation *activation, Peer *receiver) {
 
                 r = peer_queue_call(receiver, sender, message);
                 if (r) {
-                        if (r == PEER_E_EXPECTED_REPLY_EXISTS)
+                        if (r == PEER_E_QUOTA)
+                                r = driver_send_error(sender, message_read_serial(message), "org.freedesktop.DBus.Error.LimitsExceeded", driver_error_to_string(r));
+                        else if (r == PEER_E_EXPECTED_REPLY_EXISTS)
                                 r = driver_send_error(sender, message_read_serial(message), "org.freedesktop.DBus.Error.AccessDenied", driver_error_to_string(r));
-
-                        return error_fold(r);
+                        else
+                                return error_fold(r);
                 }
 
                 socket_buffer_free(skb);
@@ -1038,8 +1041,9 @@ static int driver_method_update_activation_environment(Peer *peer, CDVar *in_v, 
         if (r)
                 return error_fold(r);
 
+        /* XXX: accounting */
         /* this is excluded from monitoring as it is on our private connection */
-        r = connection_queue(peer->bus->controller, 0, message);
+        r = connection_queue(peer->bus->controller, NULL, 0, message);
         if (r)
                 return error_fold(r);
 
@@ -1721,8 +1725,10 @@ static int driver_forward_unicast(Peer *sender, const char *destination, Message
         if (r) {
                 if (r == PEER_E_EXPECTED_REPLY_EXISTS)
                         return DRIVER_E_EXPECTED_REPLY_EXISTS;
-
-                return error_fold(r);
+                else if (r == PEER_E_QUOTA)
+                        return DRIVER_E_QUOTA;
+                else
+                        return error_fold(r);
         }
 
         return 0;

@@ -477,9 +477,13 @@ int peer_queue_call(Peer *receiver, Peer *sender, Message *message) {
                         return error_fold(r);
         }
 
-        r = connection_queue(&receiver->connection, 0, message);
-        if (r)
-                return error_fold(r);
+        r = connection_queue(&receiver->connection, sender->user, 0, message);
+        if (r) {
+                if (CONNECTION_E_QUOTA)
+                        return PEER_E_QUOTA;
+                else
+                        return error_fold(r);
+        }
 
         slot = NULL;
         return 0;
@@ -505,9 +509,13 @@ int peer_queue_reply(Peer *sender, const char *destination, uint32_t reply_seria
 
         receiver = c_container_of(slot->owner, Peer, owned_replies);
 
-        r = connection_queue(&receiver->connection, 0, message);
-        if (r)
-                return error_fold(r);
+        r = connection_queue(&receiver->connection, NULL, 0, message);
+        if (r) {
+                if (r == CONNECTION_E_QUOTA)
+                        connection_close(&receiver->connection);
+                else
+                        return error_fold(r);
+        }
 
         reply_slot_free(slot);
 

@@ -20,6 +20,8 @@ enum {
 
         CONNECTION_E_RESET,
         CONNECTION_E_EOF,
+
+        CONNECTION_E_QUOTA,
 };
 
 struct Connection {
@@ -64,7 +66,7 @@ void connection_close(Connection *connection);
 int connection_dispatch(Connection *connection, uint32_t events);
 
 int connection_dequeue(Connection *connection, Message **messagep);
-int connection_queue(Connection *connection, uint64_t transaction_id, Message *message);
+int connection_queue(Connection *connection, User *user, uint64_t transaction_id, Message *message);
 
 C_DEFINE_CLEANUP(Connection *, connection_deinit);
 

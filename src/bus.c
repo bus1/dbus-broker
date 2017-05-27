@@ -77,9 +77,13 @@ static int bus_broadcast_to_matches(MatchRegistry *matches, MatchFilter *filter,
                 if (filter->destination == peer->id)
                         continue;
 
-                r = connection_queue(&peer->connection, transaction_id, message);
-                if (r)
-                        return error_fold(r);
+                r = connection_queue(&peer->connection, NULL, transaction_id, message);
+                if (r) {
+                        if (r == CONNECTION_E_QUOTA)
+                                connection_close(&peer->connection);
+                        else
+                                return error_fold(r);
+                }
         }
 
         return 0;
