@@ -73,18 +73,19 @@ static int manager_dispatch_controller(DispatchFile *file, uint32_t events) {
                 _c_cleanup_(message_unrefp) Message *m = NULL;
 
                 r = connection_dequeue(&manager->controller, &m);
-                if (r == CONNECTION_E_EOF) {
-                        connection_shutdown(&manager->controller);
-                        break;
-                } else if (r == CONNECTION_E_RESET) {
-                        connection_close(&manager->controller);
-                        return DISPATCH_E_EXIT;
-                } else if (r) {
-                        return error_fold(r);
+                if (r) {
+                        if (r == CONNECTION_E_RESET) {
+                                break;
+                        } else if (r == CONNECTION_E_EOF) {
+                                connection_shutdown(&manager->controller);
+                                break;
+                        } else {
+                                return error_fold(r);
+                        }
                 }
-
-                if (!m)
+                if (!m) {
                         break;
+                }
 
                 r = controller_dispatch(&manager->bus, m);
                 if (r)
@@ -96,6 +97,9 @@ static int manager_dispatch_controller(DispatchFile *file, uint32_t events) {
                 if (r)
                         return error_fold(r);
         }
+
+        if (!connection_is_running(&manager->controller))
+                return DISPATCH_E_EXIT;
 
         return 0;
 }

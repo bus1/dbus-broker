@@ -170,18 +170,22 @@ static int connection_feed_sasl(Connection *connection, const char *input, size_
 
         if (connection->server) {
                 r = sasl_server_dispatch(&connection->sasl.server, input, n_input, &output, &n_output);
-                if (r > 0)
+                if (r > 0) {
+                        connection_close(connection);
                         return CONNECTION_E_RESET;
-                else if (r < 0)
+                } else if (r < 0) {
                         return error_fold(r);
+                }
 
                 connection->authenticated = sasl_server_is_done(&connection->sasl.server);
         } else {
                 r = sasl_client_dispatch(&connection->sasl.client, input, n_input, &output, &n_output);
-                if (r > 0)
+                if (r > 0) {
+                        connection_close(connection);
                         return CONNECTION_E_RESET;
-                else if (r < 0)
+                } else if (r < 0) {
                         return error_fold(r);
+                }
 
                 connection->authenticated = sasl_client_is_done(&connection->sasl.client);
         }
@@ -208,13 +212,17 @@ int connection_dequeue(Connection *connection, Message **messagep) {
         if (_c_unlikely_(!connection->authenticated)) {
                 do {
                         r = socket_dequeue_line(&connection->socket, &input, &n_input);
-                        if (r == SOCKET_E_RESET)
-                                return CONNECTION_E_RESET;
-                        else if (r == SOCKET_E_EOF)
-                                return CONNECTION_E_EOF;
-                        else if (r)
-                                return error_fold(r);
-                        else if (!input) {
+                        if (r) {
+                                if (r == SOCKET_E_RESET) {
+                                        dispatch_file_deselect(&connection->socket_file, EPOLLIN);
+                                        return CONNECTION_E_RESET;
+                                } else if (r == SOCKET_E_EOF) {
+                                        dispatch_file_deselect(&connection->socket_file, EPOLLIN);
+                                        return CONNECTION_E_EOF;
+                                } else {
+                                        return error_fold(r);
+                                }
+                        } else if (!input) {
                                 *messagep = NULL;
                                 return 0;
                         }
@@ -226,12 +234,19 @@ int connection_dequeue(Connection *connection, Message **messagep) {
         }
 
         r = socket_dequeue(&connection->socket, messagep);
-        if (r == SOCKET_E_RESET)
-                return CONNECTION_E_RESET;
-        else if (r == SOCKET_E_EOF)
-                return CONNECTION_E_EOF;
-        else
-                return error_fold(r);
+        if (r) {
+                if (r == SOCKET_E_RESET) {
+                        dispatch_file_deselect(&connection->socket_file, EPOLLIN);
+                        return CONNECTION_E_RESET;
+                } else if (r == SOCKET_E_EOF) {
+                        dispatch_file_deselect(&connection->socket_file, EPOLLIN);
+                        return CONNECTION_E_EOF;
+                } else {
+                        return error_fold(r);
+                }
+        }
+
+        return 0;
 }
 
 /**

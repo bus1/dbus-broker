@@ -311,8 +311,8 @@ int socket_dequeue(Socket *socket, Message **messagep) {
                 r = message_new_incoming(&msg, header);
                 if (r == MESSAGE_E_CORRUPT_HEADER ||
                     r == MESSAGE_E_TOO_LARGE) {
-                        socket_hangup_input(socket);
-                        return SOCKET_E_EOF;
+                        socket_close(socket);
+                        return SOCKET_E_RESET;
                 } else if (r) {
                         return error_fold(r);
                 }
@@ -333,8 +333,8 @@ int socket_dequeue(Socket *socket, Message **messagep) {
 
         if (_c_unlikely_(!n_data && socket->in.fds)) {
                 if (msg->fds) {
-                        socket_hangup_input(socket);
-                        return SOCKET_E_EOF;
+                        socket_close(socket);
+                        return SOCKET_E_RESET;
                 }
 
                 msg->fds = socket->in.fds;
@@ -458,6 +458,7 @@ static int socket_recvmsg(Socket *socket, void *buffer, size_t n_buffer, size_t 
                 case ESHUTDOWN:
                 case ETIMEDOUT:
                         socket_hangup_input(socket);
+                        /* sendmmsg() is guaranteed to also fail, so hang up output too */
                         socket_hangup_output(socket);
                         return SOCKET_E_LOST_INTEREST;
                 }
@@ -483,8 +484,7 @@ static int socket_recvmsg(Socket *socket, void *buffer, size_t n_buffer, size_t 
 
         if (_c_unlikely_(n_fds)) {
                 if (_c_unlikely_(*fdsp)) {
-                        /* treat like shutdown */
-                        socket_hangup_input(socket);
+                        socket_close(socket);
                         r = SOCKET_E_LOST_INTEREST;
                         goto error;
                 }
@@ -539,8 +539,7 @@ static int socket_dispatch_read(Socket *socket) {
                 assert(!socket->lines_done);
 
                 if (socket->in.data_size >= SOCKET_LINE_MAX) {
-                        /* treat like shutdown */
-                        socket_hangup_input(socket);
+                        socket_close(socket);
                         return SOCKET_E_LOST_INTEREST;
                 }
 

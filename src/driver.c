@@ -1786,9 +1786,11 @@ int driver_dispatch(Peer *peer, Message *message) {
         int r;
 
         r = message_parse_metadata(message, &metadata);
-        if (r > 0)
-                return DRIVER_E_DISCONNECT;
-        else if (r < 0)
+        if (r > 0) {
+                connection_close(&peer->connection);
+                driver_goodbye(peer, false);
+                return 0;
+        } else if (r < 0)
                 return error_fold(r);
 
         /* no signature implies empty signature */
@@ -1819,14 +1821,16 @@ int driver_dispatch(Peer *peer, Message *message) {
         r = driver_dispatch_internal(peer, &metadata, &filter, message);
         switch (r) {
         case DRIVER_E_PEER_NOT_REGISTERED:
-        case DRIVER_E_PEER_IS_MONITOR:
                 r = driver_send_error(peer, metadata.header.serial, "org.freedesktop.DBus.Error.AccessDenied", driver_error_to_string(r));
                 if (r)
                         return error_trace(r);
-
-                /* fall-through */
+                connection_close(&peer->connection);
+                break;
+        case DRIVER_E_PEER_IS_MONITOR:
         case DRIVER_E_INVALID_MESSAGE:
-                return DRIVER_E_DISCONNECT;
+                connection_close(&peer->connection);
+                r = driver_goodbye(peer, false);
+                break;
         case DRIVER_E_PEER_ALREADY_REGISTERED:
                 r = driver_send_error(peer, metadata.header.serial, "org.freedesktop.DBus.Error.Failed", driver_error_to_string(r));
                 break;

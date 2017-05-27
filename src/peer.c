@@ -44,32 +44,28 @@ int peer_dispatch(DispatchFile *file, uint32_t mask) {
                 _c_cleanup_(message_unrefp) Message *m = NULL;
 
                 r = connection_dequeue(&peer->connection, &m);
-                if (r == CONNECTION_E_EOF) {
-                        r = driver_goodbye(peer, false);
-                        if (r)
+                if (r) {
+                        if (r == CONNECTION_E_EOF) {
+                                r = driver_goodbye(peer, false);
+                                if (r)
+                                        return error_fold(r);
+                                connection_shutdown(&peer->connection);
+                        } else if (r == CONNECTION_E_RESET) {
+                                r = driver_goodbye(peer, false);
+                                if (r)
+                                        return error_fold(r);
+                        } else {
                                 return error_fold(r);
-                        connection_shutdown(&peer->connection);
+                        }
+                }
+                if (!m) {
                         break;
-                } else if (r == CONNECTION_E_RESET) {
-                        r = driver_goodbye(peer, false);
-                        if (r)
-                                return error_fold(r);
-                        peer_free(peer);
-                        return 0;
-                } else if (r)
-                        return error_fold(r);
-                if (!m)
-                        break;
+                }
 
                 metrics_sample_start(&peer->metrics);
                 r = driver_dispatch(peer, m);
                 metrics_sample_end(&peer->metrics);
-                if (r == DRIVER_E_DISCONNECT) {
-                        r = driver_goodbye(peer, false);
-                        if (r)
-                                return error_fold(r);
-                        connection_close(&peer->connection);
-                } else if (r)
+                if (r)
                         return error_fold(r);
         }
 
@@ -78,6 +74,9 @@ int peer_dispatch(DispatchFile *file, uint32_t mask) {
                 if (r)
                         return error_fold(r);
         }
+
+        if (!connection_is_running(&peer->connection))
+                peer_free(peer);
 
         return 0;
 }
