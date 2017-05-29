@@ -259,19 +259,26 @@ int user_charge(User *user,
                         return error_trace(r);
         }
 
-        r = user_charge_check(user->n_bytes,
-                              user->n_usages,
-                              usage->n_bytes,
-                              n_bytes);
-        if (r)
-                return error_trace(r);
+        if (user == actor) {
+                /* don't apply a quota to the user itself */
+                if (n_bytes > user->n_bytes ||
+                    n_fds > user->n_fds)
+                        return USER_E_QUOTA;
+        } else {
+                r = user_charge_check(user->n_bytes,
+                                      user->n_usages,
+                                      usage->n_bytes,
+                                      n_bytes);
+                if (r)
+                        return error_trace(r);
 
-        r = user_charge_check(user->n_fds,
-                              user->n_usages,
-                              usage->n_fds,
-                              n_fds);
-        if (r)
-                return error_trace(r);
+                r = user_charge_check(user->n_fds,
+                                      user->n_usages,
+                                      usage->n_fds,
+                                      n_fds);
+                if (r)
+                        return error_trace(r);
+        }
 
         user->n_bytes -= n_bytes;
         user->n_fds -= n_fds;
