@@ -62,7 +62,7 @@ struct DispatchContext {
                 .epoll_fd = -1,                                 \
         }
 
-int dispatch_context_init(DispatchContext *ctxp);
+int dispatch_context_init(DispatchContext *ctx);
 void dispatch_context_deinit(DispatchContext *ctx);
 
 int dispatch_context_poll(DispatchContext *ctx, int timeout);
