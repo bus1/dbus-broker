@@ -70,14 +70,14 @@ void fdlist_truncate(FDList *list, size_t n_fds) {
 }
 
 int fdlist_steal(FDList *list, size_t index) {
-        int *p, fd;
+        int *p, fd = -1;
 
         p = fdlist_data(list);
 
-        assert(index < fdlist_count(list));
-
-        fd = p[index];
-        p[index] = -1;
+        if (index < fdlist_count(list)) {
+                fd = p[index];
+                p[index] = -1;
+        }
 
         return fd;
 }

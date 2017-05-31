@@ -34,6 +34,5 @@ static inline size_t fdlist_count(FDList *list) {
 }
 
 static inline int fdlist_get(FDList *list, size_t index) {
-        assert(index < fdlist_count(list));
-        return fdlist_data(list)[index];
+        return index < fdlist_count(list) ? fdlist_data(list)[index] : -1;
 }
