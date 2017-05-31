@@ -345,6 +345,6 @@ int dispatch_context_dispatch(DispatchContext *ctx) {
                 }
         }
 
-        assert(c_list_empty(&todo));
+        assert(c_list_is_empty(&todo));
         return r;
 }
