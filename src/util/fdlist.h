@@ -21,14 +21,11 @@ FDList *fdlist_free(FDList *list);
 void fdlist_truncate(FDList *list, size_t n_fds);
 
 static inline int *fdlist_data(FDList *list) {
-        return (int *)CMSG_DATA(list->cmsg);
+        return list ? (int *)CMSG_DATA(list->cmsg) : NULL;
 }
 
 static inline size_t fdlist_count(FDList *list) {
-        if (!list)
-                return 0;
-        else
-                return (list->cmsg->cmsg_len - CMSG_LEN(0)) / sizeof(int);
+        return list ? (list->cmsg->cmsg_len - CMSG_LEN(0)) / sizeof(int) : 0;
 }
 
 static inline int fdlist_get(FDList *list, size_t index) {
