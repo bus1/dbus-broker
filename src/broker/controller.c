@@ -247,13 +247,14 @@ static int controller_method_add_listener(Bus *bus, const char *_path, CDVar *in
                 return CONTROLLER_E_UNEXPECTED_PATH;
 
         /* XXX: verify correctness of fd? */
-        r = listener_new_with_fd(&listener, bus, path, dispatcher, fdlist_steal(fds, fd_index));
+        r = listener_new_with_fd(&listener, bus, path, dispatcher, fdlist_get(fds, fd_index));
         if (r) {
                 if (r == LISTENER_E_EXISTS)
                         return CONTROLLER_E_LISTENER_EXISTS;
                 else
                         return error_fold(r);
         }
+        fdlist_steal(fds, fd_index);
 
         c_dvar_write(out_v, "()");
 
