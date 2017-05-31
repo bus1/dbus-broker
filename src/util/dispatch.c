@@ -311,7 +311,7 @@ int dispatch_context_poll(DispatchContext *ctx, int timeout) {
  *         dispatched file stops dispatching and is returned unmodified.
  */
 int dispatch_context_dispatch(DispatchContext *ctx) {
-        CList processed = (CList)C_LIST_INIT(processed);
+        CList todo = (CList)C_LIST_INIT(todo);
         DispatchFile *file;
         int r;
 
@@ -319,27 +319,32 @@ int dispatch_context_dispatch(DispatchContext *ctx) {
         if (r)
                 return error_fold(r);
 
-        while ((file = c_list_first_entry(&ctx->ready_list, DispatchFile, ready_link))) {
+        /*
+         * We want to dispatch @ctx->ready_list exactly once here. The trivial
+         * approach would be to iterate it via c_list_for_each(). However, we
+         * want to allow callbacks to modify their event masks, so we must
+         * allow them to add and remove files arbitrarily. At the same time, we
+         * want to prevent dispatching a single file twice, so we must make
+         * sure to detect detach+reattach cycles to avoid starvation.
+         *
+         * Therefore, we simply fetch the entire ready-list into @todo and
+         * handle it one-by-one, moving them back onto the ready-list. This is
+         * safe against entry-removal in the callbacks, and it has a clearly
+         * determined runtime.
+         */
+        c_list_swap(&todo, &ctx->ready_list);
 
-                /*
-                 * Whenever we dispatch an entry, we first move it into
-                 * a separate list, so if it modifies itself or others,
-                 * it will not corrupt our list iterator.
-                 *
-                 * Then we call into its dispatcher, so it can handle
-                 * the I/O events. The dispatchers can use DISPATCH_E_EXIT
-                 * or DISPATCH_E_FAILURE to exit the main-loop. Everything
-                 * else is treated as fatal.
-                 */
-
+        while ((file = c_list_first_entry(&todo, DispatchFile, ready_link))) {
                 c_list_unlink(&file->ready_link);
-                c_list_link_tail(&processed, &file->ready_link);
+                c_list_link_tail(&ctx->ready_list, &file->ready_link);
 
                 r = file->fn(file, file->events & file->user_mask);
-                if (error_trace(r))
+                if (error_trace(r)) {
+                        c_list_splice(&ctx->ready_list, &todo);
                         break;
+                }
         }
 
-        c_list_splice(&ctx->ready_list, &processed);
+        assert(c_list_empty(&todo));
         return r;
 }
