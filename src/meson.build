@@ -105,6 +105,9 @@ endif
 test_dispatch = executable('test-dispatch', ['util/test-dispatch.c'], dependencies: libdbus_broker_dep)
 test('Event Dispatcher', test_dispatch)
 
+test_error = executable('test-error', ['util/test-error.c'], dependencies: libdbus_broker_dep)
+test('Error Handling', test_error)
+
 test_fdlist = executable('test-fdlist', ['util/test-fdlist.c'], dependencies: libdbus_broker_dep)
 test('Utility File-Desciptor Lists', test_fdlist)
 
