@@ -19,6 +19,7 @@ int fdlist_new_with_fds(FDList **listp, const int *fds, size_t n_fds);
 int fdlist_new_consume_fds(FDList **listp, const int *fds, size_t n_fds);
 FDList *fdlist_free(FDList *list);
 void fdlist_truncate(FDList *list, size_t n_fds);
+int fdlist_steal(FDList *list, size_t index);
 
 static inline int *fdlist_data(FDList *list) {
         return list ? (int *)CMSG_DATA(list->cmsg) : NULL;
@@ -31,16 +32,6 @@ static inline size_t fdlist_count(FDList *list) {
 static inline int fdlist_get(FDList *list, size_t index) {
         assert(index < fdlist_count(list));
         return fdlist_data(list)[index];
-}
-
-static inline int fdlist_steal(FDList *list, size_t index) {
-        int fd;
-
-        assert(index < fdlist_count(list));
-        fd = fdlist_data(list)[index];
-        fdlist_data(list)[index] = -1;
-
-        return fd;
 }
 
 C_DEFINE_CLEANUP(FDList *, fdlist_free);

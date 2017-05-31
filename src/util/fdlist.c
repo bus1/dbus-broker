@@ -68,3 +68,16 @@ void fdlist_truncate(FDList *list, size_t n_fds) {
 
         list->cmsg->cmsg_len = CMSG_LEN(n_fds * sizeof(int));
 }
+
+int fdlist_steal(FDList *list, size_t index) {
+        int *p, fd;
+
+        p = fdlist_data(list);
+
+        assert(index < fdlist_count(list));
+
+        fd = p[index];
+        p[index] = -1;
+
+        return fd;
+}
