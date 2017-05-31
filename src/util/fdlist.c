@@ -64,7 +64,7 @@ void fdlist_truncate(FDList *list, size_t n_fds) {
 
         if (list->consumed)
                 for (i = n_fds; i < n; ++i)
-                        close(p[i]);
+                        c_close(p[i]);
 
         list->cmsg->cmsg_len = CMSG_LEN(n_fds * sizeof(int));
 }
