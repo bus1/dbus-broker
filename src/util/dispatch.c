@@ -157,6 +157,8 @@ int dispatch_context_poll(DispatchContext *ctx, int timeout) {
                 e = &events[--r];
                 f = e->data.ptr;
 
+                assert(f->context == ctx);
+
                 f->events |= e->events & f->kernel_mask;
                 if ((f->events & f->user_mask) &&
                     !c_list_is_linked(&f->ready_link))
