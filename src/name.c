@@ -9,9 +9,7 @@
 #include <stdlib.h>
 #include "dbus/protocol.h"
 #include "dbus/socket.h"
-#include "driver.h"
 #include "name.h"
-#include "peer.h"
 #include "util/error.h"
 #include "util/user.h"
 

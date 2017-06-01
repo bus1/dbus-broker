@@ -5,9 +5,11 @@
 #include <c-macro.h>
 #include <stdlib.h>
 #include <sys/types.h>
-#include "bus.h"
 #include "activation.h"
+#include "dbus/socket.h"
+#include "name.h"
 #include "util/error.h"
+#include "util/user.h"
 
 ActivationRequest *activation_request_free(ActivationRequest *request) {
         if (!request)
