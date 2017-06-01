@@ -14,20 +14,22 @@
 #include "user.h"
 #include "util/error.h"
 
-void bus_init(Bus *bus,
-              unsigned int max_bytes,
-              unsigned int max_fds,
-              unsigned int max_peers,
-              unsigned int max_names,
-              unsigned int max_matches) {
+int bus_init(Bus *bus,
+             unsigned int max_bytes,
+             unsigned int max_fds,
+             unsigned int max_peers,
+             unsigned int max_names,
+             unsigned int max_matches) {
+        unsigned int maxima[] = { max_bytes, max_fds, max_peers, max_names, max_matches };
         void *random;
+        int r;
 
         bus->listener_tree = (CRBTree)C_RBTREE_INIT;
+        bus->users = (UserRegistry)USER_REGISTRY_NULL;
         activation_registry_init(&bus->activations);
         match_registry_init(&bus->wildcard_matches);
         match_registry_init(&bus->driver_matches);
         name_registry_init(&bus->names);
-        user_registry_init(&bus->users, max_bytes, max_fds, max_peers, max_names, max_matches);
         peer_registry_init(&bus->peers);
         bus->user = NULL;
         bus->pid = 0;
@@ -35,6 +37,15 @@ void bus_init(Bus *bus,
         random = (void *)getauxval(AT_RANDOM);
         assert(random);
         memcpy(bus->guid, random, sizeof(bus->guid));
+
+        static_assert(_USER_SLOT_N == C_ARRAY_SIZE(maxima),
+                      "User accounting slot mismatch");
+
+        r = user_registry_init(&bus->users, _USER_SLOT_N, maxima);
+        if (r)
+                return error_fold(r);
+
+        return 0;
 }
 
 void bus_deinit(Bus *bus) {

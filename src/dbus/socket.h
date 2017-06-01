@@ -38,7 +38,7 @@ enum {
 
 struct SocketBuffer {
         CList link;
-        UserCharge charge;
+        UserCharge charges[2];
 
         size_t n_total;
         Message *message;

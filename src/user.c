@@ -1,5 +1,25 @@
 /*
  * User Accounting
+ *
+ * Different users can communicate via the broker, and some resources are
+ * shared between multiple users. The User object represents the UID of a
+ * user, like "struct user_struct" does in the kernel. It is used to account
+ * global resources, apply limits, and calculate quotas if different UIDs
+ * communicate with each other.
+ *
+ * All dynamic resources have global per-user limits, which cannot be exceeded
+ * by a user. They prevent a single user from exhausting local resources. Each
+ * peer that is created is always owned by the user that initialized it. All
+ * resources allocated on that peer are accounted on that pinned user.
+ *
+ * Since the broker allows communication across UID boundaries, any such
+ * transmission of resources must be properly accounted. The broker employs
+ * dynamic quotas to fairly distribute available resources. Those quotas make
+ * sure that available resources of a peer cannot be exhausted by remote UIDs,
+ * but are fairly divided among all communicating peers. The share granted to
+ * each remote UID is between 1/n and 1/n^2 of the total amount of resources
+ * available to the local UID, where n is the number of UIDs consuming a share
+ * of the local UID's resources at the time of accounting.
  */
 
 #include <c-macro.h>
@@ -12,25 +32,11 @@
 struct UserUsage {
         _Atomic unsigned long n_refs;
         User *user;
-
         uid_t uid;
         CRBNode user_node;
 
-        unsigned int n_bytes;
-        unsigned int n_fds;
+        unsigned int slots[];
 };
-
-static int user_usage_compare(CRBTree *tree, void *k, CRBNode *rb) {
-        UserUsage *usage = c_container_of(rb, UserUsage, user_node);
-        uid_t uid = *(uid_t*)k;
-
-        if (uid < usage->uid)
-                return -1;
-        if (uid > usage->uid)
-                return 1;
-
-        return 0;
-}
 
 static void user_usage_link(UserUsage *usage, CRBNode *parent, CRBNode **slot) {
         ++usage->user->n_usages;
@@ -45,7 +51,7 @@ static void user_usage_unlink(UserUsage *usage) {
 static int user_usage_new(UserUsage **usagep, User *user, uid_t uid) {
         UserUsage *usage;
 
-        usage = calloc(1, sizeof(*usage));
+        usage = calloc(1, sizeof(*usage) + user->registry->n_slots * sizeof(*usage->slots));
         if (!usage)
                 return error_origin(-ENOMEM);
 
@@ -60,9 +66,10 @@ static int user_usage_new(UserUsage **usagep, User *user, uid_t uid) {
 
 static void user_usage_free(_Atomic unsigned long *n_refs, void *userdata) {
         UserUsage *usage = c_container_of(n_refs, UserUsage, n_refs);
+        size_t i;
 
-        assert(usage->n_bytes == 0);
-        assert(usage->n_fds == 0);
+        for (i = 0; i < usage->user->registry->n_slots; ++i)
+                assert(!usage->slots[i]);
 
         user_usage_unlink(usage);
         free(usage);
@@ -81,6 +88,18 @@ static UserUsage *user_usage_unref(UserUsage *usage) {
 }
 
 C_DEFINE_CLEANUP(UserUsage *, user_usage_unref);
+
+static int user_usage_compare(CRBTree *tree, void *k, CRBNode *rb) {
+        UserUsage *usage = c_container_of(rb, UserUsage, user_node);
+        uid_t uid = *(uid_t*)k;
+
+        if (uid < usage->uid)
+                return -1;
+        if (uid > usage->uid)
+                return 1;
+
+        return 0;
+}
 
 /**
  * user_charge_init() - initialize charge object
@@ -102,17 +121,14 @@ void user_charge_init(UserCharge *charge) {
  */
 void user_charge_deinit(UserCharge *charge) {
         if (charge->usage) {
-                charge->usage->user->n_bytes += charge->n_bytes;
-                charge->usage->user->n_fds += charge->n_fds;
-                charge->usage->n_bytes -= charge->n_bytes;
-                charge->usage->n_fds -= charge->n_fds;
+                charge->usage->user->slots[charge->slot].n += charge->charge;
+                charge->usage->slots[charge->slot] -= charge->charge;
 
                 charge->usage = user_usage_unref(charge->usage);
-                charge->n_bytes = 0;
-                charge->n_fds = 0;
+                charge->slot = 0;
+                charge->charge = 0;
         } else {
-                assert(charge->n_bytes == 0);
-                assert(charge->n_fds == 0);
+                assert(!charge->charge);
         }
 }
 
@@ -126,9 +142,7 @@ static int user_charge_check(unsigned int remaining,
         return 0;
 }
 
-static void user_link(User *user,
-                      CRBNode *parent,
-                      CRBNode **slot) {
+static void user_link(User *user, CRBNode *parent, CRBNode **slot) {
         c_rbtree_add(&user->registry->user_tree, parent, slot, &user->registry_node);
 }
 
@@ -136,17 +150,11 @@ static void user_unlink(User *user) {
         c_rbtree_remove_init(&user->registry->user_tree, &user->registry_node);
 }
 
-static int user_new(User **userp,
-                    UserRegistry *registry,
-                    uid_t uid,
-                    unsigned int max_bytes,
-                    unsigned int max_fds,
-                    unsigned int max_peers,
-                    unsigned int max_names,
-                    unsigned int max_matches) {
+static int user_new(User **userp, UserRegistry *registry, uid_t uid) {
         User *user;
+        size_t i;
 
-        user = calloc(1, sizeof(*user));
+        user = calloc(1, sizeof(*user) + registry->n_slots * sizeof(*user->slots));
         if (!user)
                 return error_origin(-ENOMEM);
 
@@ -154,16 +162,12 @@ static int user_new(User **userp,
         user->registry = registry;
         user->uid = uid;
         user->registry_node = (CRBNode)C_RBNODE_INIT(user->registry_node);
-        user->max_bytes = max_bytes;
-        user->max_fds = max_fds;
-        user->max_peers = max_peers;
-        user->max_names = max_names;
-        user->max_matches = max_matches;
-        user->n_bytes = user->max_bytes;
-        user->n_fds = user->max_fds;
-        user->n_peers = user->max_peers;
-        user->n_names = user->max_names;
-        user->n_matches = user->max_matches;
+        user->usage_tree = (CRBTree)C_RBTREE_INIT;
+
+        for (i = 0; i < registry->n_slots; ++i) {
+                user->slots[i].max = registry->maxima[i];
+                user->slots[i].n = user->slots[i].max;
+        }
 
         *userp = user;
         return 0;
@@ -171,31 +175,24 @@ static int user_new(User **userp,
 
 void user_free(_Atomic unsigned long *n_refs, void *userdata) {
         User *user = c_container_of(n_refs, User, n_refs);
+        size_t i;
 
         assert(c_rbtree_is_empty(&user->usage_tree));
         assert(user->n_usages == 0);
 
-        assert(user->n_bytes == user->max_bytes);
-        assert(user->n_fds == user->max_fds);
-        assert(user->n_peers == user->max_peers);
-        assert(user->n_names == user->max_names);
-        assert(user->n_matches == user->max_matches);
+        for (i = 0; i < user->registry->n_slots; ++i)
+                assert(user->slots[i].n == user->slots[i].max);
 
         user_unlink(user);
         free(user);
 }
 
-static int user_ref_usage(User *user,
-                          UserUsage **usagep,
-                          User *actor) {
+static int user_ref_usage(User *user, UserUsage **usagep, User *actor) {
         UserUsage *usage;
         CRBNode **slot, *parent;
         int r;
 
-        slot = c_rbtree_find_slot(&user->usage_tree,
-                                  user_usage_compare,
-                                  &actor->uid,
-                                  &parent);
+        slot = c_rbtree_find_slot(&user->usage_tree, user_usage_compare, &actor->uid, &parent);
         if (slot) {
                 r = user_usage_new(&usage, user, actor->uid);
                 if (r)
@@ -213,16 +210,17 @@ static int user_ref_usage(User *user,
 
 /**
  * user_charge() - charge a user object
- * @user:      user object to charge
+ * @user:       user object to charge
  * @charge:     charge object used to record the charge
  * @actor:      user object charged on behalf of, or NULL
- * @n_bytes:    number of bytes to charge
- * @n_fds:      number of fds to charge
+ * @slot:       slot to charge
+ * @amount:     charge amount
  *
- * Charge @user @n_bytes and @n_fds on behalf of @actor. Record the charge in
+ * Charge @amount units on slot @slot on behalf of @actor. Record the charge in
  * @charge so it can later be undone.
  *
- * @charge must be initialized and not currently be in use.
+ * @charge must be initialized and either be unused or already charged on the
+ * @user + @actor combination.
  *
  * @actor is at most allowed to consume an n'th of @user's resources that have
  * not been consumed by any other user, where n is one more than the total
@@ -231,15 +229,18 @@ static int user_ref_usage(User *user,
  *
  * If @actor is NULL it is taken to be @user itself.
  *
+ * If @user is NULL, this is a no-op and @charge stays untouched.
+ *
  * Return: 0 on success, error code on failure.
  */
-int user_charge(User *user,
-                UserCharge *charge,
-                User *actor,
-                unsigned int n_bytes,
-                unsigned int n_fds) {
+int user_charge(User *user, UserCharge *charge, User *actor, size_t slot, unsigned int amount) {
         _c_cleanup_(user_usage_unrefp) UserUsage *usage = NULL;
+        unsigned int *user_slot, *usage_slot;
         int r;
+
+        /* no charge, no work */
+        if (!amount)
+                return 0;
 
         /* excluded from accounting */
         if (!user)
@@ -250,8 +251,9 @@ int user_charge(User *user,
                 actor = user;
 
         if (charge->usage) {
-                assert(charge->usage->user == user);
-                assert(charge->usage->uid == actor->uid);
+                assert(user == charge->usage->user);
+                assert(actor->uid == charge->usage->uid);
+                assert(slot == charge->slot);
                 usage = user_usage_ref(charge->usage);
         } else {
                 r = user_ref_usage(user, &usage, actor);
@@ -259,36 +261,26 @@ int user_charge(User *user,
                         return error_trace(r);
         }
 
+        assert(slot < user->registry->n_slots);
+        user_slot = &user->slots[slot].n;
+        usage_slot = &usage->slots[slot];
+
         if (user == actor) {
-                /* don't apply a quota to the user itself */
-                if (n_bytes > user->n_bytes ||
-                    n_fds > user->n_fds)
+                /* never apply quotas on self-charge */
+                if (amount > *user_slot)
                         return USER_E_QUOTA;
         } else {
-                r = user_charge_check(user->n_bytes,
-                                      user->n_usages,
-                                      usage->n_bytes,
-                                      n_bytes);
-                if (r)
-                        return error_trace(r);
-
-                r = user_charge_check(user->n_fds,
-                                      user->n_usages,
-                                      usage->n_fds,
-                                      n_fds);
+                r = user_charge_check(*user_slot, user->n_usages, *usage_slot, amount);
                 if (r)
                         return error_trace(r);
         }
 
-        user->n_bytes -= n_bytes;
-        user->n_fds -= n_fds;
-        usage->n_bytes += n_bytes;
-        usage->n_fds += n_fds;
-
-        charge->n_bytes += n_bytes;
-        charge->n_fds += n_fds;
+        *user_slot -= amount;
+        *usage_slot += amount;
+        charge->charge += amount;
 
         if (!charge->usage) {
+                charge->slot = slot;
                 charge->usage = usage;
                 usage = NULL;
         }
@@ -309,48 +301,57 @@ static int user_compare(CRBTree *tree, void *k, CRBNode *rb) {
 }
 
 /**
- * user_registry_init() - initialize a user registry
- * @registry:           the registry to operate on
- * @max_bytes:          max bytes allocated to each user
- * @max_fds:            max fds allocated to each user
- * @max_names:          max names owned by each user
- * @max_peers:          max peers owned by each user
+ * user_registry_init() - initialize user registry
+ * @registry:           user registry to operate on
+ * @n_slots:            number of accounting slots
+ * @maxima:             maxima for each slot
  *
- * Initialized a passed-in user registry. New user entries can be instantiated
- * from the registry, in which case they are assigned the maximum number of
- * resources as given in @max_bytes, @max_fds, @max_names and @max_peers.
+ * Initialize a user registry. @n_slots defines the number of distinct
+ * accounting slots that will be available on all users on that registry.
+ *
+ * Return: 0 on success, negative error code on failure.
  */
-void user_registry_init(UserRegistry *registry,
-                        unsigned int max_bytes,
-                        unsigned int max_fds,
-                        unsigned int max_peers,
-                        unsigned int max_names,
-                        unsigned int max_matches) {
-        *registry = (UserRegistry)USER_REGISTRY_INIT(max_bytes, max_fds, max_peers, max_names, max_matches);
+int user_registry_init(UserRegistry *registry,
+                       size_t n_slots,
+                       const unsigned int *maxima) {
+        static_assert(sizeof(*maxima) == sizeof(*registry->maxima),
+                      "Type mismatch for maxima");
+
+        *registry = (UserRegistry)USER_REGISTRY_NULL;
+
+        registry->maxima = calloc(n_slots, sizeof(*registry->maxima));
+        if (!registry->maxima)
+                return error_origin(-ENOMEM);
+
+        registry->n_slots = n_slots;
+        memcpy(registry->maxima, maxima, n_slots * sizeof(*registry->maxima));
+
+        return 0;
 }
 
 /**
  * user_registry_deinit() - destroy user registry
- * @registry:           user registry to operate on, or NULL
+ * @registry:           user registry to operate on
  *
- * This destroys the user registry, previously initialized via user_registry_init().
- * All user elements instantiated from the registry must have been destroyed
- * before the registry is deinitialized.
+ * This destroys a user registry, previously initialized via
+ * user_registry_init(). All user elements instantiated from the registry must
+ * have been destroyed before the registry is deinitialized.
  */
 void user_registry_deinit(UserRegistry *registry) {
         assert(c_rbtree_is_empty(&registry->user_tree));
 
-        *registry = (UserRegistry){};
+        free(registry->maxima);
+        *registry = (UserRegistry)USER_REGISTRY_NULL;
 }
 
 /**
  * user_registry_ref_user() - search user in registry
  * @registry:           registry to query
- * @userp:             output argument for user object
+ * @userp:              output argument for user object
  * @uid:                uid of user to search for
  *
- * This searches for a user object with UID @uid in @registry, takes a reference
- * and returns it in @userp.
+ * This searches for a user object with UID @uid in @registry, takes a
+ * reference and returns it in @userp.
  *
  * Return: 0 on success, error code on failure.
  */
@@ -361,14 +362,7 @@ int user_registry_ref_user(UserRegistry *registry, User **userp, uid_t uid) {
 
         slot = c_rbtree_find_slot(&registry->user_tree, user_compare, &uid, &parent);
         if (slot) {
-                r = user_new(&user,
-                             registry,
-                             uid,
-                             registry->max_bytes,
-                             registry->max_fds,
-                             registry->max_peers,
-                             registry->max_names,
-                             registry->max_matches);
+                r = user_new(&user, registry, uid);
                 if (r)
                         return error_trace(r);
 

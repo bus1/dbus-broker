@@ -39,7 +39,8 @@ static int socket_buffer_new_internal(SocketBuffer **bufferp, size_t n_vecs, siz
                 return error_origin(-ENOMEM);
 
         buffer->link = (CList)C_LIST_INIT(buffer->link);
-        user_charge_init(&buffer->charge);
+        user_charge_init(&buffer->charges[0]);
+        user_charge_init(&buffer->charges[1]);
         buffer->n_total = n_line;
         buffer->message = NULL;
         buffer->n_vecs = n_vecs;
@@ -82,7 +83,8 @@ SocketBuffer *socket_buffer_free(SocketBuffer *buffer) {
         if (!buffer)
                 return NULL;
 
-        user_charge_deinit(&buffer->charge);
+        user_charge_deinit(&buffer->charges[1]);
+        user_charge_deinit(&buffer->charges[0]);
         c_list_unlink_init(&buffer->link);
         message_unref(buffer->message);
         free(buffer);
@@ -378,7 +380,7 @@ int socket_queue_line(Socket *socket, User *user, const char *line_in, size_t n)
                 if (r)
                         return error_trace(r);
 
-                r = user_charge(socket->user, &buffer->charge, user, n + strlen("\r\n"), 0);
+                r = user_charge(socket->user, &buffer->charges[0], user, USER_SLOT_BYTES, n + strlen("\r\n"));
                 if (r) {
                         socket_buffer_free(buffer);
 
@@ -391,7 +393,7 @@ int socket_queue_line(Socket *socket, User *user, const char *line_in, size_t n)
                 c_list_link_tail(&socket->out.queue, &buffer->link);
         }
 
-        r = user_charge(socket->user, &buffer->charge, user, n + strlen("\r\n"), 0);
+        r = user_charge(socket->user, &buffer->charges[0], user, USER_SLOT_BYTES, n + strlen("\r\n"));
         if (r) {
                 if (r == USER_E_QUOTA)
                         return SOCKET_E_QUOTA;
@@ -420,7 +422,8 @@ int socket_queue(Socket *socket, User *user, SocketBuffer *buffer) {
         assert(buffer->message);
         assert(!c_list_is_linked(&buffer->link));
 
-        r = user_charge(socket->user, &buffer->charge, user, buffer->message->n_data, fdlist_count(buffer->message->fds));
+        r = user_charge(socket->user, &buffer->charges[0], user, USER_SLOT_BYTES, buffer->message->n_data);
+        r = r ?: user_charge(socket->user, &buffer->charges[1], user, USER_SLOT_FDS, fdlist_count(buffer->message->fds));
         if (r) {
                 if (r == USER_E_QUOTA)
                         return SOCKET_E_QUOTA;

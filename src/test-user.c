@@ -11,7 +11,8 @@ static void test_setup(void) {
         User *entry1, *entry2, *entry3;
         int r;
 
-        user_registry_init(&registry, 1024, 1024, 1024, 1024, 1024);
+        r = user_registry_init(&registry, _USER_SLOT_N, (unsigned int[]){ 1024, 1024, 1024, 1024, 1024 });
+        assert(!r);
 
         r = user_registry_ref_user(&registry, &entry1, 1);
         assert(r == 0);
@@ -37,7 +38,8 @@ static void test_quota(void) {
         UserCharge charge1, charge2;
         int r;
 
-        user_registry_init(&registry, 1024, 1024, 1024, 1024, 1024);
+        r = user_registry_init(&registry, _USER_SLOT_N, (unsigned int[]){ 1024, 1024, 1024, 1024, 1024 });
+        assert(!r);
 
         r = user_registry_ref_user(&registry, &entry1, 1);
         assert(r == 0);
@@ -51,26 +53,26 @@ static void test_quota(void) {
         user_charge_init(&charge1);
         user_charge_init(&charge2);
 
-        /* the first actor can have exactly 512 bytes/fds */
-        r = user_charge(entry1, &charge1, entry2, 513, 513);
+        /* the first actor can have exactly 512 bytes */
+        r = user_charge(entry1, &charge1, entry2, USER_SLOT_BYTES, 513);
         assert(r == USER_E_QUOTA);
-        r = user_charge(entry1, &charge1, entry2, 512, 512);
+        r = user_charge(entry1, &charge1, entry2, USER_SLOT_BYTES, 512);
         assert(!r);
-        r = user_charge(entry1, &charge2, entry2, 1, 1);
+        r = user_charge(entry1, &charge2, entry2, USER_SLOT_BYTES, 1);
         assert(r == USER_E_QUOTA);
 
         /* the second one exactly 170 */
-        r = user_charge(entry1, &charge2, entry3, 171, 171);
+        r = user_charge(entry1, &charge2, entry3, USER_SLOT_BYTES, 171);
         assert(r == USER_E_QUOTA);
-        r = user_charge(entry1, &charge2, entry3, 170, 170);
+        r = user_charge(entry1, &charge2, entry3, USER_SLOT_BYTES, 170);
         assert(!r);
 
         /* release the first one and now the second one can have 512 */
         user_charge_deinit(&charge1);
         user_charge_init(&charge1);
-        r = user_charge(entry1, &charge1, entry3, 343, 343);
+        r = user_charge(entry1, &charge1, entry3, USER_SLOT_BYTES, 343);
         assert(r == USER_E_QUOTA);
-        r = user_charge(entry1, &charge1, entry3, 342, 342);
+        r = user_charge(entry1, &charge1, entry3, USER_SLOT_BYTES, 342);
         assert(r == 0);
 
         user_charge_deinit(&charge2);

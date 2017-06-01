@@ -1475,7 +1475,7 @@ static int driver_method_become_monitor(Peer *peer, CDVar *in_v, uint32_t serial
                 goto error;
         }
 
-        if (n_matches > peer->user->n_matches) {
+        if (n_matches > peer->user->slots[USER_SLOT_MATCHES].n) {
                 r = DRIVER_E_QUOTA;
                 goto error;
         }

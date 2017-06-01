@@ -153,7 +153,7 @@ int peer_new_with_fd(Peer **peerp,
         if (r < 0)
                 return error_fold(r);
 
-        if (user->n_peers < 1)
+        if (user->slots[USER_SLOT_PEERS].n < 1)
                 return PEER_E_QUOTA;
 
         r = peer_get_peersec(fd, &seclabel, &n_seclabel);
@@ -164,7 +164,7 @@ int peer_new_with_fd(Peer **peerp,
         if (!peer)
                 return error_origin(-ENOMEM);
 
-        user->n_peers --;
+        --user->slots[USER_SLOT_PEERS].n;
 
         peer->bus = bus;
         peer->connection = (Connection)CONNECTION_NULL(peer->connection);
@@ -212,7 +212,7 @@ Peer *peer_free(Peer *peer) {
 
         assert(!peer->registered);
 
-        peer->user->n_peers ++;
+        ++peer->user->slots[USER_SLOT_PEERS].n;
 
         c_rbtree_remove_init(&peer->bus->peers.peer_tree, &peer->registry_node);
 
@@ -255,7 +255,7 @@ void peer_unregister(Peer *peer) {
 int peer_request_name(Peer *peer, const char *name, uint32_t flags, NameChange *change) {
         int r;
 
-        if (peer->user->n_names == 0)
+        if (peer->user->slots[USER_SLOT_NAMES].n == 0)
                 return PEER_E_QUOTA;
 
         if (!strcmp(name, "org.freedesktop.DBus"))
@@ -271,12 +271,12 @@ int peer_request_name(Peer *peer, const char *name, uint32_t flags, NameChange *
         case 0:
                 return PEER_E_NAME_ALREADY_OWNER;
         case NAME_E_OWNER_NEW:
-                --peer->user->n_names;
+                --peer->user->slots[USER_SLOT_NAMES].n;
                 /* fall-through */
         case NAME_E_OWNER_UPDATED:
                 return 0;
         case NAME_E_IN_QUEUE_NEW:
-                --peer->user->n_names;
+                --peer->user->slots[USER_SLOT_NAMES].n;
                 /* fall-through */
         case NAME_E_IN_QUEUE_UPDATED:
                 return PEER_E_NAME_IN_QUEUE;
@@ -300,7 +300,7 @@ int peer_release_name(Peer *peer, const char *name, NameChange *change) {
 
         r = name_registry_release_name(&peer->bus->names, &peer->owned_names, name, change);
         if (!r) {
-                ++peer->user->n_names;
+                ++peer->user->slots[USER_SLOT_NAMES].n;
                 return 0;
         } else if (r == NAME_E_NOT_FOUND) {
                 return PEER_E_NAME_NOT_FOUND;
@@ -314,7 +314,7 @@ int peer_release_name(Peer *peer, const char *name, NameChange *change) {
 
 void peer_release_name_ownership(Peer *peer, NameOwnership *ownership, NameChange *change) {
         name_ownership_release(ownership, change);
-        ++peer->user->n_names;
+        ++peer->user->slots[USER_SLOT_NAMES].n;
 }
 
 static int peer_link_match(Peer *peer, MatchRule *rule) {
@@ -364,7 +364,7 @@ int peer_add_match(Peer *peer, const char *rule_string, bool force_eavesdrop) {
         _c_cleanup_(match_rule_user_unrefp) MatchRule *rule = NULL;
         int r;
 
-        if (peer->user->n_matches == 0)
+        if (peer->user->slots[USER_SLOT_MATCHES].n == 0)
                 return PEER_E_QUOTA;
 
         r = match_owner_ref_rule(&peer->owned_matches, &rule, rule_string);
@@ -382,7 +382,7 @@ int peer_add_match(Peer *peer, const char *rule_string, bool force_eavesdrop) {
         if (r)
                 return error_trace(r);
 
-        --peer->user->n_matches;
+        --peer->user->slots[USER_SLOT_MATCHES].n;
         rule = NULL;
 
         return 0;
@@ -407,7 +407,7 @@ int peer_remove_match(Peer *peer, const char *rule_string) {
                 name = c_container_of(rule->registry, Name, matches);
 
         match_rule_user_unref(rule);
-        ++peer->user->n_matches;
+        ++peer->user->slots[USER_SLOT_MATCHES].n;
 
         return 0;
 }
@@ -437,8 +437,8 @@ int peer_become_monitor(Peer *peer, MatchOwner *owned_matches) {
                 ++n_matches;
         }
 
-        assert(n_matches <= peer->user->n_matches);
-        peer->user->n_matches -= n_matches;
+        assert(n_matches <= peer->user->slots[USER_SLOT_MATCHES].n);
+        peer->user->slots[USER_SLOT_MATCHES].n -= n_matches;
 
         if (poison)
                 /* a fatal error occured, the peer was modified, but still consistent */
@@ -460,7 +460,7 @@ void peer_flush_matches(Peer *peer) {
                         name = c_container_of(rule->registry, Name, matches);
 
                 match_rule_user_unref(rule);
-                ++peer->user->n_matches;
+                ++peer->user->slots[USER_SLOT_MATCHES].n;
         }
 }
 
