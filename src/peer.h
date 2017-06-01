@@ -12,7 +12,6 @@
 #include "match.h"
 #include "name.h"
 #include "reply.h"
-#include "util/metrics.h"
 
 typedef struct Bus Bus;
 typedef struct DispatchContext DispatchContext;
@@ -61,8 +60,6 @@ struct Peer {
         MatchOwner owned_matches;
         ReplyRegistry replies_outgoing;
         ReplyOwner owned_replies;
-
-        Metrics metrics;
 };
 
 struct PeerRegistry {

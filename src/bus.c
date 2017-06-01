@@ -31,6 +31,7 @@ int bus_init(Bus *bus,
         match_registry_init(&bus->driver_matches);
         name_registry_init(&bus->names);
         peer_registry_init(&bus->peers);
+        bus->metrics = (Metrics)METRICS_INIT;
         bus->user = NULL;
         bus->pid = 0;
 
@@ -51,6 +52,7 @@ int bus_init(Bus *bus,
 void bus_deinit(Bus *bus) {
         bus->pid = 0;
         bus->user = user_unref(bus->user);
+        metrics_deinit(&bus->metrics);
         peer_registry_deinit(&bus->peers);
         user_registry_deinit(&bus->users);
         name_registry_deinit(&bus->names);

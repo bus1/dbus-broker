@@ -62,9 +62,9 @@ int peer_dispatch(DispatchFile *file, uint32_t mask) {
                         break;
                 }
 
-                metrics_sample_start(&peer->metrics);
+                metrics_sample_start(&peer->bus->metrics);
                 r = driver_dispatch(peer, m);
-                metrics_sample_end(&peer->metrics);
+                metrics_sample_end(&peer->bus->metrics);
                 if (r)
                         return error_fold(r);
         }
@@ -175,7 +175,6 @@ int peer_new_with_fd(Peer **peerp,
         peer->seclabel = seclabel;
         seclabel = NULL;
         peer->n_seclabel = n_seclabel;
-        peer->metrics = (Metrics)METRICS_INIT;
         peer->owned_names = (NameOwner){};
         match_registry_init(&peer->matches);
         match_owner_init(&peer->owned_matches);
@@ -223,7 +222,6 @@ Peer *peer_free(Peer *peer) {
         match_owner_deinit(&peer->owned_matches);
         match_registry_deinit(&peer->matches);
         name_owner_deinit(&peer->owned_names);
-        metrics_deinit(&peer->metrics);
         connection_deinit(&peer->connection);
         user_unref(peer->user);
         free(peer->seclabel);

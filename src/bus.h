@@ -12,6 +12,7 @@
 #include "match.h"
 #include "name.h"
 #include "peer.h"
+#include "util/metrics.h"
 #include "util/user.h"
 
 enum {
@@ -41,6 +42,8 @@ struct Bus {
 
         uint64_t transaction_ids;
         uint64_t listener_ids;
+
+        Metrics metrics;
 };
 
 int bus_init(Bus *bus,
