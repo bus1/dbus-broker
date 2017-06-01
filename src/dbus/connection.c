@@ -9,9 +9,9 @@
 #include "dbus/connection.h"
 #include "dbus/message.h"
 #include "dbus/socket.h"
-#include "user.h"
 #include "util/dispatch.h"
 #include "util/error.h"
+#include "util/user.h"
 
 static int connection_init(Connection *connection,
                            DispatchContext *dispatch_ctx,

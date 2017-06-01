@@ -12,8 +12,8 @@
 #include "driver.h"
 #include "name.h"
 #include "peer.h"
-#include "user.h"
 #include "util/error.h"
+#include "util/user.h"
 
 void name_change_init(NameChange *change) {
         *change = (NameChange){};

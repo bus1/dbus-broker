@@ -23,9 +23,9 @@
 #include <sys/un.h>
 #include "dbus/message.h"
 #include "dbus/socket.h"
-#include "user.h"
 #include "util/error.h"
 #include "util/fdlist.h"
+#include "util/user.h"
 
 static char *socket_buffer_get_base(SocketBuffer *buffer) {
         return (char *)(buffer->vecs + buffer->n_vecs);

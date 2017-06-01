@@ -18,11 +18,11 @@
 #include "name.h"
 #include "peer.h"
 #include "reply.h"
-#include "user.h"
 #include "util/dispatch.h"
 #include "util/error.h"
 #include "util/fdlist.h"
 #include "util/metrics.h"
+#include "util/user.h"
 
 int peer_dispatch(DispatchFile *file, uint32_t mask) {
         Peer *peer = c_container_of(file, Peer, connection.socket_file);

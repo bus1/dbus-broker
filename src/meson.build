@@ -18,11 +18,11 @@ libdbus_broker_private = static_library(
                 'name.c',
                 'peer.c',
                 'reply.c',
-                'user.c',
                 'util/error.c',
                 'util/dispatch.c',
                 'util/fdlist.c',
                 'util/metrics.c',
+                'util/user.c',
         ],
         c_args: [
                 '-fvisibility=hidden',
@@ -135,5 +135,5 @@ test('Message Sender Stitching', test_stitching)
 test_unique_name = executable('test-unique-name', ['dbus/test-unique-name.c'], dependencies: libdbus_broker_dep)
 test('Unique Name Handling', test_unique_name)
 
-test_user = executable('test-user', ['test-user.c'], dependencies: libdbus_broker_dep)
+test_user = executable('test-user', ['util/test-user.c'], dependencies: libdbus_broker_dep)
 test('User Accounting', test_user)

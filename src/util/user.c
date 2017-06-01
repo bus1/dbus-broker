@@ -26,8 +26,8 @@
 #include <c-ref.h>
 #include <stdlib.h>
 #include <sys/types.h>
-#include "user.h"
 #include "util/error.h"
+#include "util/user.h"
 
 struct UserUsage {
         _Atomic unsigned long n_refs;

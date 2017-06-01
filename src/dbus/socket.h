@@ -8,7 +8,7 @@
 #include <c-macro.h>
 #include <stdlib.h>
 #include "dbus/message.h"
-#include "user.h"
+#include "util/user.h"
 
 typedef struct FDList FDList;
 typedef struct Socket Socket;

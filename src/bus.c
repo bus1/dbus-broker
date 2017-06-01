@@ -11,8 +11,8 @@
 #include "driver.h"
 #include "match.h"
 #include "name.h"
-#include "user.h"
 #include "util/error.h"
+#include "util/user.h"
 
 int bus_init(Bus *bus,
              unsigned int max_bytes,

@@ -16,9 +16,9 @@
 #include "controller.h"
 #include "main.h"
 #include "manager.h"
-#include "user.h"
 #include "util/dispatch.h"
 #include "util/error.h"
+#include "util/user.h"
 
 struct Manager {
         Bus bus;

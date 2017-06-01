@@ -12,7 +12,7 @@
 #include "match.h"
 #include "name.h"
 #include "peer.h"
-#include "user.h"
+#include "util/user.h"
 
 enum {
         _BUS_E_SUCCESS,
