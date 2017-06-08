@@ -20,5 +20,6 @@ dep_glib = dependency('glib-2.0', version: '>=2.50', required: false)
 dep_math = cc.find_library('m')
 dep_systemd = dependency('libsystemd', version: '>=230', required: false)
 dep_thread = dependency('threads')
+dep_expat = dependency('expat')
 
 subdir('src')

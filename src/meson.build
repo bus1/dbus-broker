@@ -17,6 +17,7 @@ libdbus_broker_private = static_library(
                 'match.c',
                 'name.c',
                 'peer.c',
+                'policy.c',
                 'reply.c',
                 'util/error.c',
                 'util/dispatch.c',
@@ -33,6 +34,7 @@ libdbus_broker_private = static_library(
                 dep_clist,
                 dep_crbtree,
                 dep_csundry,
+                dep_expat,
         ],
         pic: true,
 )
@@ -119,6 +121,9 @@ test('D-Bus Message Abstraction', test_message)
 
 test_name = executable('test-name', ['test-name.c'], dependencies: libdbus_broker_dep)
 test('Name Registry', test_name)
+
+test_policy = executable('test-policy', ['test-policy.c'], dependencies: libdbus_broker_dep)
+test('Policy Database', test_policy)
 
 test_reply = executable('test-reply', ['test-reply.c'], dependencies: libdbus_broker_dep)
 test('Reply Tracking', test_reply)
