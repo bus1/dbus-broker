@@ -149,6 +149,14 @@ int peer_new_with_fd(Peer **peerp,
         if (r < 0)
                 return error_origin(-errno);
 
+        r = connection_policy_check_allowed(&bus->connection_policy, ucred.uid);
+        if (r) {
+                if (r == POLICY_E_ACCESS_DENIED)
+                        return PEER_E_CONNECTION_REFUSED;
+
+                return error_fold(r);
+        }
+
         r = user_registry_ref_user(&bus->users, &user, ucred.uid);
         if (r < 0)
                 return error_fold(r);

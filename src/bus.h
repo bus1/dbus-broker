@@ -34,6 +34,7 @@ struct Bus {
 
         CRBTree listener_tree;
         UserRegistry users;
+        ConnectionPolicy connection_policy;
         ActivationRegistry activations;
         NameRegistry names;
         MatchRegistry wildcard_matches;

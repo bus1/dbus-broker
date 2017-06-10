@@ -43,9 +43,10 @@ static int listener_dispatch(DispatchFile *file, uint32_t events) {
         }
 
         r = peer_new_with_fd(&peer, listener->bus, listener->guid, file->context, fd);
-        if (r == PEER_E_QUOTA)
+        if (r == PEER_E_QUOTA || r == PEER_E_CONNECTION_REFUSED)
                 /*
-                 * The user has too many open connections, simply drop this.
+                 * The user has too many open connections, or a policy disallows it to
+                 * connect. Simply drop this.
                  */
                 return 0;
         else if (r)

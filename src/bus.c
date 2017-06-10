@@ -27,6 +27,7 @@ int bus_init(Bus *bus,
         bus->listener_tree = (CRBTree)C_RBTREE_INIT;
         bus->users = (UserRegistry)USER_REGISTRY_NULL;
         activation_registry_init(&bus->activations);
+        bus->connection_policy = (ConnectionPolicy){};
         match_registry_init(&bus->wildcard_matches);
         match_registry_init(&bus->driver_matches);
         name_registry_init(&bus->names);
@@ -58,6 +59,7 @@ void bus_deinit(Bus *bus) {
         name_registry_deinit(&bus->names);
         match_registry_deinit(&bus->driver_matches);
         match_registry_deinit(&bus->wildcard_matches);
+        connection_policy_deinit(&bus->connection_policy);
         activation_registry_deinit(&bus->activations);
         assert(c_rbtree_is_empty(&bus->listener_tree));
 }

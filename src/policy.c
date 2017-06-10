@@ -169,6 +169,141 @@ int ownership_policy_check_allowed(OwnershipPolicy *policy, const char *name) {
         return decision.deny ? POLICY_E_ACCESS_DENIED : 0;
 }
 
+/* connection policy */
+static int connection_policy_entry_new(ConnectionPolicyEntry **entryp, CRBTree *policy,
+                                       uid_t uid, bool deny, uint64_t priority,
+                                       CRBNode *parent, CRBNode **slot) {
+        ConnectionPolicyEntry *entry;
+
+        entry = calloc(1, sizeof(*entry));
+        if (!entry)
+                return error_origin(-ENOMEM);
+        entry->policy = policy;
+        entry->decision.deny = deny;
+        entry->decision.priority = priority;
+        c_rbtree_add(policy, parent, slot, &entry->rb);
+
+        if (entryp)
+                *entryp = entry;
+        return 0;
+}
+
+static ConnectionPolicyEntry *connection_policy_entry_free(ConnectionPolicyEntry *entry) {
+        if (!entry)
+                return NULL;
+
+        c_rbtree_remove_init(entry->policy, &entry->rb);
+
+        free(entry);
+
+        return NULL;
+}
+
+void connection_policy_init(ConnectionPolicy *policy) {
+        *policy = (ConnectionPolicy){};
+}
+
+void connection_policy_deinit(ConnectionPolicy *policy) {
+        ConnectionPolicyEntry *entry, *safe;
+
+        c_rbtree_for_each_entry_unlink(entry, safe, &policy->uid_tree, rb)
+                connection_policy_entry_free(entry);
+
+        c_rbtree_for_each_entry_unlink(entry, safe, &policy->gid_tree, rb)
+                connection_policy_entry_free(entry);
+
+        connection_policy_init(policy);
+}
+
+int connection_policy_set_uid_wildcard(ConnectionPolicy *policy, bool deny, uint64_t priority) {
+        if (policy->uid_wildcard.priority > priority)
+                return 0;
+
+        policy->uid_wildcard.deny = deny;
+        policy->uid_wildcard.priority = priority;
+
+        return 0;
+}
+
+int connection_policy_set_gid_wildcard(ConnectionPolicy *policy, bool deny, uint64_t priority) {
+        if (policy->gid_wildcard.priority > priority)
+                return 0;
+
+        policy->gid_wildcard.deny = deny;
+        policy->gid_wildcard.priority = priority;
+
+        return 0;
+}
+
+static int connection_policy_entry_compare(CRBTree *tree, void *k, CRBNode *rb) {
+        uid_t uid = *(uid_t *)k;
+        ConnectionPolicyEntry *entry = c_container_of(rb, ConnectionPolicyEntry, rb);
+
+        if (uid < entry->uid)
+                return -1;
+        else if (uid > entry->uid)
+                return 1;
+        else
+                return 0;
+}
+
+int connection_policy_add_entry(CRBTree *policy, uid_t uid, bool deny, uint64_t priority) {
+        CRBNode *parent, **slot;
+        int r;
+
+        slot = c_rbtree_find_slot(policy, connection_policy_entry_compare, &uid, &parent);
+        if (!slot) {
+                ConnectionPolicyEntry *entry = c_container_of(parent, ConnectionPolicyEntry, rb);
+
+                if (entry->decision.priority < priority) {
+                        entry->decision.deny = deny;
+                        entry->decision.priority = priority;
+                }
+        } else {
+                r = connection_policy_entry_new(NULL, policy, uid, deny, priority, parent, slot);
+                if (r)
+                        return error_trace(r);
+        }
+
+        return 0;
+}
+int connection_policy_add_uid(ConnectionPolicy *policy, uid_t uid, bool deny, uint64_t priority) {
+        return error_trace(connection_policy_add_entry(&policy->uid_tree, uid, deny, priority));
+}
+
+int connection_policy_add_gid(ConnectionPolicy *policy, gid_t gid, bool deny, uint64_t priority) {
+        return error_trace(connection_policy_add_entry(&policy->gid_tree, (uid_t)gid, deny, priority));
+}
+
+static void connection_policy_update_decision(CRBTree *policy, uid_t uid, PolicyDecision *decision) {
+        ConnectionPolicyEntry *entry;
+
+        entry = c_rbtree_find_entry(policy, connection_policy_entry_compare, &uid, ConnectionPolicyEntry, rb);
+        if (!entry)
+                return;
+
+        if (entry->decision.priority < decision->priority)
+                return;
+
+        *decision = entry->decision;
+        return;
+}
+
+int connection_policy_check_allowed(ConnectionPolicy *policy, uid_t uid) {
+        PolicyDecision decision;
+
+        if (policy->uid_wildcard.priority > policy->gid_wildcard.priority)
+                decision = policy->uid_wildcard;
+        else
+                decision = policy->gid_wildcard;
+
+        connection_policy_update_decision(&policy->uid_tree, uid, &decision);
+
+        /* XXX: check the groups too */
+
+        return decision.deny ? POLICY_E_ACCESS_DENIED : 0;
+}
+
 /* parser */
 static void policy_parser_handler_policy(PolicyParser *parser, const XML_Char **attributes) {
         if (parser->needs_linebreak)

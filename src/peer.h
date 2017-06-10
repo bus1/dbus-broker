@@ -26,6 +26,8 @@ enum {
 
         PEER_E_QUOTA,
 
+        PEER_E_CONNECTION_REFUSED,
+
         PEER_E_NAME_RESERVED,
         PEER_E_NAME_UNIQUE,
         PEER_E_NAME_INVALID,
