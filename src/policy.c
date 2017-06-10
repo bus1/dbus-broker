@@ -623,8 +623,12 @@ static int policy_parser_parse_file(PolicyParser *parser, const char *filename) 
         int r;
 
         file = fopen(filename, "r");
-        if (!file)
-                return error_origin(-EIO);
+        if (!file) {
+                if (errno == ENOENT)
+                        return 0;
+
+                return error_origin(-errno);
+        }
 
         parser->filename = filename;
 
