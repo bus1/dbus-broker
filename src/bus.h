@@ -34,6 +34,8 @@ struct Bus {
 
         CRBTree listener_tree;
         UserRegistry users;
+        TransmissionPolicy driver_send_policy;
+        TransmissionPolicy driver_receive_policy;
         ConnectionPolicy connection_policy;
         ActivationRegistry activations;
         NameRegistry names;

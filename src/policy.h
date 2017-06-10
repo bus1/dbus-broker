@@ -4,6 +4,7 @@
  * D-Bus Policy
  */
 
+#include <c-list.h>
 #include <c-rbtree.h>
 #include <stdlib.h>
 
@@ -18,7 +19,11 @@ typedef struct ConnectionPolicy ConnectionPolicy;
 typedef struct ConnectionPolicyEntry ConnectionPolicyEntry;
 typedef struct OwnershipPolicy OwnershipPolicy;
 typedef struct OwnershipPolicyEntry OwnershipPolicyEntry;
+typedef struct Peer Peer;
 typedef struct PolicyDecision PolicyDecision;
+typedef struct TransmissionPolicy TransmissionPolicy;
+typedef struct TransmissionPolicyByName TransmissionPolicyByName;
+typedef struct TransmissionPolicyEntry TransmissionPolicyEntry;
 
 struct PolicyDecision {
         bool deny;
@@ -52,6 +57,28 @@ struct ConnectionPolicyEntry {
         uid_t uid;
 };
 
+struct TransmissionPolicy {
+        CRBTree policy_by_name_tree;
+        CList wildcard_entry_list;
+};
+
+struct TransmissionPolicyByName {
+        CList entry_list;
+        CRBTree *policy;
+        CRBNode policy_node;
+        const char name[];
+};
+
+struct TransmissionPolicyEntry {
+        int type;
+        const char *interface;
+        const char *member;
+        const char *error;
+        const char *path;
+        PolicyDecision decision;
+        CList policy_link;
+};
+
 void ownership_policy_init(OwnershipPolicy *policy);
 void ownership_policy_deinit(OwnershipPolicy *policy);
 
@@ -70,5 +97,15 @@ int connection_policy_add_uid(ConnectionPolicy *policy, uid_t uid, bool deny, ui
 int connection_policy_add_gid(ConnectionPolicy *policy, gid_t gid, bool deny, uint64_t priority);
 
 int connection_policy_check_allowed(ConnectionPolicy *policy, uid_t uid);
+
+void transmission_policy_init(TransmissionPolicy *policy);
+void transmission_policy_deinit(TransmissionPolicy *policy);
+
+int tranmsission_policy_add_entry(TransmissionPolicy *policy,
+                                  const char *name, const char *interface, const char *method, const char *error, const char *path, int type,
+                                  bool deny, uint64_t priority);
+
+int transmission_policy_check_allowed(TransmissionPolicy *policy, Peer *subject,
+                                      const char *interface, const char *method, const char *error, const char *path, int type);
 
 int policy_parse(void);

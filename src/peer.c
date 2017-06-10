@@ -184,6 +184,8 @@ int peer_new_with_fd(Peer **peerp,
         seclabel = NULL;
         peer->n_seclabel = n_seclabel;
         peer->ownership_policy = (OwnershipPolicy){};
+        transmission_policy_init(&peer->send_policy);
+        transmission_policy_init(&peer->receive_policy);
         peer->owned_names = (NameOwner){};
         match_registry_init(&peer->matches);
         match_owner_init(&peer->owned_matches);
@@ -231,6 +233,8 @@ Peer *peer_free(Peer *peer) {
         match_owner_deinit(&peer->owned_matches);
         match_registry_deinit(&peer->matches);
         name_owner_deinit(&peer->owned_names);
+        transmission_policy_deinit(&peer->receive_policy);
+        transmission_policy_deinit(&peer->send_policy);
         ownership_policy_deinit(&peer->ownership_policy);
         connection_deinit(&peer->connection);
         user_unref(peer->user);

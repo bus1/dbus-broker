@@ -6,6 +6,8 @@
 #include <c-rbtree.h>
 #include <expat.h>
 #include <stdlib.h>
+#include "name.h"
+#include "peer.h"
 #include "policy.h"
 #include "util/error.h"
 
@@ -300,6 +302,231 @@ int connection_policy_check_allowed(ConnectionPolicy *policy, uid_t uid) {
         connection_policy_update_decision(&policy->uid_tree, uid, &decision);
 
         /* XXX: check the groups too */
+
+        return decision.deny ? POLICY_E_ACCESS_DENIED : 0;
+}
+
+/* transmission policy */
+static int transmission_policy_entry_new(TransmissionPolicyEntry **entryp, CList *policy,
+                                         const char *interface, const char *member, const char *error, const char *path, int type,
+                                         bool deny, uint64_t priority) {
+        TransmissionPolicyEntry *entry;
+        char *buffer;
+        size_t n_interface = interface ? strlen(interface) + 1 : 0,
+               n_member = member ? strlen(member) + 1 : 0,
+               n_error = error ? strlen(error) + 1 : 0,
+               n_path = path ? strlen(path) + 1 : 0;
+
+        entry = malloc(sizeof(*entry) + n_interface + n_member + n_error + n_path);
+        if (!entry)
+                return error_origin(-ENOMEM);
+        buffer = (char*)(entry + 1);
+
+        if (interface) {
+                entry->interface = buffer;
+                buffer = stpcpy(buffer, interface) + 1;
+        } else {
+                entry->interface = NULL;
+        }
+
+        if (member) {
+                entry->member = buffer;
+                buffer = stpcpy(buffer, member) + 1;
+        } else {
+                entry->member = NULL;
+        }
+
+        if (error) {
+                entry->error = buffer;
+                buffer = stpcpy(buffer, error) + 1;
+        }
+
+        if (path) {
+                entry->path = buffer;
+                buffer = stpcpy(buffer, path) + 1;
+        }
+
+        entry->type = type;
+
+        entry->decision.deny = deny;
+        entry->decision.priority = priority;
+
+        c_list_link_tail(policy, &entry->policy_link);
+
+        if (entryp)
+                *entryp = entry;
+
+        return 0;
+}
+
+static TransmissionPolicyEntry *transmission_policy_entry_free(TransmissionPolicyEntry *entry) {
+        if (!entry)
+                return NULL;
+
+        c_list_unlink_init(&entry->policy_link);
+
+        free(entry);
+
+        return NULL;
+}
+
+static int transmission_policy_by_name_new(TransmissionPolicyByName **by_namep, CRBTree *policy,
+                                           const char *name,
+                                           CRBNode *parent, CRBNode **slot) {
+        TransmissionPolicyByName *by_name;
+        size_t n_name = strlen(name);
+
+        by_name = malloc(sizeof(*by_name) + n_name);
+        if (!by_name)
+                return error_origin(-ENOMEM);
+        memcpy((char*)by_name->name, name, n_name);
+        by_name->policy = policy;
+        by_name->entry_list = (CList)C_LIST_INIT(by_name->entry_list);
+        c_rbtree_add(policy, parent, slot, &by_name->policy_node);
+
+        if (by_namep)
+                *by_namep = by_name;
+
+        return 0;
+}
+
+static TransmissionPolicyByName *transmission_policy_by_name_free(TransmissionPolicyByName *by_name) {
+        if (!by_name)
+                return NULL;
+
+        while (!c_list_is_empty(&by_name->entry_list))
+                transmission_policy_entry_free(c_list_first_entry(&by_name->entry_list, TransmissionPolicyEntry, policy_link));
+
+        c_rbtree_remove_init(by_name->policy, &by_name->policy_node);
+
+        free(by_name);
+
+        return NULL;
+}
+
+void transmission_policy_init(TransmissionPolicy *policy) {
+        policy->policy_by_name_tree = (CRBTree){};
+        policy->wildcard_entry_list = (CList)C_LIST_INIT(policy->wildcard_entry_list);
+}
+
+void transmission_policy_deinit(TransmissionPolicy *policy) {
+        TransmissionPolicyByName *by_name, *safe;
+
+        c_rbtree_for_each_entry_unlink(by_name, safe, &policy->policy_by_name_tree, policy_node)
+                transmission_policy_by_name_free(by_name);
+
+        while (!c_list_is_empty(&policy->wildcard_entry_list))
+                transmission_policy_entry_free(c_list_first_entry(&policy->wildcard_entry_list, TransmissionPolicyEntry, policy_link));
+
+        transmission_policy_init(policy);
+}
+
+static int transmission_policy_by_name_compare(CRBTree *tree, void *k, CRBNode *rb) {
+        const char *name = k;
+        TransmissionPolicyByName *by_name = c_container_of(rb, TransmissionPolicyByName, policy_node);
+
+        return strcmp(name, by_name->name);
+}
+
+int tranmsission_policy_add_entry(TransmissionPolicy *policy,
+                                  const char *name, const char *interface, const char *member, const char *error, const char *path, int type,
+                                  bool deny, uint64_t priority) {
+        CRBNode *parent, **slot;
+        CList *policy_list;
+        int r;
+
+        if (name) {
+                TransmissionPolicyByName *by_name;
+
+                slot = c_rbtree_find_slot(&policy->policy_by_name_tree, transmission_policy_by_name_compare, name, &parent);
+                if (!slot) {
+                        by_name = c_container_of(parent, TransmissionPolicyByName, policy_node);
+                } else {
+                        r = transmission_policy_by_name_new(&by_name, &policy->policy_by_name_tree, name, parent, slot);
+                        if (r)
+                                return error_trace(r);
+                }
+
+                policy_list = &by_name->entry_list;
+        } else {
+                policy_list = &policy->wildcard_entry_list;
+        }
+
+        r = transmission_policy_entry_new(NULL, policy_list, interface, member, error, path, type, deny, priority);
+        if (r)
+                return error_trace(r);
+
+        return 0;
+}
+
+static void transmission_policy_update_decision(CList *policy,
+                                                const char *interface, const char *member, const char *error, const char *path, int type,
+                                                PolicyDecision *decision) {
+        TransmissionPolicyEntry *entry;
+
+        c_list_for_each_entry(entry, policy, policy_link) {
+                if (entry->decision.priority < decision->priority)
+                        continue;
+
+                if (entry->interface)
+                        if (!interface || strcmp(entry->interface, interface))
+                                continue;
+
+                if (entry->member)
+                        if (!member || strcmp(entry->member, member))
+                                continue;
+
+                if (entry->error)
+                        if (!error || strcmp(entry->error, error))
+                                continue;
+
+                if (entry->path)
+                        if (!path || strcmp(entry->path, path))
+                                continue;
+
+                if (entry->type)
+                        if (entry->type != type)
+                                continue;
+
+                *decision = entry->decision;
+        }
+}
+
+static void transmission_policy_update_decision_by_name(CRBTree *policy, const char *name,
+                                                        const char *interface, const char *member, const char *error, const char *path, int type,
+                                                        PolicyDecision *decision) {
+        TransmissionPolicyByName *by_name;
+
+        by_name = c_rbtree_find_entry(policy, transmission_policy_by_name_compare, name, TransmissionPolicyByName, policy_node);
+        if (!by_name)
+                return;
+
+        transmission_policy_update_decision(&by_name->entry_list, interface, member, error, path, type, decision);
+}
+
+int transmission_policy_check_allowed(TransmissionPolicy *policy, Peer *subject,
+                                      const char *interface, const char *member, const char *error, const char *path, int type) {
+        PolicyDecision decision = {};
+
+        if (subject) {
+                NameOwnership *ownership;
+
+                c_rbtree_for_each_entry(ownership, &subject->owned_names.ownership_tree, owner_node) {
+                        if (!name_ownership_is_primary(ownership))
+                                continue;
+
+                        transmission_policy_update_decision_by_name(&policy->policy_by_name_tree, ownership->name->name,
+                                                                    interface, member, error, path, type,
+                                                                    &decision);
+                }
+        } else {
+                /* the subject is the driver */
+                transmission_policy_update_decision_by_name(&policy->policy_by_name_tree, "org.freedesktop.DBus",
+                                                            interface, member, error, path, type,
+                                                            &decision);
+        }
+
+        transmission_policy_update_decision(&policy->wildcard_entry_list, interface, member, error, path, type, &decision);
 
         return decision.deny ? POLICY_E_ACCESS_DENIED : 0;
 }
