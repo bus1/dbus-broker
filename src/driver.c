@@ -313,6 +313,7 @@ const char *driver_error_to_string(int r) {
                 [DRIVER_E_NAME_RESERVED]                        = "org.freedesktop.DBus is a reserved name",
                 [DRIVER_E_NAME_UNIQUE]                          = "The name is a unique name",
                 [DRIVER_E_NAME_INVALID]                         = "The name is not a valid well-known name",
+                [DRIVER_E_NAME_REFUSED]                         = "Request to own name refused by policy",
                 [DRIVER_E_NAME_NOT_FOUND]                       = "The name does not exist",
                 [DRIVER_E_NAME_NOT_ACTIVATABLE]                 = "The name is not activatable",
                 [DRIVER_E_NAME_OWNER_NOT_FOUND]                 = "The name does not have an owner",
@@ -735,6 +736,8 @@ static int driver_method_request_name(Peer *peer, CDVar *in_v, uint32_t serial, 
                 return DRIVER_E_NAME_UNIQUE;
         else if (r == PEER_E_NAME_INVALID)
                 return DRIVER_E_NAME_INVALID;
+        else if (r == PEER_E_NAME_REFUSED)
+                return DRIVER_E_NAME_REFUSED;
         else
                 return error_fold(r);
 
@@ -1845,6 +1848,7 @@ int driver_dispatch(Peer *peer, Message *message) {
         case DRIVER_E_UNEXPECTED_REPLY:
         case DRIVER_E_UNEXPECTED_ENVIRONMENT_UPDATE:
         case DRIVER_E_EXPECTED_REPLY_EXISTS:
+        case DRIVER_E_NAME_REFUSED:
                 r = driver_send_error(peer, metadata.header.serial, "org.freedesktop.DBus.Error.AccessDenied", driver_error_to_string(r));
                 break;
         case DRIVER_E_UNEXPECTED_INTERFACE:

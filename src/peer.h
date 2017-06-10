@@ -11,6 +11,7 @@
 #include "dbus/connection.h"
 #include "match.h"
 #include "name.h"
+#include "policy.h"
 #include "reply.h"
 
 typedef struct Bus Bus;
@@ -28,6 +29,7 @@ enum {
         PEER_E_NAME_RESERVED,
         PEER_E_NAME_UNIQUE,
         PEER_E_NAME_INVALID,
+        PEER_E_NAME_REFUSED,
         PEER_E_NAME_ALREADY_OWNER,
         PEER_E_NAME_IN_QUEUE,
         PEER_E_NAME_EXISTS,
@@ -55,6 +57,7 @@ struct Peer {
         bool registered : 1;
         bool monitor : 1;
 
+        OwnershipPolicy ownership_policy;
         NameOwner owned_names;
         MatchRegistry matches;
         MatchOwner owned_matches;
