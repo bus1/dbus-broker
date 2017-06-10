@@ -488,7 +488,7 @@ int peer_queue_call(Peer *receiver, Peer *sender, Message *message) {
 }
 
 int peer_queue_reply(Peer *sender, const char *destination, uint32_t reply_serial, Message *message) {
-        ReplySlot *slot;
+        _c_cleanup_(reply_slot_freep) ReplySlot *slot = NULL;
         Peer *receiver;
         uint64_t id;
         int r;
@@ -514,8 +514,6 @@ int peer_queue_reply(Peer *sender, const char *destination, uint32_t reply_seria
                 else
                         return error_fold(r);
         }
-
-        reply_slot_free(slot);
 
         return 0;
 }
