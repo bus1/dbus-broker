@@ -97,7 +97,6 @@ struct PolicyRegistry {
         CRBTree gid_policy_tree;
         Policy at_console_policy;
         Policy not_at_console_policy;
-        Policy mandatory_policy;
 };
 
 void ownership_policy_init(OwnershipPolicy *policy);
@@ -135,4 +134,4 @@ void policy_deinit(Policy *policy);
 void policy_registry_init(PolicyRegistry *registry);
 void policy_registry_deinit(PolicyRegistry *registry);
 
-int policy_parse(void);
+int policy_parse(PolicyRegistry *registry);
