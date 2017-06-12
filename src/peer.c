@@ -149,7 +149,7 @@ int peer_new_with_fd(Peer **peerp,
         if (r < 0)
                 return error_origin(-errno);
 
-        r = connection_policy_check_allowed(&bus->connection_policy, ucred.uid);
+        r = connection_policy_check_allowed(&bus->policy_registry.connection_policy, ucred.uid);
         if (r) {
                 if (r == POLICY_E_ACCESS_DENIED)
                         return PEER_E_CONNECTION_REFUSED;
@@ -183,9 +183,7 @@ int peer_new_with_fd(Peer **peerp,
         peer->seclabel = seclabel;
         seclabel = NULL;
         peer->n_seclabel = n_seclabel;
-        peer->ownership_policy = (OwnershipPolicy){};
-        transmission_policy_init(&peer->send_policy);
-        transmission_policy_init(&peer->receive_policy);
+        policy_init(&peer->policy);
         peer->owned_names = (NameOwner){};
         match_registry_init(&peer->matches);
         match_owner_init(&peer->owned_matches);
@@ -233,9 +231,7 @@ Peer *peer_free(Peer *peer) {
         match_owner_deinit(&peer->owned_matches);
         match_registry_deinit(&peer->matches);
         name_owner_deinit(&peer->owned_names);
-        transmission_policy_deinit(&peer->receive_policy);
-        transmission_policy_deinit(&peer->send_policy);
-        ownership_policy_deinit(&peer->ownership_policy);
+        policy_deinit(&peer->policy);
         connection_deinit(&peer->connection);
         user_unref(peer->user);
         free(peer->seclabel);
@@ -278,7 +274,7 @@ int peer_request_name(Peer *peer, const char *name, uint32_t flags, NameChange *
 
         /* XXX: refuse invalid names */
 
-        r = ownership_policy_check_allowed(&peer->ownership_policy, name);
+        r = ownership_policy_check_allowed(&peer->policy.ownership_policy, name);
         if (r) {
                 if (r == POLICY_E_ACCESS_DENIED)
                         return PEER_E_NAME_REFUSED;

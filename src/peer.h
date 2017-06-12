@@ -59,9 +59,7 @@ struct Peer {
         bool registered : 1;
         bool monitor : 1;
 
-        OwnershipPolicy ownership_policy;
-        TransmissionPolicy send_policy;
-        TransmissionPolicy receive_policy;
+        Policy policy;
         NameOwner owned_names;
         MatchRegistry matches;
         MatchOwner owned_matches;

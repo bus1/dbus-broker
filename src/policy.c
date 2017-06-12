@@ -23,7 +23,6 @@ struct PolicyParser {
 #define POLICY_PARSER_NULL {}
 
 /* ownership policy */
-
 static int ownership_policy_entry_new(OwnershipPolicyEntry **entryp, CRBTree *policy,
                                       const char *name, bool deny, uint64_t priority,
                                       CRBNode *parent, CRBNode **slot) {
@@ -529,6 +528,66 @@ int transmission_policy_check_allowed(TransmissionPolicy *policy, Peer *subject,
         transmission_policy_update_decision(&policy->wildcard_entry_list, interface, member, error, path, type, &decision);
 
         return decision.deny ? POLICY_E_ACCESS_DENIED : 0;
+}
+
+/* policy */
+void policy_init(Policy *policy) {
+        ownership_policy_init(&policy->ownership_policy);
+        transmission_policy_init(&policy->send_policy);
+        transmission_policy_init(&policy->receive_policy);
+        policy->registry = NULL;
+        c_rbnode_init(&policy->registry_node);
+        policy->uid = (uid_t)-1;
+}
+
+void policy_deinit(Policy *policy) {
+        assert(!policy->registry);
+        assert(!c_rbnode_is_linked(&policy->registry_node));
+        assert(policy->uid == (uid_t)-1);
+
+        transmission_policy_deinit(&policy->receive_policy);
+        transmission_policy_deinit(&policy->send_policy);
+        ownership_policy_deinit(&policy->ownership_policy);
+}
+
+Policy *policy_free(Policy *policy) {
+        if (!policy)
+                return NULL;
+
+        c_rbtree_remove_init(policy->registry, &policy->registry_node);
+        policy->registry = NULL;
+        policy->uid = (uid_t) -1;
+
+        policy_deinit(policy);
+
+        free(policy);
+
+        return NULL;
+}
+
+/* policy registry */
+void policy_registry_init(PolicyRegistry *registry) {
+        connection_policy_init(&registry->connection_policy);
+        policy_init(&registry->default_policy);
+        registry->uid_policy_tree = (CRBTree){};
+        registry->gid_policy_tree = (CRBTree){};
+        policy_init(&registry->at_console_policy);
+        policy_init(&registry->not_at_console_policy);
+        policy_init(&registry->mandatory_policy);
+}
+
+void policy_registry_deinit(PolicyRegistry *registry) {
+        Policy *policy, *safe;
+
+        policy_deinit(&registry->mandatory_policy);
+        policy_deinit(&registry->not_at_console_policy);
+        policy_deinit(&registry->at_console_policy);
+        c_rbtree_for_each_entry_unlink(policy, safe, &registry->gid_policy_tree, registry_node)
+                policy_free(policy);
+        c_rbtree_for_each_entry_unlink(policy, safe, &registry->uid_policy_tree, registry_node)
+                policy_free(policy);
+        policy_deinit(&registry->default_policy);
+        connection_policy_deinit(&registry->connection_policy);
 }
 
 /* parser */

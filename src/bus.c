@@ -29,7 +29,7 @@ int bus_init(Bus *bus,
         activation_registry_init(&bus->activations);
         transmission_policy_init(&bus->driver_send_policy);
         transmission_policy_init(&bus->driver_receive_policy);
-        bus->connection_policy = (ConnectionPolicy){};
+        policy_registry_init(&bus->policy_registry);
         match_registry_init(&bus->wildcard_matches);
         match_registry_init(&bus->driver_matches);
         name_registry_init(&bus->names);
@@ -61,7 +61,7 @@ void bus_deinit(Bus *bus) {
         name_registry_deinit(&bus->names);
         match_registry_deinit(&bus->driver_matches);
         match_registry_deinit(&bus->wildcard_matches);
-        connection_policy_deinit(&bus->connection_policy);
+        policy_registry_deinit(&bus->policy_registry);
         transmission_policy_deinit(&bus->driver_receive_policy);
         transmission_policy_deinit(&bus->driver_send_policy);
         activation_registry_deinit(&bus->activations);

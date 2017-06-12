@@ -20,7 +20,9 @@ typedef struct ConnectionPolicyEntry ConnectionPolicyEntry;
 typedef struct OwnershipPolicy OwnershipPolicy;
 typedef struct OwnershipPolicyEntry OwnershipPolicyEntry;
 typedef struct Peer Peer;
+typedef struct Policy Policy;
 typedef struct PolicyDecision PolicyDecision;
+typedef struct PolicyRegistry PolicyRegistry;
 typedef struct TransmissionPolicy TransmissionPolicy;
 typedef struct TransmissionPolicyByName TransmissionPolicyByName;
 typedef struct TransmissionPolicyEntry TransmissionPolicyEntry;
@@ -79,6 +81,25 @@ struct TransmissionPolicyEntry {
         CList policy_link;
 };
 
+struct Policy {
+        OwnershipPolicy ownership_policy;
+        TransmissionPolicy send_policy;
+        TransmissionPolicy receive_policy;
+        CRBTree *registry;
+        CRBNode registry_node;
+        uid_t uid;
+};
+
+struct PolicyRegistry {
+        ConnectionPolicy connection_policy;
+        Policy default_policy;
+        CRBTree uid_policy_tree;
+        CRBTree gid_policy_tree;
+        Policy at_console_policy;
+        Policy not_at_console_policy;
+        Policy mandatory_policy;
+};
+
 void ownership_policy_init(OwnershipPolicy *policy);
 void ownership_policy_deinit(OwnershipPolicy *policy);
 
@@ -107,5 +128,11 @@ int transmission_policy_add_entry(TransmissionPolicy *policy,
 
 int transmission_policy_check_allowed(TransmissionPolicy *policy, Peer *subject,
                                       const char *interface, const char *method, const char *error, const char *path, int type);
+
+void policy_init(Policy *policy);
+void policy_deinit(Policy *policy);
+
+void policy_registry_init(PolicyRegistry *registry);
+void policy_registry_deinit(PolicyRegistry *registry);
 
 int policy_parse(void);
