@@ -149,15 +149,6 @@ int peer_new_with_fd(Peer **peerp,
         if (r < 0)
                 return error_origin(-errno);
 
-        /* XXX: let this be implicit when instantiating the policy */
-        r = connection_policy_check_allowed(&bus->policy_registry.connection_policy, ucred.uid, NULL, 0);
-        if (r) {
-                if (r == POLICY_E_ACCESS_DENIED)
-                        return PEER_E_CONNECTION_REFUSED;
-
-                return error_fold(r);
-        }
-
         r = user_registry_ref_user(&bus->users, &user, ucred.uid);
         if (r < 0)
                 return error_fold(r);
@@ -190,6 +181,14 @@ int peer_new_with_fd(Peer **peerp,
         match_owner_init(&peer->owned_matches);
         reply_registry_init(&peer->replies_outgoing);
         peer->owned_replies = (ReplyOwner)REPLY_OWNER_INIT(peer->owned_replies);
+
+        r = policy_registry_instantiate_policy(&bus->policy_registry, ucred.uid, &peer->policy);
+        if (r) {
+                if (r == POLICY_E_ACCESS_DENIED)
+                        return PEER_E_CONNECTION_REFUSED;
+
+                return error_fold(r);
+        }
 
         r = connection_init_server(&peer->connection,
                                    dispatcher,

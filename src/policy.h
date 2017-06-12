@@ -134,4 +134,6 @@ void policy_deinit(Policy *policy);
 void policy_registry_init(PolicyRegistry *registry);
 void policy_registry_deinit(PolicyRegistry *registry);
 
+int policy_registry_instantiate_policy(PolicyRegistry *registry, uid_t uid, Policy *policy);
+
 int policy_parse(PolicyRegistry *registry);
