@@ -27,6 +27,7 @@ struct PolicyParser {
         PolicyRegistry *registry;
         XML_Parser parser;
         const char *filename;
+        bool busconfig;
         size_t level;
 
         Policy *policy;
@@ -944,7 +945,15 @@ static void policy_parser_handler_start(void *userdata, const XML_Char *name, co
         int r;
 
         switch (parser->level++) {
+                case 0:
+                        if (!strcmp(name, "busconfig"))
+                                parser->busconfig = true;
+
+                        break;
                 case 1:
+                        if (!parser->busconfig)
+                                break;
+
                         if (!strcmp(name, "policy")) {
                                 r = policy_parser_handler_policy(parser, attributes);
                                 assert(!r); /* XXX: error handling */
@@ -970,10 +979,23 @@ static void policy_parser_handler_start(void *userdata, const XML_Char *name, co
 static void policy_parser_handler_end(void *userdata, const XML_Char *name) {
         PolicyParser *parser = userdata;
 
-        if (--parser->level == 1 &&
-            !strcmp(name, "policy")) {
-                parser->policy = NULL;
-                parser->priority_base = (uint64_t)-1;
+        switch (--parser->level) {
+        case 0:
+                if (!strcmp(name, "busconfig")) {
+                        assert(parser->busconfig);
+                        parser->busconfig = false;
+                }
+                break;
+        case 1:
+                if (parser->busconfig &&
+                    !strcmp(name, "policy")) {
+                        assert(parser->policy);
+                        parser->policy = NULL;
+                        parser->priority_base = (uint64_t)-1;
+                }
+                break;
+        default:
+                break;
         }
 }
 
