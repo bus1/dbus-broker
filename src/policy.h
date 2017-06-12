@@ -47,9 +47,8 @@ struct OwnershipPolicyEntry {
 
 struct ConnectionPolicy {
         CRBTree uid_tree;
-        PolicyDecision uid_wildcard;
         CRBTree gid_tree;
-        PolicyDecision gid_wildcard;
+        PolicyDecision wildcard;
 };
 
 struct ConnectionPolicyEntry {
@@ -111,8 +110,7 @@ int ownership_policy_check_allowed(OwnershipPolicy *policy, const char *name);
 void connection_policy_init(ConnectionPolicy *policy);
 void connection_policy_deinit(ConnectionPolicy *policy);
 
-int connection_policy_set_uid_wildcard(ConnectionPolicy *policy, bool deny, uint64_t priority);
-int connection_policy_set_gid_wildcard(ConnectionPolicy *policy, bool deny, uint64_t priority);
+int connection_policy_set_wildcard(ConnectionPolicy *policy, bool deny, uint64_t priority);
 int connection_policy_add_uid(ConnectionPolicy *policy, uid_t uid, bool deny, uint64_t priority);
 int connection_policy_add_gid(ConnectionPolicy *policy, gid_t gid, bool deny, uint64_t priority);
 

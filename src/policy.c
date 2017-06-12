@@ -233,22 +233,12 @@ void connection_policy_deinit(ConnectionPolicy *policy) {
         connection_policy_init(policy);
 }
 
-int connection_policy_set_uid_wildcard(ConnectionPolicy *policy, bool deny, uint64_t priority) {
-        if (policy->uid_wildcard.priority > priority)
+int connection_policy_set_wildcard(ConnectionPolicy *policy, bool deny, uint64_t priority) {
+        if (policy->wildcard.priority > priority)
                 return 0;
 
-        policy->uid_wildcard.deny = deny;
-        policy->uid_wildcard.priority = priority;
-
-        return 0;
-}
-
-int connection_policy_set_gid_wildcard(ConnectionPolicy *policy, bool deny, uint64_t priority) {
-        if (policy->gid_wildcard.priority > priority)
-                return 0;
-
-        policy->gid_wildcard.deny = deny;
-        policy->gid_wildcard.priority = priority;
+        policy->wildcard.deny = deny;
+        policy->wildcard.priority = priority;
 
         return 0;
 }
@@ -309,12 +299,7 @@ static void connection_policy_update_decision(CRBTree *policy, uid_t uid, Policy
 }
 
 int connection_policy_check_allowed(ConnectionPolicy *policy, uid_t uid, gid_t *gids, size_t n_gids) {
-        PolicyDecision decision;
-
-        if (policy->uid_wildcard.priority > policy->gid_wildcard.priority)
-                decision = policy->uid_wildcard;
-        else
-                decision = policy->gid_wildcard;
+        PolicyDecision decision = policy->wildcard;
 
         connection_policy_update_decision(&policy->uid_tree, uid, &decision);
 
@@ -824,8 +809,8 @@ static int policy_parser_handler_entry(PolicyParser *parser, const XML_Char **at
                         continue;
                 } else if (!strcmp(key, "user")) {
                         if (!strcmp(value, "*")) {
-                                r = connection_policy_set_uid_wildcard(&parser->registry->connection_policy,
-                                                                       deny, parser->priority_base + parser->priority ++);
+                                r = connection_policy_set_wildcard(&parser->registry->connection_policy,
+                                                                   deny, parser->priority_base + parser->priority ++);
                                 if (r)
                                         return error_trace(r);
                         } else {
@@ -843,8 +828,8 @@ static int policy_parser_handler_entry(PolicyParser *parser, const XML_Char **at
                         continue;
                 } else if (!strcmp(key, "group")) {
                         if (!strcmp(value, "*")) {
-                                r = connection_policy_set_gid_wildcard(&parser->registry->connection_policy,
-                                                                       deny, parser->priority_base + parser->priority ++);
+                                r = connection_policy_set_wildcard(&parser->registry->connection_policy,
+                                                                   deny, parser->priority_base + parser->priority ++);
                                 if (r)
                                         return error_trace(r);
                         } else {
