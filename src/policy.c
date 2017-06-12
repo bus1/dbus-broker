@@ -374,7 +374,7 @@ static int transmission_policy_by_name_new(TransmissionPolicyByName **by_namep, 
                                            const char *name,
                                            CRBNode *parent, CRBNode **slot) {
         TransmissionPolicyByName *by_name;
-        size_t n_name = strlen(name);
+        size_t n_name = strlen(name) + 1;
 
         by_name = malloc(sizeof(*by_name) + n_name);
         if (!by_name)
@@ -428,7 +428,7 @@ static int transmission_policy_by_name_compare(CRBTree *tree, void *k, CRBNode *
         return strcmp(name, by_name->name);
 }
 
-int tranmsission_policy_add_entry(TransmissionPolicy *policy,
+int transmission_policy_add_entry(TransmissionPolicy *policy,
                                   const char *name, const char *interface, const char *member, const char *error, const char *path, int type,
                                   bool deny, uint64_t priority) {
         CRBNode *parent, **slot;

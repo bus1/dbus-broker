@@ -101,7 +101,7 @@ int connection_policy_check_allowed(ConnectionPolicy *policy, uid_t uid);
 void transmission_policy_init(TransmissionPolicy *policy);
 void transmission_policy_deinit(TransmissionPolicy *policy);
 
-int tranmsission_policy_add_entry(TransmissionPolicy *policy,
+int transmission_policy_add_entry(TransmissionPolicy *policy,
                                   const char *name, const char *interface, const char *method, const char *error, const char *path, int type,
                                   bool deny, uint64_t priority);
 
