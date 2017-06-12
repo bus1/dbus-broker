@@ -307,7 +307,7 @@ static void connection_policy_update_decision(CRBTree *policy, uid_t uid, Policy
         return;
 }
 
-int connection_policy_check_allowed(ConnectionPolicy *policy, uid_t uid) {
+int connection_policy_check_allowed(ConnectionPolicy *policy, uid_t uid, gid_t *gids, size_t n_gids) {
         PolicyDecision decision;
 
         if (policy->uid_wildcard.priority > policy->gid_wildcard.priority)
@@ -317,7 +317,8 @@ int connection_policy_check_allowed(ConnectionPolicy *policy, uid_t uid) {
 
         connection_policy_update_decision(&policy->uid_tree, uid, &decision);
 
-        /* XXX: check the groups too */
+        for (size_t i = 0; i < n_gids; i++)
+                connection_policy_update_decision(&policy->gid_tree, (uid_t)gids[i], &decision);
 
         return decision.deny ? POLICY_E_ACCESS_DENIED : 0;
 }

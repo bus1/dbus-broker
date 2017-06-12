@@ -116,7 +116,7 @@ int connection_policy_set_gid_wildcard(ConnectionPolicy *policy, bool deny, uint
 int connection_policy_add_uid(ConnectionPolicy *policy, uid_t uid, bool deny, uint64_t priority);
 int connection_policy_add_gid(ConnectionPolicy *policy, gid_t gid, bool deny, uint64_t priority);
 
-int connection_policy_check_allowed(ConnectionPolicy *policy, uid_t uid);
+int connection_policy_check_allowed(ConnectionPolicy *policy, uid_t uid, gid_t *gids, size_t n_gids);
 
 void transmission_policy_init(TransmissionPolicy *policy);
 void transmission_policy_deinit(TransmissionPolicy *policy);
