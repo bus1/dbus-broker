@@ -342,11 +342,15 @@ static int transmission_policy_entry_new(TransmissionPolicyEntry **entryp, CList
         if (error) {
                 entry->error = buffer;
                 buffer = stpcpy(buffer, error) + 1;
+        } else {
+                entry->error = NULL;
         }
 
         if (path) {
                 entry->path = buffer;
                 buffer = stpcpy(buffer, path) + 1;
+        } else {
+                entry->path = NULL;
         }
 
         entry->type = type;
