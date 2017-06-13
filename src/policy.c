@@ -25,9 +25,13 @@ typedef struct PolicyParser PolicyParser;
 
 struct PolicyParser {
         PolicyRegistry *registry;
+        PolicyParser *parent;
         XML_Parser parser;
         const char *filename;
         bool busconfig;
+        bool includedir;
+        char characterdata[PATH_MAX + 1];
+        size_t n_characterdata;
         size_t level;
 
         Policy *policy;
@@ -712,6 +716,47 @@ int policy_registry_instantiate_policy(PolicyRegistry *registry, uid_t uid, Poli
 }
 
 /* parser */
+static int policy_parse_directory(PolicyParser *parent, const char *dirpath) {
+        const char suffix[] = ".conf";
+        _c_cleanup_(c_closedirp) DIR *dir = NULL;
+        struct dirent *de;
+        size_t n;
+        int r;
+
+        dir = opendir(dirpath);
+        if (!dir) {
+                if (errno == ENOENT || errno == ENOTDIR)
+                        return 0;
+                else
+                        return error_origin(-errno);
+        }
+
+        for (errno = 0, de = readdir(dir);
+             de;
+             errno = 0, de = readdir(dir)) {
+                _c_cleanup_(c_freep) char *filename = NULL;
+
+                if (de->d_name[0] == '.')
+                        continue;
+
+                n = strlen(de->d_name);
+                if (n <= strlen(suffix))
+                        continue;
+                if (strcmp(de->d_name + n - strlen(suffix), suffix))
+                        continue;
+
+                r = asprintf(&filename, "%s/%s", dirpath, de->d_name);
+                if (r < 0)
+                        return error_origin(-ENOMEM);
+
+                r = policy_parser_parse_file(parent->registry, filename, parent);
+                if (r)
+                        return error_trace(r);
+        }
+
+        return 0;
+}
+
 static int policy_parser_handler_policy(PolicyParser *parser, const XML_Char **attributes) {
         int r;
 
@@ -946,6 +991,8 @@ static void policy_parser_handler_start(void *userdata, const XML_Char *name, co
                         if (!strcmp(name, "policy")) {
                                 r = policy_parser_handler_policy(parser, attributes);
                                 assert(!r); /* XXX: error handling */
+                        } else if (!strcmp(name, "includedir")) {
+                                parser->includedir = true;
                         }
                         break;
                 case 2:
@@ -976,11 +1023,18 @@ static void policy_parser_handler_end(void *userdata, const XML_Char *name) {
                 }
                 break;
         case 1:
-                if (parser->busconfig &&
-                    !strcmp(name, "policy")) {
-                        assert(parser->policy);
-                        parser->policy = NULL;
-                        parser->priority_base = (uint64_t)-1;
+                if (parser->busconfig) {
+                        if (!strcmp(name, "policy")) {
+                                assert(parser->policy);
+                                parser->policy = NULL;
+                                parser->priority_base = (uint64_t)-1;
+                        } else if (!strcmp(name, "includedir")) {
+                                assert(parser->includedir);
+                                policy_parse_directory(parser, parser->characterdata);
+                                parser->includedir = false;
+                                memset(parser->characterdata, 0, sizeof(parser->characterdata));
+                                parser->n_characterdata = 0;
+                        }
                 }
                 break;
         default:
@@ -988,12 +1042,45 @@ static void policy_parser_handler_end(void *userdata, const XML_Char *name) {
         }
 }
 
-static void policy_parser_init(PolicyParser *parser, PolicyRegistry *registry) {
+static void policy_parser_character_handler(void *userdata, const XML_Char *data, int n_data) {
+        PolicyParser *parser = userdata;
+
+        if (!n_data)
+                return;
+
+        if (!parser->includedir)
+                return;
+
+        if (!parser->n_characterdata && data[0] != '/') {
+                const char *end;
+
+                end = strrchr(parser->filename, '/');
+                if (!end)
+                        goto error;
+
+                memcpy(parser->characterdata, parser->filename, end - parser->filename + 1);
+                parser->n_characterdata = end - parser->filename + 1;
+        }
+
+        if (parser->n_characterdata + n_data > PATH_MAX)
+                goto error;
+
+        memcpy(parser->characterdata + parser->n_characterdata, data, n_data);
+
+        return;
+error:
+        fprintf(stderr, "This isn't good.\n");
+}
+
+static void policy_parser_init(PolicyParser *parser, PolicyRegistry *registry, PolicyParser *parent, const char *filename) {
         *parser = (PolicyParser)POLICY_PARSER_NULL;
         parser->registry = registry;
+        parser->parent = parent;
+        parser->filename = filename;
         parser->parser = XML_ParserCreate(NULL);
         XML_SetUserData(parser->parser, parser);
         XML_SetElementHandler(parser->parser, policy_parser_handler_start, policy_parser_handler_end);
+        XML_SetCharacterDataHandler(parser->parser, policy_parser_character_handler);
 }
 
 static void policy_parser_deinit(PolicyParser *parser) {
@@ -1005,11 +1092,16 @@ static void policy_parser_deinit(PolicyParser *parser) {
         *parser = (PolicyParser)POLICY_PARSER_NULL;
 }
 
-static int policy_parser_parse_file(PolicyParser *parser, const char *filename) {
+int policy_parser_parse_file(PolicyRegistry *registry, const char *filename, PolicyParser *parent) {
+        PolicyParser parser = (PolicyParser)POLICY_PARSER_NULL;
         _c_cleanup_(c_fclosep) FILE *file = NULL;
         char buffer[1024];
         size_t len;
         int r;
+
+        for (PolicyParser *p = parent; p; p = p->parent)
+                if (!strcmp(p->filename, filename))
+                        return POLICY_E_CIRCULAR_INCLUDE;
 
         file = fopen(filename, "r");
         if (!file) {
@@ -1019,63 +1111,28 @@ static int policy_parser_parse_file(PolicyParser *parser, const char *filename) 
                 return error_origin(-errno);
         }
 
-        parser->filename = filename;
-
+        policy_parser_init(&parser, registry, NULL, filename);
         do {
                 len = fread(buffer, sizeof(char), sizeof(buffer), file);
                 if (!len && ferror(file))
                         return error_origin(-EIO);
 
-                r = XML_Parse(parser->parser, buffer, len, XML_FALSE);
+                r = XML_Parse(parser.parser, buffer, len, XML_FALSE);
                 if (r != XML_STATUS_OK)
-                        return POLICY_E_INVALID_XML;
+                        goto error;
         } while (len == sizeof(buffer));
 
-        return 0;
-}
-
-static int policy_parser_finalize(PolicyParser *parser) {
-        int r;
-
-        r = XML_Parse(parser->parser, NULL, 0, XML_TRUE);
+        r = XML_Parse(parser.parser, NULL, 0, XML_TRUE);
         if (r != XML_STATUS_OK)
-                return POLICY_E_INVALID_XML;
-
-        return 0;
-}
-
-static void policy_print_parsing_error(PolicyParser *parser) {
-        fprintf(stderr, "%s +%lu: %s\n",
-                parser->filename,
-                XML_GetCurrentLineNumber(parser->parser),
-                XML_ErrorString(XML_GetErrorCode(parser->parser)));
-}
-
-int policy_parse(PolicyRegistry *registry) {
-        PolicyParser parser = (PolicyParser)POLICY_PARSER_NULL;
-        /* XXX: only makes sense for the system bus */
-        const char *filename = "/usr/share/dbus-1/system.conf";
-        int r;
-
-        policy_parser_init(&parser, registry);
-
-        r = policy_parser_parse_file(&parser, filename);
-        if (r) {
-                if (r == POLICY_E_INVALID_XML)
-                        policy_print_parsing_error(&parser);
-                else
-                        return error_fold(r);
-        }
-
-        r = policy_parser_finalize(&parser);
-        if (r) {
-                if (r == POLICY_E_INVALID_XML)
-                        policy_print_parsing_error(&parser);
-                else
-                        return error_fold(r);
-        }
-
+                goto error;
         policy_parser_deinit(&parser);
 
         return 0;
+error:
+        fprintf(stderr, "%s +%lu: %s\n",
+                parser.filename,
+                XML_GetCurrentLineNumber(parser.parser),
+                XML_ErrorString(XML_GetErrorCode(parser.parser)));
+        policy_parser_deinit(&parser);
+        return POLICY_E_INVALID_XML;
 }

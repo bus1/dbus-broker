@@ -13,6 +13,7 @@ enum {
 
         POLICY_E_ACCESS_DENIED,
         POLICY_E_INVALID_XML,
+        POLICY_E_CIRCULAR_INCLUDE,
 };
 
 typedef struct ConnectionPolicy ConnectionPolicy;
@@ -22,6 +23,7 @@ typedef struct OwnershipPolicyEntry OwnershipPolicyEntry;
 typedef struct Peer Peer;
 typedef struct Policy Policy;
 typedef struct PolicyDecision PolicyDecision;
+typedef struct PolicyParser PolicyParser;
 typedef struct PolicyRegistry PolicyRegistry;
 typedef struct TransmissionPolicy TransmissionPolicy;
 typedef struct TransmissionPolicyByName TransmissionPolicyByName;
@@ -134,4 +136,4 @@ void policy_registry_deinit(PolicyRegistry *registry);
 
 int policy_registry_instantiate_policy(PolicyRegistry *registry, uid_t uid, Policy *policy);
 
-int policy_parse(PolicyRegistry *registry);
+int policy_parser_parse_file(PolicyRegistry *registry, const char *filename, PolicyParser *parent);

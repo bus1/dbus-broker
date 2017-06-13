@@ -153,7 +153,7 @@ static void test_basic() {
 
         policy_registry_init(&registry);
 
-        r = policy_parse(&registry);
+        r = policy_parser_parse_file(&registry, "/usr/share/dbus-1/system.conf", NULL);
         assert(!r);
 
         test_print_policy_registry(&registry);
