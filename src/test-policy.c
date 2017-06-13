@@ -20,7 +20,7 @@ static void test_print_connection_policy_tree(CRBTree *policy, const char *name,
         fprintf(stderr, "%*s%s:\n", indent * 4, "", name);
 
         c_rbtree_for_each_entry(entry, policy, rb) {
-                fprintf(stderr, "%*s%u: ", indent * 8, "", entry->uid);
+                fprintf(stderr, "%*s%u: ", (indent + 1) * 4, "", entry->uid);
                 test_print_policy_decision(&entry->decision);
         }
 }
@@ -43,7 +43,7 @@ static void test_print_ownership_policy_tree(CRBTree *policy, const char *suffix
 
 static void test_print_ownership_policy(OwnershipPolicy *policy, unsigned int indent) {
         fprintf(stderr, "%*sOWN:\n", indent * 4, "");
-        fprintf(stderr, "%*s*: ", indent * 8, "");
+        fprintf(stderr, "%*s*: ", (indent + 1) * 4, "");
         test_print_policy_decision(&policy->wildcard);
         test_print_ownership_policy_tree(&policy->names, NULL, indent + 1);
         test_print_ownership_policy_tree(&policy->prefixes, ".*", indent + 1);
@@ -85,7 +85,7 @@ static void test_print_transmission_policy_entry(TransmissionPolicyEntry *entry,
         if (entry->path)
                 fprintf(stderr, "%*spath: %s\n", indent * 4, "", entry->path);
 
-        fprintf(stderr, "%*s", indent * 8, "");
+        fprintf(stderr, "%*s", (indent + 1) * 4, "");
         test_print_policy_decision(&entry->decision);
 }
 
