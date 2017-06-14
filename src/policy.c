@@ -476,8 +476,35 @@ bool transmission_policy_is_empty(TransmissionPolicy *policy) {
                c_list_is_empty(&policy->wildcard_entry_list);
 }
 
+static int transmission_policy_by_name_instantiate(TransmissionPolicy *target, const char *name, CList *source) {
+        TransmissionPolicyEntry *entry;
+        int r;
+
+        c_list_for_each_entry(entry, source, policy_link) {
+                r = transmission_policy_add_entry(target,
+                                                  name, entry->interface, entry->member, entry->error, entry->path, entry->type,
+                                                  entry->decision.deny, entry->decision.priority);
+                if (r)
+                        return error_trace(r);
+        }
+
+        return 0;
+}
+
 static int transmission_policy_instantiate(TransmissionPolicy *target, TransmissionPolicy *source) {
-        /* XXX */
+        TransmissionPolicyByName *policy;
+        int r;
+
+        r = transmission_policy_by_name_instantiate(target, NULL, &source->wildcard_entry_list);
+        if (r)
+                return error_trace(r);
+
+        c_rbtree_for_each_entry(policy, &source->policy_by_name_tree, policy_node) {
+                r = transmission_policy_by_name_instantiate(target, policy->name, &policy->entry_list);
+                if (r)
+                        return error_trace(r);
+        }
+
         return 0;
 }
 
