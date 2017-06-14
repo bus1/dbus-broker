@@ -36,7 +36,6 @@ struct Bus {
         UserRegistry users;
         TransmissionPolicy driver_send_policy;
         TransmissionPolicy driver_receive_policy;
-        PolicyRegistry policy_registry;
         ActivationRegistry activations;
         NameRegistry names;
         MatchRegistry wildcard_matches;
