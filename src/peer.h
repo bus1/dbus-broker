@@ -72,7 +72,7 @@ struct PeerRegistry {
         uint64_t ids;
 };
 
-int peer_new_with_fd(Peer **peerp, Bus *bus, const char guid[], DispatchContext *dispatcher, int fd);
+int peer_new_with_fd(Peer **peerp, Bus *bus, PolicyRegistry *policy, const char guid[], DispatchContext *dispatcher, int fd);
 Peer *peer_free(Peer *peer);
 
 int peer_spawn(Peer *peer);

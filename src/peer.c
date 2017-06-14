@@ -133,6 +133,7 @@ static int peer_compare(CRBTree *tree, void *k, CRBNode *rb) {
  */
 int peer_new_with_fd(Peer **peerp,
                      Bus *bus,
+                     PolicyRegistry *policy,
                      const char guid[],
                      DispatchContext *dispatcher,
                      int fd) {
@@ -182,7 +183,7 @@ int peer_new_with_fd(Peer **peerp,
         reply_registry_init(&peer->replies_outgoing);
         peer->owned_replies = (ReplyOwner)REPLY_OWNER_INIT(peer->owned_replies);
 
-        r = policy_registry_instantiate_policy(&bus->policy_registry, ucred.uid, &peer->policy);
+        r = policy_registry_instantiate_policy(policy, ucred.uid, &peer->policy);
         if (r) {
                 if (r == POLICY_E_ACCESS_DENIED)
                         return PEER_E_CONNECTION_REFUSED;
