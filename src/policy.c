@@ -43,6 +43,10 @@ struct PolicyParser {
                 .priority_base = (uint64_t)-1,  \
         }
 
+bool policy_decision_is_default(PolicyDecision *decision) {
+        return !decision->priority && !decision->deny;
+}
+
 /* ownership policy */
 static int ownership_policy_entry_new(OwnershipPolicyEntry **entryp, CRBTree *policy,
                                       const char *name, bool deny, uint64_t priority,
@@ -89,6 +93,35 @@ void ownership_policy_deinit(OwnershipPolicy *policy) {
                 ownership_policy_entry_free(entry);
 
         ownership_policy_init(policy);
+}
+
+bool ownership_policy_is_empty(OwnershipPolicy *policy) {
+        return c_rbtree_is_empty(&policy->names) &&
+               c_rbtree_is_empty(&policy->prefixes) &&
+               policy_decision_is_default(&policy->wildcard);
+}
+
+static int ownership_policy_instantiate(OwnershipPolicy *target, OwnershipPolicy *source) {
+        OwnershipPolicyEntry *entry;
+        int r;
+
+        r = ownership_policy_set_wildcard(target, source->wildcard.deny, source->wildcard.priority);
+        if (r)
+                return error_trace(r);
+
+        c_rbtree_for_each_entry(entry, &source->names, rb) {
+                r = ownership_policy_add_name(target, entry->name, entry->decision.deny, entry->decision.priority);
+                if (r)
+                        return error_trace(r);
+        }
+
+        c_rbtree_for_each_entry(entry, &source->prefixes, rb) {
+                r = ownership_policy_add_prefix(target, entry->name, entry->decision.deny, entry->decision.priority);
+                if (r)
+                        return error_trace(r);
+        }
+
+        return 0;
 }
 
 int ownership_policy_set_wildcard(OwnershipPolicy *policy, bool deny, uint64_t priority) {
@@ -235,6 +268,12 @@ void connection_policy_deinit(ConnectionPolicy *policy) {
                 connection_policy_entry_free(entry);
 
         connection_policy_init(policy);
+}
+
+bool connection_policy_is_empty(ConnectionPolicy *policy) {
+        return c_rbtree_is_empty(&policy->uid_tree) &&
+               c_rbtree_is_empty(&policy->gid_tree) &&
+               policy_decision_is_default(&policy->wildcard);
 }
 
 int connection_policy_set_wildcard(ConnectionPolicy *policy, bool deny, uint64_t priority) {
@@ -432,6 +471,16 @@ void transmission_policy_deinit(TransmissionPolicy *policy) {
         transmission_policy_init(policy);
 }
 
+bool transmission_policy_is_empty(TransmissionPolicy *policy) {
+        return c_rbtree_is_empty(&policy->policy_by_name_tree) &&
+               c_list_is_empty(&policy->wildcard_entry_list);
+}
+
+static int transmission_policy_instantiate(TransmissionPolicy *target, TransmissionPolicy *source) {
+        /* XXX */
+        return 0;
+}
+
 static int transmission_policy_by_name_compare(CRBTree *tree, void *k, CRBNode *rb) {
         const char *name = k;
         TransmissionPolicyByName *by_name = c_container_of(rb, TransmissionPolicyByName, policy_node);
@@ -562,6 +611,12 @@ void policy_deinit(Policy *policy) {
         ownership_policy_deinit(&policy->ownership_policy);
 }
 
+bool policy_is_empty(Policy *policy) {
+        return ownership_policy_is_empty(&policy->ownership_policy) &&
+               transmission_policy_is_empty(&policy->send_policy) &&
+               transmission_policy_is_empty(&policy->receive_policy);
+}
+
 static int policy_new(Policy **policyp, CRBTree *registry, uid_t uid, CRBNode *parent, CRBNode **slot) {
         Policy *policy;
 
@@ -593,6 +648,24 @@ static Policy *policy_free(Policy *policy) {
         free(policy);
 
         return NULL;
+}
+
+static int policy_instantiate(Policy *target, Policy *source) {
+        int r;
+
+        r = ownership_policy_instantiate(&target->ownership_policy, &source->ownership_policy);
+        if (r)
+                return error_trace(r);
+
+        r = transmission_policy_instantiate(&target->send_policy, &source->send_policy);
+        if (r)
+                return error_trace(r);
+
+        r = transmission_policy_instantiate(&target->receive_policy, &source->receive_policy);
+        if (r)
+                return error_trace(r);
+
+        return 0;
 }
 
 /* policy registry */
@@ -699,7 +772,8 @@ static int policy_get_needed_groups(PolicyRegistry *registry, uid_t uid, gid_t *
         return 0;
 }
 
-int policy_registry_instantiate_policy(PolicyRegistry *registry, uid_t uid, Policy *policy) {
+int policy_registry_instantiate_policy(PolicyRegistry *registry, uid_t uid, Policy *target) {
+        Policy *source;
         _c_cleanup_(c_freep) gid_t *gids = NULL;
         size_t n_gids;
         int r;
@@ -711,6 +785,31 @@ int policy_registry_instantiate_policy(PolicyRegistry *registry, uid_t uid, Poli
         r = connection_policy_check_allowed(&registry->connection_policy, uid, gids, n_gids);
         if (r)
                 return error_trace(r);
+
+        r = policy_instantiate(target, &registry->default_policy);
+        if (r)
+                return error_trace(r);
+
+        source = c_rbtree_find_entry(&registry->uid_policy_tree, policy_compare, &uid, Policy, registry_node);
+        if (source) {
+                r = policy_instantiate(target, source);
+                if (r)
+                        return error_trace(r);
+        }
+
+        for (size_t i = 0; i < n_gids; ++i) {
+                source = c_rbtree_find_entry(&registry->gid_policy_tree, policy_compare, gids + i, Policy, registry_node);
+                if (source) {
+                        r = policy_instantiate(target, source);
+                        if (r)
+                                return error_trace(r);
+                }
+        }
+
+        if (!policy_is_empty(&registry->at_console_policy) ||
+            !policy_is_empty(&registry->not_at_console_policy)) {
+                /* XXX: console policies */
+        }
 
         return 0;
 }

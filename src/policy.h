@@ -100,8 +100,12 @@ struct PolicyRegistry {
         Policy not_at_console_policy;
 };
 
+bool policy_decision_is_default(PolicyDecision *decision);
+
 void ownership_policy_init(OwnershipPolicy *policy);
 void ownership_policy_deinit(OwnershipPolicy *policy);
+
+bool ownership_policy_is_empty(OwnershipPolicy *policy);
 
 int ownership_policy_set_wildcard(OwnershipPolicy *policy, bool deny, uint64_t priority);
 int ownership_policy_add_prefix(OwnershipPolicy *policy, const char *prefix, bool deny, uint64_t priority);
@@ -112,6 +116,8 @@ int ownership_policy_check_allowed(OwnershipPolicy *policy, const char *name);
 void connection_policy_init(ConnectionPolicy *policy);
 void connection_policy_deinit(ConnectionPolicy *policy);
 
+bool connection_policy_is_empty(ConnectionPolicy *policy);
+
 int connection_policy_set_wildcard(ConnectionPolicy *policy, bool deny, uint64_t priority);
 int connection_policy_add_uid(ConnectionPolicy *policy, uid_t uid, bool deny, uint64_t priority);
 int connection_policy_add_gid(ConnectionPolicy *policy, gid_t gid, bool deny, uint64_t priority);
@@ -120,6 +126,8 @@ int connection_policy_check_allowed(ConnectionPolicy *policy, uid_t uid, gid_t *
 
 void transmission_policy_init(TransmissionPolicy *policy);
 void transmission_policy_deinit(TransmissionPolicy *policy);
+
+bool transmission_policy_is_empty(TransmissionPolicy *policy);
 
 int transmission_policy_add_entry(TransmissionPolicy *policy,
                                   const char *name, const char *interface, const char *method, const char *error, const char *path, int type,
@@ -130,6 +138,8 @@ int transmission_policy_check_allowed(TransmissionPolicy *policy, Peer *subject,
 
 void policy_init(Policy *policy);
 void policy_deinit(Policy *policy);
+
+bool policy_is_empty(Policy *policy);
 
 void policy_registry_init(PolicyRegistry *registry);
 void policy_registry_deinit(PolicyRegistry *registry);
