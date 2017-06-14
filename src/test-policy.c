@@ -26,8 +26,15 @@ static void test_print_connection_policy_tree(CRBTree *policy, const char *name,
 }
 
 static void test_print_connection_policy(ConnectionPolicy *policy, unsigned int indent) {
-        fprintf(stderr, "%*s*: ", indent * 4, "");
-        test_print_policy_decision(&policy->wildcard);
+        if (connection_policy_is_empty(policy))
+                return;
+
+        fprintf(stderr, "%*sCONNECTION:\n", indent * 4, "");
+
+        if (!policy_decision_is_default(&policy->wildcard)) {
+                fprintf(stderr, "%*s*: ", (indent + 1) * 4, "");
+                test_print_policy_decision(&policy->wildcard);
+        }
         test_print_connection_policy_tree(&policy->gid_tree, "GID", indent + 1);
         test_print_connection_policy_tree(&policy->gid_tree, "UID", indent + 1);
 }
@@ -42,9 +49,15 @@ static void test_print_ownership_policy_tree(CRBTree *policy, const char *suffix
 }
 
 static void test_print_ownership_policy(OwnershipPolicy *policy, unsigned int indent) {
+        if (ownership_policy_is_empty(policy))
+                return;
+
         fprintf(stderr, "%*sOWN:\n", indent * 4, "");
-        fprintf(stderr, "%*s*: ", (indent + 1) * 4, "");
-        test_print_policy_decision(&policy->wildcard);
+
+        if (!policy_decision_is_default(&policy->wildcard)) {
+                fprintf(stderr, "%*s*: ", (indent + 1) * 4, "");
+                test_print_policy_decision(&policy->wildcard);
+        }
         test_print_ownership_policy_tree(&policy->names, NULL, indent + 1);
         test_print_ownership_policy_tree(&policy->prefixes, ".*", indent + 1);
 }
@@ -104,7 +117,7 @@ static void test_print_transmission_policy_list(CList *policy, const char *name,
 static void test_print_transmission_policy(TransmissionPolicy *policy, const char *name, unsigned int indent) {
         TransmissionPolicyByName *entry;
 
-        if (c_list_is_empty(&policy->wildcard_entry_list) && c_rbtree_is_empty(&policy->policy_by_name_tree))
+        if (transmission_policy_is_empty(policy))
                 return;
 
         fprintf(stderr, "%*s%s:\n", indent * 4, "", name);
@@ -115,6 +128,9 @@ static void test_print_transmission_policy(TransmissionPolicy *policy, const cha
 }
 
 static void test_print_policy(Policy *policy, const char *name, int num, unsigned int indent) {
+        if (policy_is_empty(policy))
+                return;
+
         if (name)
                 fprintf(stderr, "%*s%s:\n", indent * 4, "", name);
         else
@@ -138,8 +154,7 @@ static void test_print_policy_registry_tree(CRBTree *policy, const char *name, u
 }
 
 static void test_print_policy_registry(PolicyRegistry *registry) {
-        fprintf(stderr, "CONNECTION:\n");
-        test_print_connection_policy(&registry->connection_policy, 1);
+        test_print_connection_policy(&registry->connection_policy, 0);
         test_print_policy(&registry->default_policy, "DEFAULT", 0, 0);
         test_print_policy_registry_tree(&registry->gid_policy_tree, "GROUP", 0);
         test_print_policy_registry_tree(&registry->uid_policy_tree, "USER", 0);
