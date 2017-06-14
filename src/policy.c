@@ -16,8 +16,8 @@
 
 #define POLICY_PRIORITY_INCREMENT       (((uint64_t)-1) / 5)
 #define POLICY_PRIORITY_BASE_DEFAULT    (POLICY_PRIORITY_INCREMENT * 0)
-#define POLICY_PRIORITY_BASE_UID        (POLICY_PRIORITY_INCREMENT * 1)
-#define POLICY_PRIORITY_BASE_GID        (POLICY_PRIORITY_INCREMENT * 2)
+#define POLICY_PRIORITY_BASE_USER       (POLICY_PRIORITY_INCREMENT * 1)
+#define POLICY_PRIORITY_BASE_GROUP      (POLICY_PRIORITY_INCREMENT * 2)
 #define POLICY_PRIORITY_BASE_CONSOLE    (POLICY_PRIORITY_INCREMENT * 3)
 #define POLICY_PRIORITY_BASE_MANDATORY  (POLICY_PRIORITY_INCREMENT * 4)
 
@@ -782,6 +782,8 @@ static int policy_parser_handler_policy(PolicyParser *parser, const XML_Char **a
                 if (!*(++attributes))
                         goto error;
 
+                parser->priority_base = POLICY_PRIORITY_BASE_USER;
+
                 passwd = getpwnam(*attributes);
                 if (!passwd)
                         return error_origin(-errno);
@@ -794,6 +796,8 @@ static int policy_parser_handler_policy(PolicyParser *parser, const XML_Char **a
 
                 if (!*(++attributes))
                         goto error;
+
+                parser->priority_base = POLICY_PRIORITY_BASE_GROUP;
 
                 group = getgrnam(*attributes);
                 if (!group)
