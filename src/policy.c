@@ -354,7 +354,7 @@ int connection_policy_check_allowed(ConnectionPolicy *policy, uid_t uid, gid_t *
 
 /* transmission policy */
 static int transmission_policy_entry_new(TransmissionPolicyEntry **entryp, CList *policy,
-                                         const char *interface, const char *member, const char *error, const char *path, int type,
+                                         const char *interface, const char *member, const char *error, const char *path, int type, bool exclude_reply,
                                          bool deny, uint64_t priority) {
         TransmissionPolicyEntry *entry;
         char *buffer;
@@ -397,6 +397,7 @@ static int transmission_policy_entry_new(TransmissionPolicyEntry **entryp, CList
         }
 
         entry->type = type;
+        entry->exclude_reply = exclude_reply;
 
         entry->decision.deny = deny;
         entry->decision.priority = priority;
@@ -481,8 +482,8 @@ static int transmission_policy_by_name_instantiate(TransmissionPolicy *target, c
         int r;
 
         c_list_for_each_entry(entry, source, policy_link) {
-                r = transmission_policy_add_entry(target,
-                                                  name, entry->interface, entry->member, entry->error, entry->path, entry->type,
+                r = transmission_policy_add_entry(target, name,
+                                                  entry->interface, entry->member, entry->error, entry->path, entry->type, entry->exclude_reply,
                                                   entry->decision.deny, entry->decision.priority);
                 if (r)
                         return error_trace(r);
@@ -515,8 +516,8 @@ static int transmission_policy_by_name_compare(CRBTree *tree, void *k, CRBNode *
         return strcmp(name, by_name->name);
 }
 
-int transmission_policy_add_entry(TransmissionPolicy *policy,
-                                  const char *name, const char *interface, const char *member, const char *error, const char *path, int type,
+int transmission_policy_add_entry(TransmissionPolicy *policy, const char *name,
+                                  const char *interface, const char *member, const char *error, const char *path, int type, bool exclude_reply,
                                   bool deny, uint64_t priority) {
         CRBNode *parent, **slot;
         CList *policy_list;
@@ -539,7 +540,7 @@ int transmission_policy_add_entry(TransmissionPolicy *policy,
                 policy_list = &policy->wildcard_entry_list;
         }
 
-        r = transmission_policy_entry_new(NULL, policy_list, interface, member, error, path, type, deny, priority);
+        r = transmission_policy_entry_new(NULL, policy_list, interface, member, error, path, type, exclude_reply, deny, priority);
         if (r)
                 return error_trace(r);
 
@@ -553,6 +554,10 @@ static void transmission_policy_update_decision(CList *policy,
 
         c_list_for_each_entry(entry, policy, policy_link) {
                 if (entry->decision.priority < decision->priority)
+                        continue;
+
+                if (entry->exclude_reply &&
+                    (type == DBUS_MESSAGE_TYPE_METHOD_RETURN || type == DBUS_MESSAGE_TYPE_ERROR))
                         continue;
 
                 if (entry->interface)
@@ -960,7 +965,7 @@ error:
 
 static int policy_parser_handler_entry(PolicyParser *parser, const XML_Char **attributes, bool deny) {
         TransmissionPolicy *transmission_policy = NULL;
-        bool send = false, receive = false;
+        bool send = false, receive = false, exclude_reply = false;
         const char *name = NULL, *interface = NULL, *member = NULL, *error = NULL, *path = NULL;
         int type = 0, r;
 
@@ -1088,11 +1093,23 @@ static int policy_parser_handler_entry(PolicyParser *parser, const XML_Char **at
                                 type = DBUS_MESSAGE_TYPE_SIGNAL;
                         else
                                 goto error;
+                } else if (!strcmp(key, "requested_reply")) {
+                        bool requested_reply;
+
+                        if (!strcmp(value, "true"))
+                                requested_reply = true;
+                        else if (!strcmp(value, "false" ))
+                                requested_reply = false;
+                        else
+                                goto error;
+
+                        if (deny && !requested_reply)
+                                exclude_reply = true;
                 }
         }
 
         if (transmission_policy) {
-                r = transmission_policy_add_entry(transmission_policy, name, interface, member, error, path, type,
+                r = transmission_policy_add_entry(transmission_policy, name, interface, member, error, path, type, exclude_reply,
                                                   deny, parser->priority_base + parser->priority ++);
                 if (r)
                         return error_trace(r);

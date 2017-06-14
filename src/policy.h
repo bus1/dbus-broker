@@ -74,6 +74,7 @@ struct TransmissionPolicyByName {
 
 struct TransmissionPolicyEntry {
         int type;
+        bool exclude_reply : 1;
         const char *interface;
         const char *member;
         const char *error;
@@ -129,12 +130,12 @@ void transmission_policy_deinit(TransmissionPolicy *policy);
 
 bool transmission_policy_is_empty(TransmissionPolicy *policy);
 
-int transmission_policy_add_entry(TransmissionPolicy *policy,
-                                  const char *name, const char *interface, const char *method, const char *error, const char *path, int type,
+int transmission_policy_add_entry(TransmissionPolicy *policy, const char *name,
+                                  const char *interface, const char *member, const char *error, const char *path, int type, bool exclude_reply,
                                   bool deny, uint64_t priority);
 
 int transmission_policy_check_allowed(TransmissionPolicy *policy, Peer *subject,
-                                      const char *interface, const char *method, const char *error, const char *path, int type);
+                                      const char *interface, const char *member, const char *error, const char *path, int type);
 
 void policy_init(Policy *policy);
 void policy_deinit(Policy *policy);
