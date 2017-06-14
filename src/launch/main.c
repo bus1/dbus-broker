@@ -52,6 +52,7 @@ static bool             main_arg_force = false;
 static const char *     main_arg_listen = NULL;
 static const char *     main_arg_scope = "system";
 static const char *     main_arg_servicedir = NULL;
+static const char *     main_arg_policypath = NULL;
 static bool             main_arg_verbose = false;
 
 static int service_compare(CRBTree *t, void *k, CRBNode *n) {
@@ -742,9 +743,19 @@ static int manager_connect(Manager *manager) {
 }
 
 static int manager_run(Manager *manager) {
+        const char *policypath;
         int r, controller[2];
 
         assert(manager->fd_listen >= 0);
+
+        if (main_arg_policypath)
+                policypath = main_arg_policypath;
+        else if (!strcmp(main_arg_scope, "user"))
+                policypath = "/usr/share/dbus-1/session.conf";
+        else if (!strcmp(main_arg_scope, "system"))
+                policypath = "/usr/share/dbus-1/system.conf";
+        else
+                return error_origin(-ENOTRECOVERABLE);
 
         r = socketpair(PF_UNIX, SOCK_STREAM | SOCK_CLOEXEC | SOCK_NONBLOCK, 0, controller);
         if (r < 0)
@@ -784,9 +795,10 @@ static int manager_run(Manager *manager) {
                                "AddListener",
                                NULL,
                                NULL,
-                               "oh",
+                               "ohs",
                                "/org/bus1/DBus/Listener/0",
-                               manager->fd_listen);
+                               manager->fd_listen,
+                               policypath);
         if (r < 0)
                 return error_origin(r);
 

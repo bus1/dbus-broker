@@ -1109,6 +1109,9 @@ int policy_parser_parse_file(PolicyRegistry *registry, const char *filename, Pol
         size_t len;
         int r;
 
+        if (filename[0] == '\0')
+                return 0;
+
         for (PolicyParser *p = parent; p; p = p->parent)
                 if (!strcmp(p->filename, filename))
                         return POLICY_E_CIRCULAR_INCLUDE;

@@ -57,11 +57,12 @@ struct ControllerMethod {
                 _body                                   \
         )
 
-static const CDVarType controller_type_in_oh[] = {
+static const CDVarType controller_type_in_ohs[] = {
         C_DVAR_T_INIT(
-                C_DVAR_T_TUPLE2(
+                C_DVAR_T_TUPLE3(
                         C_DVAR_T_o,
-                        C_DVAR_T_h
+                        C_DVAR_T_h,
+                        C_DVAR_T_s
                 )
         )
 };
@@ -232,12 +233,10 @@ static int controller_method_add_listener(Bus *bus, const char *_path, CDVar *in
         Listener *listener;
         DispatchContext *dispatcher = bus->controller->socket_file.context;
         uint32_t fd_index;
-        const char *path;
+        const char *path, *policypath;
         int r;
 
-        /* XXX: pass in policy */
-
-        c_dvar_read(in_v, "(oh)", &path, &fd_index);
+        c_dvar_read(in_v, "(ohs)", &path, &fd_index, &policypath);
 
         r = controller_end_read(in_v);
         if (r)
@@ -247,7 +246,7 @@ static int controller_method_add_listener(Bus *bus, const char *_path, CDVar *in
                 return CONTROLLER_E_UNEXPECTED_PATH;
 
         /* XXX: verify correctness of fd? */
-        r = listener_new_with_fd(&listener, bus, path, dispatcher, fdlist_get(fds, fd_index));
+        r = listener_new_with_fd(&listener, bus, path, dispatcher, fdlist_get(fds, fd_index), policypath);
         if (r) {
                 if (r == LISTENER_E_EXISTS)
                         return CONTROLLER_E_LISTENER_EXISTS;
@@ -389,7 +388,7 @@ static int controller_handle_method(const ControllerMethod *method, Bus *bus, co
 static int controller_dispatch_controller(Bus *bus, uint32_t serial, const char *method, const char *path, const char *signature, Message *message) {
         static const ControllerMethod methods[] = {
                 { "AddName",            controller_method_add_name,     controller_type_in_osu, controller_type_out_unit },
-                { "AddListener",        controller_method_add_listener, controller_type_in_oh,  controller_type_out_unit },
+                { "AddListener",        controller_method_add_listener, controller_type_in_ohs,  controller_type_out_unit },
         };
 
         for (size_t i = 0; i < C_ARRAY_SIZE(methods); i++) {

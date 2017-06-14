@@ -74,7 +74,7 @@ static inline void *test_run_controller(void *userdata) {
         assert(r >= 0);
 
         r = sd_bus_call_method(bus, NULL, "/org/bus1/DBus/Broker", "org.bus1.DBus.Broker", "AddListener", NULL, NULL,
-                               "oh", "/org/bus1/DBus/Listener/0", listener_fd);
+                               "ohs", "/org/bus1/DBus/Listener/0", listener_fd, "");
         assert(r >= 0);
 
         r = sd_event_loop(event);

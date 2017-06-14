@@ -71,7 +71,7 @@ static int listener_compare(CRBTree *tree, void *k, CRBNode *rb) {
 /**
  * listener_new_with_fd() - XXX
  */
-int listener_new_with_fd(Listener **listenerp, Bus *bus, const char *path, DispatchContext *dispatcher, int socket_fd) {
+int listener_new_with_fd(Listener **listenerp, Bus *bus, const char *path, DispatchContext *dispatcher, int socket_fd, const char *policypath) {
         _c_cleanup_(listener_freep) Listener *listener = NULL;
         CRBNode **slot, *parent;
         int r;
@@ -89,6 +89,7 @@ int listener_new_with_fd(Listener **listenerp, Bus *bus, const char *path, Dispa
         listener->socket_file = (DispatchFile)DISPATCH_FILE_NULL(listener->socket_file);
         listener->bus_node = (CRBNode)C_RBNODE_INIT(listener->bus_node);
         listener->peer_list = (CList)C_LIST_INIT(listener->peer_list);
+        policy_registry_init(&listener->policy);
         memcpy(listener->guid, bus->guid, sizeof(listener->guid));
         memcpy((char*)listener->path, path, strlen(path) + 1);
 
@@ -96,6 +97,10 @@ int listener_new_with_fd(Listener **listenerp, Bus *bus, const char *path, Dispa
         ++ bus->listener_ids;
         for (size_t i = 0; i < sizeof(uint64_t); i++)
                 listener->guid[i] ^= (bus->listener_ids >> (8 * i)) & 0xff;
+
+        r = policy_parser_parse_file(&listener->policy, policypath, NULL);
+        if (r)
+                return error_fold(r);
 
         r = dispatch_file_init(&listener->socket_file,
                                dispatcher,
@@ -123,6 +128,7 @@ Listener *listener_free(Listener *listener) {
 
         assert(c_list_is_empty(&listener->peer_list));
 
+        policy_registry_deinit(&listener->policy);
         c_rbtree_remove_init(&listener->bus->listener_tree, &listener->bus_node);
         dispatch_file_deinit(&listener->socket_file);
         listener->socket_fd = c_close(listener->socket_fd);
