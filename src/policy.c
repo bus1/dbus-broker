@@ -1078,8 +1078,11 @@ error:
 
 static void policy_parser_init(PolicyParser *parser, PolicyRegistry *registry, PolicyParser *parent, const char *filename) {
         *parser = (PolicyParser)POLICY_PARSER_NULL;
+        if (parent) {
+                parser->parent = parent;
+                parser->priority = parent->priority;
+        }
         parser->registry = registry;
-        parser->parent = parent;
         parser->filename = filename;
         parser->parser = XML_ParserCreate(NULL);
         XML_SetUserData(parser->parser, parser);
@@ -1091,6 +1094,9 @@ static void policy_parser_deinit(PolicyParser *parser) {
         assert(!parser->policy);
         assert(parser->priority_base == (uint64_t)-1);
         assert(parser->priority < POLICY_PRIORITY_INCREMENT);
+
+        if (parser->parent)
+                parser->parent->priority = parser->priority;
 
         XML_ParserFree(parser->parser);
         *parser = (PolicyParser)POLICY_PARSER_NULL;
@@ -1115,7 +1121,7 @@ int policy_parser_parse_file(PolicyRegistry *registry, const char *filename, Pol
                 return error_origin(-errno);
         }
 
-        policy_parser_init(&parser, registry, NULL, filename);
+        policy_parser_init(&parser, registry, parent, filename);
         do {
                 len = fread(buffer, sizeof(char), sizeof(buffer), file);
                 if (!len && ferror(file))
