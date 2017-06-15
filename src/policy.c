@@ -587,25 +587,27 @@ int transmission_policy_check_allowed(TransmissionPolicy *policy, NameOwner *sub
                                       const char *interface, const char *member, const char *path, int type) {
         PolicyDecision decision = {};
 
-        if (subject) {
-                NameOwnership *ownership;
+        transmission_policy_update_decision(&policy->wildcard_entry_list, interface, member, path, type, &decision);
 
-                c_rbtree_for_each_entry(ownership, &subject->ownership_tree, owner_node) {
-                        if (!name_ownership_is_primary(ownership))
-                                continue;
+        if (!c_rbtree_is_empty(&policy->policy_by_name_tree)) {
+                if (subject) {
+                        NameOwnership *ownership;
 
-                        transmission_policy_update_decision_by_name(&policy->policy_by_name_tree, ownership->name->name,
+                        c_rbtree_for_each_entry(ownership, &subject->ownership_tree, owner_node) {
+                                if (!name_ownership_is_primary(ownership))
+                                        continue;
+
+                                transmission_policy_update_decision_by_name(&policy->policy_by_name_tree, ownership->name->name,
+                                                                            interface, member, path, type,
+                                                                            &decision);
+                        }
+                } else {
+                        /* the subject is the driver */
+                        transmission_policy_update_decision_by_name(&policy->policy_by_name_tree, "org.freedesktop.DBus",
                                                                     interface, member, path, type,
                                                                     &decision);
                 }
-        } else {
-                /* the subject is the driver */
-                transmission_policy_update_decision_by_name(&policy->policy_by_name_tree, "org.freedesktop.DBus",
-                                                            interface, member, path, type,
-                                                            &decision);
         }
-
-        transmission_policy_update_decision(&policy->wildcard_entry_list, interface, member, path, type, &decision);
 
         return decision.deny ? POLICY_E_ACCESS_DENIED : 0;
 }
