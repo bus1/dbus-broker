@@ -354,16 +354,15 @@ int connection_policy_check_allowed(ConnectionPolicy *policy, uid_t uid, gid_t *
 
 /* transmission policy */
 static int transmission_policy_entry_new(TransmissionPolicyEntry **entryp, CList *policy,
-                                         const char *interface, const char *member, const char *error, const char *path, int type,
+                                         const char *interface, const char *member, const char *path, int type,
                                          bool deny, uint64_t priority) {
         TransmissionPolicyEntry *entry;
         char *buffer;
         size_t n_interface = interface ? strlen(interface) + 1 : 0,
                n_member = member ? strlen(member) + 1 : 0,
-               n_error = error ? strlen(error) + 1 : 0,
                n_path = path ? strlen(path) + 1 : 0;
 
-        entry = malloc(sizeof(*entry) + n_interface + n_member + n_error + n_path);
+        entry = malloc(sizeof(*entry) + n_interface + n_member + n_path);
         if (!entry)
                 return error_origin(-ENOMEM);
         buffer = (char*)(entry + 1);
@@ -380,13 +379,6 @@ static int transmission_policy_entry_new(TransmissionPolicyEntry **entryp, CList
                 buffer = stpcpy(buffer, member) + 1;
         } else {
                 entry->member = NULL;
-        }
-
-        if (error) {
-                entry->error = buffer;
-                buffer = stpcpy(buffer, error) + 1;
-        } else {
-                entry->error = NULL;
         }
 
         if (path) {
@@ -482,7 +474,7 @@ static int transmission_policy_by_name_instantiate(TransmissionPolicy *target, c
 
         c_list_for_each_entry(entry, source, policy_link) {
                 r = transmission_policy_add_entry(target,
-                                                  name, entry->interface, entry->member, entry->error, entry->path, entry->type,
+                                                  name, entry->interface, entry->member, entry->path, entry->type,
                                                   entry->decision.deny, entry->decision.priority);
                 if (r)
                         return error_trace(r);
@@ -516,11 +508,16 @@ static int transmission_policy_by_name_compare(CRBTree *tree, void *k, CRBNode *
 }
 
 int transmission_policy_add_entry(TransmissionPolicy *policy,
-                                  const char *name, const char *interface, const char *member, const char *error, const char *path, int type,
+                                  const char *name, const char *interface, const char *member, const char *path, int type,
                                   bool deny, uint64_t priority) {
         CRBNode *parent, **slot;
         CList *policy_list;
         int r;
+
+        if (type == DBUS_MESSAGE_TYPE_METHOD_RETURN ||
+            type == DBUS_MESSAGE_TYPE_ERROR)
+                /* replies are not subject to policy, this differs from the dbus daemon */
+                return 0;
 
         if (name) {
                 TransmissionPolicyByName *by_name;
@@ -539,7 +536,7 @@ int transmission_policy_add_entry(TransmissionPolicy *policy,
                 policy_list = &policy->wildcard_entry_list;
         }
 
-        r = transmission_policy_entry_new(NULL, policy_list, interface, member, error, path, type, deny, priority);
+        r = transmission_policy_entry_new(NULL, policy_list, interface, member, path, type, deny, priority);
         if (r)
                 return error_trace(r);
 
@@ -547,7 +544,7 @@ int transmission_policy_add_entry(TransmissionPolicy *policy,
 }
 
 static void transmission_policy_update_decision(CList *policy,
-                                                const char *interface, const char *member, const char *error, const char *path, int type,
+                                                const char *interface, const char *member, const char *path, int type,
                                                 PolicyDecision *decision) {
         TransmissionPolicyEntry *entry;
 
@@ -563,10 +560,6 @@ static void transmission_policy_update_decision(CList *policy,
                         if (!member || strcmp(entry->member, member))
                                 continue;
 
-                if (entry->error)
-                        if (!error || strcmp(entry->error, error))
-                                continue;
-
                 if (entry->path)
                         if (!path || strcmp(entry->path, path))
                                 continue;
@@ -580,7 +573,7 @@ static void transmission_policy_update_decision(CList *policy,
 }
 
 static void transmission_policy_update_decision_by_name(CRBTree *policy, const char *name,
-                                                        const char *interface, const char *member, const char *error, const char *path, int type,
+                                                        const char *interface, const char *member, const char *path, int type,
                                                         PolicyDecision *decision) {
         TransmissionPolicyByName *by_name;
 
@@ -588,11 +581,11 @@ static void transmission_policy_update_decision_by_name(CRBTree *policy, const c
         if (!by_name)
                 return;
 
-        transmission_policy_update_decision(&by_name->entry_list, interface, member, error, path, type, decision);
+        transmission_policy_update_decision(&by_name->entry_list, interface, member, path, type, decision);
 }
 
 int transmission_policy_check_allowed(TransmissionPolicy *policy, Peer *subject,
-                                      const char *interface, const char *member, const char *error, const char *path, int type) {
+                                      const char *interface, const char *member, const char *path, int type) {
         PolicyDecision decision = {};
 
         if (subject) {
@@ -603,17 +596,17 @@ int transmission_policy_check_allowed(TransmissionPolicy *policy, Peer *subject,
                                 continue;
 
                         transmission_policy_update_decision_by_name(&policy->policy_by_name_tree, ownership->name->name,
-                                                                    interface, member, error, path, type,
+                                                                    interface, member, path, type,
                                                                     &decision);
                 }
         } else {
                 /* the subject is the driver */
                 transmission_policy_update_decision_by_name(&policy->policy_by_name_tree, "org.freedesktop.DBus",
-                                                            interface, member, error, path, type,
+                                                            interface, member, path, type,
                                                             &decision);
         }
 
-        transmission_policy_update_decision(&policy->wildcard_entry_list, interface, member, error, path, type, &decision);
+        transmission_policy_update_decision(&policy->wildcard_entry_list, interface, member, path, type, &decision);
 
         return decision.deny ? POLICY_E_ACCESS_DENIED : 0;
 }
@@ -1092,7 +1085,7 @@ static int policy_parser_handler_entry(PolicyParser *parser, const XML_Char **at
         }
 
         if (transmission_policy) {
-                r = transmission_policy_add_entry(transmission_policy, name, interface, member, error, path, type,
+                r = transmission_policy_add_entry(transmission_policy, name, interface, member, path, type,
                                                   deny, parser->priority_base + parser->priority ++);
                 if (r)
                         return error_trace(r);

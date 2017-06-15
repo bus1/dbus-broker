@@ -92,9 +92,6 @@ static void test_print_transmission_policy_entry(TransmissionPolicyEntry *entry,
         if (entry->member)
                 fprintf(stderr, "%*smember: %s\n", indent * 4, "", entry->member);
 
-        if (entry->error)
-                fprintf(stderr, "%*serror: %s\n", indent * 4, "", entry->error);
-
         if (entry->path)
                 fprintf(stderr, "%*spath: %s\n", indent * 4, "", entry->path);
 
