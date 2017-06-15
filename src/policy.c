@@ -10,7 +10,6 @@
 #include <stdlib.h>
 #include "dbus/protocol.h"
 #include "name.h"
-#include "peer.h"
 #include "policy.h"
 #include "util/error.h"
 
@@ -584,14 +583,14 @@ static void transmission_policy_update_decision_by_name(CRBTree *policy, const c
         transmission_policy_update_decision(&by_name->entry_list, interface, member, path, type, decision);
 }
 
-int transmission_policy_check_allowed(TransmissionPolicy *policy, Peer *subject,
+int transmission_policy_check_allowed(TransmissionPolicy *policy, NameOwner *subject,
                                       const char *interface, const char *member, const char *path, int type) {
         PolicyDecision decision = {};
 
         if (subject) {
                 NameOwnership *ownership;
 
-                c_rbtree_for_each_entry(ownership, &subject->owned_names.ownership_tree, owner_node) {
+                c_rbtree_for_each_entry(ownership, &subject->ownership_tree, owner_node) {
                         if (!name_ownership_is_primary(ownership))
                                 continue;
 

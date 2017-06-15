@@ -18,9 +18,9 @@ enum {
 
 typedef struct ConnectionPolicy ConnectionPolicy;
 typedef struct ConnectionPolicyEntry ConnectionPolicyEntry;
+typedef struct NameOwner NameOwner;
 typedef struct OwnershipPolicy OwnershipPolicy;
 typedef struct OwnershipPolicyEntry OwnershipPolicyEntry;
-typedef struct Peer Peer;
 typedef struct Policy Policy;
 typedef struct PolicyDecision PolicyDecision;
 typedef struct PolicyParser PolicyParser;
@@ -132,7 +132,7 @@ int transmission_policy_add_entry(TransmissionPolicy *policy,
                                   const char *name, const char *interface, const char *method, const char *path, int type,
                                   bool deny, uint64_t priority);
 
-int transmission_policy_check_allowed(TransmissionPolicy *policy, Peer *subject,
+int transmission_policy_check_allowed(TransmissionPolicy *policy, NameOwner *subject,
                                       const char *interface, const char *method, const char *path, int type);
 
 void policy_init(Policy *policy);
