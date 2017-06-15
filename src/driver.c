@@ -309,6 +309,8 @@ const char *driver_error_to_string(int r) {
                 [DRIVER_E_QUOTA]                                = "Sending user's quota exceeded",
                 [DRIVER_E_UNEXPECTED_FLAGS]                     = "Invalid flags",
                 [DRIVER_E_UNEXPECTED_ENVIRONMENT_UPDATE]        = "User is not authorized to update environment variables",
+                [DRIVER_E_SEND_DENIED]                          = "Sender is not authorized to send message",
+                [DRIVER_E_RECEIVE_DENIED]                       = "Receiver is not authorized to receive message",
                 [DRIVER_E_EXPECTED_REPLY_EXISTS]                = "Pending reply with that serial already exists",
                 [DRIVER_E_NAME_RESERVED]                        = "org.freedesktop.DBus is a reserved name",
                 [DRIVER_E_NAME_UNIQUE]                          = "The name is a unique name",
@@ -648,14 +650,21 @@ static int driver_name_activated(Activation *activation, Peer *receiver) {
 
                 sender = peer_registry_find_peer(&receiver->bus->peers, message->sender_id);
 
-                r = peer_queue_call(receiver, sender, message);
+                /* XXX: figure out the policy */
+                r = peer_queue_call(receiver, sender, NULL, NULL, NULL, message);
                 if (r) {
-                        if (r == PEER_E_QUOTA)
+                        switch (r) {
+                        case PEER_E_QUOTA:
                                 r = driver_send_error(sender, message_read_serial(message), "org.freedesktop.DBus.Error.LimitsExceeded", driver_error_to_string(r));
-                        else if (r == PEER_E_EXPECTED_REPLY_EXISTS)
+                                break;
+                        case PEER_E_SEND_DENIED:
+                        case PEER_E_RECEIVE_DENIED:
+                        case PEER_E_EXPECTED_REPLY_EXISTS:
                                 r = driver_send_error(sender, message_read_serial(message), "org.freedesktop.DBus.Error.AccessDenied", driver_error_to_string(r));
-                        else
+                                break;
+                        default:
                                 return error_fold(r);
+                        }
                 }
 
                 socket_buffer_free(skb);
@@ -1601,9 +1610,18 @@ static int driver_dispatch_method(Peer *peer, uint32_t serial, const char *metho
 }
 
 static int driver_dispatch_interface(Peer *peer, uint32_t serial, const char *interface, const char *member, const char *path, const char *signature, Message *message) {
+        int r;
         if (message->header->type != DBUS_MESSAGE_TYPE_METHOD_CALL)
                 /* ignore */
                 return 0;
+
+        r = transmission_policy_check_allowed(&peer->policy.send_policy, NULL, interface, member, path, message->header->type);
+        if (r) {
+                if (r == POLICY_E_ACCESS_DENIED)
+                        return DRIVER_E_SEND_DENIED;
+
+                return error_fold(r);
+        }
 
         if (interface) {
                 if (_c_unlikely_(strcmp(member, "Introspect") == 0)) {
@@ -1675,7 +1693,8 @@ int driver_goodbye(Peer *peer, bool silent) {
         return 0;
 }
 
-static int driver_forward_unicast(Peer *sender, const char *destination, Message *message) {
+static int driver_forward_unicast(Peer *sender, const char *destination,
+                                  const char *interface, const char *member, const char *path, Message *message) {
         Peer *receiver;
         int r;
 
@@ -1724,12 +1743,16 @@ static int driver_forward_unicast(Peer *sender, const char *destination, Message
                 }
         }
 
-        r = peer_queue_call(receiver, sender, message);
+        r = peer_queue_call(receiver, sender, interface, member, path, message);
         if (r) {
                 if (r == PEER_E_EXPECTED_REPLY_EXISTS)
                         return DRIVER_E_EXPECTED_REPLY_EXISTS;
                 else if (r == PEER_E_QUOTA)
                         return DRIVER_E_QUOTA;
+                else if (r == PEER_E_SEND_DENIED)
+                        return DRIVER_E_SEND_DENIED;
+                else if (r == PEER_E_RECEIVE_DENIED)
+                        return DRIVER_E_RECEIVE_DENIED;
                 else
                         return error_fold(r);
         }
@@ -1776,6 +1799,9 @@ static int driver_dispatch_internal(Peer *peer, MessageMetadata *metadata, Match
         case DBUS_MESSAGE_TYPE_METHOD_CALL:
                 return error_trace(driver_forward_unicast(peer,
                                                           metadata->fields.destination,
+                                                          metadata->fields.interface,
+                                                          metadata->fields.member,
+                                                          metadata->fields.path,
                                                           message));
         case DBUS_MESSAGE_TYPE_METHOD_RETURN:
         case DBUS_MESSAGE_TYPE_ERROR:

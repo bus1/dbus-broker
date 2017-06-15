@@ -481,9 +481,25 @@ void peer_flush_matches(Peer *peer) {
         }
 }
 
-int peer_queue_call(Peer *receiver, Peer *sender, Message *message) {
+int peer_queue_call(Peer *receiver, Peer *sender, const char *interface, const char *member, const char *path, Message *message) {
         _c_cleanup_(reply_slot_freep) ReplySlot *slot = NULL;
         int r;
+
+        r = transmission_policy_check_allowed(&sender->policy.send_policy, &receiver->owned_names, interface, member, path, message->header->type);
+        if (r) {
+                if (r == POLICY_E_ACCESS_DENIED)
+                        return PEER_E_SEND_DENIED;
+
+                return error_fold(r);
+        }
+
+        r = transmission_policy_check_allowed(&receiver->policy.receive_policy, &sender->owned_names, interface, member, path, message->header->type);
+        if (r) {
+                if (r == POLICY_E_ACCESS_DENIED)
+                        return PEER_E_RECEIVE_DENIED;
+
+                return error_fold(r);
+        }
 
         if ((message->header->type == DBUS_MESSAGE_TYPE_METHOD_CALL) &&
             !(message->header->flags & DBUS_HEADER_FLAG_NO_REPLY_EXPECTED)) {
