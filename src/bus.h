@@ -44,7 +44,6 @@ struct Bus {
         uint64_t listener_ids;
 
         Metrics metrics;
-        bool so_peergroups_error : 1;
 };
 
 int bus_init(Bus *bus,
