@@ -168,12 +168,16 @@ static int peer_get_peergroups(int fd, uid_t uid, gid_t **gidsp, size_t *n_gidsp
                 return error_origin(-errno);
 
         do {
+                int n_gids_previous = n_gids;
+
                 tmp = realloc(gids, sizeof(*gids) * n_gids);
                 if (!tmp)
                         return error_origin(-ENOMEM);
 
                 gids = tmp;
                 r = getgrouplist(passwd->pw_name, passwd->pw_gid, gids, &n_gids);
+                if (r == -1 && n_gids <= n_gids_previous)
+                        return error_origin(-ENOTRECOVERABLE);
         } while (r == -1);
 
         *gidsp = gids;
