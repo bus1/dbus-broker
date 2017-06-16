@@ -118,7 +118,7 @@ static int peer_get_peersec(int fd, char **labelp, size_t *lenp) {
         return 0;
 }
 
-static int peer_get_peergroups(int fd, uid_t uid, gid_t **gidsp, size_t *n_gidsp) {
+static int peer_get_peergroups(int fd, uid_t uid, gid_t **gidsp, size_t *n_gidsp, Bus *bus) {
         struct passwd *passwd;
         _c_cleanup_(c_freep) gid_t *gids = NULL;
         int n_gids = 64;
@@ -126,9 +126,9 @@ static int peer_get_peergroups(int fd, uid_t uid, gid_t **gidsp, size_t *n_gidsp
 
 #ifdef SO_PEERGROUPS
 {
-        socklen_t socklen = n_gids;
+        socklen_t socklen = n_gids * sizeof(*gids);
 
-        gids = calloc(socklen, sizeof(*gids));
+        gids = malloc(socklen);
         if (!gids)
                 return error_origin(-ENOMEM);
 
@@ -136,7 +136,7 @@ static int peer_get_peergroups(int fd, uid_t uid, gid_t **gidsp, size_t *n_gidsp
         if (r < 0 && errno == ERANGE) {
                 void *tmp;
 
-                tmp = realloc(gids, sizeof(*gids) * socklen);
+                tmp = realloc(gids, socklen);
                 if (!tmp)
                         return error_origin(-ENOMEM);
                 else
@@ -147,15 +147,19 @@ static int peer_get_peergroups(int fd, uid_t uid, gid_t **gidsp, size_t *n_gidsp
         if (r >= 0) {
                 *gidsp = gids;
                 gids = NULL;
-                *n_gidsp = socklen;
+                *n_gidsp = socklen / sizeof(*gids);
                 return 0;
         } else {
-                if (errno != ENOPROTOOPT)
+                if (errno != ENOPROTOOPT) {
                         return error_origin(-errno);
-                else
+                }
+
+                if (!bus->so_peergroups_error) {
                         fprintf(stderr, "Falling back to resolving auxillary groups using nss, "
                                         "this is racy and may cause deadlocks. Update to a kernel with "
                                         "SO_PEERGROUPS support.\n");
+                        bus->so_peergroups_error = true;
+                }
         }
 }
 #endif
@@ -228,7 +232,7 @@ int peer_new_with_fd(Peer **peerp,
                 return error_trace(r);
 
         if (policy_registry_needs_groups(policy)) {
-                r = peer_get_peergroups(fd, ucred.uid, &gids, &n_gids);
+                r = peer_get_peergroups(fd, ucred.uid, &gids, &n_gids, bus);
                 if (r)
                         return error_trace(r);
         }
