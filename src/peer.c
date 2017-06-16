@@ -4,6 +4,8 @@
 
 #include <c-macro.h>
 #include <c-rbtree.h>
+#include <grp.h>
+#include <pwd.h>
 #include <stdlib.h>
 #include <sys/epoll.h>
 #include <sys/socket.h>
@@ -116,6 +118,69 @@ static int peer_get_peersec(int fd, char **labelp, size_t *lenp) {
         return 0;
 }
 
+static int peer_get_peergroups(int fd, uid_t uid, gid_t **gidsp, size_t *n_gidsp) {
+        struct passwd *passwd;
+        _c_cleanup_(c_freep) gid_t *gids = NULL;
+        int n_gids = 64;
+        int r;
+
+#ifdef SO_PEERGROUPS
+{
+        socklen_t socklen = n_gids;
+
+        gids = calloc(socklen, sizeof(*gids));
+        if (!gids)
+                return error_origin(-ENOMEM);
+
+        r = getsockopt(fd, SOL_SOCKET, SO_PEERGROUPS, gids, &socklen);
+        if (r < 0 && errno == ERANGE) {
+                void *tmp;
+
+                tmp = realloc(gids, sizeof(*gids) * socklen);
+                if (!tmp)
+                        return error_origin(-ENOMEM);
+                else
+                        gids = tmp;
+
+                r = getsockopt(fd, SOL_SOCKET, SO_PEERGROUPS, gids, &socklen);
+        }
+        if (r >= 0) {
+                *gidsp = gids;
+                gids = NULL;
+                *n_gidsp = socklen;
+                return 0;
+        } else {
+                if (errno != ENOPROTOOPT)
+                        return error_origin(-errno);
+                else
+                        fprintf(stderr, "Falling back to resolving auxillary groups using nss, "
+                                        "this is racy and may cause deadlocks. Update to a kernel with "
+                                        "SO_PEERGROUPS support.\n");
+        }
+}
+#endif
+        passwd = getpwuid(uid);
+        if (!passwd)
+                return error_origin(-errno);
+
+        do {
+                void *tmp;
+
+                tmp = realloc(gids, sizeof(*gids) * n_gids);
+                if (!tmp)
+                        return error_origin(-ENOMEM);
+                else
+                        gids = tmp;
+
+                r = getgrouplist(passwd->pw_name, passwd->pw_gid, gids, &n_gids);
+        } while (r == -1);
+
+        *gidsp = gids;
+        gids = NULL;
+        *n_gidsp = n_gids;
+        return 0;
+}
+
 static int peer_compare(CRBTree *tree, void *k, CRBNode *rb) {
         Peer *peer = c_container_of(rb, Peer, registry_node);
         uint64_t id = *(uint64_t*)k;
@@ -139,9 +204,10 @@ int peer_new_with_fd(Peer **peerp,
                      int fd) {
         _c_cleanup_(peer_freep) Peer *peer = NULL;
         _c_cleanup_(user_unrefp) User *user = NULL;
+        _c_cleanup_(c_freep) gid_t *gids = NULL;
         _c_cleanup_(c_freep) char *seclabel = NULL;
         CRBNode **slot, *parent;
-        size_t n_seclabel;
+        size_t n_seclabel, n_gids = 0;
         struct ucred ucred;
         socklen_t socklen = sizeof(ucred);
         int r;
@@ -160,6 +226,12 @@ int peer_new_with_fd(Peer **peerp,
         r = peer_get_peersec(fd, &seclabel, &n_seclabel);
         if (r < 0)
                 return error_trace(r);
+
+        if (policy_registry_needs_groups(policy)) {
+                r = peer_get_peergroups(fd, ucred.uid, &gids, &n_gids);
+                if (r)
+                        return error_trace(r);
+        }
 
         peer = calloc(1, sizeof(*peer));
         if (!peer)
@@ -183,7 +255,7 @@ int peer_new_with_fd(Peer **peerp,
         reply_registry_init(&peer->replies_outgoing);
         peer->owned_replies = (ReplyOwner)REPLY_OWNER_INIT(peer->owned_replies);
 
-        r = policy_registry_instantiate_policy(policy, ucred.uid, &peer->policy);
+        r = policy_registry_instantiate_policy(policy, ucred.uid, gids, n_gids, &peer->policy);
         if (r) {
                 if (r == POLICY_E_ACCESS_DENIED)
                         return PEER_E_CONNECTION_REFUSED;

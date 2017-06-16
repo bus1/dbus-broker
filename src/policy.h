@@ -143,6 +143,8 @@ bool policy_is_empty(Policy *policy);
 void policy_registry_init(PolicyRegistry *registry);
 void policy_registry_deinit(PolicyRegistry *registry);
 
-int policy_registry_instantiate_policy(PolicyRegistry *registry, uid_t uid, Policy *policy);
+bool policy_registry_needs_groups(PolicyRegistry *registry);
+
+int policy_registry_instantiate_policy(PolicyRegistry *registry, uid_t uid, gid_t *gids, size_t n_gids, Policy *policy);
 
 int policy_parser_parse_file(PolicyRegistry *registry, const char *filename, PolicyParser *parent);

@@ -758,50 +758,14 @@ static int policy_registry_get_policy_by_gid(PolicyRegistry *registry, Policy **
         return 0;
 }
 
-static int policy_get_needed_groups(PolicyRegistry *registry, uid_t uid, gid_t **gidsp, size_t *n_gidsp) {
-        struct passwd *passwd;
-        _c_cleanup_(c_freep) gid_t *gids = NULL;
-        int n_gids = 64;
-        int r;
-
-        if (c_rbtree_is_empty(&registry->connection_policy.gid_tree) &&
-            c_rbtree_is_empty(&registry->gid_policy_tree)) {
-                *gidsp = NULL;
-                *n_gidsp = 0;
-                return 0;
-        }
-
-        passwd = getpwuid(uid);
-        if (!passwd)
-                return error_origin(-errno);
-
-        do {
-                void *tmp;
-
-                tmp = realloc(gids, n_gids);
-                if (!tmp)
-                        return error_origin(-ENOMEM);
-                else
-                        gids = tmp;
-
-                r = getgrouplist(passwd->pw_name, passwd->pw_gid, gids, &n_gids);
-        } while (r < 0);
-
-        *gidsp = gids;
-        gids = NULL;
-        *n_gidsp = n_gids;
-        return 0;
+bool policy_registry_needs_groups(PolicyRegistry *registry) {
+        return !c_rbtree_is_empty(&registry->connection_policy.gid_tree) ||
+               !c_rbtree_is_empty(&registry->gid_policy_tree);
 }
 
-int policy_registry_instantiate_policy(PolicyRegistry *registry, uid_t uid, Policy *target) {
+int policy_registry_instantiate_policy(PolicyRegistry *registry, uid_t uid, gid_t *gids, size_t n_gids, Policy *target) {
         Policy *source;
-        _c_cleanup_(c_freep) gid_t *gids = NULL;
-        size_t n_gids;
         int r;
-
-        r = policy_get_needed_groups(registry, uid, &gids, &n_gids);
-        if (r)
-                return error_trace(r);
 
         r = connection_policy_check_allowed(&registry->connection_policy, uid, gids, n_gids);
         if (r)
