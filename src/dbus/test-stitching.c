@@ -175,8 +175,7 @@ static void test_stitching(void) {
                 assert(!r);
 
                 message = test_new_message(i % 13, from, i / 17, NULL);
-                r = message_stitch_sender(message, id);
-                assert(!r);
+                message_stitch_sender(message, id);
                 test_assert_message(message, i % 13, to, i / 17);
                 message_unref(message);
 

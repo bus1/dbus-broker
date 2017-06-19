@@ -136,7 +136,6 @@ void message_free(_Atomic unsigned long *n_refs, void *userdata) {
         if (message->allocated_data)
                 free(message->data);
         fdlist_free(message->fds);
-        free(message->vecs[2].iov_base);
         free(message);
 }
 
@@ -454,7 +453,7 @@ int message_parse_metadata(Message *message, MessageMetadata *metadata) {
  * some stitching magic here to happen.
  *
  * This means, we use some nice properties of tuple-arrays in the D-Bus
- * marshalling (namely, they're 8-byte aligned, thus statically discverable
+ * marshalling (namely, they're 8-byte aligned, thus statically discoverable
  * when we know the offset), and simply cut out the existing sender field and
  * append a new one.
  *
@@ -463,13 +462,10 @@ int message_parse_metadata(Message *message, MessageMetadata *metadata) {
  * that it is no longer readable linearly. However, none of the fields are
  * relocated nor overwritten. That is, any cached pointer stays valid, though
  * maybe no longer part of the actual message.
- *
- * Return: 0 on success, negative error code on failure.
  */
-int message_stitch_sender(Message *message, uint64_t sender_id) {
+void message_stitch_sender(Message *message, uint64_t sender_id) {
         char sender[UNIQUE_NAME_STRING_MAX + 1];
         size_t n, n_stitch, n_field, n_sender;
-        uint8_t *stitch;
         void *end, *field;
 
         /*
@@ -515,21 +511,13 @@ int message_stitch_sender(Message *message, uint64_t sender_id) {
         n_stitch = c_align8(n_field);
 
         /*
-         * Strings in D-Bus are limited to 32bit in length (excluding the zero
-         * termination). Since sender-names must be valid bus-names, they're
-         * even limited to 8bit. Hence, we can safely assert on the sender
-         * length.
+         * The patch buffer is pre-allocated. Verify its size is sufficient to
+         * hold the stitched sender.
          */
-        assert(n_sender <= UINT32_MAX);
-
-        /*
-         * Allocate buffer to put in a header-field of type `(yv)'. We
-         * pre-allocate the buffer here, so we cannot fail later on when we
-         * partially modified the message.
-         */
-        stitch = malloc(n_stitch);
-        if (!stitch)
-                return error_origin(-ENOMEM);
+        assert(n_stitch <= sizeof(message->patch));
+        assert(n_sender <= UNIQUE_NAME_STRING_MAX);
+        static_assert(1 + 3 + 4 + UNIQUE_NAME_STRING_MAX + 1 <= sizeof(message->patch),
+                      "Message patch buffer has insufficient size");
 
         if (message->sender) {
                 /*
@@ -570,23 +558,23 @@ int message_stitch_sender(Message *message, uint64_t sender_id) {
         /*
          * Now that any possible sender field was cut out, we can append the
          * new sender field at the end. The 3rd iovec is reserved for that
-         * purpose, and it is de-allocated during message teardown.
+         * purpose.
          */
 
-        message->vecs[2].iov_base = stitch;
+        message->vecs[2].iov_base = message->patch;
         message->vecs[2].iov_len = n_stitch;
 
         /* fill in `(yv)' with sender and padding */
-        stitch[0] = DBUS_MESSAGE_FIELD_SENDER;
-        stitch[1] = 1;
-        stitch[2] = 's';
-        stitch[3] = 0;
+        message->patch[0] = DBUS_MESSAGE_FIELD_SENDER;
+        message->patch[1] = 1;
+        message->patch[2] = 's';
+        message->patch[3] = 0;
         if (message->big_endian)
-                *(uint32_t *)&stitch[4] = htobe32(n_sender);
+                *(uint32_t *)&message->patch[4] = htobe32(n_sender);
         else
-                *(uint32_t *)&stitch[4] = htole32(n_sender);
-        memcpy(stitch + 8, sender, n_sender + 1);
-        memset(stitch + 8 + n_sender + 1, 0, n_stitch - n_field);
+                *(uint32_t *)&message->patch[4] = htole32(n_sender);
+        memcpy(message->patch + 8, sender, n_sender + 1);
+        memset(message->patch + 8 + n_sender + 1, 0, n_stitch - n_field);
 
         /*
          * After we cut the previous sender field and inserted the new, adjust
@@ -602,6 +590,4 @@ int message_stitch_sender(Message *message, uint64_t sender_id) {
                 message->header->n_fields = htobe32(message->n_header - sizeof(*message->header));
         else
                 message->header->n_fields = htole32(message->n_header - sizeof(*message->header));
-
-        return 0;
 }

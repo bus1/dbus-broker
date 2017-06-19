@@ -7,13 +7,18 @@
 #include <c-macro.h>
 #include <c-ref.h>
 #include <stdlib.h>
+#include "dbus/unique-name.h"
 
 typedef struct FDList FDList;
 typedef struct Message Message;
 typedef struct MessageHeader MessageHeader;
 typedef struct MessageMetadata MessageMetadata;
 
-#define MESSAGE_SIZE_MAX (128UL * 1024UL * 1024UL) /* taken from spec */
+/* max message size; taken from spec */
+#define MESSAGE_SIZE_MAX (128UL * 1024UL * 1024UL)
+
+/* max patch buffer size; see message_stitch_sender() */
+#define MESSAGE_PATCH_MAX (C_ALIGN_TO(1 + 3 + 4 + UNIQUE_NAME_STRING_MAX + 1, 8))
 
 enum {
         _MESSAGE_E_SUCCESS,
@@ -45,6 +50,7 @@ struct Message {
         void *body;
         void *sender;
         struct iovec vecs[4];
+        alignas(uint64_t) uint8_t patch[MESSAGE_PATCH_MAX];
 };
 
 struct MessageHeader {
@@ -89,7 +95,7 @@ int message_new_outgoing(Message **messagep, void *data, size_t n_data);
 void message_free(_Atomic unsigned long *n_refs, void *userdata);
 
 int message_parse_metadata(Message *message, MessageMetadata *metadata);
-int message_stitch_sender(Message *message, uint64_t sender_id);
+void message_stitch_sender(Message *message, uint64_t sender_id);
 
 /* inline helpers */
 

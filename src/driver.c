@@ -1831,9 +1831,7 @@ int driver_dispatch(Peer *peer, Message *message) {
         /* no signature implies empty signature */
         metadata.fields.signature = metadata.fields.signature ?: "";
 
-        r = message_stitch_sender(message, peer->id);
-        if (r)
-                return error_fold(r);
+        message_stitch_sender(message, peer->id);
 
         match_filter_init(&filter);
 
