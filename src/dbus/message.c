@@ -570,9 +570,9 @@ void message_stitch_sender(Message *message, uint64_t sender_id) {
         message->patch[2] = 's';
         message->patch[3] = 0;
         if (message->big_endian)
-                *(uint32_t *)&message->patch[4] = htobe32(n_sender);
+                memcpy(message->patch + 4, (uint32_t[1]){ htobe32(n_sender) }, sizeof(uint32_t));
         else
-                *(uint32_t *)&message->patch[4] = htole32(n_sender);
+                memcpy(message->patch + 4, (uint32_t[1]){ htole32(n_sender) }, sizeof(uint32_t));
         memcpy(message->patch + 8, sender, n_sender + 1);
         memset(message->patch + 8 + n_sender + 1, 0, n_stitch - n_field);
 
