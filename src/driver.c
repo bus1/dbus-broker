@@ -10,6 +10,7 @@
 #include <sys/epoll.h>
 #include "activation.h"
 #include "bus.h"
+#include "dbus/address.h"
 #include "dbus/message.h"
 #include "dbus/protocol.h"
 #include "dbus/socket.h"
@@ -173,11 +174,7 @@ static void driver_write_bytes(CDVar *var, char *bytes, size_t n_bytes) {
 }
 
 static void driver_dvar_write_unique_name(CDVar *var, Peer *peer) {
-        char unique_name[UNIQUE_NAME_STRING_MAX + 1];
-
-        unique_name_from_id(unique_name, peer->id);
-
-        c_dvar_write(var, "s", unique_name);
+        c_dvar_write(var, "s", address_to_string(&(Address)ADDRESS_INIT_ID(peer->id)));
 }
 
 static void driver_dvar_write_signature_out(CDVar *var, const CDVarType *type) {
@@ -523,7 +520,7 @@ static int driver_notify_name_lost(Peer *peer, const char *name) {
 static int driver_notify_name_owner_changed(Bus *bus, const char *name, const char *old_owner, const char *new_owner) {
         MatchFilter filter = {
                 .type = DBUS_MESSAGE_TYPE_SIGNAL,
-                .destination = UNIQUE_NAME_ID_INVALID,
+                .destination = ADDRESS_ID_INVALID,
                 .interface = "org.freedesktop.DBus",
                 .member = "NameOwnerChanged",
                 .path = "/org/freedesktop/DBus",
@@ -572,27 +569,15 @@ static int driver_notify_name_owner_changed(Bus *bus, const char *name, const ch
 }
 
 static int driver_name_owner_changed(Bus *bus, const char *name, Peer *old_owner, Peer *new_owner) {
-        char old_owner_str[UNIQUE_NAME_STRING_MAX + 1], new_owner_str[UNIQUE_NAME_STRING_MAX + 1];
+        const char *old_owner_str, *new_owner_str;
         int r;
 
         assert(old_owner || new_owner);
         assert(name || !old_owner || !new_owner);
 
-        if (old_owner) {
-                unique_name_from_id(old_owner_str, old_owner->id);
-                if (!name)
-                        name = old_owner_str;
-        } else {
-                old_owner_str[0] = '\0';
-        }
-
-        if (new_owner) {
-                unique_name_from_id(new_owner_str, new_owner->id);
-                if (!name)
-                        name = new_owner_str;
-        } else {
-                new_owner_str[0] = '\0';
-        }
+        old_owner_str = old_owner ? address_to_string(&(Address)ADDRESS_INIT_ID(old_owner->id)) : "";
+        new_owner_str = new_owner ? address_to_string(&(Address)ADDRESS_INIT_ID(new_owner->id)) : "";
+        name = name ?: (old_owner ? old_owner_str : new_owner_str);
 
         if (old_owner) {
                 r = driver_notify_name_lost(old_owner, name);
@@ -686,7 +671,7 @@ static int driver_end_read(CDVar *var) {
 }
 
 static int driver_method_hello(Peer *peer, CDVar *in_v, uint32_t serial, CDVar *out_v) {
-        char unique_name[UNIQUE_NAME_STRING_MAX + 1];
+        const char *unique_name;
         int r;
 
         if (_c_unlikely_(peer_is_registered(peer)))
@@ -698,9 +683,8 @@ static int driver_method_hello(Peer *peer, CDVar *in_v, uint32_t serial, CDVar *
         if (r)
                 return error_trace(r);
 
-        unique_name_from_id(unique_name, peer->id);
-
         peer_register(peer);
+        unique_name = address_to_string(&(Address)ADDRESS_INIT_ID(peer->id));
 
         c_dvar_write(out_v, "(s)", unique_name);
 
@@ -823,9 +807,11 @@ static int driver_method_release_name(Peer *peer, CDVar *in_v, uint32_t serial, 
 }
 
 static int driver_method_list_queued_owners(Peer *peer, CDVar *in_v, uint32_t serial, CDVar *out_v) {
-        Name *name;
         NameOwnership *ownership;
         const char *name_str;
+        Address addr;
+        Peer *owner;
+        Name *name;
         int r;
 
         c_dvar_read(in_v, "(s)", &name_str);
@@ -837,30 +823,27 @@ static int driver_method_list_queued_owners(Peer *peer, CDVar *in_v, uint32_t se
         c_dvar_write(out_v, "([");
         if (!strcmp(name_str, "org.freedesktop.DBus")) {
                 c_dvar_write(out_v, "s", "org.freedesktop.DBus");
-        } else if (name_str[0] == ':') {
-                Peer *owner;
-                uint64_t id;
-
-                r = unique_name_to_id(name_str, &id);
-                if (r) {
-                        if (r > 0)
-                                return DRIVER_E_NAME_NOT_FOUND;
-                        else
-                                return error_fold(r);
-                }
-
-                owner = peer_registry_find_peer(&peer->bus->peers, id);
-                if (!owner)
-                        return DRIVER_E_NAME_NOT_FOUND;
-
-                driver_dvar_write_unique_name(out_v, owner);
         } else {
-                name = name_registry_find_name(&peer->bus->names, name_str);
-                if (!name)
-                        return DRIVER_E_NAME_NOT_FOUND;
+                address_from_string(&addr, name_str);
+                switch (addr.type) {
+                case ADDRESS_TYPE_ID:
+                        owner = peer_registry_find_peer(&peer->bus->peers, addr.id);
+                        if (!owner)
+                                return DRIVER_E_NAME_NOT_FOUND;
 
-                c_list_for_each_entry(ownership, &name->ownership_list, name_link)
-                        driver_dvar_write_unique_name(out_v, c_container_of(ownership->owner, Peer, owned_names));
+                        driver_dvar_write_unique_name(out_v, owner);
+                        break;
+                case ADDRESS_TYPE_NAME:
+                        name = name_registry_find_name(&peer->bus->names, addr.name);
+                        if (!name)
+                                return DRIVER_E_NAME_NOT_FOUND;
+
+                        c_list_for_each_entry(ownership, &name->ownership_list, name_link)
+                                driver_dvar_write_unique_name(out_v, c_container_of(ownership->owner, Peer, owned_names));
+                        break;
+                default:
+                        return DRIVER_E_NAME_NOT_FOUND;
+                }
         }
         c_dvar_write(out_v, "])");
 
@@ -1069,7 +1052,7 @@ static int driver_method_update_activation_environment(Peer *peer, CDVar *in_v, 
 
 static int driver_method_get_name_owner(Peer *peer, CDVar *in_v, uint32_t serial, CDVar *out_v) {
         const char *name_str, *owner_str;
-        char unique_name[UNIQUE_NAME_STRING_MAX + 1];
+        Address addr;
         int r;
 
         c_dvar_read(in_v, "(s)", &name_str);
@@ -1079,7 +1062,7 @@ static int driver_method_get_name_owner(Peer *peer, CDVar *in_v, uint32_t serial
                 return error_trace(r);
 
         if (!strcmp(name_str, "org.freedesktop.DBus")) {
-                owner_str = "org.freedesktop.DBus";
+                addr = (Address)ADDRESS_INIT_NAME("org.freedesktop.DBus");
         } else {
                 Peer *owner;
 
@@ -1087,9 +1070,10 @@ static int driver_method_get_name_owner(Peer *peer, CDVar *in_v, uint32_t serial
                 if (!owner)
                         return DRIVER_E_NAME_OWNER_NOT_FOUND;
 
-                unique_name_from_id(unique_name, owner->id);
-                owner_str = unique_name;
+                addr = (Address)ADDRESS_INIT_ID(owner->id);
         }
+
+        owner_str = address_to_string(&addr);
 
         c_dvar_write(out_v, "(s)", owner_str);
 
