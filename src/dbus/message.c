@@ -36,7 +36,7 @@ static int message_new(Message **messagep, bool big_endian, size_t n_extra) {
         message->data = NULL;
         message->header = NULL;
         message->body = NULL;
-        message->sender = NULL;
+        message->original_sender = NULL;
 
         *messagep = message;
         message = NULL;
@@ -265,7 +265,7 @@ static int message_parse_header(Message *message, MessageMetadata *metadata) {
                         /* XXX: Invalid bus-names are rejected */
 
                         /* cache sender in case it needs to be stitched out */
-                        message->sender = (void *)metadata->fields.sender;
+                        message->original_sender = (void *)metadata->fields.sender;
                         break;
 
                 case DBUS_MESSAGE_FIELD_SIGNATURE:
@@ -519,22 +519,22 @@ void message_stitch_sender(Message *message, uint64_t sender_id) {
         static_assert(1 + 3 + 4 + UNIQUE_NAME_STRING_MAX + 1 <= sizeof(message->patch),
                       "Message patch buffer has insufficient size");
 
-        if (message->sender) {
+        if (message->original_sender) {
                 /*
                  * If @message already has a sender field, we need to remove it
                  * first, so we can append the correct sender. The message
                  * parser cached the start of a possible sender field as
-                 * @message->sender (pointing to the start of the sender
-                 * string!). Hence, calculate the offset to its surrounding
-                 * field and cut it out.
+                 * @message->original_sender (pointing to the start of the
+                 * sender string!). Hence, calculate the offset to its
+                 * surrounding field and cut it out.
                  * See above for size-calculations of `(yv)' fields.
                  */
-                n = strlen(message->sender);
+                n = strlen(message->original_sender);
                 end = (void *)message->header + c_align8(message->n_header);
-                field = message->sender - (1 + 3 + 4);
+                field = message->original_sender - (1 + 3 + 4);
 
-                assert(message->sender >= (void *)message->header);
-                assert(message->sender + n + 1 <= end);
+                assert(message->original_sender >= (void *)message->header);
+                assert(message->original_sender + n + 1 <= end);
 
                 /* fold remaining fields into following vector */
                 message->vecs[1].iov_base = field + c_align8(1 + 3 + 4 + n + 1);
