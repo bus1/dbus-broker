@@ -79,21 +79,41 @@ Peer *bus_find_peer_by_name(Bus *bus, const char *name) {
         }
 }
 
-static int bus_broadcast_to_matches(MatchRegistry *matches, MatchFilter *filter, uint64_t transaction_id, Message *message) {
+static int bus_broadcast_to_matches(Peer *sender, MatchRegistry *matches, MatchFilter *filter, uint64_t transaction_id, Message *message) {
         MatchRule *rule;
         int r;
 
         for (rule = match_rule_next_match(matches, NULL, filter); rule; rule = match_rule_next_match(matches, rule, filter)) {
-                Peer *peer = c_container_of(rule->owner, Peer, owned_matches);
+                Peer *receiver = c_container_of(rule->owner, Peer, owned_matches);
 
                 /* exclude the destination from broadcasts */
-                if (filter->destination == peer->id)
+                if (filter->destination == receiver->id)
                         continue;
 
-                r = connection_queue(&peer->connection, NULL, transaction_id, message);
+                if (sender) {
+                        r = transmission_policy_check_allowed(&sender->policy.send_policy, &receiver->owned_names,
+                                                              message->interface, message->member, message->path, message->header->type);
+                        if (r) {
+                                if (r == POLICY_E_ACCESS_DENIED)
+                                        return PEER_E_SEND_DENIED;
+
+                                return error_fold(r);
+                        }
+                }
+
+                r = transmission_policy_check_allowed(&receiver->policy.receive_policy, sender ? &sender->owned_names : NULL,
+                                                      message->interface, message->member, message->path, message->header->type);
+                if (r) {
+                        if (r == POLICY_E_ACCESS_DENIED)
+                                return PEER_E_RECEIVE_DENIED;
+
+                        return error_fold(r);
+                }
+
+                r = connection_queue(&receiver->connection, NULL, transaction_id, message);
                 if (r) {
                         if (r == CONNECTION_E_QUOTA)
-                                connection_close(&peer->connection);
+                                connection_close(&receiver->connection);
                         else
                                 return error_fold(r);
                 }
@@ -108,7 +128,7 @@ int bus_broadcast(Bus *bus, Peer *sender, MatchFilter *filter, Message *message)
         /* start a new transaction, to avoid duplicates */
         ++bus->transaction_ids;
 
-        r = bus_broadcast_to_matches(&bus->wildcard_matches, filter, bus->transaction_ids, message);
+        r = bus_broadcast_to_matches(sender, &bus->wildcard_matches, filter, bus->transaction_ids, message);
         if (r)
                 return error_trace(r);
 
@@ -119,17 +139,17 @@ int bus_broadcast(Bus *bus, Peer *sender, MatchFilter *filter, Message *message)
                         if (!name_ownership_is_primary(ownership))
                                 continue;
 
-                        r = bus_broadcast_to_matches(&ownership->name->matches, filter, bus->transaction_ids, message);
+                        r = bus_broadcast_to_matches(sender, &ownership->name->matches, filter, bus->transaction_ids, message);
                         if (r)
                                 return error_trace(r);
                 }
 
-                r = bus_broadcast_to_matches(&sender->matches, filter, bus->transaction_ids, message);
+                r = bus_broadcast_to_matches(sender, &sender->matches, filter, bus->transaction_ids, message);
                 if (r)
                         return error_trace(r);
         } else {
                 /* sent from the driver */
-                r = bus_broadcast_to_matches(&bus->driver_matches, filter, bus->transaction_ids, message);
+                r = bus_broadcast_to_matches(NULL, &bus->driver_matches, filter, bus->transaction_ids, message);
                 if (r)
                         return error_trace(r);
         }
