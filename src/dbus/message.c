@@ -398,7 +398,7 @@ int message_parse_metadata(Message *message, MessageMetadata *metadata) {
 
         assert(!message->parsed);
 
-        *metadata = (MessageMetadata){};
+        *metadata = (MessageMetadata){ .message = message };
 
         /*
          * As first step, parse the static header and the dynamic header

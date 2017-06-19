@@ -64,6 +64,8 @@ struct MessageHeader {
 } _c_packed_;
 
 struct MessageMetadata {
+        Message *message;
+
         struct {
                 uint8_t type;
                 uint8_t flags;

@@ -1760,14 +1760,14 @@ static int driver_forward_unicast(Peer *sender, const char *destination,
         return 0;
 }
 
-static int driver_dispatch_internal(Peer *peer, MessageMetadata *metadata, MatchFilter *filter, Message *message) {
+static int driver_dispatch_internal(Peer *peer, MessageMetadata *metadata, MatchFilter *filter) {
         int r;
 
         if (!peer->registered && !metadata->fields.destination)
                 /* make sure unregistered peers can only send messages to eavesdroppers */
                 filter->destination = (uint64_t)-2; /* XXX: come up with a better way to do this */
 
-        r = bus_broadcast(peer->bus, peer, filter, message);
+        r = bus_broadcast(peer->bus, peer, filter, metadata->message);
         if (r)
                 return error_trace(r);
 
@@ -1781,7 +1781,7 @@ static int driver_dispatch_internal(Peer *peer, MessageMetadata *metadata, Match
                                                              metadata->fields.member,
                                                              metadata->fields.path,
                                                              metadata->fields.signature,
-                                                             message));
+                                                             metadata->message));
         }
 
         if (!peer_is_registered(peer))
@@ -1802,10 +1802,13 @@ static int driver_dispatch_internal(Peer *peer, MessageMetadata *metadata, Match
                                                           metadata->fields.interface,
                                                           metadata->fields.member,
                                                           metadata->fields.path,
-                                                          message));
+                                                          metadata->message));
         case DBUS_MESSAGE_TYPE_METHOD_RETURN:
         case DBUS_MESSAGE_TYPE_ERROR:
-                r = peer_queue_reply(peer, metadata->fields.destination, metadata->fields.reply_serial, message);
+                r = peer_queue_reply(peer,
+                                     metadata->fields.destination,
+                                     metadata->fields.reply_serial,
+                                     metadata->message);
                 if (r == PEER_E_UNEXPECTED_REPLY)
                         return DRIVER_E_UNEXPECTED_REPLY;
                 else
@@ -1851,7 +1854,7 @@ int driver_dispatch(Peer *peer, Message *message) {
                 }
         }
 
-        r = driver_dispatch_internal(peer, &metadata, &filter, message);
+        r = driver_dispatch_internal(peer, &metadata, &filter);
         switch (r) {
         case DRIVER_E_PEER_NOT_REGISTERED:
                 r = driver_send_error(peer, metadata.header.serial, "org.freedesktop.DBus.Error.AccessDenied", driver_error_to_string(r));
