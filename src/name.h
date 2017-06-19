@@ -84,7 +84,6 @@ void name_registry_deinit(NameRegistry *registry);
 int name_registry_ref_name(NameRegistry *registry, Name **namep, const char *name_str);
 
 Name *name_registry_find_name(NameRegistry *registry, const char *name_str);
-NameOwner *name_registry_resolve_owner(NameRegistry *registry, const char *name_str);
 
 int name_registry_request_name(NameRegistry *registry, NameOwner *owner, const char *name_str, uint32_t flags, NameChange *change);
 int name_registry_release_name(NameRegistry *registry, NameOwner *owner, const char *name_str, NameChange *change);

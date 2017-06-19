@@ -809,7 +809,6 @@ static int driver_method_release_name(Peer *peer, CDVar *in_v, uint32_t serial, 
 static int driver_method_list_queued_owners(Peer *peer, CDVar *in_v, uint32_t serial, CDVar *out_v) {
         NameOwnership *ownership;
         const char *name_str;
-        Address addr;
         Peer *owner;
         Name *name;
         int r;
@@ -824,25 +823,15 @@ static int driver_method_list_queued_owners(Peer *peer, CDVar *in_v, uint32_t se
         if (!strcmp(name_str, "org.freedesktop.DBus")) {
                 c_dvar_write(out_v, "s", "org.freedesktop.DBus");
         } else {
-                address_from_string(&addr, name_str);
-                switch (addr.type) {
-                case ADDRESS_TYPE_ID:
-                        owner = peer_registry_find_peer(&peer->bus->peers, addr.id);
-                        if (!owner)
-                                return DRIVER_E_NAME_NOT_FOUND;
+                owner = bus_find_peer_by_name(peer->bus, &name, name_str);
+                if (!owner)
+                        return DRIVER_E_NAME_NOT_FOUND;
 
-                        driver_dvar_write_unique_name(out_v, owner);
-                        break;
-                case ADDRESS_TYPE_NAME:
-                        name = name_registry_find_name(&peer->bus->names, addr.name);
-                        if (!name)
-                                return DRIVER_E_NAME_NOT_FOUND;
-
+                if (name) {
                         c_list_for_each_entry(ownership, &name->ownership_list, name_link)
                                 driver_dvar_write_unique_name(out_v, c_container_of(ownership->owner, Peer, owned_names));
-                        break;
-                default:
-                        return DRIVER_E_NAME_NOT_FOUND;
+                } else {
+                        driver_dvar_write_unique_name(out_v, owner);
                 }
         }
         c_dvar_write(out_v, "])");
@@ -929,7 +918,7 @@ static int driver_method_name_has_owner(Peer *peer, CDVar *in_v, uint32_t serial
         if (strcmp(name, "org.freedesktop.DBus") == 0) {
                 c_dvar_write(out_v, "(b)", true);
         } else {
-                connection = bus_find_peer_by_name(peer->bus, name);
+                connection = bus_find_peer_by_name(peer->bus, NULL, name);
 
                 c_dvar_write(out_v, "(b)", !!connection);
         }
@@ -1066,7 +1055,7 @@ static int driver_method_get_name_owner(Peer *peer, CDVar *in_v, uint32_t serial
         } else {
                 Peer *owner;
 
-                owner = bus_find_peer_by_name(peer->bus, name_str);
+                owner = bus_find_peer_by_name(peer->bus, NULL, name_str);
                 if (!owner)
                         return DRIVER_E_NAME_OWNER_NOT_FOUND;
 
@@ -1098,7 +1087,7 @@ static int driver_method_get_connection_unix_user(Peer *peer, CDVar *in_v, uint3
         if (!strcmp(name, "org.freedesktop.DBus")) {
                 c_dvar_write(out_v, "(u)", peer->bus->user->uid);
         } else {
-                connection = bus_find_peer_by_name(peer->bus, name);
+                connection = bus_find_peer_by_name(peer->bus, NULL, name);
                 if (!connection)
                         return DRIVER_E_PEER_NOT_FOUND;
 
@@ -1126,7 +1115,7 @@ static int driver_method_get_connection_unix_process_id(Peer *peer, CDVar *in_v,
         if (!strcmp(name, "org.freedesktop.DBus")) {
                 c_dvar_write(out_v, "(u)", peer->bus->pid);
         } else {
-                connection = bus_find_peer_by_name(peer->bus, name);
+                connection = bus_find_peer_by_name(peer->bus, NULL, name);
                 if (!connection)
                         return DRIVER_E_PEER_NOT_FOUND;
 
@@ -1151,7 +1140,7 @@ static int driver_method_get_connection_credentials(Peer *peer, CDVar *in_v, uin
         if (r)
                 return error_trace(r);
 
-        connection = bus_find_peer_by_name(peer->bus, name);
+        connection = bus_find_peer_by_name(peer->bus, NULL, name);
         if (!connection)
                 return DRIVER_E_PEER_NOT_FOUND;
 
@@ -1205,7 +1194,7 @@ static int driver_method_get_connection_selinux_security_context(Peer *peer, CDV
         if (r)
                 return error_trace(r);
 
-        connection = bus_find_peer_by_name(peer->bus, name);
+        connection = bus_find_peer_by_name(peer->bus, NULL, name);
         if (!connection)
                 return DRIVER_E_PEER_NOT_FOUND;
 
@@ -1679,51 +1668,27 @@ int driver_goodbye(Peer *peer, bool silent) {
 static int driver_forward_unicast(Peer *sender, const char *destination,
                                   const char *interface, const char *member, const char *path, Message *message) {
         Peer *receiver;
+        Name *name;
         int r;
 
-        if (*destination == ':') {
-                uint64_t id;
-
-                r = unique_name_to_id(destination, &id);
-                if (r) {
-                        if (r > 0)
-                                return DRIVER_E_DESTINATION_NOT_FOUND;
-
-                        return error_trace(r);
-                }
-
-                receiver = peer_registry_find_peer(&sender->bus->peers, id);
-                if (!receiver)
-                        return DRIVER_E_DESTINATION_NOT_FOUND;
-        } else {
-                Name *name;
-                NameOwnership *ownership;
-
-                name = name_registry_find_name(&sender->bus->names, destination);
-                if (!name)
+        receiver = bus_find_peer_by_name(sender->bus, &name, destination);
+        if (!receiver) {
+                if (!name || !name->activation)
                         return DRIVER_E_DESTINATION_NOT_FOUND;
 
-                ownership = c_list_first_entry(&name->ownership_list, NameOwnership, name_link);
-                if (!ownership) {
-                        if (!name->activation)
-                                return DRIVER_E_DESTINATION_NOT_FOUND;
+                r = activation_queue_message(name->activation, message);
+                if (r)
+                        return error_fold(r);
 
-                        r = activation_queue_message(name->activation, message);
+                if (!name->activation->requested) {
+                        r = activation_send_signal(sender->bus->controller, name->activation->path);
                         if (r)
                                 return error_fold(r);
 
-                        if (!name->activation->requested) {
-                                r = activation_send_signal(sender->bus->controller, name->activation->path);
-                                if (r)
-                                        return error_fold(r);
-
-                                name->activation->requested = true;
-                        }
-
-                        return 0;
-                } else {
-                        receiver = c_container_of(ownership->owner, Peer, owned_names);
+                        name->activation->requested = true;
                 }
+
+                return 0;
         }
 
         r = peer_queue_call(receiver, sender, message);

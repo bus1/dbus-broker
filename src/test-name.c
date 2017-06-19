@@ -8,6 +8,18 @@
 #include "dbus/protocol.h"
 #include "name.h"
 
+static NameOwner *resolve_owner(NameRegistry *registry, const char *name_str) {
+        NameOwnership *ownership;
+        Name *name;
+
+        name = name_registry_find_name(registry, name_str);
+        if (!name)
+                return NULL;
+
+        ownership = c_list_first_entry(&name->ownership_list, NameOwnership, name_link);
+        return ownership ? ownership->owner : NULL;
+}
+
 static void test_setup(void) {
         NameRegistry registry;
         NameOwner owner, *o;
@@ -24,7 +36,7 @@ static void test_setup(void) {
         assert(change.old_owner == NULL);
         assert(change.new_owner == &owner);
         name_change_deinit(&change);
-        o = name_registry_resolve_owner(&registry, "foobar");
+        o = resolve_owner(&registry, "foobar");
         assert(o == &owner);
         r = name_registry_release_name(&registry, &owner, "foobar", &change);
         assert(r == 0);
@@ -32,7 +44,7 @@ static void test_setup(void) {
         assert(change.old_owner == &owner);
         assert(change.new_owner == NULL);
         name_change_deinit(&change);
-        o = name_registry_resolve_owner(&registry, "foobar");
+        o = resolve_owner(&registry, "foobar");
         assert(o == NULL);
 
         name_owner_deinit(&owner);
@@ -98,7 +110,7 @@ static void test_queue(void) {
         assert(change.new_owner == &owner1);
         name_change_deinit(&change);
         /* verify the primary owner */
-        o = name_registry_resolve_owner(&registry, "foobar");
+        o = resolve_owner(&registry, "foobar");
         assert(o == &owner1);
         /* already the owner */
         r = name_registry_request_name(&registry, &owner1, "foobar", 0, &change);
@@ -125,7 +137,7 @@ static void test_queue(void) {
         assert(change.old_owner == NULL);
         assert(change.new_owner == NULL);
         /* verify that the primary owner was untouched */
-        o = name_registry_resolve_owner(&registry, "foobar");
+        o = resolve_owner(&registry, "foobar");
         assert(o == &owner1);
         /* dequeu again */
         r = name_registry_release_name(&registry, &owner2, "foobar", &change);
@@ -134,7 +146,7 @@ static void test_queue(void) {
         assert(change.old_owner == NULL);
         assert(change.new_owner == NULL);
         /* verify that the primary owner was untouched */
-        o = name_registry_resolve_owner(&registry, "foobar");
+        o = resolve_owner(&registry, "foobar");
         assert(o == &owner1);
         /* try to overtake, but wait in queue if it fails */
         r = name_registry_request_name(&registry, &owner2, "foobar", DBUS_NAME_FLAG_REPLACE_EXISTING, &change);
@@ -161,7 +173,7 @@ static void test_queue(void) {
         assert(change.old_owner == NULL);
         assert(change.new_owner == NULL);
         /* verify that the primary owner was untouched */
-        o = name_registry_resolve_owner(&registry, "foobar");
+        o = resolve_owner(&registry, "foobar");
         assert(o == &owner1);
         /* overtake primary owner, allow to be replaced ourselves and refuse to
          * queue */
@@ -176,7 +188,7 @@ static void test_queue(void) {
         assert(change.new_owner == &owner2);
         name_change_deinit(&change);
         /* verify that the primary owner was changed */
-        o = name_registry_resolve_owner(&registry, "foobar");
+        o = resolve_owner(&registry, "foobar");
         assert(o == &owner2);
         /* overtake again */
         r = name_registry_request_name(&registry, &owner1, "foobar", DBUS_NAME_FLAG_REPLACE_EXISTING, &change);
@@ -186,7 +198,7 @@ static void test_queue(void) {
         assert(change.new_owner == &owner1);
         name_change_deinit(&change);
         /* verify that the primary owner was reverted to the original */
-        o = name_registry_resolve_owner(&registry, "foobar");
+        o = resolve_owner(&registry, "foobar");
         assert(o == &owner1);
         /* verify that the old primary owner is no longer on queue */
         r = name_registry_release_name(&registry, &owner2, "foobar", &change);

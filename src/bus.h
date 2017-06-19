@@ -54,5 +54,5 @@ int bus_init(Bus *bus,
              unsigned int max_matches);
 void bus_deinit(Bus *bus);
 
-Peer *bus_find_peer_by_name(Bus *bus, const char *name);
+Peer *bus_find_peer_by_name(Bus *bus, Name **namep, const char *name);
 int bus_broadcast(Bus *bus, Peer *sender, MatchFilter *filter, Message *message);

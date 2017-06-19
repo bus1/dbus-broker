@@ -288,16 +288,3 @@ int name_registry_release_name(NameRegistry *registry, NameOwner *owner, const c
 
         return 0;
 }
-
-NameOwner *name_registry_resolve_owner(NameRegistry *registry, const char *name_str) {
-        Name *name;
-        NameOwnership *ownership;
-
-        name = c_rbtree_find_entry(&registry->name_tree, name_compare, name_str, Name, registry_node);
-        if (!name)
-                return NULL;
-
-        ownership = c_list_first_entry(&name->ownership_list, NameOwnership, name_link);
-
-        return ownership ? ownership->owner : NULL;
-}

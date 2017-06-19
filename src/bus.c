@@ -7,7 +7,7 @@
 #include <sys/auxv.h>
 #include <sys/socket.h>
 #include "bus.h"
-#include "dbus/unique-name.h"
+#include "dbus/address.h"
 #include "driver.h"
 #include "match.h"
 #include "name.h"
@@ -62,21 +62,30 @@ void bus_deinit(Bus *bus) {
         assert(c_rbtree_is_empty(&bus->listener_tree));
 }
 
-/* XXX: use proper return codes */
-Peer *bus_find_peer_by_name(Bus *bus, const char *name) {
-        int r;
+Peer *bus_find_peer_by_name(Bus *bus, Name **namep, const char *name_str) {
+        NameOwnership *ownership;
+        Address addr;
+        Peer *peer = NULL;
+        Name *name = NULL;
 
-        if (*name != ':') {
-                return c_container_of(name_registry_resolve_owner(&bus->names, name), Peer, owned_names);
-        } else {
-                uint64_t id;
-
-                r = unique_name_to_id(name, &id);
-                if (r < 0)
-                        return NULL;
-
-                return peer_registry_find_peer(&bus->peers, id);
+        address_from_string(&addr, name_str);
+        switch (addr.type) {
+        case ADDRESS_TYPE_ID:
+                peer = peer_registry_find_peer(&bus->peers, addr.id);
+                break;
+        case ADDRESS_TYPE_NAME:
+                name = name_registry_find_name(&bus->names, addr.name);
+                if (name) {
+                        ownership = c_list_first_entry(&name->ownership_list, NameOwnership, name_link);
+                        if (ownership)
+                                peer = c_container_of(ownership->owner, Peer, owned_names);
+                }
+                break;
         }
+
+        if (namep)
+                *namep = name;
+        return peer;
 }
 
 static int bus_broadcast_to_matches(Peer *sender, MatchRegistry *matches, MatchFilter *filter, uint64_t transaction_id, Message *message) {
