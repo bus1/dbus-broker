@@ -650,8 +650,7 @@ static int driver_name_activated(Activation *activation, Peer *receiver) {
 
                 sender = peer_registry_find_peer(&receiver->bus->peers, message->sender_id);
 
-                /* XXX: figure out the policy */
-                r = peer_queue_call(receiver, sender, NULL, NULL, NULL, message);
+                r = peer_queue_call(receiver, sender, message);
                 if (r) {
                         switch (r) {
                         case PEER_E_QUOTA:
@@ -1743,7 +1742,7 @@ static int driver_forward_unicast(Peer *sender, const char *destination,
                 }
         }
 
-        r = peer_queue_call(receiver, sender, interface, member, path, message);
+        r = peer_queue_call(receiver, sender, message);
         if (r) {
                 if (r == PEER_E_EXPECTED_REPLY_EXISTS)
                         return DRIVER_E_EXPECTED_REPLY_EXISTS;

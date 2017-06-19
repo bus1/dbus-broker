@@ -47,6 +47,9 @@ struct Message {
 
         void *data;
         MessageHeader *header;
+        const char *path;
+        const char *interface;
+        const char *member;
         void *body;
         void *original_sender;
         struct iovec vecs[4];

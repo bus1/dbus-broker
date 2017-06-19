@@ -92,7 +92,7 @@ int peer_remove_match(Peer *peer, const char *rule_string);
 int peer_become_monitor(Peer *peer, MatchOwner *owner);
 void peer_flush_matches(Peer *peer);
 
-int peer_queue_call(Peer *destination, Peer *sender, const char *interface, const char *member, const char *path, Message *message);
+int peer_queue_call(Peer *destination, Peer *sender, Message *message);
 int peer_queue_reply(Peer *sender, const char *destination, uint32_t reply_serial, Message *message);
 
 void peer_registry_init(PeerRegistry *registry);

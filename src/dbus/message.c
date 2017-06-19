@@ -227,6 +227,8 @@ static int message_parse_header(Message *message, MessageMetadata *metadata) {
                         if (!strcmp(metadata->fields.path, "/org/freedesktop/DBus/Local"))
                                 return MESSAGE_E_INVALID_HEADER;
 
+                        /* cache path to avoid having to reparse the header in the future */
+                        message->path = metadata->fields.path;
                         break;
 
                 case DBUS_MESSAGE_FIELD_INTERFACE:
@@ -237,11 +239,17 @@ static int message_parse_header(Message *message, MessageMetadata *metadata) {
 
                         /* XXX: invalid interfaces are rejected */
 
+                        /* cache interface to avoid having to reparse the header in the future */
+                        message->interface = metadata->fields.interface;
                         break;
 
                 case DBUS_MESSAGE_FIELD_MEMBER:
                         c_dvar_read(&v, "<s>)", c_dvar_type_s, &metadata->fields.member);
+
                         /* XXX: invalid members are rejected */
+
+                        /* cache member to avoid having to reparse the header in the future */
+                        message->member = metadata->fields.member;
                         break;
 
                 case DBUS_MESSAGE_FIELD_ERROR_NAME:
