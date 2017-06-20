@@ -623,6 +623,9 @@ void policy_init(Policy *policy) {
 }
 
 void policy_deinit(Policy *policy) {
+        if (!policy)
+                return;
+
         assert(!policy->registry);
         assert(!c_rbnode_is_linked(&policy->registry_node));
         assert(policy->uid == (uid_t)-1);
