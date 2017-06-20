@@ -10,7 +10,6 @@
 #include <stdlib.h>
 #include "dbus/message.h"
 #include "dbus/protocol.h"
-#include "dbus/unique-name.h"
 #include "util/fdlist.h"
 #include "util/error.h"
 
@@ -27,7 +26,7 @@ static int message_new(Message **messagep, bool big_endian, size_t n_extra) {
         message->big_endian = big_endian;
         message->allocated_data = false;
         message->parsed = false;
-        message->sender_id = UNIQUE_NAME_ID_INVALID;
+        message->sender_id = ADDRESS_ID_INVALID;
         message->fds = NULL;
         message->n_data = 0;
         message->n_copied = 0;
@@ -475,8 +474,8 @@ int message_parse_metadata(Message *message, MessageMetadata *metadata) {
  * maybe no longer part of the actual message.
  */
 void message_stitch_sender(Message *message, uint64_t sender_id) {
-        char sender[UNIQUE_NAME_STRING_MAX + 1];
         size_t n, n_stitch, n_field, n_sender;
+        const char *sender;
         void *end, *field;
 
         /*
@@ -492,7 +491,7 @@ void message_stitch_sender(Message *message, uint64_t sender_id) {
          * Convert the sender id to a unique name. This should never fail on
          * a valid sender id.
          */
-        unique_name_from_id(sender, sender_id);
+        sender = address_to_string(&(Address)ADDRESS_INIT_ID(sender_id));
         message->sender_id = sender_id;
 
         /*
@@ -526,8 +525,8 @@ void message_stitch_sender(Message *message, uint64_t sender_id) {
          * hold the stitched sender.
          */
         assert(n_stitch <= sizeof(message->patch));
-        assert(n_sender <= UNIQUE_NAME_STRING_MAX);
-        static_assert(1 + 3 + 4 + UNIQUE_NAME_STRING_MAX + 1 <= sizeof(message->patch),
+        assert(n_sender <= ADDRESS_ID_STRING_MAX);
+        static_assert(1 + 3 + 4 + ADDRESS_ID_STRING_MAX + 1 <= sizeof(message->patch),
                       "Message patch buffer has insufficient size");
 
         if (message->original_sender) {

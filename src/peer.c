@@ -11,10 +11,10 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include "bus.h"
+#include "dbus/address.h"
 #include "dbus/message.h"
 #include "dbus/protocol.h"
 #include "dbus/socket.h"
-#include "dbus/unique-name.h"
 #include "driver.h"
 #include "match.h"
 #include "name.h"
@@ -412,43 +412,67 @@ void peer_release_name_ownership(Peer *peer, NameOwnership *ownership, NameChang
 }
 
 static int peer_link_match(Peer *peer, MatchRule *rule) {
+        Address addr;
+        Peer *sender;
         int r;
 
         if (!rule->keys.sender) {
                 match_rule_link(rule, &peer->bus->wildcard_matches);
-        } else if (*rule->keys.sender == ':') {
-                Peer *sender;
-                uint64_t id;
-
-                r = unique_name_to_id(rule->keys.sender, &id);
-                if (r) {
-                        if (r < 0)
-                                return error_fold(r);
-                        /* got a valid unique name that is not in our namespace */
-                } else {
-                        sender = peer_registry_find_peer(&peer->bus->peers, id);
-                        if (sender) {
-                                match_rule_link(rule, &sender->matches);
-                        } else if (id >= peer->bus->peers.ids) {
-                                /* this peer does not yet exist, but it could appear, keep it
-                                 * with the wildcards. */
-                                rule->keys.filter.sender = id;
-                                match_rule_link(rule, &peer->bus->wildcard_matches);
-                        }
-
-                        /* the peer has already disconnected and will never reappear */
-                }
         } else if (strcmp(rule->keys.sender, "org.freedesktop.DBus") == 0) {
                 match_rule_link(rule, &peer->bus->driver_matches);
         } else {
-                _c_cleanup_(name_unrefp) Name *name = NULL;
+                address_from_string(&addr, rule->keys.sender);
+                switch (addr.type) {
+                case ADDRESS_TYPE_ID: {
+                        sender = peer_registry_find_peer(&peer->bus->peers, addr.id);
+                        if (sender) {
+                                match_rule_link(rule, &sender->matches);
+                        } else if (addr.id >= peer->bus->peers.ids) {
+                                /*
+                                 * This peer does not yet exist, but it could
+                                 * appear, keep it with the wildcards. It will
+                                 * stay there even if the peer later appears.
+                                 * This works and is meant for compatibility.
+                                 * It does not perform nicely, but there is
+                                 * also no reason to ever guess the ID of a
+                                 * forthcoming peer.
+                                 */
+                                rule->keys.filter.sender = addr.id;
+                                match_rule_link(rule, &peer->bus->wildcard_matches);
+                        } else {
+                                /*
+                                 * The peer has already disconnected and will
+                                 * never reappear, since the ID allocator is
+                                 * already beyond the ID.
+                                 * We can simply skip linking the rule, since
+                                 * it can never have an effect. It stays linked
+                                 * in its owner, though, so we don't lose
+                                 * track.
+                                 */
+                        }
+                        break;
+                }
+                case ADDRESS_TYPE_NAME:
+                case ADDRESS_TYPE_OTHER: {
+                        /*
+                         * XXX: dbus-daemon rejects any match on invalid names.
+                         *      However, we cannot do this here as our caller
+                         *      does not expect this. This needs some further
+                         *      restructuring.
+                         */
+                        _c_cleanup_(name_unrefp) Name *name = NULL;
 
-                r = name_registry_ref_name(&peer->bus->names, &name, rule->keys.sender);
-                if (r)
-                        return error_fold(r);
+                        r = name_registry_ref_name(&peer->bus->names, &name, rule->keys.sender);
+                        if (r)
+                                return error_fold(r);
 
-                match_rule_link(rule, &name->matches);
-                name_ref(name); /* this reference must be explicitly released */
+                        match_rule_link(rule, &name->matches);
+                        name_ref(name); /* this reference must be explicitly released */
+                        break;
+                }
+                default:
+                        return error_origin(-ENOTRECOVERABLE);
+                }
         }
 
         return 0;
@@ -604,18 +628,14 @@ int peer_queue_call(Peer *receiver, Peer *sender, Message *message) {
 int peer_queue_reply(Peer *sender, const char *destination, uint32_t reply_serial, Message *message) {
         _c_cleanup_(reply_slot_freep) ReplySlot *slot = NULL;
         Peer *receiver;
-        uint64_t id;
+        Address addr;
         int r;
 
-        r = unique_name_to_id(destination, &id);
-        if (r) {
-                if (r > 0)
-                        return PEER_E_UNEXPECTED_REPLY;
+        address_from_string(&addr, destination);
+        if (addr.type != ADDRESS_TYPE_ID)
+                return PEER_E_UNEXPECTED_REPLY;
 
-                return error_fold(r);
-        }
-
-        slot = reply_slot_get_by_id(&sender->replies_outgoing, id, reply_serial);
+        slot = reply_slot_get_by_id(&sender->replies_outgoing, addr.id, reply_serial);
         if (!slot)
                 return PEER_E_UNEXPECTED_REPLY;
 

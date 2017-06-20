@@ -6,8 +6,8 @@
 #include <c-macro.h>
 #include <c-rbtree.h>
 #include <c-string.h>
+#include "dbus/address.h"
 #include "dbus/protocol.h"
-#include "dbus/unique-name.h"
 #include "match.h"
 #include "util/error.h"
 
@@ -74,10 +74,10 @@ static bool match_rule_keys_match_filter(MatchRuleKeys *keys, MatchFilter *filte
         if (keys->filter.type != DBUS_MESSAGE_TYPE_INVALID && keys->filter.type != filter->type)
                 return false;
 
-        if (keys->filter.destination != UNIQUE_NAME_ID_INVALID && keys->filter.destination != filter->destination)
+        if (keys->filter.destination != ADDRESS_ID_INVALID && keys->filter.destination != filter->destination)
                 return false;
 
-        if (keys->filter.sender != UNIQUE_NAME_ID_INVALID && keys->filter.sender != filter->sender)
+        if (keys->filter.sender != ADDRESS_ID_INVALID && keys->filter.sender != filter->sender)
                 return false;
 
         if (keys->filter.interface && !c_string_equal(keys->filter.interface, filter->interface))
@@ -118,7 +118,7 @@ static bool match_key_equal(const char *key1, const char *key2, size_t n_key2) {
 }
 
 static int match_rule_keys_assign(MatchRuleKeys *keys, const char *key, size_t n_key, const char *value) {
-        int r;
+        Address addr;
 
         if (match_key_equal("type", key, n_key)) {
                 if (keys->filter.type != DBUS_MESSAGE_TYPE_INVALID)
@@ -143,11 +143,11 @@ static int match_rule_keys_assign(MatchRuleKeys *keys, const char *key, size_t n
                         return MATCH_E_INVALID;
                 keys->destination = value;
 
-                r = unique_name_to_id(value, &keys->filter.destination);
-                if (r > 0)
-                        keys->filter.destination = UNIQUE_NAME_ID_INVALID;
-                else if (r < 0)
-                        return error_fold(r);
+                address_from_string(&addr, value);
+                if (addr.type == ADDRESS_TYPE_ID)
+                        keys->filter.destination = addr.id;
+                else
+                        keys->filter.destination = ADDRESS_ID_INVALID;
         } else if (match_key_equal("interface", key, n_key)) {
                 if (keys->filter.interface)
                         return MATCH_E_INVALID;
@@ -281,8 +281,8 @@ int match_rule_keys_parse(MatchRuleKeys *keys, char *buffer, size_t n_buffer, co
         int r = 0;
 
         keys->filter.type = DBUS_MESSAGE_TYPE_INVALID;
-        keys->filter.destination = UNIQUE_NAME_ID_INVALID;
-        keys->filter.sender = UNIQUE_NAME_ID_INVALID;
+        keys->filter.destination = ADDRESS_ID_INVALID;
+        keys->filter.sender = ADDRESS_ID_INVALID;
 
         while (i < n_buffer) {
                 const char *key, *value;
@@ -414,7 +414,7 @@ static MatchRule *match_rule_next(MatchRegistry *registry, MatchRule *rule, bool
 }
 
 MatchRule *match_rule_next_match(MatchRegistry *registry, MatchRule *rule, MatchFilter *filter) {
-        bool unicast = filter->destination != UNIQUE_NAME_ID_INVALID;
+        bool unicast = filter->destination != ADDRESS_ID_INVALID;
 
         for (rule = match_rule_next(registry, rule, unicast); rule; rule = match_rule_next(registry, rule, unicast))
                 if (match_rule_keys_match_filter(&rule->keys, filter))
@@ -481,6 +481,6 @@ int match_owner_ref_rule(MatchOwner *owner, MatchRule **rulep, const char *rule_
 void match_filter_init(MatchFilter *filter) {
         *filter = (MatchFilter) {
                         .type = DBUS_MESSAGE_TYPE_INVALID,
-                        .destination = UNIQUE_NAME_ID_INVALID,
+                        .destination = ADDRESS_ID_INVALID,
                 };
 }

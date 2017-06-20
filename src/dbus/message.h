@@ -7,7 +7,7 @@
 #include <c-macro.h>
 #include <c-ref.h>
 #include <stdlib.h>
-#include "dbus/unique-name.h"
+#include "dbus/address.h"
 
 typedef struct FDList FDList;
 typedef struct Message Message;
@@ -18,7 +18,7 @@ typedef struct MessageMetadata MessageMetadata;
 #define MESSAGE_SIZE_MAX (128UL * 1024UL * 1024UL)
 
 /* max patch buffer size; see message_stitch_sender() */
-#define MESSAGE_PATCH_MAX (C_ALIGN_TO(1 + 3 + 4 + UNIQUE_NAME_STRING_MAX + 1, 8))
+#define MESSAGE_PATCH_MAX (C_ALIGN_TO(1 + 3 + 4 + ADDRESS_ID_STRING_MAX + 1, 8))
 
 enum {
         _MESSAGE_E_SUCCESS,

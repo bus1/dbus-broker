@@ -15,7 +15,6 @@
 #include "dbus/message.h"
 #include "dbus/protocol.h"
 #include "dbus/socket.h"
-#include "dbus/unique-name.h"
 #include "util/error.h"
 #include "util/fdlist.h"
 

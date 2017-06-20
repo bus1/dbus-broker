@@ -6,9 +6,9 @@
 #include <c-dvar-type.h>
 #include <c-macro.h>
 #include <stdlib.h>
+#include "dbus/address.h"
 #include "dbus/message.h"
 #include "dbus/protocol.h"
-#include "dbus/unique-name.h"
 
 static const CDVarType test_message_type[] = {
         C_DVAR_T_INIT(
@@ -137,10 +137,9 @@ static void test_assert_message(Message *message, size_t before, const char *sen
 
 static void test_stitching(void) {
         Message *message;
+        Address addr;
         size_t i, n;
         char *from, *to;
-        uint64_t id;
-        int r;
 
         /*
          * To test sender stitching, we repeatedly create messages with
@@ -171,11 +170,11 @@ static void test_stitching(void) {
                 to[2] = '.';
                 to[n] = 0;
 
-                r = unique_name_to_id(to, &id);
-                assert(!r);
+                address_from_string(&addr, to);
+                assert(addr.type == ADDRESS_TYPE_ID);
 
                 message = test_new_message(i % 13, from, i / 17, NULL);
-                message_stitch_sender(message, id);
+                message_stitch_sender(message, addr.id);
                 test_assert_message(message, i % 13, to, i / 17);
                 message_unref(message);
 

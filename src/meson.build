@@ -11,7 +11,6 @@ libdbus_broker_private = static_library(
                 'dbus/message.c',
                 'dbus/sasl.c',
                 'dbus/socket.c',
-                'dbus/unique-name.c',
                 'activation.c',
                 'driver.c',
                 'listener.c',
@@ -97,6 +96,9 @@ endif
 # target: test-*
 #
 
+test_address = executable('test-address', ['dbus/test-address.c'], dependencies: libdbus_broker_dep)
+test('Address Handling', test_address)
+
 if dep_systemd.found()
         test_broker = executable('test-broker', ['broker/test-broker.c'], dependencies: [ libdbus_broker_dep, dep_thread, dep_systemd ])
         test('Instance of broker + controller', test_broker)
@@ -137,9 +139,6 @@ test('D-Bus Socket Abstraction', test_socket)
 
 test_stitching = executable('test-stitching', ['dbus/test-stitching.c'], dependencies: libdbus_broker_dep)
 test('Message Sender Stitching', test_stitching)
-
-test_unique_name = executable('test-unique-name', ['dbus/test-unique-name.c'], dependencies: libdbus_broker_dep)
-test('Unique Name Handling', test_unique_name)
 
 test_user = executable('test-user', ['util/test-user.c'], dependencies: libdbus_broker_dep)
 test('User Accounting', test_user)
