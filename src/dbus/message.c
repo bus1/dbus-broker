@@ -35,6 +35,9 @@ static int message_new(Message **messagep, bool big_endian, size_t n_extra) {
         message->n_body = 0;
         message->data = NULL;
         message->header = NULL;
+        message->path = NULL;
+        message->interface = NULL;
+        message->member = NULL;
         message->body = NULL;
         message->original_sender = NULL;
 
