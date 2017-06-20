@@ -338,6 +338,16 @@ void peer_unregister(Peer *peer) {
         peer->registered = false;
 }
 
+bool peer_is_privileged(Peer *peer) {
+        if (peer->user->uid == 0)
+                return true;
+
+        if (peer->user->uid == peer->bus->user->uid)
+                return true;
+
+        return false;
+}
+
 int peer_request_name(Peer *peer, const char *name, uint32_t flags, NameChange *change) {
         int r;
 

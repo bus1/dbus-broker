@@ -296,6 +296,7 @@ const char *driver_error_to_string(int r) {
                 [DRIVER_E_PEER_NOT_REGISTERED]                  = "Hello() was not the first method called",
                 [DRIVER_E_PEER_ALREADY_REGISTERED]              = "Hello() already called",
                 [DRIVER_E_PEER_IS_MONITOR]                      = "Monitors cannot send messages",
+                [DRIVER_E_PEER_NOT_PRIVILEGED]                  = "The caller does not have the necessary privileged to call this method",
                 [DRIVER_E_UNEXPECTED_MESSAGE_TYPE]              = "Unexpected message type",
                 [DRIVER_E_UNEXPECTED_PATH]                      = "Invalid object path",
                 [DRIVER_E_UNEXPECTED_INTERFACE]                 = "Invalid interface",
@@ -993,6 +994,9 @@ static int driver_method_update_activation_environment(Peer *peer, CDVar *in_v, 
         size_t n_data;
         int r;
 
+        if (!peer_is_privileged(peer))
+                return DRIVER_E_PEER_NOT_PRIVILEGED;
+
         c_dvar_begin_write(&var, type, 1);
         c_dvar_write(&var, "((yyyyuu[(y<o>)(y<s>)(y<s>)(y<g>)])([",
                      c_dvar_is_big_endian(&var) ? 'B' : 'l', DBUS_MESSAGE_TYPE_SIGNAL, DBUS_HEADER_FLAG_NO_REPLY_EXPECTED, 1, 0, (uint32_t)-1,
@@ -1417,6 +1421,9 @@ static int driver_method_become_monitor(Peer *peer, CDVar *in_v, uint32_t serial
         uint32_t flags;
         int r, poison = 0;
 
+        if (!peer_is_privileged(peer))
+                return DRIVER_E_PEER_NOT_PRIVILEGED;
+
         /* first create all the match objects before modifying the peer */
         match_owner_init(&owned_matches);
 
@@ -1822,6 +1829,7 @@ int driver_dispatch(Peer *peer, Message *message) {
         case DRIVER_E_UNEXPECTED_REPLY:
         case DRIVER_E_UNEXPECTED_ENVIRONMENT_UPDATE:
         case DRIVER_E_EXPECTED_REPLY_EXISTS:
+        case DRIVER_E_PEER_NOT_PRIVILEGED:
         case DRIVER_E_NAME_REFUSED:
                 r = driver_send_error(peer, metadata.header.serial, "org.freedesktop.DBus.Error.AccessDenied", driver_error_to_string(r));
                 break;
