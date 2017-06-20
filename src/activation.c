@@ -68,6 +68,8 @@ Activation *activation_free(Activation *activation) {
         if (!activation)
                 return NULL;
 
+        activation_flush(activation);
+
         assert(c_list_is_empty(&activation->socket_buffers));
         assert(c_list_is_empty(&activation->activation_requests));
 

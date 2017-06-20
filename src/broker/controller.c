@@ -294,7 +294,6 @@ static int controller_method_name_release(Bus *bus, const char *path, CDVar *in_
         if (!activation)
                 return CONTROLLER_E_ACTIVATION_NOT_FOUND;
 
-        activation_flush(activation);
         activation_free(activation);
 
         c_dvar_write(out_v, "()");
