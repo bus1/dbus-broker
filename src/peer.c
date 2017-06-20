@@ -421,22 +421,22 @@ void peer_release_name_ownership(Peer *peer, NameOwnership *ownership, NameChang
         ++peer->user->slots[USER_SLOT_NAMES].n;
 }
 
-static int peer_link_match(Peer *peer, MatchRule *rule) {
+static int peer_link_match(Peer *peer, MatchRule *rule, bool monitor) {
         Address addr;
         Peer *sender;
         int r;
 
         if (!rule->keys.sender) {
-                match_rule_link(rule, &peer->bus->wildcard_matches);
+                match_rule_link(rule, &peer->bus->wildcard_matches, monitor);
         } else if (strcmp(rule->keys.sender, "org.freedesktop.DBus") == 0) {
-                match_rule_link(rule, &peer->bus->driver_matches);
+                match_rule_link(rule, &peer->bus->driver_matches, monitor);
         } else {
                 address_from_string(&addr, rule->keys.sender);
                 switch (addr.type) {
                 case ADDRESS_TYPE_ID: {
                         sender = peer_registry_find_peer(&peer->bus->peers, addr.id);
                         if (sender) {
-                                match_rule_link(rule, &sender->matches);
+                                match_rule_link(rule, &sender->matches, monitor);
                         } else if (addr.id >= peer->bus->peers.ids) {
                                 /*
                                  * This peer does not yet exist, but it could
@@ -448,7 +448,7 @@ static int peer_link_match(Peer *peer, MatchRule *rule) {
                                  * forthcoming peer.
                                  */
                                 rule->keys.filter.sender = addr.id;
-                                match_rule_link(rule, &peer->bus->wildcard_matches);
+                                match_rule_link(rule, &peer->bus->wildcard_matches, monitor);
                         } else {
                                 /*
                                  * The peer has already disconnected and will
@@ -476,7 +476,7 @@ static int peer_link_match(Peer *peer, MatchRule *rule) {
                         if (r)
                                 return error_fold(r);
 
-                        match_rule_link(rule, &name->matches);
+                        match_rule_link(rule, &name->matches, monitor);
                         name_ref(name); /* this reference must be explicitly released */
                         break;
                 }
@@ -506,7 +506,7 @@ int peer_add_match(Peer *peer, const char *rule_string, bool force_eavesdrop) {
         if (force_eavesdrop)
                 rule->keys.eavesdrop = true;
 
-        r = peer_link_match(peer, rule);
+        r = peer_link_match(peer, rule, false);
         if (r)
                 return error_trace(r);
 
@@ -558,7 +558,7 @@ int peer_become_monitor(Peer *peer, MatchOwner *owned_matches) {
                 rule->keys.eavesdrop = true;
                 rule->owner = &peer->owned_matches;
 
-                r = peer_link_match(peer, rule);
+                r = peer_link_match(peer, rule, true);
                 if (r && !poison)
                         poison = error_trace(r);
 

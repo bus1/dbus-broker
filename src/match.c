@@ -348,14 +348,16 @@ MatchRule *match_rule_user_unref(MatchRule *rule) {
         return NULL;
 }
 
-void match_rule_link(MatchRule *rule, MatchRegistry *registry) {
+void match_rule_link(MatchRule *rule, MatchRegistry *registry, bool monitor) {
         if (c_list_is_linked(&rule->registry_link)) {
                 assert(rule->registry == registry);
                 return;
         }
 
         rule->registry = registry;
-        if (rule->keys.eavesdrop)
+        if (monitor)
+                c_list_link_tail(&registry->monitor_list, &rule->registry_link);
+        else if (rule->keys.eavesdrop)
                 c_list_link_tail(&registry->eavesdrop_list, &rule->registry_link);
         else
                 c_list_link_tail(&registry->rule_list, &rule->registry_link);
@@ -423,6 +425,19 @@ MatchRule *match_rule_next_match(MatchRegistry *registry, MatchRule *rule, Match
         return NULL;
 }
 
+MatchRule *match_rule_next_monitor_match(MatchRegistry *registry, MatchRule *rule, MatchFilter *filter) {
+        if (rule)
+                rule = c_list_first_entry(&registry->monitor_list, MatchRule, registry_link);
+        else
+                rule = c_list_entry(rule->registry_link.next, MatchRule, registry_link);
+
+        for (; rule; rule = c_list_entry(rule->registry_link.next, MatchRule, registry_link))
+                if (match_rule_keys_match_filter(&rule->keys, filter))
+                        return rule;
+
+        return NULL;
+}
+
 void match_registry_init(MatchRegistry *registry) {
         *registry = (MatchRegistry)MATCH_REGISTRY_INIT(*registry);
 }
@@ -430,6 +445,7 @@ void match_registry_init(MatchRegistry *registry) {
 void match_registry_deinit(MatchRegistry *registry) {
         assert(c_list_is_empty(&registry->rule_list));
         assert(c_list_is_empty(&registry->eavesdrop_list));
+        assert(c_list_is_empty(&registry->monitor_list));
 }
 
 void match_owner_init(MatchOwner *owner) {

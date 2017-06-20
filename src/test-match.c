@@ -140,7 +140,7 @@ static bool test_match(const char *match_string, MatchFilter *filter) {
         r = match_owner_ref_rule(&owner, &rule, match_string);
         assert(!r);
 
-        match_rule_link(rule, &registry);
+        match_rule_link(rule, &registry, false);
 
         rule1 = match_rule_next_match(&registry, NULL, filter);
         assert(!rule1 || rule1 == rule);
@@ -273,22 +273,22 @@ void test_iterator(void) {
         r = match_owner_ref_rule(&owner1, &rule1, "eavesdrop=true");
         assert(!r);
 
-        match_rule_link(rule1, &registry);
+        match_rule_link(rule1, &registry, false);
 
         r = match_owner_ref_rule(&owner1, &rule2, "");
         assert(!r);
 
-        match_rule_link(rule2, &registry);
+        match_rule_link(rule2, &registry, false);
 
         r = match_owner_ref_rule(&owner2, &rule3, "eavesdrop=true");
         assert(!r);
 
-        match_rule_link(rule3, &registry);
+        match_rule_link(rule3, &registry, false);
 
         r = match_owner_ref_rule(&owner2, &rule4, "");
         assert(!r);
 
-        match_rule_link(rule4, &registry);
+        match_rule_link(rule4, &registry, false);
 
         rule = match_rule_next_match(&registry, NULL, &filter);
         assert(rule == rule1);
