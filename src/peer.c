@@ -26,13 +26,8 @@
 #include "util/metrics.h"
 #include "util/user.h"
 
-int peer_dispatch(DispatchFile *file, uint32_t mask) {
-        Peer *peer = c_container_of(file, Peer, connection.socket_file);
+static int peer_dispatch_incoming(Peer *peer) {
         int r;
-
-        r = connection_dispatch(&peer->connection, mask & (EPOLLIN | EPOLLHUP));
-        if (r)
-                return error_fold(r);
 
         for (;;) {
                 _c_cleanup_(message_unrefp) Message *m = NULL;
@@ -62,6 +57,21 @@ int peer_dispatch(DispatchFile *file, uint32_t mask) {
                 if (r)
                         return error_fold(r);
         }
+
+        return 0;
+}
+
+static int peer_dispatch(DispatchFile *file, uint32_t mask) {
+        Peer *peer = c_container_of(file, Peer, connection.socket_file);
+        int r;
+
+        r = connection_dispatch(&peer->connection, mask & (EPOLLIN | EPOLLHUP));
+        if (r)
+                return error_fold(r);
+
+        r = peer_dispatch_incoming(peer);
+        if (r)
+                return error_trace(r);
 
         if (dispatch_file_is_ready(file, EPOLLOUT)) {
                 r = connection_dispatch(&peer->connection, EPOLLOUT);
