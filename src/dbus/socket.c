@@ -210,6 +210,17 @@ static void socket_hangup_output(Socket *socket) {
         socket_discard_output(socket);
 }
 
+static void socket_shutdown_now(Socket *socket) {
+        int r;
+
+        assert(socket->shutdown);
+
+        r = shutdown(socket->fd, SHUT_WR);
+        assert(r >= 0);
+
+        socket_hangup_output(socket);
+}
+
 /**
  * socket_dequeue_line() - XXX
  */
@@ -632,7 +643,7 @@ static int socket_dispatch_write(Socket *socket) {
         SocketBuffer *buffer, *safe;
         struct mmsghdr msgs[SOCKET_MMSG_MAX];
         struct msghdr *msg;
-        int r, i, n_msgs;
+        int i, n_msgs;
 
         n_msgs = 0;
         c_list_for_each_entry(buffer, &socket->out.queue, link) {
@@ -698,13 +709,8 @@ static int socket_dispatch_write(Socket *socket) {
         assert(i == n_msgs);
 
         if (c_list_is_empty(&socket->out.queue)) {
-                if (_c_unlikely_(socket->shutdown)) {
-                        r = shutdown(socket->fd, SHUT_WR);
-                        assert(r >= 0);
-
-                        socket_hangup_output(socket);
-                }
-
+                if (_c_unlikely_(socket->shutdown))
+                        socket_shutdown_now(socket);
                 return SOCKET_E_LOST_INTEREST;
         }
 
@@ -744,20 +750,15 @@ int socket_dispatch(Socket *socket, uint32_t event) {
 /**
  * socket_shutdown() - disallow further queueing on the socket
  *
- * This dissalows further queuing on the socket, but still flushes out the
+ * This disallows further queuing on the socket, but still flushes out the
  * pending socket buffers to the kernel. Once all pending output has been
  * sent the remote end is notified of the shutdown.
  */
 void socket_shutdown(Socket *socket) {
-        int r;
-
-        socket->shutdown = true;
-
-        if (!socket_has_output(socket)) {
-                r = shutdown(socket->fd, SHUT_WR);
-                assert(r >= 0);
-
-                socket_hangup_output(socket);
+        if (!socket->shutdown) {
+                socket->shutdown = true;
+                if (c_list_is_empty(&socket->out.queue))
+                        socket_shutdown_now(socket);
         }
 }
 

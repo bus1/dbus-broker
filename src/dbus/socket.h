@@ -113,10 +113,6 @@ static inline bool socket_has_input(Socket *socket) {
                 return socket->in.data_end - socket->in.data_start >= sizeof(MessageHeader);
 }
 
-static inline bool socket_has_output(Socket *socket) {
-        return !c_list_is_empty(&socket->out.queue);
-}
-
 static inline bool socket_is_running(Socket *socket) {
         return !socket->hup_out || !socket->hup_in || socket_has_input(socket);
 }
