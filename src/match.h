@@ -74,6 +74,7 @@ void match_rule_unlink(MatchRule *rule);
 int match_rule_get(MatchRule **rulep, MatchOwner *owner, const char *rule_string);
 
 MatchRule *match_rule_next_match(MatchRegistry *registry, MatchRule *rule, MatchFilter *filter);
+MatchRule *match_rule_next_monitor_match(MatchRegistry *registry, MatchRule *rule, MatchFilter *filter);
 
 #define MATCH_REGISTRY_INIT(_x) {                                               \
                 .rule_list = (CList)C_LIST_INIT((_x).rule_list),                \
