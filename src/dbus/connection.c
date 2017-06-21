@@ -118,10 +118,10 @@ int connection_open(Connection *connection) {
 
                 if (request) {
                         r = socket_queue_line(&connection->socket, NULL, request, n_request);
-                        if (r)
+                        if (!r)
+                                events |= EPOLLOUT;
+                        else if (r != SOCKET_E_SHUTDOWN)
                                 return error_fold(r);
-
-                        events |= EPOLLOUT;
                 }
         }
 
@@ -192,10 +192,11 @@ static int connection_feed_sasl(Connection *connection, const char *input, size_
 
         if (output) {
                 r = socket_queue_line(&connection->socket, NULL, output, n_output);
-                if (r)
+                if (!r)
+                        dispatch_file_select(&connection->socket_file, EPOLLOUT);
+                else if (r != SOCKET_E_SHUTDOWN)
                         return error_fold(r);
 
-                dispatch_file_select(&connection->socket_file, EPOLLOUT);
         }
 
         return 0;
@@ -271,17 +272,16 @@ int connection_queue(Connection *connection, User *user, uint64_t transaction_id
                 return error_fold(r);
 
         r = socket_queue(&connection->socket, user, skb);
-        if (r) {
+        if (!r) {
+                dispatch_file_select(&connection->socket_file, EPOLLOUT);
+        } else {
                 socket_buffer_free(skb);
 
                 if (r == SOCKET_E_QUOTA)
                         return CONNECTION_E_QUOTA;
-                else
+                else if (r != SOCKET_E_SHUTDOWN)
                         return error_fold(r);
         }
-
-        if (socket_has_output(&connection->socket))
-                dispatch_file_select(&connection->socket_file, EPOLLOUT);
 
         return 0;
 }

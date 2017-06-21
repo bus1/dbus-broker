@@ -32,6 +32,7 @@ enum {
         SOCKET_E_EOF,
 
         SOCKET_E_QUOTA,
+        SOCKET_E_SHUTDOWN,
 };
 
 /* socket buffer */

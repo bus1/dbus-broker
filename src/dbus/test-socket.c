@@ -91,7 +91,8 @@ static void test_message(void) {
         r = socket_buffer_new(&skb, message1);
         assert(!r);
 
-        socket_queue(&client, NULL, skb);
+        r = socket_queue(&client, NULL, skb);
+        assert(!r);
 
         r = socket_dispatch(&client, EPOLLOUT);
         assert(r == SOCKET_E_LOST_INTEREST);

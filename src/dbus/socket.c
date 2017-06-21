@@ -372,7 +372,7 @@ int socket_queue_line(Socket *socket, User *user, const char *line_in, size_t n)
         assert(!socket->lines_done);
 
         if (_c_unlikely_(socket->hup_out || socket->shutdown))
-                return 0;
+                return SOCKET_E_SHUTDOWN;
 
         buffer = c_list_last_entry(&socket->out.queue, SocketBuffer, link);
         if (!buffer || n + strlen("\r\n") > socket_buffer_get_line_space(buffer)) {
@@ -438,10 +438,9 @@ int socket_queue(Socket *socket, User *user, SocketBuffer *buffer) {
         }
 
         if (_c_unlikely_(socket->hup_out || socket->shutdown))
-                socket_buffer_free(buffer);
-        else
-                c_list_link_tail(&socket->out.queue, &buffer->link);
+                return SOCKET_E_SHUTDOWN;
 
+        c_list_link_tail(&socket->out.queue, &buffer->link);
         return 0;
 }
 
