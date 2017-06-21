@@ -306,18 +306,8 @@ int socket_dequeue(Socket *socket, Message **messagep) {
 
         if (!msg) {
                 n = sizeof(MessageHeader);
-                if (_c_unlikely_(n_data < n)) {
-                        *messagep = NULL;
-
-                        if (_c_unlikely_(socket->hup_in)) {
-                                if (socket->hup_out)
-                                        return SOCKET_E_RESET;
-                                else
-                                        return SOCKET_E_EOF;
-                        }
-
-                        return 0;
-                }
+                if (_c_unlikely_(n_data < n))
+                        goto out_nodata;
 
                 memcpy(&header, socket->in.data + socket->in.data_start, n);
 
@@ -360,13 +350,13 @@ int socket_dequeue(Socket *socket, Message **messagep) {
                 return 0;
         }
 
+out_nodata:
         if (_c_unlikely_(socket->hup_in)) {
                 if (socket->hup_out)
                         return SOCKET_E_RESET;
                 else
                         return SOCKET_E_EOF;
         }
-
         *messagep = NULL;
         return 0;
 }
