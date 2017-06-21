@@ -65,21 +65,48 @@ static int peer_dispatch(DispatchFile *file, uint32_t mask) {
         Peer *peer = c_container_of(file, Peer, connection.socket_file);
         int r;
 
-        r = connection_dispatch(&peer->connection, mask & (EPOLLIN | EPOLLHUP));
-        if (r)
-                return error_fold(r);
+        /*
+         * If EPOLLIN or EPOLLHUP is reported, tell the connection layer about
+         * it. It will handle it, and, if required, deselect it.
+         * Note that we do *NOT* handle EPOLLOUT here. We rather delay it until
+         * we handled all intput, since chances are high the driver will queue
+         * data on the peer.
+         */
+        if (mask & (EPOLLIN | EPOLLHUP)) {
+                r = connection_dispatch(&peer->connection, mask & (EPOLLIN | EPOLLHUP));
+                if (r)
+                        return error_fold(r);
+        }
 
+        /*
+         * Now that the connection dispatched incoming I/O, we need to loop
+         * over all incoming messages. Note that this is rate-limited by
+         * default, since the I/O buffers are limited on each peer.
+         */
         r = peer_dispatch_incoming(peer);
         if (r)
                 return error_trace(r);
 
+        /*
+         * Now that EPOLLIN and EPOLLHUP have been handled, *and* the driver
+         * calls have been dispatched, we handle EPOLLOUT. We explicitly check
+         * dispatch_file_is_ready() here, rather than @mask, since the
+         * dispatcher might have gained interest, and as such @mask might not
+         * reflect the correct state.
+         */
         if (dispatch_file_is_ready(file, EPOLLOUT)) {
                 r = connection_dispatch(&peer->connection, EPOLLOUT);
                 if (r)
                         return error_fold(r);
         }
 
-        if (!connection_is_running(&peer->connection))
+        /*
+         * Any call to connection_dispatch(), or connection_dequeue(), might
+         * change the connection state. Rather than checking for a reset on
+         * each call, we do this single check at the end of the dispatcher. If
+         * a connection is no longer running, we can safely clean it up.
+         */
+        if (_c_unlikely_(!connection_is_running(&peer->connection)))
                 peer_free(peer);
 
         return 0;
