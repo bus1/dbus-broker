@@ -33,8 +33,6 @@ struct Connection {
         } sasl;
 
         bool server : 1;
-        bool hangup : 1;
-        bool lingering : 1;
         bool authenticated : 1;
 
         uint64_t transaction_id;
