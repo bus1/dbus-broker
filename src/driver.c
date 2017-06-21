@@ -334,7 +334,7 @@ static int driver_send_unicast(Peer *receiver, MatchFilter *filter, Message *mes
         /* for eavesdropping */
         r = peer_broadcast(NULL, receiver->bus, filter, message);
         if (r)
-                return error_trace(r);
+                return error_fold(r);
 
         r = connection_queue(&receiver->connection, NULL, 0, message);
         if (r)
@@ -563,7 +563,7 @@ static int driver_notify_name_owner_changed(Bus *bus, const char *name, const ch
 
         r = peer_broadcast(NULL, bus, &filter, message);
         if (r)
-                return error_trace(r);
+                return error_fold(r);
 
         return 0;
 }
