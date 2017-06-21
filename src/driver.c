@@ -1829,6 +1829,8 @@ int driver_dispatch(Peer *peer, Message *message) {
         case DRIVER_E_UNEXPECTED_REPLY:
         case DRIVER_E_UNEXPECTED_ENVIRONMENT_UPDATE:
         case DRIVER_E_EXPECTED_REPLY_EXISTS:
+        case DRIVER_E_SEND_DENIED:
+        case DRIVER_E_RECEIVE_DENIED:
         case DRIVER_E_PEER_NOT_PRIVILEGED:
         case DRIVER_E_NAME_REFUSED:
                 r = driver_send_error(peer, metadata.header.serial, "org.freedesktop.DBus.Error.AccessDenied", driver_error_to_string(r));
