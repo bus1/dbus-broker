@@ -55,4 +55,3 @@ int bus_init(Bus *bus,
 void bus_deinit(Bus *bus);
 
 Peer *bus_find_peer_by_name(Bus *bus, Name **namep, const char *name);
-int bus_broadcast(Bus *bus, Peer *sender, MatchFilter *filter, Message *message);

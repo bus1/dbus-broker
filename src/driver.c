@@ -332,7 +332,7 @@ static int driver_send_unicast(Peer *receiver, MatchFilter *filter, Message *mes
         int r;
 
         /* for eavesdropping */
-        r = bus_broadcast(receiver->bus, NULL, filter, message);
+        r = peer_broadcast(NULL, receiver->bus, filter, message);
         if (r)
                 return error_trace(r);
 
@@ -561,7 +561,7 @@ static int driver_notify_name_owner_changed(Bus *bus, const char *name, const ch
         if (r)
                 return error_fold(r);
 
-        r = bus_broadcast(bus, NULL, &filter, message);
+        r = peer_broadcast(NULL, bus, &filter, message);
         if (r)
                 return error_trace(r);
 
@@ -635,7 +635,7 @@ static int driver_name_activated(Activation *activation, Peer *receiver) {
 
                 sender = peer_registry_find_peer(&receiver->bus->peers, message->sender_id);
 
-                r = peer_queue_call(receiver, sender, message);
+                r = peer_queue_call(sender, receiver, message);
                 if (r) {
                         switch (r) {
                         case PEER_E_QUOTA:
@@ -1697,7 +1697,7 @@ static int driver_forward_unicast(Peer *sender, const char *destination,
                 return 0;
         }
 
-        r = peer_queue_call(receiver, sender, message);
+        r = peer_queue_call(sender, receiver, message);
         if (r) {
                 if (r == PEER_E_EXPECTED_REPLY_EXISTS)
                         return DRIVER_E_EXPECTED_REPLY_EXISTS;
@@ -1721,7 +1721,7 @@ static int driver_dispatch_internal(Peer *peer, MessageMetadata *metadata, Match
                 /* make sure unregistered peers can only send messages to eavesdroppers */
                 filter->destination = (uint64_t)-2; /* XXX: come up with a better way to do this */
 
-        r = bus_broadcast(peer->bus, peer, filter, metadata->message);
+        r = peer_broadcast(peer, peer->bus, filter, metadata->message);
         if (r)
                 return error_trace(r);
 
