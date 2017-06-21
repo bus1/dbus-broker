@@ -326,6 +326,12 @@ static int message_parse_header(Message *message, MessageMetadata *metadata) {
                 return MESSAGE_E_INVALID_HEADER;
 
         /*
+         * Fix up the signature. The DBus spec states that missing signatures
+         * should be treated as empty.
+         */
+        metadata->fields.signature = metadata->fields.signature ?: "";
+
+        /*
          * Finish the variant parser. If anything went wobbly in between, we
          * will be told here.
          */
