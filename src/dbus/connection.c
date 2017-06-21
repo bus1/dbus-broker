@@ -272,6 +272,8 @@ int connection_queue(Connection *connection, User *user, uint64_t transaction_id
 
         r = socket_queue(&connection->socket, user, skb);
         if (r) {
+                socket_buffer_free(skb);
+
                 if (r == SOCKET_E_QUOTA)
                         return CONNECTION_E_QUOTA;
                 else
