@@ -176,9 +176,9 @@ int error_slow_trace(int r, const char *function, const char *file, int line) {
  */
 int error_slow_fold(int r, const char *function, const char *file, int line) {
         if (r < 0)
-                r = error_trace(r);
+                r = error_slow_trace(r, function, file, line);
         else if (r > 0)
-                r = error_origin(r);
+                r = error_slow_origin(r, function, file, line);
 
         return r;
 }
