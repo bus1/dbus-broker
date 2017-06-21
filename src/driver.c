@@ -1713,14 +1713,56 @@ static int driver_forward_unicast(Peer *sender, const char *destination, Message
         return 0;
 }
 
+static int driver_monitor_to_matches(MatchRegistry *matches, MatchFilter *filter, uint64_t transaction_id, Message *message) {
+        MatchRule *rule;
+        int r;
+
+        for (rule = match_rule_next_monitor_match(matches, NULL, filter); rule; rule = match_rule_next_monitor_match(matches, rule, filter)) {
+                Peer *receiver = c_container_of(rule->owner, Peer, owned_matches);
+
+                r = connection_queue(&receiver->connection, NULL, transaction_id, message);
+                if (r) {
+                        if (r == CONNECTION_E_QUOTA)
+                                connection_close(&receiver->connection);
+                        else
+                                return error_fold(r);
+                }
+        }
+
+        return 0;
+}
+
+static int driver_monitor(Peer *sender, MatchFilter *filter, Message *message) {
+        NameOwnership *ownership;
+        int r;
+
+        /* start a new transaction, to avoid duplicates */
+        ++sender->bus->transaction_ids;
+
+        r = driver_monitor_to_matches(&sender->bus->wildcard_matches, filter, sender->bus->transaction_ids, message);
+        if (r)
+                return error_trace(r);
+
+        c_rbtree_for_each_entry(ownership, &sender->owned_names.ownership_tree, owner_node) {
+                if (!name_ownership_is_primary(ownership))
+                        continue;
+
+                r = driver_monitor_to_matches(&ownership->name->matches, filter, sender->bus->transaction_ids, message);
+                if (r)
+                        return error_trace(r);
+        }
+
+        r = driver_monitor_to_matches(&sender->matches, filter, sender->bus->transaction_ids, message);
+        if (r)
+                return error_trace(r);
+
+        return 0;
+}
+
 static int driver_dispatch_internal(Peer *peer, MessageMetadata *metadata, MatchFilter *filter) {
         int r;
 
-        if (!peer->registered && !metadata->fields.destination)
-                /* make sure unregistered peers can only send messages to eavesdroppers */
-                filter->destination = (uint64_t)-2; /* XXX: come up with a better way to do this */
-
-        r = peer_broadcast(peer, peer->bus, filter, metadata->message);
+        r = driver_monitor(peer, filter, metadata->message);
         if (r)
                 return error_trace(r);
 
@@ -1742,7 +1784,7 @@ static int driver_dispatch_internal(Peer *peer, MessageMetadata *metadata, Match
 
         if (!metadata->fields.destination) {
                 if (metadata->header.type == DBUS_MESSAGE_TYPE_SIGNAL)
-                        return 0; /* already broadcast */
+                        return error_fold(peer_broadcast(peer, peer->bus, filter, metadata->message));
                 else
                         return DRIVER_E_UNEXPECTED_MESSAGE_TYPE;
         }

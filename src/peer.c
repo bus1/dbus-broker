@@ -660,6 +660,8 @@ int peer_queue_call(Peer *sender, Peer *receiver, Message *message) {
                         return error_fold(r);
         }
 
+        /* XXX: broadcast to eavesdroppers */
+
         slot = NULL;
         return 0;
 }
@@ -687,6 +689,8 @@ int peer_queue_reply(Peer *sender, const char *destination, uint32_t reply_seria
                 else
                         return error_fold(r);
         }
+
+        /* XXX: broadcast to eavesdroppers */
 
         return 0;
 }
