@@ -1786,7 +1786,6 @@ int driver_dispatch(Peer *peer, Message *message) {
         match_filter_init(&filter);
 
         filter.type = metadata.header.type;
-        filter.destination = metadata.fields.destination ? (uint64_t)-2 : ADDRESS_ID_INVALID; /* get the real destination */
         filter.sender = peer->id;
         filter.interface = metadata.fields.interface;
         filter.member = metadata.fields.member,
