@@ -30,17 +30,9 @@ int peer_dispatch(DispatchFile *file, uint32_t mask) {
         Peer *peer = c_container_of(file, Peer, connection.socket_file);
         int r;
 
-        if (dispatch_file_is_ready(file, EPOLLIN)) {
-                r = connection_dispatch(&peer->connection, EPOLLIN);
-                if (r)
-                        return error_fold(r);
-        }
-
-        if (dispatch_file_is_ready(file, EPOLLHUP)) {
-                r = connection_dispatch(&peer->connection, EPOLLHUP);
-                if (r)
-                        return error_fold(r);
-        }
+        r = connection_dispatch(&peer->connection, mask & (EPOLLIN | EPOLLHUP));
+        if (r)
+                return error_fold(r);
 
         for (;;) {
                 _c_cleanup_(message_unrefp) Message *m = NULL;

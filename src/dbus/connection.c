@@ -147,16 +147,22 @@ void connection_close(Connection *connection) {
 /**
  * connection_dispatch() - XXX
  */
-int connection_dispatch(Connection *connection, uint32_t event) {
+int connection_dispatch(Connection *connection, uint32_t events) {
+        static const uint32_t interest[] = { EPOLLIN, EPOLLHUP, EPOLLOUT };
+        size_t i;
         int r;
 
-        r = socket_dispatch(&connection->socket, event);
-        if (!r)
-                dispatch_file_clear(&connection->socket_file, event);
-        else if (r == SOCKET_E_LOST_INTEREST)
-                dispatch_file_deselect(&connection->socket_file, event);
-        else if (r != SOCKET_E_PREEMPTED)
-                return error_fold(r);
+        for (i = 0; i < C_ARRAY_SIZE(interest); ++i) {
+                if (events & interest[i]) {
+                        r = socket_dispatch(&connection->socket, interest[i]);
+                        if (!r)
+                                dispatch_file_clear(&connection->socket_file, interest[i]);
+                        else if (r == SOCKET_E_LOST_INTEREST)
+                                dispatch_file_deselect(&connection->socket_file, interest[i]);
+                        else if (r != SOCKET_E_PREEMPTED)
+                                return error_fold(r);
+                }
+        }
 
         return 0;
 }
