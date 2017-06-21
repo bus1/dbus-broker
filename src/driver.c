@@ -1671,8 +1671,7 @@ int driver_goodbye(Peer *peer, bool silent) {
         return 0;
 }
 
-static int driver_forward_unicast(Peer *sender, const char *destination,
-                                  const char *interface, const char *member, const char *path, Message *message) {
+static int driver_forward_unicast(Peer *sender, const char *destination, Message *message) {
         Peer *receiver;
         Name *name;
         int r;
@@ -1753,9 +1752,6 @@ static int driver_dispatch_internal(Peer *peer, MessageMetadata *metadata, Match
         case DBUS_MESSAGE_TYPE_METHOD_CALL:
                 return error_trace(driver_forward_unicast(peer,
                                                           metadata->fields.destination,
-                                                          metadata->fields.interface,
-                                                          metadata->fields.member,
-                                                          metadata->fields.path,
                                                           metadata->message));
         case DBUS_MESSAGE_TYPE_METHOD_RETURN:
         case DBUS_MESSAGE_TYPE_ERROR:
