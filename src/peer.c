@@ -707,7 +707,7 @@ static int peer_broadcast_to_matches(Peer *sender, MatchRegistry *matches, Match
                                                               message->interface, message->member, message->path, message->header->type);
                         if (r) {
                                 if (r == POLICY_E_ACCESS_DENIED)
-                                        return PEER_E_SEND_DENIED;
+                                        continue;
 
                                 return error_fold(r);
                         }
@@ -717,7 +717,7 @@ static int peer_broadcast_to_matches(Peer *sender, MatchRegistry *matches, Match
                                                       message->interface, message->member, message->path, message->header->type);
                 if (r) {
                         if (r == POLICY_E_ACCESS_DENIED)
-                                return PEER_E_RECEIVE_DENIED;
+                                continue;
 
                         return error_fold(r);
                 }
@@ -768,6 +768,7 @@ int peer_broadcast(Peer *sender, Bus *bus, MatchFilter *filter, Message *message
 
         return 0;
 }
+
 void peer_registry_init(PeerRegistry *registry) {
         c_rbtree_init(&registry->peer_tree);
         registry->ids = 0;
