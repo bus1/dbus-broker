@@ -13,11 +13,12 @@
 #include "util/error.h"
 #include "util/user.h"
 
-static int connection_init(Connection *connection,
+static int connection_init(Connection *c,
                            DispatchContext *dispatch_ctx,
                            DispatchFn dispatch_fn,
                            User *user,
                            int fd) {
+        _c_cleanup_(connection_deinitp) Connection *connection = c;
         int r;
 
         *connection = (Connection)CONNECTION_NULL(*connection);
@@ -34,19 +35,19 @@ static int connection_init(Connection *connection,
         if (r)
                 return error_fold(r);
 
+        connection = NULL;
         return 0;
 }
 
 /**
  * connection_init_server() - XXX
  */
-int connection_init_server(Connection *connection,
+int connection_init_server(Connection *c,
                            DispatchContext *dispatch_ctx,
                            DispatchFn dispatch_fn,
                            User *user,
                            const char *guid,
                            int fd) {
-        _c_cleanup_(connection_deinitp) Connection *c = connection;
         int r;
 
         r = connection_init(c,
@@ -58,20 +59,18 @@ int connection_init_server(Connection *connection,
                 return error_trace(r);
 
         c->server = true;
-        sasl_server_init(&c->sasl.server, user->uid, guid);
-        c = NULL;
+        sasl_server_init(&c->sasl_server, user->uid, guid);
         return 0;
 }
 
 /**
  * connection_init_client() - XXX
  */
-int connection_init_client(Connection *connection,
+int connection_init_client(Connection *c,
                            DispatchContext *dispatch_ctx,
                            DispatchFn dispatch_fn,
                            User *user,
                            int fd) {
-        _c_cleanup_(connection_deinitp) Connection *c = connection;
         int r;
 
         r = connection_init(c,
@@ -83,8 +82,7 @@ int connection_init_client(Connection *connection,
                 return error_trace(r);
 
         c->server = false;
-        sasl_client_init(&c->sasl.client);
-        c = NULL;
+        sasl_client_init(&c->sasl_client);
         return 0;
 }
 
@@ -92,40 +90,81 @@ int connection_init_client(Connection *connection,
  * connection_deinit() - XXX
  */
 void connection_deinit(Connection *connection) {
-        if (connection->server)
-                sasl_server_deinit(&connection->sasl.server);
-        else
-                sasl_client_deinit(&connection->sasl.client);
+        sasl_client_deinit(&connection->sasl_client);
+        sasl_server_deinit(&connection->sasl_server);
         dispatch_file_deinit(&connection->socket_file);
         socket_deinit(&connection->socket);
+}
+
+static int connection_feed_sasl(Connection *connection, const char *input, size_t n_input) {
+        const char *output;
+        size_t n_output;
+        int r;
+
+        /* client SASL allows NULL input as bootstrap */
+        assert(!connection->server || input);
+        assert(!connection->authenticated);
+
+        if (connection->server)
+                r = sasl_server_dispatch(&connection->sasl_server, input, n_input, &output, &n_output);
+        else
+                r = sasl_client_dispatch(&connection->sasl_client, input, n_input, &output, &n_output);
+
+        if (r > 0) {
+                connection_close(connection);
+                return CONNECTION_E_EOF;
+        } else if (r < 0) {
+                return error_fold(r);
+        }
+
+        connection->authenticated = connection->server ?
+                                    sasl_server_is_done(&connection->sasl_server) :
+                                    sasl_client_is_done(&connection->sasl_client);
+
+        /*
+         * If the SASL exchange triggered an outgoing message, we will queue it
+         * on the socket. There're 3 things that might fail:
+         *
+         *     1) The socket was already closed for output. In that case we
+         *        black-hole the message. The trigger of the write-side
+         *        shutdown must have already taken care of everything else.
+         *
+         *     2) The message exceeds the connection quota. Since this is a
+         *        self-triggered message, the connection itself is responsible
+         *        and thus at fault. We close the connection as if it violated
+         *        the protocol, and tell the caller about the EOF.
+         *
+         *     3) A fatal error. Just like always, we simply fold it.
+         */
+        if (output) {
+                r = socket_queue_line(&connection->socket, NULL, output, n_output);
+                if (!r)
+                        dispatch_file_select(&connection->socket_file, EPOLLOUT);
+                else if (r == SOCKET_E_QUOTA)
+                        connection_shutdown(connection);
+                else if (r != SOCKET_E_SHUTDOWN)
+                        return error_fold(r);
+        }
+
+        return 0;
 }
 
 /**
  * connection_open() - XXX
  */
 int connection_open(Connection *connection) {
-        uint32_t events = EPOLLHUP | EPOLLIN;
-        const char *request;
-        size_t n_request;
         int r;
 
         assert(socket_is_running(&connection->socket));
 
         if (!connection->server) {
-                r = sasl_client_dispatch(&connection->sasl.client, NULL, 0, &request, &n_request);
+                /* bootstrap client SASL */
+                r = connection_feed_sasl(connection, NULL, 0);
                 if (r)
-                        return error_fold(r);
-
-                if (request) {
-                        r = socket_queue_line(&connection->socket, NULL, request, n_request);
-                        if (!r)
-                                events |= EPOLLOUT;
-                        else if (r != SOCKET_E_SHUTDOWN)
-                                return error_fold(r);
-                }
+                        return error_trace(r);
         }
 
-        dispatch_file_select(&connection->socket_file, events);
+        dispatch_file_select(&connection->socket_file, EPOLLHUP | EPOLLIN);
         return 0;
 }
 
@@ -133,14 +172,22 @@ int connection_open(Connection *connection) {
  * connection_shutdown() - XXX
  */
 void connection_shutdown(Connection *connection) {
+        /*
+         * A connection shutdown stops the write-side channel. If that happens
+         * after the read-side was already torn down, we must re-select
+         * EPOLLHUP so the main-loop of @connection gets woken up again. We
+         * know that EPOLLHUP must be signalled, since it is implied by the
+         * combination (hup_in && hup_out).
+         */
         socket_shutdown(&connection->socket);
+        if (!socket_is_running(&connection->socket))
+                dispatch_file_select(&connection->socket_file, EPOLLHUP);
 }
 
 /**
  * connection_close() - XXX
  */
 void connection_close(Connection *connection) {
-        dispatch_file_deselect(&connection->socket_file, EPOLLIN);
         socket_close(&connection->socket);
 }
 
@@ -167,47 +214,6 @@ int connection_dispatch(Connection *connection, uint32_t events) {
         return 0;
 }
 
-static int connection_feed_sasl(Connection *connection, const char *input, size_t n_input) {
-        const char *output;
-        size_t n_output;
-        int r;
-
-        assert(!connection->authenticated);
-
-        if (connection->server) {
-                r = sasl_server_dispatch(&connection->sasl.server, input, n_input, &output, &n_output);
-                if (r > 0) {
-                        connection_close(connection);
-                        return CONNECTION_E_RESET;
-                } else if (r < 0) {
-                        return error_fold(r);
-                }
-
-                connection->authenticated = sasl_server_is_done(&connection->sasl.server);
-        } else {
-                r = sasl_client_dispatch(&connection->sasl.client, input, n_input, &output, &n_output);
-                if (r > 0) {
-                        connection_close(connection);
-                        return CONNECTION_E_RESET;
-                } else if (r < 0) {
-                        return error_fold(r);
-                }
-
-                connection->authenticated = sasl_client_is_done(&connection->sasl.client);
-        }
-
-        if (output) {
-                r = socket_queue_line(&connection->socket, NULL, output, n_output);
-                if (!r)
-                        dispatch_file_select(&connection->socket_file, EPOLLOUT);
-                else if (r != SOCKET_E_SHUTDOWN)
-                        return error_fold(r);
-
-        }
-
-        return 0;
-}
-
 /**
  * connection_dequeue() - XXX
  */
@@ -219,17 +225,10 @@ int connection_dequeue(Connection *connection, Message **messagep) {
         if (_c_unlikely_(!connection->authenticated)) {
                 do {
                         r = socket_dequeue_line(&connection->socket, &input, &n_input);
-                        if (r) {
-                                if (r == SOCKET_E_RESET) {
-                                        dispatch_file_deselect(&connection->socket_file, EPOLLIN);
-                                        return CONNECTION_E_RESET;
-                                } else if (r == SOCKET_E_EOF) {
-                                        dispatch_file_deselect(&connection->socket_file, EPOLLIN);
-                                        return CONNECTION_E_EOF;
-                                } else {
-                                        return error_fold(r);
-                                }
-                        } else if (!input) {
+                        if (r)
+                                return (r == SOCKET_E_EOF) ? CONNECTION_E_EOF : error_fold(r);
+
+                        if (!input) {
                                 *messagep = NULL;
                                 return 0;
                         }
@@ -241,19 +240,7 @@ int connection_dequeue(Connection *connection, Message **messagep) {
         }
 
         r = socket_dequeue(&connection->socket, messagep);
-        if (r) {
-                if (r == SOCKET_E_RESET) {
-                        dispatch_file_deselect(&connection->socket_file, EPOLLIN);
-                        return CONNECTION_E_RESET;
-                } else if (r == SOCKET_E_EOF) {
-                        dispatch_file_deselect(&connection->socket_file, EPOLLIN);
-                        return CONNECTION_E_EOF;
-                } else {
-                        return error_fold(r);
-                }
-        }
-
-        return 0;
+        return (r == SOCKET_E_EOF) ? CONNECTION_E_EOF : error_fold(r);
 }
 
 /**

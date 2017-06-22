@@ -26,30 +26,19 @@
 #include "util/metrics.h"
 #include "util/user.h"
 
-static int peer_dispatch_incoming(Peer *peer) {
+static int peer_dispatch_connection(Peer *peer, uint32_t events) {
         int r;
+
+        r = connection_dispatch(&peer->connection, events);
+        if (r)
+                return error_fold(r);
 
         for (;;) {
                 _c_cleanup_(message_unrefp) Message *m = NULL;
 
                 r = connection_dequeue(&peer->connection, &m);
-                if (r) {
-                        if (r == CONNECTION_E_EOF) {
-                                r = driver_goodbye(peer, false);
-                                if (r)
-                                        return error_fold(r);
-                                connection_shutdown(&peer->connection);
-                        } else if (r == CONNECTION_E_RESET) {
-                                r = driver_goodbye(peer, false);
-                                if (r)
-                                        return error_fold(r);
-                        } else {
-                                return error_fold(r);
-                        }
-                }
-                if (!m) {
-                        break;
-                }
+                if (r || !m) /* caller handles errors */
+                        return error_trace(r);
 
                 metrics_sample_start(&peer->bus->metrics);
                 r = driver_dispatch(peer, m);
@@ -63,53 +52,60 @@ static int peer_dispatch_incoming(Peer *peer) {
 
 static int peer_dispatch(DispatchFile *file, uint32_t mask) {
         Peer *peer = c_container_of(file, Peer, connection.socket_file);
+        static const uint32_t interest[] = { EPOLLIN | EPOLLHUP, EPOLLOUT };
+        size_t i;
         int r;
 
         /*
-         * If EPOLLIN or EPOLLHUP is reported, tell the connection layer about
-         * it. It will handle it, and, if required, deselect it.
-         * Note that we do *NOT* handle EPOLLOUT here. We rather delay it until
-         * we handled all intput, since chances are high the driver will queue
-         * data on the peer.
+         * Usually, we would just call peer_dispatch_connection(peer, mask)
+         * here. However, a very common scenario is to dispatch D-Bus driver
+         * calls. Those calls fetch an incoming message from a peer, handle it
+         * and then immediately queue a reply. In those cases we want EPOLLOUT
+         * to be handled late.
+         * Hence, rather than dispatching the connection in one go, we rather
+         * split it into two:
+         *
+         *     peer_dispatch_connection(peer, EPOLLIN | EPOLLHUP);
+         *     peer_dispatch_connection(peer, EPOLLOUT);
+         *
+         * This makes sure to first handle all the incoming messages, then the
+         * outgointg messages.
+         *
+         * Note that it is not enough to simply delay the call to
+         * connection_dispatch(EPOLLOUT). The socket API requires you to loop
+         * over connection_dequeue() after *ANY* call to the dispatcher. This
+         * is, because the dequeue function is considered to be the event
+         * handler, and as such the only function that performs forward
+         * progress on the socket.
+         *
+         * Furthermore, note that we must ignore @mask but rather query
+         * dispatch_file_events(), since the connection handler might select or
+         * deselect events we want to handle.
+         *
+         * Lastly, the connection API explicitly allows splitting the events.
+         * There is no requirement to provide them in-order.
          */
-        if (mask & (EPOLLIN | EPOLLHUP)) {
-                r = connection_dispatch(&peer->connection, mask & (EPOLLIN | EPOLLHUP));
-                if (r)
-                        return error_fold(r);
+        for (i = 0; i < C_ARRAY_SIZE(interest); ++i) {
+                if (dispatch_file_events(file) & interest[i]) {
+                        r = peer_dispatch_connection(peer, mask & interest[i]);
+                        if (r)
+                                break;
+                }
         }
 
-        /*
-         * Now that the connection dispatched incoming I/O, we need to loop
-         * over all incoming messages. Note that this is rate-limited by
-         * default, since the I/O buffers are limited on each peer.
-         */
-        r = peer_dispatch_incoming(peer);
-        if (r)
-                return error_trace(r);
-
-        /*
-         * Now that EPOLLIN and EPOLLHUP have been handled, *and* the driver
-         * calls have been dispatched, we handle EPOLLOUT. We explicitly check
-         * dispatch_file_is_ready() here, rather than @mask, since the
-         * dispatcher might have gained interest, and as such @mask might not
-         * reflect the correct state.
-         */
-        if (dispatch_file_is_ready(file, EPOLLOUT)) {
-                r = connection_dispatch(&peer->connection, EPOLLOUT);
+        if (r == CONNECTION_E_EOF) {
+                r = driver_goodbye(peer, false);
                 if (r)
                         return error_fold(r);
+
+                connection_shutdown(&peer->connection);
+                if (!connection_is_running(&peer->connection))
+                        peer_free(peer);
         }
 
-        /*
-         * Any call to connection_dispatch(), or connection_dequeue(), might
-         * change the connection state. Rather than checking for a reset on
-         * each call, we do this single check at the end of the dispatcher. If
-         * a connection is no longer running, we can safely clean it up.
-         */
-        if (_c_unlikely_(!connection_is_running(&peer->connection)))
-                peer_free(peer);
+        /* Careful: @peer might be deallocated here */
 
-        return 0;
+        return error_fold(r);
 }
 
 static int peer_get_peersec(int fd, char **labelp, size_t *lenp) {
@@ -790,7 +786,6 @@ void peer_registry_flush(PeerRegistry *registry) {
         c_rbtree_for_each_entry_unlink(peer, safe, &registry->peer_tree, registry_node) {
                 r = driver_goodbye(peer, true);
                 assert(!r); /* can not fail in silent mode */
-                connection_close(&peer->connection);
                 peer_free(peer);
         }
 }

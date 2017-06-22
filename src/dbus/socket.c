@@ -7,9 +7,6 @@
  * dual-mode: Line-based buffers for initial SASL transactions, and
  * message-based buffers for DBus transactions.
  *
- * The first line (if any) of a SASL exchange sent from a client to a server
- * must be prepended with a null byte, which the caller must take care of.
- *
  * Note that once the first real DBus message was read, you must not use the
  * line-helpers, anymore!
  */
@@ -64,6 +61,16 @@ static int socket_buffer_new_line(SocketBuffer **bufferp, size_t n) {
         return 0;
 }
 
+/**
+ * socket_buffer_new() - allocate message socket-buffer
+ * @bufferp:            output argument for new skb
+ * @message:            message to create skb for
+ *
+ * This allocated a new socket buffer, pinning the message given as @message.
+ * This socket buffer can now be used to queue the message on any socket.
+ *
+ * Return: 0 on success, negative error code on failure.
+ */
 int socket_buffer_new(SocketBuffer **bufferp, Message *message) {
         SocketBuffer *buffer;
         int r;
@@ -79,6 +86,14 @@ int socket_buffer_new(SocketBuffer **bufferp, Message *message) {
         return 0;
 }
 
+/**
+ * socket_buffer_free() - deallocate message socket-buffer
+ * @buffer:             buffer to operate on
+ *
+ * This deallocates and destroys an skb.
+ *
+ * Return: NULL is returned.
+ */
 SocketBuffer *socket_buffer_free(SocketBuffer *buffer) {
         if (!buffer)
                 return NULL;
@@ -140,10 +155,9 @@ static bool socket_buffer_consume(SocketBuffer *buffer, size_t n) {
 }
 
 static void socket_discard_input(Socket *socket) {
-        if (socket->lines_done)
-                socket->in.pending_message = message_unref(socket->in.pending_message);
-        else
-                socket->in.line_cursor = socket->in.data_end;
+        socket->in.pending_message = message_unref(socket->in.pending_message);
+        socket->in.data_start = socket->in.data_end;
+        socket->in.cursor = socket->in.data_end;
         socket->in.fds = fdlist_free(socket->in.fds);
 }
 
@@ -155,24 +169,44 @@ static void socket_discard_output(Socket *socket) {
 }
 
 /**
- * socket_init() - XXX
+ * socket_init() - initialize socket
+ * @s:                  socket to operate on
+ * @user:               socket owner, or NULL
+ * @fd:                 socket file descriptor
+ *
+ * This initializes the new socket @s. The socket will be owned by @user (and
+ * accounted on it), and @fd will be used as socket file descriptor. Not that
+ * @fd is still owned by the caller and must not be closed while the socket is
+ * used.
+ *
+ * Return: 0 on success, negative error code on failure.
  */
-int socket_init(Socket *socket, User *user, int fd) {
-        *socket = (Socket){};
+int socket_init(Socket *s, User *user, int fd) {
+        _c_cleanup_(socket_deinitp) Socket *socket = s;
+
+        *socket = (Socket)SOCKET_NULL(*socket);
         socket->user = user_ref(user);
         socket->fd = fd;
         socket->in.data_size = SOCKET_DATA_RECV_MAX;
-        socket->out.queue = (CList)C_LIST_INIT(socket->out.queue);
 
         socket->in.data = malloc(socket->in.data_size);
         if (!socket->in.data)
                 return error_origin(-ENOMEM);
 
+        socket = NULL;
         return 0;
 }
 
 /**
- * socket_deinit() - XXX
+ * socket_deinit() - deinitialize socket
+ * @socket:             socket to operate on
+ *
+ * This deinitializes @socket and clears all allocated resources. The socket is
+ * cleared to SOCKET_NULL afterwards. Hence, it is safe to call socket_deinit()
+ * multiple times.
+ *
+ * Note that the socket file descriptor is *NOT* closed. It is still owned by
+ * the caller!
  */
 void socket_deinit(Socket *socket) {
         socket_discard_input(socket);
@@ -180,12 +214,39 @@ void socket_deinit(Socket *socket) {
 
         assert(c_list_is_empty(&socket->out.queue));
         assert(!socket->in.fds);
-        if (socket->lines_done)
-                assert(!socket->in.pending_message);
+        assert(!socket->in.pending_message);
 
         socket->in.data = c_free(socket->in.data);
         socket->fd = -1;
         socket->user = user_unref(socket->user);
+}
+
+static void socket_lines_done(Socket *socket) {
+        /*
+         * Whenever the first call to socket_queue() or socket_dequeue() is
+         * made, we shut down the line parser and prepare the message parser.
+         * Note that the caller must not have partial data in the line-parser
+         * at this time. That is, when calling socket_dequeue_line(), you must
+         * continue using the line parser until it returns a full line. Only
+         * after it returned a full line, you can switch to the message parser.
+         * This is usually given, since the only trigger to switch a parser can
+         * be inline data. Anything else would be very weird.
+         */
+        if (_c_unlikely_(!socket->lines_done)) {
+                assert(socket->in.cursor == socket->in.data_start);
+                socket->lines_done = true;
+        }
+}
+
+static void socket_might_reset(Socket *socket) {
+        Message *msg = socket->in.pending_message;
+
+        if (_c_unlikely_(!socket->reset &&
+                         socket->hup_in &&
+                         socket->hup_out &&
+                         socket->in.cursor >= socket->in.data_end &&
+                         (!msg || msg->n_copied < msg->n_data)))
+                socket->reset = true;
 }
 
 static void socket_hangup_input(Socket *socket) {
@@ -194,7 +255,10 @@ static void socket_hangup_input(Socket *socket) {
          * In that case, we stop reading data from the socket, but still
          * dispatch all pending input. Hence, we don't discard input buffers.
          */
-        socket->hup_in = true;
+        if (!socket->hup_in) {
+                socket->hup_in = true;
+                socket_might_reset(socket);
+        }
 }
 
 static void socket_hangup_output(Socket *socket) {
@@ -206,8 +270,11 @@ static void socket_hangup_output(Socket *socket) {
          * disconnected asynchronously, and there is no way for us to avoid
          * data loss.
          */
-        socket->hup_out = true;
-        socket_discard_output(socket);
+        if (!socket->hup_out) {
+                socket->hup_out = true;
+                socket_discard_output(socket);
+                socket_might_reset(socket);
+        }
 }
 
 static void socket_shutdown_now(Socket *socket) {
@@ -215,14 +282,41 @@ static void socket_shutdown_now(Socket *socket) {
 
         assert(socket->shutdown);
 
-        r = shutdown(socket->fd, SHUT_WR);
-        assert(r >= 0);
+        if (!socket->hup_out) {
+                r = shutdown(socket->fd, SHUT_WR);
+                assert(r >= 0);
 
-        socket_hangup_output(socket);
+                socket_hangup_output(socket);
+        }
 }
 
 /**
- * socket_dequeue_line() - XXX
+ * socket_dequeue_line() - fetch line from input buffer
+ * @socket:             socket to operate on
+ * @linep:              output argument for read line
+ * @np:                 output argument for read line length
+ *
+ * This fetchs the next full line from the input buffer. The \r\n is stripped,
+ * and the line is returned in @linep and @np. That is, @np might be 0 (in case
+ * the line was empty apart from \r\n), but @linep will still point to the line
+ * in that case (that is, it is non-NULL).
+ *
+ * If no more lines can be fetched, this returns NULL in @linep, and 0 in @np.
+ *
+ * Note that any fetched line is always owned by the socket. That is, @linep is
+ * only valid until the next call to a socket function. It points directly into
+ * the input buffer of the socket, and might be moved, overwritten, or
+ * deallocated by any other socket call.
+ *
+ * This function must not be called once the socket has been put into
+ * message-mode. That is, the line-based I/O is torn down as soon as the first
+ * message is read or written.
+ *
+ * Return: On success, 0 is returned and @linep and @np either contain the read
+ *         line, or (NULL, 0) if there is no more data to fetch.
+ *         If the input-stream was closed and no more data is to be read,
+ *         SOCKET_E_EOF is returned.
+ *         On fatal errors, a negative error code is returned.
  */
 int socket_dequeue_line(Socket *socket, const char **linep, size_t *np) {
         char *line;
@@ -234,11 +328,11 @@ int socket_dequeue_line(Socket *socket, const char **linep, size_t *np) {
          * Advance our cursor byte by byte and look for an end-of-line. We
          * remember the parser position, so no byte is ever parsed twice.
          */
-        for ( ; socket->in.line_cursor < socket->in.data_end; ++socket->in.line_cursor) {
+        for ( ; socket->in.cursor < socket->in.data_end; ++socket->in.cursor) {
                 /*
-                 * We are at the end of the socket buffer, hence we must
-                 * consume any possible FD array that we recveived alongside
-                 * it. The kernel always breaks _after_ skbs with FDs, but not
+                 * If we are at the end of the socket buffer, we must consume
+                 * any possible FD array that we recveived alongside it.
+                 * The kernel always breaks _after_ skbs with FDs, but not
                  * before them. Hence, FDs are attached to the LAST byte of our
                  * socket buffer, rather than the first.
                  *
@@ -246,7 +340,7 @@ int socket_dequeue_line(Socket *socket, const char **linep, size_t *np) {
                  * and the DBus spec clearly states that no extension shall
                  * pass FDs during authentication.
                  */
-                if (_c_unlikely_(socket->in.line_cursor + 1 == socket->in.data_end && socket->in.fds))
+                if (_c_unlikely_(socket->in.cursor + 1 == socket->in.data_end && socket->in.fds))
                         socket->in.fds = fdlist_free(socket->in.fds);
 
                 /*
@@ -256,15 +350,15 @@ int socket_dequeue_line(Socket *socket, const char **linep, size_t *np) {
                  * and return a direct pointer into the buffer. The pointer is
                  * only valid until the next call into this Socket object.
                  */
-                if (socket->in.line_cursor > 0 &&
-                    socket->in.data[socket->in.line_cursor] == '\n' &&
-                    socket->in.data[socket->in.line_cursor - 1] == '\r') {
+                if (socket->in.cursor > 0 &&
+                    socket->in.data[socket->in.cursor] == '\n' &&
+                    socket->in.data[socket->in.cursor - 1] == '\r') {
                         /* remember start and length without \r\n */
                         line = socket->in.data + socket->in.data_start;
-                        n = socket->in.line_cursor - socket->in.data_start - 1;
+                        n = socket->in.cursor - socket->in.data_start - 1;
 
                         /* forward iterator */
-                        socket->in.data_start = ++socket->in.line_cursor;
+                        socket->in.data_start = ++socket->in.cursor;
 
                         /* replace \r by safety NUL and return to caller */
                         line[n] = 0;
@@ -274,12 +368,9 @@ int socket_dequeue_line(Socket *socket, const char **linep, size_t *np) {
                 }
         }
 
-        if (_c_unlikely_(socket->hup_in)) {
-                if (socket->hup_out)
-                        return SOCKET_E_RESET;
-                else
-                        return SOCKET_E_EOF;
-        }
+        socket_might_reset(socket);
+        if (_c_unlikely_(socket->hup_in))
+                return SOCKET_E_EOF;
 
         *linep = NULL;
         *np = 0;
@@ -287,7 +378,25 @@ int socket_dequeue_line(Socket *socket, const char **linep, size_t *np) {
 }
 
 /**
- * socket_dequeue() - XXX
+ * socket_dequeue() - fetch message from input buffer
+ * @socket:             socket to operate on
+ * @messagep:           output argument for read message
+ *
+ * This fetches a message from the input buffer. If a full message was parsed,
+ * the @messagep argument will now point to it and own a single reference to be
+ * released by the caller.
+ * If no more messages can be fetched from the input buffer, NULL is put into
+ * @messagep.
+ *
+ * If the input stream was shutdown, SOCKET_E_EOF is returned and no further
+ * data can be read.
+ *
+ * Return: On success, 0 is returned and @messagep will point to the read
+ *         message (now owned by the caller). If no more messages can be
+ *         fetched, NULL is put into @messagep.
+ *         If the input-stream was closed and no more data is to be read,
+ *         SOCKET_E_EOF is returned.
+ *         On fatal errors, a negative error code is returned.
  */
 int socket_dequeue(Socket *socket, Message **messagep) {
         MessageHeader header;
@@ -295,33 +404,36 @@ int socket_dequeue(Socket *socket, Message **messagep) {
         size_t n, n_data;
         int r;
 
-        if (_c_unlikely_(!socket->lines_done)) {
-                assert(socket->in.line_cursor == socket->in.data_start);
-                socket->lines_done = true;
-                socket->in.pending_message = NULL;
-        }
+        socket_lines_done(socket);
 
         msg = socket->in.pending_message;
         n_data = socket->in.data_end - socket->in.data_start;
 
         if (!msg) {
                 n = sizeof(MessageHeader);
-                if (_c_unlikely_(n_data < n))
+                if (_c_unlikely_(n_data < n)) {
+                        socket->in.cursor = socket->in.data_end;
                         goto out_nodata;
+                }
 
                 memcpy(&header, socket->in.data + socket->in.data_start, n);
 
                 r = message_new_incoming(&msg, header);
                 if (r == MESSAGE_E_CORRUPT_HEADER ||
                     r == MESSAGE_E_TOO_LARGE) {
+                        /*
+                         * Corrupt message headers are considered a protocol
+                         * violation and cause an immediate shutdown.
+                         */
                         socket_close(socket);
-                        return SOCKET_E_RESET;
+                        return SOCKET_E_EOF;
                 } else if (r) {
                         return error_fold(r);
                 }
 
                 n_data -= n;
                 socket->in.data_start += n;
+                socket->in.cursor = socket->in.data_start;
                 socket->in.pending_message = msg;
         }
 
@@ -331,13 +443,19 @@ int socket_dequeue(Socket *socket, Message **messagep) {
 
                 n_data -= n;
                 socket->in.data_start += n;
+                socket->in.cursor += n;
                 msg->n_copied += n;
         }
 
         if (_c_unlikely_(!n_data && socket->in.fds)) {
                 if (msg->fds) {
+                        /*
+                         * FDs must be transmitted in a single set, anything
+                         * else is a protocol violation and will cause an
+                         * immediate shutdown.
+                         */
                         socket_close(socket);
-                        return SOCKET_E_RESET;
+                        return SOCKET_E_EOF;
                 }
 
                 msg->fds = socket->in.fds;
@@ -351,18 +469,28 @@ int socket_dequeue(Socket *socket, Message **messagep) {
         }
 
 out_nodata:
-        if (_c_unlikely_(socket->hup_in)) {
-                if (socket->hup_out)
-                        return SOCKET_E_RESET;
-                else
-                        return SOCKET_E_EOF;
-        }
+        socket_might_reset(socket);
+        if (_c_unlikely_(socket->hup_in))
+                return SOCKET_E_EOF;
+
         *messagep = NULL;
         return 0;
 }
 
 /**
- * socket_queue_line() - XXX
+ * socket_queue_line() - queue line on socket
+ * @socket:             socket to operate on
+ * @user:               user to account for, or NULL
+ * @line_in:            line pointer
+ * @n:                  length of line
+ *
+ * This queues the line (@line_in, @n) on the socket @socket, accounting @user
+ * as the sender. If @user is NULL, the owner of the socket is accounted.
+ *
+ * \r\n is always appended to the message by this function.
+ *
+ * Return: 0 on success, SOCKET_E_QUOTA if quota failed, SOCKET_E_SHUTDOWN if
+ *         write-side end is already shutdown, negative error code on failure.
  */
 int socket_queue_line(Socket *socket, User *user, const char *line_in, size_t n) {
         SocketBuffer *buffer;
@@ -384,23 +512,15 @@ int socket_queue_line(Socket *socket, User *user, const char *line_in, size_t n)
                 r = user_charge(socket->user, &buffer->charges[0], user, USER_SLOT_BYTES, n + strlen("\r\n"));
                 if (r) {
                         socket_buffer_free(buffer);
-
-                        if (r == USER_E_QUOTA)
-                                return SOCKET_E_QUOTA;
-                        else
-                                return error_fold(r);
+                        return (r == USER_E_QUOTA) ? SOCKET_E_QUOTA : error_fold(r);
                 }
 
                 c_list_link_tail(&socket->out.queue, &buffer->link);
         }
 
         r = user_charge(socket->user, &buffer->charges[0], user, USER_SLOT_BYTES, n + strlen("\r\n"));
-        if (r) {
-                if (r == USER_E_QUOTA)
-                        return SOCKET_E_QUOTA;
-                else
-                        return error_fold(r);
-        }
+        if (r)
+                return (r == USER_E_QUOTA) ? SOCKET_E_QUOTA : error_fold(r);
 
         socket_buffer_get_line_cursor(buffer, &line_out, &pos);
 
@@ -415,7 +535,15 @@ int socket_queue_line(Socket *socket, User *user, const char *line_in, size_t n)
 }
 
 /**
- * socket_queue() - XXX
+ * socket_queue() - queue socket buffer on socket
+ * @socket:             socket to operate on
+ * @buffer:             skb to queue
+ *
+ * This queues @skb on the socket @socket. This transfers ownership of the skb
+ * to the socket on success.
+ *
+ * Return: 0 on success, SOCKET_E_QUOTA if quota failed, SOCKET_E_SHUTDOWN if
+ *         write-side end is already shutdown, negative error code on failure.
  */
 int socket_queue(Socket *socket, User *user, SocketBuffer *buffer) {
         int r;
@@ -423,29 +551,21 @@ int socket_queue(Socket *socket, User *user, SocketBuffer *buffer) {
         assert(buffer->message);
         assert(!c_list_is_linked(&buffer->link));
 
-        r = user_charge(socket->user, &buffer->charges[0], user, USER_SLOT_BYTES, buffer->message->n_data);
-        r = r ?: user_charge(socket->user, &buffer->charges[1], user, USER_SLOT_FDS, fdlist_count(buffer->message->fds));
-        if (r) {
-                if (r == USER_E_QUOTA)
-                        return SOCKET_E_QUOTA;
-                else
-                        return error_fold(r);
-        }
-
-        if (_c_unlikely_(!socket->lines_done)) {
-                assert(socket->in.line_cursor == socket->in.data_start);
-                socket->lines_done = true;
-                socket->in.pending_message = NULL;
-        }
+        socket_lines_done(socket);
 
         if (_c_unlikely_(socket->hup_out || socket->shutdown))
                 return SOCKET_E_SHUTDOWN;
+
+        r = user_charge(socket->user, &buffer->charges[0], user, USER_SLOT_BYTES, buffer->message->n_data);
+        r = r ?: user_charge(socket->user, &buffer->charges[1], user, USER_SLOT_FDS, fdlist_count(buffer->message->fds));
+        if (r)
+                return (r == USER_E_QUOTA) ? SOCKET_E_QUOTA : error_fold(r);
 
         c_list_link_tail(&socket->out.queue, &buffer->link);
         return 0;
 }
 
-static int socket_recvmsg(Socket *socket, void *buffer, size_t n_buffer, size_t *from, size_t *to, FDList **fdsp) {
+static int socket_recvmsg(Socket *socket, void *buffer, size_t max, size_t *from, size_t *to, FDList **fdsp) {
         union {
                 struct cmsghdr cmsg;
                 char buffer[CMSG_SPACE(sizeof(int) * SOCKET_FD_MAX)];
@@ -457,12 +577,11 @@ static int socket_recvmsg(Socket *socket, void *buffer, size_t n_buffer, size_t 
         ssize_t l;
 
         assert(*to > *from);
-        assert(n_buffer <= *to);
 
         msg = (struct msghdr){
                 .msg_iov = &(struct iovec){
                         .iov_base = buffer + *from,
-                        .iov_len = c_min(*to - *from, n_buffer),
+                        .iov_len = c_min(*to - *from, max),
                 },
                 .msg_iovlen = 1,
                 .msg_control = &control,
@@ -471,6 +590,11 @@ static int socket_recvmsg(Socket *socket, void *buffer, size_t n_buffer, size_t 
 
         l = recvmsg(socket->fd, &msg, MSG_DONTWAIT | MSG_CMSG_CLOEXEC);
         if (_c_unlikely_(!l)) {
+                /*
+                 * A 0 return of recvmsg() signals end-of-file. Hence, hangup
+                 * the input side, but keep the output alive. We might still
+                 * want to flush more data out.
+                 */
                 socket_hangup_input(socket);
                 return SOCKET_E_LOST_INTEREST;
         } else if (_c_unlikely_(l < 0)) {
@@ -490,8 +614,12 @@ static int socket_recvmsg(Socket *socket, void *buffer, size_t n_buffer, size_t 
                 case EREMOTEIO:
                 case ESHUTDOWN:
                 case ETIMEDOUT:
+                        /*
+                         * If recvmsg(2) fails, this means both read-side *and*
+                         * write-side are shutdown. A mere read-side hangup is
+                         * signalled by a 0 return-value (handled above).
+                         */
                         socket_hangup_input(socket);
-                        /* sendmmsg() is guaranteed to also fail, so hang up output too */
                         socket_hangup_output(socket);
                         return SOCKET_E_LOST_INTEREST;
                 }
@@ -510,12 +638,23 @@ static int socket_recvmsg(Socket *socket, void *buffer, size_t n_buffer, size_t 
                         fds = (void *)CMSG_DATA(cmsg);
                         n_fds = (cmsg->cmsg_len - CMSG_LEN(0)) / sizeof(int);
                         assert(n_fds <= SOCKET_FD_MAX);
-                } else {
-                        /* XXX: debug message? */
                 }
         }
 
         if (_c_unlikely_(n_fds)) {
+                /*
+                 * So we received FDs with this hunk. If we already got FDs for
+                 * this pending message, we must follow the D-Bus spec and
+                 * treat this as protocol violation. So close the socket
+                 * immediately.
+                 * Otherwise, remember the FDs in the socket. Note that FDs
+                 * always belong to the *last* byte of a received hunk, since
+                 * the kernel breaks SKBs *AFTER* FDs, but not before them.
+                 * This also means we must never call into recvmsg(2) if there
+                 * is unparsed data in our buffers, since we might incorrectly
+                 * merge two messages.
+                 */
+
                 if (_c_unlikely_(*fdsp)) {
                         socket_close(socket);
                         r = SOCKET_E_LOST_INTEREST;
@@ -539,15 +678,13 @@ error:
 }
 
 static int socket_dispatch_read(Socket *socket) {
+        Message *msg = socket->in.pending_message;
         void *p;
-
-        if (_c_unlikely_(socket_has_input(socket)))
-                return 0;
 
         /*
          * Always shift the input buffer. In case of the line-parser this
          * should never happen in normal operation: the only way to leave
-         * behinda partial line is by filling the whole buffer, in that case
+         * behind a partial line is by filling the whole buffer, in that case
          * at most SOCKET_DATA_RECV_MAX bytes need to be moved. And for the
          * message-parser, there can be at most one message header left
          * behind (16 bytes).
@@ -555,20 +692,19 @@ static int socket_dispatch_read(Socket *socket) {
         memmove(socket->in.data,
                 socket->in.data + socket->in.data_start,
                 socket->in.data_end - socket->in.data_start);
-        if (_c_unlikely_(!socket->lines_done))
-                socket->in.line_cursor -= socket->in.data_start;
+        socket->in.cursor -= socket->in.data_start;
         socket->in.data_end -= socket->in.data_start;
         socket->in.data_start = 0;
 
+        /*
+         * In case our input buffer is full, we need to resize it. This can
+         * only happen for the line-reader, since messages leave at most 16
+         * bytes behind (size of a single header).
+         * The line-reader, however, parses the entire line into the input
+         * buffer. Hence, in case the normal buffer size is exceeded, we
+         * re-allocate to the maximum once.
+         */
         if (_c_unlikely_(socket->in.data_size <= socket->in.data_end)) {
-                /*
-                 * In case our input buffer is full, we need to resize it. This can
-                 * only happen for the line-reader, since messages leave as most 16
-                 * bytes behind (size of a single header).
-                 * The line-reader, however, parses the entire line into the input
-                 * buffer. Hence, in case the normal buffer size is exceeded, we
-                 * re-allocate once to the maximum.
-                 */
                 assert(!socket->lines_done);
 
                 if (socket->in.data_size >= SOCKET_LINE_MAX) {
@@ -588,27 +724,54 @@ static int socket_dispatch_read(Socket *socket) {
                 socket->in.data = p;
                 socket->in.data_size = SOCKET_LINE_MAX;
                 socket->in.data_end -= socket->in.data_start;
-                socket->in.line_cursor -= socket->in.data_start;
+                socket->in.cursor -= socket->in.data_start;
                 socket->in.data_start = 0;
-        } else if (_c_likely_(socket->lines_done)) {
-                Message *msg = socket->in.pending_message;
-
-                if (_c_unlikely_(msg && msg->n_data - msg->n_copied >= socket->in.data_size - socket->in.data_end)) {
-                        /*
-                         * If there is a pending message, we try to shortcut the input buffer
-                         * for overlong payloads. This avoids copying the message twice, at the
-                         * cost of being unable to receive multiple messages at once. Hence, if
-                         * messages are small, we prefer the round via the input buffer so we
-                         * reduce the number of calls into the kernel.
-                         */
-                        return socket_recvmsg(socket,
-                                              msg->data,
-                                              msg->n_data,
-                                              &msg->n_copied,
-                                              &msg->n_data,
-                                              &msg->fds);
-                }
         }
+
+        /*
+         * Never ever read data if we did not finish parsing our input buffer!
+         *
+         * This is crucial! The kernel provides auxiliary data that is attached
+         * to specific SKBs, and as such part of the stream. We must never
+         * merge them across D-Bus message boundaries (see the FD handling on
+         * recvmsg(2) for details).
+         *
+         * As a consequence of this, we know that either our input buffer is
+         * empty, or we have no partial message pending. This stems from our
+         * parser to always copy any outstanding bytes from the input buffer
+         * into a pending message, and returning the message when done. So
+         * either we fully parsed a message and returned it (thus @msg is NULL)
+         * or our last dequeue-call emptied the input buffer by copying into
+         * the pending message.
+         */
+        if (socket->in.cursor < socket->in.data_end || (msg && msg->n_copied >= msg->n_data))
+                return 0;
+
+        assert(!msg || !socket->in.cursor);
+
+        /*
+         * If there is a pending message, we try to read directly into it,
+         * skipping the separate socket input buffer. However, we only do this
+         * if the hunk of data to fetch is bigger than (or equal to) our input
+         * buffer. This avoids fetching small amounts of data from the kernel,
+         * while we could fetch big hunks of consecutive small messages.
+         *
+         * In other words: If a message is considerably big, we will read it
+         *                 directly into its message object (single copy). In
+         *                 all other cases, we first read from the kernel into
+         *                 our input buffer (possibly fetching many messages at
+         *                 once), and then copy over the actual data into the
+         *                 message objects (double copy).
+         *                 This is a trade-off between double-copy and reducing
+         *                 the number of calls to recvmsg(2).
+         */
+        if (msg && msg->n_data - msg->n_copied >= socket->in.data_size - socket->in.data_end)
+                return socket_recvmsg(socket,
+                                      msg->data,
+                                      msg->n_data,
+                                      &msg->n_copied,
+                                      &msg->n_data,
+                                      &msg->fds);
 
         /*
          * Read more data into the input buffer, and store the file-descriptors
@@ -708,29 +871,31 @@ static int socket_dispatch_write(Socket *socket) {
 }
 
 /**
- * socket_dispatch() - XXX
+ * socket_dispatch() - dispatch event
+ * @socket:             socket to operate on
+ * @event:              epoll-event to dispatch
+ *
+ * This dispatches the epoll-event @event on the socket @socket. After calling
+ * this, the caller must loop on socket_dequeue{,_line}() to fetch all data.
+ *
+ * Return: 0 on success, SOCKET_E_LOST_INTEREST if the socket lost interest in
+ *         the event, SOCKET_E_PREEMPTED if the socket was preempted while
+ *         handling the event, negative error code on failure.
  */
 int socket_dispatch(Socket *socket, uint32_t event) {
         int r = SOCKET_E_LOST_INTEREST;
 
         switch (event) {
         case EPOLLIN:
-                if (!socket->hup_in) {
+                if (!socket->hup_in)
                         r = socket_dispatch_read(socket);
-                        if (r < 0)
-                                return r;
-                }
                 break;
         case EPOLLOUT:
-                if (!socket->hup_out) {
+                if (!socket->hup_out)
                         r = socket_dispatch_write(socket);
-                        if (r < 0)
-                                return r;
-                }
                 break;
         case EPOLLHUP:
                 socket_hangup_output(socket);
-                r = SOCKET_E_PREEMPTED;
                 break;
         }
 
@@ -739,6 +904,7 @@ int socket_dispatch(Socket *socket, uint32_t event) {
 
 /**
  * socket_shutdown() - disallow further queueing on the socket
+ * @socket:             socket to operate on
  *
  * This disallows further queuing on the socket, but still flushes out the
  * pending socket buffers to the kernel. Once all pending output has been
@@ -756,12 +922,21 @@ void socket_shutdown(Socket *socket) {
  * socket_close() - close both communication directions
  * @socket:                     socket to operate on
  *
- * This dissalows both further queuing and dequeuing on the socket, but
+ * This disallows both further queuing and dequeuing on the socket, but
  * still flushes out the pending socket buffers to the kernel. Once all
- * pending output has been sent the remote end is notifiode of the shutdown.
+ * pending output has been sent the remote end is notified of the shutdown.
  */
 void socket_close(Socket *socket) {
-        socket_shutdown(socket);
         socket_hangup_input(socket);
+        socket_shutdown(socket);
+
+        /*
+         * Now that both input and output were shut down, we discard pending
+         * input, since we want an immediate shutdown.
+         * Note that this might trigger a reset, so we have to call into
+         * socket_might_reset() here (the call to socket_discard_input() does
+         * not do that).
+         */
         socket_discard_input(socket);
+        socket_might_reset(socket);
 }

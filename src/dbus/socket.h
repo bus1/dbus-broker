@@ -17,8 +17,8 @@ typedef struct SocketBuffer SocketBuffer;
 #define SOCKET_LINE_PREALLOC (64UL) /* fits the longest sane SASL exchange */
 #define SOCKET_LINE_MAX (16UL * 1024UL) /* taken from dbus-daemon(1) */
 #define SOCKET_FD_MAX (253UL) /* taken from kernel SCM_MAX_FD */
-#define SOCKET_MMSG_MAX (16) /* XXX */
-#define SOCKET_DATA_RECV_MAX (2UL * 1024UL) /* XXX */
+#define SOCKET_MMSG_MAX (16) /* randomly picked, no tuning done so far */
+#define SOCKET_DATA_RECV_MAX (2UL * 1024UL) /* based on measured message sized */
 
 enum {
         _SOCKET_E_SUCCESS,
@@ -28,9 +28,7 @@ enum {
         SOCKET_E_PREEMPTED,
 
         /* socket errors */
-        SOCKET_E_RESET,
         SOCKET_E_EOF,
-
         SOCKET_E_QUOTA,
         SOCKET_E_SHUTDOWN,
 };
@@ -62,6 +60,7 @@ struct Socket {
 
         bool lines_done : 1;
         bool shutdown : 1;
+        bool reset : 1;
         bool hup_in : 1;
         bool hup_out : 1;
 
@@ -70,13 +69,10 @@ struct Socket {
                 size_t data_size;
                 size_t data_start;
                 size_t data_end;
+                size_t cursor;
 
                 FDList *fds;
-
-                union {
-                        size_t line_cursor;
-                        Message *pending_message;
-                };
+                Message *pending_message;
         } in;
 
         struct SocketOut {
@@ -106,13 +102,6 @@ C_DEFINE_CLEANUP(Socket *, socket_deinit);
 
 /* inline helpers */
 
-static inline bool socket_has_input(Socket *socket) {
-        if (_c_unlikely_(!socket->lines_done))
-                return socket->in.line_cursor < socket->in.data_end;
-        else
-                return socket->in.data_end - socket->in.data_start >= sizeof(MessageHeader);
-}
-
 static inline bool socket_is_running(Socket *socket) {
-        return !socket->hup_out || !socket->hup_in || socket_has_input(socket);
+        return !socket->reset;
 }

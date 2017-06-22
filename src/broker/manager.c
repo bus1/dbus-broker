@@ -74,9 +74,7 @@ static int manager_dispatch_controller(DispatchFile *file, uint32_t events) {
 
                 r = connection_dequeue(&manager->controller, &m);
                 if (r) {
-                        if (r == CONNECTION_E_RESET) {
-                                break;
-                        } else if (r == CONNECTION_E_EOF) {
+                        if (r == CONNECTION_E_EOF) {
                                 connection_shutdown(&manager->controller);
                                 break;
                         } else {
@@ -201,7 +199,9 @@ int manager_run(Manager *manager) {
         sigprocmask(SIG_BLOCK, &signew, &sigold);
 
         r = connection_open(&manager->controller);
-        if (r)
+        if (r == CONNECTION_E_EOF)
+                return MAIN_EXIT;
+        else if (r)
                 return error_fold(r);
 
         do {

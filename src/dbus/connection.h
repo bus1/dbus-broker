@@ -18,19 +18,15 @@ typedef struct User User;
 enum {
         _CONNECTION_E_SUCCESS,
 
-        CONNECTION_E_RESET,
         CONNECTION_E_EOF,
-
         CONNECTION_E_QUOTA,
 };
 
 struct Connection {
         Socket socket;
         DispatchFile socket_file;
-        union {
-                SASLServer server;
-                SASLClient client;
-        } sasl;
+        SASLServer sasl_server;
+        SASLClient sasl_client;
 
         bool server : 1;
         bool authenticated : 1;
@@ -41,8 +37,8 @@ struct Connection {
 #define CONNECTION_NULL(_x) {                                           \
                 .socket = SOCKET_NULL((_x).socket),                     \
                 .socket_file = DISPATCH_FILE_NULL((_x).socket_file),    \
-                .sasl.client = SASL_CLIENT_NULL,                        \
-                .server = false,                                        \
+                .sasl_server = SASL_SERVER_NULL,                        \
+                .sasl_client = SASL_CLIENT_NULL,                        \
         }
 
 int connection_init_server(Connection *connection,
