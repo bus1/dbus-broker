@@ -681,7 +681,7 @@ int peer_queue_reply(Peer *sender, const char *destination, uint32_t reply_seria
         r = connection_queue(&receiver->connection, NULL, 0, message);
         if (r) {
                 if (r == CONNECTION_E_QUOTA)
-                        connection_close(&receiver->connection);
+                        connection_shutdown(&receiver->connection);
                 else
                         return error_fold(r);
         }
@@ -725,7 +725,7 @@ static int peer_broadcast_to_matches(Peer *sender, MatchRegistry *matches, Match
                 r = connection_queue(&receiver->connection, NULL, transaction_id, message);
                 if (r) {
                         if (r == CONNECTION_E_QUOTA)
-                                connection_close(&receiver->connection);
+                                connection_shutdown(&receiver->connection);
                         else
                                 return error_fold(r);
                 }

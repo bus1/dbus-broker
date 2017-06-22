@@ -1723,7 +1723,7 @@ static int driver_monitor_to_matches(MatchRegistry *matches, MatchFilter *filter
                 r = connection_queue(&receiver->connection, NULL, transaction_id, message);
                 if (r) {
                         if (r == CONNECTION_E_QUOTA)
-                                connection_close(&receiver->connection);
+                                connection_shutdown(&receiver->connection);
                         else
                                 return error_fold(r);
                 }
