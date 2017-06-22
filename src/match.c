@@ -427,11 +427,12 @@ MatchRule *match_rule_next_match(MatchRegistry *registry, MatchRule *rule, Match
 
 MatchRule *match_rule_next_monitor_match(MatchRegistry *registry, MatchRule *rule, MatchFilter *filter) {
         if (rule)
-                rule = c_list_first_entry(&registry->monitor_list, MatchRule, registry_link);
-        else
                 rule = c_list_entry(rule->registry_link.next, MatchRule, registry_link);
+        else
+                rule = c_list_first_entry(&registry->monitor_list, MatchRule, registry_link);
 
-        for (; rule; rule = c_list_entry(rule->registry_link.next, MatchRule, registry_link))
+        for (; rule != c_list_last_entry(&registry->monitor_list, MatchRule, registry_link);
+               rule = c_list_entry(rule->registry_link.next, MatchRule, registry_link))
                 if (match_rule_keys_match_filter(&rule->keys, filter))
                         return rule;
 
