@@ -15,6 +15,8 @@ typedef struct User User;
 enum {
         _DRIVER_E_SUCCESS,
 
+        DRIVER_E_PROTOCOL_VIOLATION,
+
         DRIVER_E_INVALID_MESSAGE,
 
         DRIVER_E_PEER_ALREADY_REGISTERED,

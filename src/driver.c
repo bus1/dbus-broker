@@ -1816,11 +1816,9 @@ int driver_dispatch(Peer *peer, Message *message) {
         int r;
 
         r = message_parse_metadata(message, &metadata);
-        if (r > 0) {
-                connection_close(&peer->connection);
-                driver_goodbye(peer, false);
-                return 0;
-        } else if (r < 0)
+        if (r > 0)
+                return DRIVER_E_PROTOCOL_VIOLATION;
+        else if (r < 0)
                 return error_fold(r);
 
         message_stitch_sender(message, peer->id);
@@ -1848,13 +1846,10 @@ int driver_dispatch(Peer *peer, Message *message) {
                 r = driver_send_error(peer, metadata.header.serial, "org.freedesktop.DBus.Error.AccessDenied", driver_error_to_string(r));
                 if (r)
                         return error_trace(r);
-                connection_close(&peer->connection);
-                break;
+                /* fall through */
         case DRIVER_E_PEER_IS_MONITOR:
         case DRIVER_E_INVALID_MESSAGE:
-                connection_close(&peer->connection);
-                r = driver_goodbye(peer, false);
-                break;
+                return DRIVER_E_PROTOCOL_VIOLATION;
         case DRIVER_E_PEER_ALREADY_REGISTERED:
                 r = driver_send_error(peer, metadata.header.serial, "org.freedesktop.DBus.Error.Failed", driver_error_to_string(r));
                 break;

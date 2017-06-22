@@ -37,14 +37,22 @@ static int peer_dispatch_connection(Peer *peer, uint32_t events) {
                 _c_cleanup_(message_unrefp) Message *m = NULL;
 
                 r = connection_dequeue(&peer->connection, &m);
-                if (r || !m) /* caller handles errors */
-                        return error_trace(r);
+                if (r || !m) {
+                        if (r == CONNECTION_E_EOF)
+                                return PEER_E_EOF;
+
+                        return error_fold(r);
+                }
 
                 metrics_sample_start(&peer->bus->metrics);
                 r = driver_dispatch(peer, m);
                 metrics_sample_end(&peer->bus->metrics);
-                if (r)
+                if (r) {
+                        if (r == DRIVER_E_PROTOCOL_VIOLATION)
+                                return PEER_E_PROTOCOL_VIOLATION;
+
                         return error_fold(r);
+                }
         }
 
         return 0;
@@ -93,19 +101,30 @@ static int peer_dispatch(DispatchFile *file, uint32_t mask) {
                 }
         }
 
-        if (r == CONNECTION_E_EOF) {
-                r = driver_goodbye(peer, false);
-                if (r)
-                        return error_fold(r);
+        if (r) {
+                if (r == PEER_E_EOF) {
+                        r = driver_goodbye(peer, false);
+                        if (r)
+                                return error_fold(r);
 
-                connection_shutdown(&peer->connection);
+                        connection_shutdown(&peer->connection);
+                } else if (r == PEER_E_PROTOCOL_VIOLATION) {
+                        connection_close(&peer->connection);
+
+                        r = driver_goodbye(peer, false);
+                        if (r)
+                                return error_fold(r);
+                } else {
+                        return error_fold(r);
+                }
+
                 if (!connection_is_running(&peer->connection))
                         peer_free(peer);
         }
 
         /* Careful: @peer might be deallocated here */
 
-        return error_fold(r);
+        return 0;
 }
 
 static int peer_get_peersec(int fd, char **labelp, size_t *lenp) {

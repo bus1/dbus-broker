@@ -28,6 +28,9 @@ enum {
 
         PEER_E_CONNECTION_REFUSED,
 
+        PEER_E_EOF,
+        PEER_E_PROTOCOL_VIOLATION,
+
         PEER_E_SEND_DENIED,
         PEER_E_RECEIVE_DENIED,
 
