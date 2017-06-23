@@ -718,6 +718,10 @@ static int socket_dispatch_read(Socket *socket) {
          * The line-reader, however, parses the entire line into the input
          * buffer. Hence, in case the normal buffer size is exceeded, we
          * re-allocate to the maximum once.
+         *
+         * Once we finished reading lines *AND* we processed all the data in
+         * the input buffer, we can safely de-allocate the buffer and fall back
+         * to the input buffer again.
          */
         if (_c_unlikely_(socket->in.data_size <= socket->in.data_end)) {
                 assert(!socket->lines_done);
@@ -742,6 +746,16 @@ static int socket_dispatch_read(Socket *socket) {
                 socket->in.data_end -= socket->in.data_start;
                 socket->in.cursor -= socket->in.data_start;
                 socket->in.data_start = 0;
+        } else if (_c_unlikely_(socket->in.data != socket->input_buffer)) {
+                if (socket->lines_done) {
+                        assert(!socket->in.data_start);
+                        assert(socket->in.data_end <= sizeof(socket->input_buffer));
+
+                        memcpy(socket->input_buffer, socket->in.data, socket->in.data_end);
+                        free(socket->in.data);
+                        socket->in.data = socket->input_buffer;
+                        socket->in.data_size = sizeof(socket->input_buffer);
+                }
         }
 
         /*
