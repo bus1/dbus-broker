@@ -691,6 +691,27 @@ static int socket_dispatch_read(Socket *socket) {
         socket->in.data_start = 0;
 
         /*
+         * Never ever read data if we did not finish parsing our input buffer!
+         *
+         * This is crucial! The kernel provides auxiliary data that is attached
+         * to specific SKBs, and as such part of the stream. We must never
+         * merge them across D-Bus message boundaries (see the FD handling on
+         * recvmsg(2) for details).
+         *
+         * As a consequence of this, we know that either our input buffer is
+         * empty, or we have no partial message pending. This stems from our
+         * parser to always copy any outstanding bytes from the input buffer
+         * into a pending message, and returning the message when done. So
+         * either we fully parsed a message and returned it (thus @msg is NULL)
+         * or our last dequeue-call emptied the input buffer by copying into
+         * the pending message.
+         */
+        if (socket->in.cursor < socket->in.data_end || (msg && msg->n_copied >= msg->n_data))
+                return 0;
+
+        assert(!msg || !socket->in.cursor);
+
+        /*
          * In case our input buffer is full, we need to resize it. This can
          * only happen for the line-reader, since messages leave at most 16
          * bytes behind (size of a single header).
@@ -722,27 +743,6 @@ static int socket_dispatch_read(Socket *socket) {
                 socket->in.cursor -= socket->in.data_start;
                 socket->in.data_start = 0;
         }
-
-        /*
-         * Never ever read data if we did not finish parsing our input buffer!
-         *
-         * This is crucial! The kernel provides auxiliary data that is attached
-         * to specific SKBs, and as such part of the stream. We must never
-         * merge them across D-Bus message boundaries (see the FD handling on
-         * recvmsg(2) for details).
-         *
-         * As a consequence of this, we know that either our input buffer is
-         * empty, or we have no partial message pending. This stems from our
-         * parser to always copy any outstanding bytes from the input buffer
-         * into a pending message, and returning the message when done. So
-         * either we fully parsed a message and returned it (thus @msg is NULL)
-         * or our last dequeue-call emptied the input buffer by copying into
-         * the pending message.
-         */
-        if (socket->in.cursor < socket->in.data_end || (msg && msg->n_copied >= msg->n_data))
-                return 0;
-
-        assert(!msg || !socket->in.cursor);
 
         /*
          * If there is a pending message, we try to read directly into it,
