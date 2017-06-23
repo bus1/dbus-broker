@@ -70,10 +70,6 @@ int dispatch_context_dispatch(DispatchContext *ctx);
 
 /* inline helpers */
 
-static inline bool dispatch_file_is_ready(DispatchFile *file, uint32_t mask) {
-        return (file->events & mask) == mask;
-}
-
 static inline uint32_t dispatch_file_events(DispatchFile *file) {
         return file->events & file->user_mask;
 }

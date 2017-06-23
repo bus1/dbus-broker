@@ -53,53 +53,58 @@ static int manager_dispatch_signals(DispatchFile *file, uint32_t events) {
         return DISPATCH_E_EXIT;
 }
 
-static int manager_dispatch_controller(DispatchFile *file, uint32_t events) {
-        Manager *manager = c_container_of(file, Manager, controller.socket_file);
+static int manager_dispatch_controller_connection(Manager *manager, uint32_t events) {
         int r;
 
-        if (dispatch_file_is_ready(file, EPOLLIN)) {
-                r = connection_dispatch(&manager->controller, EPOLLIN);
-                if (r)
-                        return error_fold(r);
-        }
-
-        if (dispatch_file_is_ready(file, EPOLLHUP)) {
-                r = connection_dispatch(&manager->controller, EPOLLHUP);
-                if (r)
-                        return error_fold(r);
-        }
+        r = connection_dispatch(&manager->controller, events);
+        if (r)
+                return error_fold(r);
 
         for (;;) {
                 _c_cleanup_(message_unrefp) Message *m = NULL;
 
                 r = connection_dequeue(&manager->controller, &m);
-                if (r) {
-                        if (r == CONNECTION_E_EOF) {
-                                connection_shutdown(&manager->controller);
-                                break;
-                        } else {
-                                return error_fold(r);
-                        }
-                }
-                if (!m) {
-                        break;
-                }
+                if (r || !m)
+                        return error_trace(r);
 
                 r = controller_dispatch(&manager->bus, m);
                 if (r)
                         return error_fold(r);
         }
 
-        if (dispatch_file_is_ready(file, EPOLLOUT)) {
-                r = connection_dispatch(&manager->controller, EPOLLOUT);
-                if (r)
-                        return error_fold(r);
+        return 0;
+}
+
+static int manager_dispatch_controller(DispatchFile *file, uint32_t events) {
+        Manager *manager = c_container_of(file, Manager, controller.socket_file);
+        static const uint32_t interest[] = { EPOLLIN | EPOLLHUP, EPOLLOUT };
+        size_t i;
+        int r;
+
+        /*
+         * We dispatch two times, once EPOLLIN and EPOLLHUP, the next time just
+         * EPOLLOUT. This makes sure to keep latencies for method-call + reply
+         * combinations low.
+         *
+         * See peer_dispatch() for details.
+         */
+        for (i = 0; i < C_ARRAY_SIZE(interest); ++i) {
+                if (dispatch_file_events(file) & interest[i]) {
+                        r = manager_dispatch_controller_connection(manager, events & interest[i]);
+                        if (r)
+                                break;
+                }
         }
 
-        if (!connection_is_running(&manager->controller))
-                return DISPATCH_E_EXIT;
+        if (r == CONNECTION_E_EOF) {
+                connection_shutdown(&manager->controller);
+                if (connection_is_running(&manager->controller))
+                        r = 0;
+                else
+                        r = DISPATCH_E_EXIT;
+        }
 
-        return 0;
+        return error_fold(r);
 }
 
 int manager_new(Manager **managerp, int controller_fd) {
