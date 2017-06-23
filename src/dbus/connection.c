@@ -131,8 +131,8 @@ static int connection_feed_sasl(Connection *connection, const char *input, size_
          *
          *     2) The message exceeds the connection quota. Since this is a
          *        self-triggered message, the connection itself is responsible
-         *        and thus at fault. We close the connection as if it violated
-         *        the protocol, and tell the caller about the EOF.
+         *        and thus at fault. We simply close the write-side of the
+         *        connection and wait for them to react to it.
          *
          *     3) A fatal error. Just like always, we simply fold it.
          */
