@@ -170,31 +170,23 @@ static void socket_discard_output(Socket *socket) {
 
 /**
  * socket_init() - initialize socket
- * @s:                  socket to operate on
+ * @socket:             socket to operate on
  * @user:               socket owner, or NULL
  * @fd:                 socket file descriptor
  *
- * This initializes the new socket @s. The socket will be owned by @user (and
- * accounted on it), and @fd will be used as socket file descriptor. Not that
- * @fd is still owned by the caller and must not be closed while the socket is
- * used.
+ * This initializes the new socket @socket. The socket will be owned by @user
+ * (and accounted on it), and @fd will be used as socket file descriptor. Not
+ * that @fd is still owned by the caller and must not be closed while the
+ * socket is used.
  *
  * Return: 0 on success, negative error code on failure.
  */
-int socket_init(Socket *s, User *user, int fd) {
-        _c_cleanup_(socket_deinitp) Socket *socket = s;
-
+void socket_init(Socket *socket, User *user, int fd) {
         *socket = (Socket)SOCKET_NULL(*socket);
         socket->user = user_ref(user);
         socket->fd = fd;
-        socket->in.data_size = SOCKET_DATA_RECV_MAX;
-
-        socket->in.data = malloc(socket->in.data_size);
-        if (!socket->in.data)
-                return error_origin(-ENOMEM);
-
-        socket = NULL;
-        return 0;
+        socket->in.data_size = sizeof(socket->input_buffer);
+        socket->in.data = socket->input_buffer;
 }
 
 /**
@@ -216,7 +208,9 @@ void socket_deinit(Socket *socket) {
         assert(!socket->in.fds);
         assert(!socket->in.pending_message);
 
-        socket->in.data = c_free(socket->in.data);
+        if (socket->in.data != socket->input_buffer)
+                socket->in.data = c_free(socket->in.data);
+
         socket->fd = -1;
         socket->user = user_unref(socket->user);
 }
@@ -712,6 +706,8 @@ static int socket_dispatch_read(Socket *socket) {
                         return SOCKET_E_LOST_INTEREST;
                 }
 
+                assert(socket->in.data == socket->input_buffer);
+
                 p = malloc(SOCKET_LINE_MAX);
                 if (!p)
                         return error_origin(-ENOMEM);
@@ -720,7 +716,6 @@ static int socket_dispatch_read(Socket *socket) {
                        socket->in.data + socket->in.data_start,
                        socket->in.data_end - socket->in.data_start);
 
-                free(socket->in.data);
                 socket->in.data = p;
                 socket->in.data_size = SOCKET_LINE_MAX;
                 socket->in.data_end -= socket->in.data_start;

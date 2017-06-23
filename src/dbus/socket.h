@@ -78,6 +78,9 @@ struct Socket {
         struct SocketOut {
                 CList queue;
         } out;
+
+        /* keep last to improve member-locality */
+        char input_buffer[SOCKET_DATA_RECV_MAX];
 };
 
 #define SOCKET_NULL(_x) {                                               \
@@ -85,7 +88,7 @@ struct Socket {
                 .out.queue = C_LIST_INIT((_x).out.queue),               \
         }
 
-int socket_init(Socket *socket, User *user, int fd);
+void socket_init(Socket *socket, User *user, int fd);
 void socket_deinit(Socket *socket);
 
 int socket_dequeue_line(Socket *socket, const char **linep, size_t *np);
