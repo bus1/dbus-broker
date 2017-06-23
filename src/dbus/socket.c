@@ -559,7 +559,7 @@ int socket_queue(Socket *socket, User *user, SocketBuffer *buffer) {
         return 0;
 }
 
-static int socket_recvmsg(Socket *socket, void *buffer, size_t max, size_t *from, size_t *to, FDList **fdsp) {
+static int socket_recvmsg(Socket *socket, void *buffer, size_t max, size_t *from, size_t to, FDList **fdsp) {
         union {
                 struct cmsghdr cmsg;
                 char buffer[CMSG_SPACE(sizeof(int) * SOCKET_FD_MAX)];
@@ -570,12 +570,12 @@ static int socket_recvmsg(Socket *socket, void *buffer, size_t max, size_t *from
         size_t n_fds = 0;
         ssize_t l;
 
-        assert(*to > *from);
+        assert(to > *from);
 
         msg = (struct msghdr){
                 .msg_iov = &(struct iovec){
                         .iov_base = buffer + *from,
-                        .iov_len = c_min(*to - *from, max),
+                        .iov_len = c_min(to - *from, max),
                 },
                 .msg_iovlen = 1,
                 .msg_control = &control,
@@ -765,7 +765,7 @@ static int socket_dispatch_read(Socket *socket) {
                                       msg->data,
                                       msg->n_data,
                                       &msg->n_copied,
-                                      &msg->n_data,
+                                      msg->n_data,
                                       &msg->fds);
 
         /*
@@ -783,7 +783,7 @@ static int socket_dispatch_read(Socket *socket) {
                               socket->in.data,
                               SOCKET_DATA_RECV_MAX,
                               &socket->in.data_end,
-                              &socket->in.data_size,
+                              socket->in.data_size,
                               &socket->in.fds);
 }
 
