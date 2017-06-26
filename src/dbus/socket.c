@@ -159,6 +159,8 @@ static void socket_discard_input(Socket *socket) {
         socket->in.data_start = socket->in.data_end;
         socket->in.cursor = socket->in.data_end;
         socket->in.fds = fdlist_free(socket->in.fds);
+        user_charge_deinit(&socket->in.charges[1]);
+        user_charge_deinit(&socket->in.charges[0]);
 }
 
 static void socket_discard_output(Socket *socket) {
@@ -187,6 +189,8 @@ void socket_init(Socket *socket, User *user, int fd) {
         socket->fd = fd;
         socket->in.data_size = sizeof(socket->input_buffer);
         socket->in.data = socket->input_buffer;
+        user_charge_init(&socket->in.charges[0]);
+        user_charge_init(&socket->in.charges[1]);
 }
 
 /**
@@ -210,6 +214,9 @@ void socket_deinit(Socket *socket) {
 
         if (socket->in.data != socket->input_buffer)
                 socket->in.data = c_free(socket->in.data);
+
+        user_charge_init(&socket->in.charges[1]);
+        user_charge_init(&socket->in.charges[0]);
 
         socket->fd = -1;
         socket->user = user_unref(socket->user);
@@ -334,8 +341,10 @@ int socket_dequeue_line(Socket *socket, const char **linep, size_t *np) {
                  * and the DBus spec clearly states that no extension shall
                  * pass FDs during authentication.
                  */
-                if (_c_unlikely_(socket->in.cursor + 1 == socket->in.data_end && socket->in.fds))
+                if (_c_unlikely_(socket->in.cursor + 1 == socket->in.data_end && socket->in.fds)) {
                         socket->in.fds = fdlist_free(socket->in.fds);
+                        user_charge_deinit(&socket->in.charges[1]);
+                }
 
                 /*
                  * If we find an \r\n, advance the start indicator and return
@@ -425,6 +434,19 @@ int socket_dequeue(Socket *socket, Message **messagep) {
                         return error_fold(r);
                 }
 
+                r = user_charge(socket->user, &socket->in.charges[0], NULL, USER_SLOT_BYTES, sizeof(*msg) + msg->n_data);
+                if (r == USER_E_QUOTA) {
+                        /*
+                         * Too many/large outstanding messages accross all
+                         * a user's peers is considered a protocol
+                         * violation too and causes an immediate shutdown.
+                         */
+                        socket_close(socket);
+                        return SOCKET_E_EOF;
+                } else if (r) {
+                        return error_fold(r);
+                }
+
                 n_data -= n;
                 socket->in.data_start += n;
                 socket->in.cursor = socket->in.data_start;
@@ -459,6 +481,8 @@ int socket_dequeue(Socket *socket, Message **messagep) {
         if (msg->n_copied >= msg->n_data) {
                 *messagep = msg;
                 socket->in.pending_message = NULL;
+                user_charge_deinit(&socket->in.charges[0]);
+                user_charge_deinit(&socket->in.charges[1]);
                 return 0;
         }
 
@@ -640,7 +664,8 @@ static int socket_recvmsg(Socket *socket, void *buffer, size_t max, size_t *from
                  * So we received FDs with this hunk. If we already got FDs for
                  * this pending message, we must follow the D-Bus spec and
                  * treat this as protocol violation. So close the socket
-                 * immediately.
+                 * immediately. We also close the socket immediately in case
+                 * the sending user's fd quota has been exceeded.
                  * Otherwise, remember the FDs in the socket. Note that FDs
                  * always belong to the *last* byte of a received hunk, since
                  * the kernel breaks SKBs *AFTER* FDs, but not before them.
@@ -652,6 +677,20 @@ static int socket_recvmsg(Socket *socket, void *buffer, size_t max, size_t *from
                 if (_c_unlikely_(*fdsp)) {
                         socket_close(socket);
                         r = SOCKET_E_LOST_INTEREST;
+                        goto error;
+                }
+
+                r = user_charge(socket->user, &socket->in.charges[1], NULL, USER_SLOT_FDS, n_fds);
+                if (r == USER_E_QUOTA) {
+                        /*
+                         * Too many/large outstanding messages accross all
+                         * a user's peers is considered a protocol
+                         * violation too and causes an immediate shutdown.
+                         */
+                        socket_close(socket);
+                        r = SOCKET_E_LOST_INTEREST;
+                        goto error;
+                } else if (r) {
                         goto error;
                 }
 
@@ -674,6 +713,7 @@ error:
 static int socket_dispatch_read(Socket *socket) {
         Message *msg = socket->in.pending_message;
         void *p;
+        int r;
 
         /*
          * Always shift the input buffer. In case of the line-parser this
@@ -731,6 +771,19 @@ static int socket_dispatch_read(Socket *socket) {
                         return SOCKET_E_LOST_INTEREST;
                 }
 
+                r = user_charge(socket->user, &socket->in.charges[0], NULL, USER_SLOT_BYTES, SOCKET_LINE_MAX);
+                if (r == USER_E_QUOTA) {
+                        /*
+                         * Too many/large outstanding messages or long lines
+                         * accross all a user's peers is considered a protocol
+                         * violation and causes an immediate shutdown.
+                         */
+                        socket_close(socket);
+                        return SOCKET_E_LOST_INTEREST;
+                } else if (r) {
+                        return error_fold(r);
+                }
+
                 assert(socket->in.data == socket->input_buffer);
 
                 p = malloc(SOCKET_LINE_MAX);
@@ -755,6 +808,7 @@ static int socket_dispatch_read(Socket *socket) {
                         free(socket->in.data);
                         socket->in.data = socket->input_buffer;
                         socket->in.data_size = sizeof(socket->input_buffer);
+                        user_charge_deinit(&socket->in.charges[0]);
                 }
         }
 

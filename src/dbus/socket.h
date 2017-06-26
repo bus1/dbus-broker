@@ -71,6 +71,8 @@ struct Socket {
                 size_t data_end;
                 size_t cursor;
 
+                UserCharge charges[2];
+
                 FDList *fds;
                 Message *pending_message;
         } in;
