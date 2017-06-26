@@ -331,13 +331,13 @@ const char *driver_error_to_string(int r) {
 static int driver_send_unicast(Peer *receiver, Message *message) {
         int r;
 
-        /* for eavesdropping */
-        r = peer_broadcast(NULL, receiver, receiver->bus, message);
+        /* XXX: handle quota */
+        r = connection_queue(&receiver->connection, NULL, 0, message);
         if (r)
                 return error_fold(r);
 
-        /* XXX: handle quota */
-        r = connection_queue(&receiver->connection, NULL, 0, message);
+        /* for eavesdropping */
+        r = peer_broadcast(NULL, receiver, receiver->bus, message);
         if (r)
                 return error_fold(r);
 
