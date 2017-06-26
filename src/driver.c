@@ -328,11 +328,11 @@ const char *driver_error_to_string(int r) {
         return error_strings[r];
 }
 
-static int driver_send_unicast(Peer *receiver, MatchFilter *filter, Message *message) {
+static int driver_send_unicast(Peer *receiver, Message *message) {
         int r;
 
         /* for eavesdropping */
-        r = peer_broadcast(NULL, receiver->bus, filter, message);
+        r = peer_broadcast(NULL, receiver, receiver->bus, message);
         if (r)
                 return error_fold(r);
 
@@ -345,12 +345,6 @@ static int driver_send_unicast(Peer *receiver, MatchFilter *filter, Message *mes
 }
 
 static int driver_send_error(Peer *receiver, uint32_t serial, const char *error, const char *error_message) {
-        MatchFilter filter = {
-                .type = DBUS_MESSAGE_TYPE_ERROR,
-                .destination = receiver->id,
-                .args[0] = error_message,
-                .argpaths[0] = error_message,
-        };
         static const CDVarType type[] = {
                 C_DVAR_T_INIT(
                         DRIVER_T_MESSAGE(
@@ -385,7 +379,11 @@ static int driver_send_error(Peer *receiver, uint32_t serial, const char *error,
         if (r)
                 return error_fold(r);
 
-        r = driver_send_unicast(receiver, &filter, message);
+        message->metadata.header.type = DBUS_MESSAGE_TYPE_ERROR;
+        message->metadata.args[0].element = 's';
+        message->metadata.args[0].value = error_message;
+
+        r = driver_send_unicast(receiver, message);
         if (r)
                 return error_trace(r);
 
@@ -393,12 +391,6 @@ static int driver_send_error(Peer *receiver, uint32_t serial, const char *error,
 }
 
 static int driver_send_reply(Peer *peer, CDVar *var, const char *arg0) {
-        MatchFilter filter = {
-                .type = DBUS_MESSAGE_TYPE_METHOD_RETURN,
-                .destination = peer->id,
-                .args[0] = arg0,
-                .argpaths[0] = arg0,
-        };
         _c_cleanup_(message_unrefp) Message *message = NULL;
         void *data;
         size_t n_data;
@@ -421,7 +413,13 @@ static int driver_send_reply(Peer *peer, CDVar *var, const char *arg0) {
         if (r)
                 return error_fold(r);
 
-        r = driver_send_unicast(peer, &filter, message);
+        message->metadata.header.type = DBUS_MESSAGE_TYPE_METHOD_RETURN;
+        if (arg0) {
+                message->metadata.args[0].element = 's';
+                message->metadata.args[0].value = arg0;
+        }
+
+        r = driver_send_unicast(peer, message);
         if (r)
                 return error_trace(r);
 
@@ -429,15 +427,6 @@ static int driver_send_reply(Peer *peer, CDVar *var, const char *arg0) {
 }
 
 static int driver_notify_name_acquired(Peer *peer, const char *name) {
-        MatchFilter filter = {
-                .type = DBUS_MESSAGE_TYPE_SIGNAL,
-                .destination = peer->id,
-                .interface = "org.freedesktop.DBus",
-                .member = "NameAcquired",
-                .path = "/org/freedesktop/DBus",
-                .args[0] = name,
-                .argpaths[0] = name,
-        };
         static const CDVarType type[] = {
                 C_DVAR_T_INIT(
                         DRIVER_T_MESSAGE(
@@ -466,7 +455,14 @@ static int driver_notify_name_acquired(Peer *peer, const char *name) {
         if (r)
                 return error_fold(r);
 
-        r = driver_send_unicast(peer, &filter, message);
+        message->metadata.header.type = DBUS_MESSAGE_TYPE_SIGNAL;
+        message->metadata.fields.path = "/org/freedesktop/DBus";
+        message->metadata.fields.interface = "org.freedesktop.DBus";
+        message->metadata.fields.member = "NameAcquired";
+        message->metadata.args[0].element = 's';
+        message->metadata.args[0].value = name;
+
+        r = driver_send_unicast(peer, message);
         if (r)
                 return error_trace(r);
 
@@ -474,15 +470,6 @@ static int driver_notify_name_acquired(Peer *peer, const char *name) {
 }
 
 static int driver_notify_name_lost(Peer *peer, const char *name) {
-        MatchFilter filter = {
-                .type = DBUS_MESSAGE_TYPE_SIGNAL,
-                .destination = peer->id,
-                .interface = "org.freedesktop.DBus",
-                .member = "NameLost",
-                .path = "/org/freedesktop/DBus",
-                .args[0] = name,
-                .argpaths[0] = name,
-        };
         static const CDVarType type[] = {
                 C_DVAR_T_INIT(
                         DRIVER_T_MESSAGE(
@@ -511,7 +498,14 @@ static int driver_notify_name_lost(Peer *peer, const char *name) {
         if (r)
                 return error_fold(r);
 
-        r = driver_send_unicast(peer, &filter, message);
+        message->metadata.header.type = DBUS_MESSAGE_TYPE_SIGNAL;
+        message->metadata.fields.path = "/org/freedesktop/DBus";
+        message->metadata.fields.interface = "org.freedesktop.DBus";
+        message->metadata.fields.member = "NameLost";
+        message->metadata.args[0].element = 's';
+        message->metadata.args[0].value = name;
+
+        r = driver_send_unicast(peer, message);
         if (r)
                 return error_trace(r);
 
@@ -519,19 +513,6 @@ static int driver_notify_name_lost(Peer *peer, const char *name) {
 }
 
 static int driver_notify_name_owner_changed(Bus *bus, const char *name, const char *old_owner, const char *new_owner) {
-        MatchFilter filter = {
-                .type = DBUS_MESSAGE_TYPE_SIGNAL,
-                .destination = ADDRESS_ID_INVALID,
-                .interface = "org.freedesktop.DBus",
-                .member = "NameOwnerChanged",
-                .path = "/org/freedesktop/DBus",
-                .args[0] = name,
-                .argpaths[0] = name,
-                .args[1] = old_owner,
-                .argpaths[1] = old_owner,
-                .args[2] = new_owner,
-                .argpaths[2] = new_owner,
-        };
         static const CDVarType type[] = {
                 C_DVAR_T_INIT(
                         DRIVER_T_MESSAGE(
@@ -562,7 +543,7 @@ static int driver_notify_name_owner_changed(Bus *bus, const char *name, const ch
         if (r)
                 return error_fold(r);
 
-        r = peer_broadcast(NULL, bus, &filter, message);
+        r = peer_broadcast(NULL, NULL, bus, message);
         if (r)
                 return error_fold(r);
 
@@ -1733,14 +1714,32 @@ static int driver_monitor_to_matches(MatchRegistry *matches, MatchFilter *filter
         return 0;
 }
 
-static int driver_monitor(Peer *sender, MatchFilter *filter, Message *message) {
+static int driver_monitor(Peer *sender, Message *message) {
+        MatchFilter filter;
         NameOwnership *ownership;
         int r;
+
+        match_filter_init(&filter);
+
+        filter.type = message->metadata.header.type;
+        filter.sender = sender->id;
+        filter.interface = message->metadata.fields.interface;
+        filter.member = message->metadata.fields.member,
+        filter.path = message->metadata.fields.path;
+
+        for (size_t i = 0; i < 64; ++i) {
+                if (message->metadata.args[i].element == 's') {
+                        filter.args[i] = message->metadata.args[i].value;
+                        filter.argpaths[i] = message->metadata.args[i].value;
+                } else if (message->metadata.args[i].element == 'o') {
+                        filter.argpaths[i] = message->metadata.args[i].value;
+                }
+        }
 
         /* start a new transaction, to avoid duplicates */
         ++sender->bus->transaction_ids;
 
-        r = driver_monitor_to_matches(&sender->bus->wildcard_matches, filter, sender->bus->transaction_ids, message);
+        r = driver_monitor_to_matches(&sender->bus->wildcard_matches, &filter, sender->bus->transaction_ids, message);
         if (r)
                 return error_trace(r);
 
@@ -1748,22 +1747,22 @@ static int driver_monitor(Peer *sender, MatchFilter *filter, Message *message) {
                 if (!name_ownership_is_primary(ownership))
                         continue;
 
-                r = driver_monitor_to_matches(&ownership->name->matches, filter, sender->bus->transaction_ids, message);
+                r = driver_monitor_to_matches(&ownership->name->matches, &filter, sender->bus->transaction_ids, message);
                 if (r)
                         return error_trace(r);
         }
 
-        r = driver_monitor_to_matches(&sender->matches, filter, sender->bus->transaction_ids, message);
+        r = driver_monitor_to_matches(&sender->matches, &filter, sender->bus->transaction_ids, message);
         if (r)
                 return error_trace(r);
 
         return 0;
 }
 
-static int driver_dispatch_internal(Peer *peer, Message *message, MatchFilter *filter) {
+static int driver_dispatch_internal(Peer *peer, Message *message) {
         int r;
 
-        r = driver_monitor(peer, filter, message);
+        r = driver_monitor(peer, message);
         if (r)
                 return error_trace(r);
 
@@ -1785,7 +1784,7 @@ static int driver_dispatch_internal(Peer *peer, Message *message, MatchFilter *f
 
         if (!message->metadata.fields.destination) {
                 if (message->metadata.header.type == DBUS_MESSAGE_TYPE_SIGNAL)
-                        return error_fold(peer_broadcast(peer, peer->bus, filter, message));
+                        return error_fold(peer_broadcast(peer, NULL, peer->bus, message));
                 else
                         return DRIVER_E_UNEXPECTED_MESSAGE_TYPE;
         }
@@ -1812,7 +1811,6 @@ static int driver_dispatch_internal(Peer *peer, Message *message, MatchFilter *f
 }
 
 int driver_dispatch(Peer *peer, Message *message) {
-        MatchFilter filter;
         int r;
 
         r = message_parse_metadata(message);
@@ -1823,24 +1821,7 @@ int driver_dispatch(Peer *peer, Message *message) {
 
         message_stitch_sender(message, peer->id);
 
-        match_filter_init(&filter);
-
-        filter.type = message->metadata.header.type;
-        filter.sender = peer->id;
-        filter.interface = message->metadata.fields.interface;
-        filter.member = message->metadata.fields.member,
-        filter.path = message->metadata.fields.path;
-
-        for (size_t i = 0; i < 64; ++i) {
-                if (message->metadata.args[i].element == 's') {
-                        filter.args[i] = message->metadata.args[i].value;
-                        filter.argpaths[i] = message->metadata.args[i].value;
-                } else if (message->metadata.args[i].element == 'o') {
-                        filter.argpaths[i] = message->metadata.args[i].value;
-                }
-        }
-
-        r = driver_dispatch_internal(peer, message, &filter);
+        r = driver_dispatch_internal(peer, message);
         switch (r) {
         case DRIVER_E_PEER_NOT_REGISTERED:
                 r = driver_send_error(peer, message->metadata.header.serial, "org.freedesktop.DBus.Error.AccessDenied", driver_error_to_string(r));
