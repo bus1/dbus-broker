@@ -453,44 +453,39 @@ static int controller_dispatch_object(Bus *bus, uint32_t serial, const char *int
 }
 
 int controller_dispatch(Bus *bus, Message *message) {
-        MessageMetadata metadata;
-        const char *signature;
         int r;
 
         if (message->header->type != DBUS_MESSAGE_TYPE_METHOD_CALL)
                 return CONTROLLER_E_DISCONNECT;
 
-        r = message_parse_metadata(message, &metadata);
+        r = message_parse_metadata(message);
         if (r > 0)
                 return CONTROLLER_E_DISCONNECT;
         else if (r < 0)
                 return error_fold(r);
 
-        /* no signature implies empty signature */
-        signature = metadata.fields.signature ?: "";
-
         r = controller_dispatch_object(bus,
-                                       metadata.header.serial,
-                                       metadata.fields.interface,
-                                       metadata.fields.member,
-                                       metadata.fields.path,
-                                       signature,
+                                       message->metadata.header.serial,
+                                       message->metadata.fields.interface,
+                                       message->metadata.fields.member,
+                                       message->metadata.fields.path,
+                                       message->metadata.fields.signature,
                                        message);
         switch (r) {
         case CONTROLLER_E_INVALID_MESSAGE:
                 return CONTROLLER_E_DISCONNECT;
         case CONTROLLER_E_UNEXPECTED_PATH:
         case CONTROLLER_E_UNEXPECTED_MESSAGE_TYPE:
-                r = controller_send_error(bus->controller, metadata.header.serial, "org.freedesktop.DBus.Error.AccessDenied");
+                r = controller_send_error(bus->controller, message->metadata.header.serial, "org.freedesktop.DBus.Error.AccessDenied");
                 break;
         case CONTROLLER_E_UNEXPECTED_INTERFACE:
-                r = controller_send_error(bus->controller, metadata.header.serial, "org.freedesktop.DBus.Error.UnknownInterface");
+                r = controller_send_error(bus->controller, message->metadata.header.serial, "org.freedesktop.DBus.Error.UnknownInterface");
                 break;
         case CONTROLLER_E_UNEXPECTED_METHOD:
-                r = controller_send_error(bus->controller, metadata.header.serial, "org.freedesktop.DBus.Error.UnknownMethod");
+                r = controller_send_error(bus->controller, message->metadata.header.serial, "org.freedesktop.DBus.Error.UnknownMethod");
                 break;
         case CONTROLLER_E_UNEXPECTED_SIGNATURE:
-                r = controller_send_error(bus->controller, metadata.header.serial, "org.freedesktop.DBus.Error.InvalidArgs");
+                r = controller_send_error(bus->controller, message->metadata.header.serial, "org.freedesktop.DBus.Error.InvalidArgs");
                 break;
         default:
                 break;

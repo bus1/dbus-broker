@@ -29,46 +29,7 @@ enum {
         MESSAGE_E_INVALID_BODY,
 };
 
-struct Message {
-        _Atomic unsigned long n_refs;
-
-        bool big_endian : 1;
-        bool allocated_data : 1;
-        bool parsed : 1;
-
-        uint64_t sender_id;
-
-        FDList *fds;
-
-        size_t n_data;
-        size_t n_copied;
-        size_t n_header;
-        size_t n_body;
-
-        void *data;
-        MessageHeader *header;
-        const char *path;
-        const char *interface;
-        const char *member;
-        void *body;
-        void *original_sender;
-        struct iovec vecs[4];
-        alignas(uint64_t) uint8_t patch[MESSAGE_PATCH_MAX];
-};
-
-struct MessageHeader {
-        uint8_t endian;
-        uint8_t type;
-        uint8_t flags;
-        uint8_t version;
-        uint32_t n_body;
-        uint32_t serial;
-        uint32_t n_fields;
-} _c_packed_;
-
 struct MessageMetadata {
-        Message *message;
-
         struct {
                 uint8_t type;
                 uint8_t flags;
@@ -95,11 +56,47 @@ struct MessageMetadata {
         } args[64];
 };
 
+struct Message {
+        _Atomic unsigned long n_refs;
+
+        bool big_endian : 1;
+        bool allocated_data : 1;
+        bool parsed : 1;
+
+        uint64_t sender_id;
+
+        FDList *fds;
+
+        size_t n_data;
+        size_t n_copied;
+        size_t n_header;
+        size_t n_body;
+
+        void *data;
+        MessageHeader *header;
+        MessageMetadata metadata;
+        void *body;
+
+        void *original_sender;
+        struct iovec vecs[4];
+        alignas(uint64_t) uint8_t patch[MESSAGE_PATCH_MAX];
+};
+
+struct MessageHeader {
+        uint8_t endian;
+        uint8_t type;
+        uint8_t flags;
+        uint8_t version;
+        uint32_t n_body;
+        uint32_t serial;
+        uint32_t n_fields;
+} _c_packed_;
+
 int message_new_incoming(Message **messagep, MessageHeader header);
 int message_new_outgoing(Message **messagep, void *data, size_t n_data);
 void message_free(_Atomic unsigned long *n_refs, void *userdata);
 
-int message_parse_metadata(Message *message, MessageMetadata *metadata);
+int message_parse_metadata(Message *message);
 void message_stitch_sender(Message *message, uint64_t sender_id);
 
 /* inline helpers */

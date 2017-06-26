@@ -34,9 +34,7 @@ static int message_new(Message **messagep, bool big_endian, size_t n_extra) {
         message->n_body = 0;
         message->data = NULL;
         message->header = NULL;
-        message->path = NULL;
-        message->interface = NULL;
-        message->member = NULL;
+        message->metadata = (MessageMetadata){};
         message->body = NULL;
         message->original_sender = NULL;
 
@@ -229,8 +227,6 @@ static int message_parse_header(Message *message, MessageMetadata *metadata) {
                         if (!strcmp(metadata->fields.path, "/org/freedesktop/DBus/Local"))
                                 return MESSAGE_E_INVALID_HEADER;
 
-                        /* cache path to avoid having to reparse the header in the future */
-                        message->path = metadata->fields.path;
                         break;
 
                 case DBUS_MESSAGE_FIELD_INTERFACE:
@@ -241,8 +237,6 @@ static int message_parse_header(Message *message, MessageMetadata *metadata) {
 
                         /* XXX: invalid interfaces are rejected */
 
-                        /* cache interface to avoid having to reparse the header in the future */
-                        message->interface = metadata->fields.interface;
                         break;
 
                 case DBUS_MESSAGE_FIELD_MEMBER:
@@ -250,8 +244,6 @@ static int message_parse_header(Message *message, MessageMetadata *metadata) {
 
                         /* XXX: invalid members are rejected */
 
-                        /* cache member to avoid having to reparse the header in the future */
-                        message->member = metadata->fields.member;
                         break;
 
                 case DBUS_MESSAGE_FIELD_ERROR_NAME:
@@ -409,19 +401,17 @@ static int message_parse_body(Message *message, MessageMetadata *metadata) {
 /**
  * message_parse_metadata() - XXX
  */
-int message_parse_metadata(Message *message, MessageMetadata *metadata) {
+int message_parse_metadata(Message *message) {
         void *p;
         int r;
 
         assert(!message->parsed);
 
-        *metadata = (MessageMetadata){ .message = message };
-
         /*
          * As first step, parse the static header and the dynamic header
          * fields. Any error there is fatal.
          */
-        r = message_parse_header(message, metadata);
+        r = message_parse_header(message, &message->metadata);
         if (r)
                 return error_trace(r);
 
@@ -440,7 +430,7 @@ int message_parse_metadata(Message *message, MessageMetadata *metadata) {
          * also to fetch the arguments for match-filters used by eavesdropping
          * and common broadcasts.
          */
-        r = message_parse_body(message, metadata);
+        r = message_parse_body(message, &message->metadata);
         if (r)
                 return error_trace(r);
 
@@ -453,7 +443,7 @@ int message_parse_metadata(Message *message, MessageMetadata *metadata) {
          * we always discard any remaining FDs silently.
          */
         if (message->fds)
-                fdlist_truncate(message->fds, metadata->fields.unix_fds);
+                fdlist_truncate(message->fds, message->metadata.fields.unix_fds);
 
         message->parsed = true;
         return 0;

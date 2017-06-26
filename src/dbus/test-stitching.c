@@ -39,7 +39,6 @@ static const CDVarType test_message_type[] = {
 
 static Message *test_new_message(size_t before, const char *sender_early, size_t after, const char *sender_late) {
         _c_cleanup_(c_dvar_deinit) CDVar v = C_DVAR_INIT;
-        MessageMetadata metadata;
         Message *message;
         size_t n_data;
         void *data;
@@ -107,7 +106,7 @@ static Message *test_new_message(size_t before, const char *sender_early, size_t
         r = message_new_outgoing(&message, data, n_data);
         assert(!r);
 
-        r = message_parse_metadata(message, &metadata);
+        r = message_parse_metadata(message);
         assert(!r);
 
         return message;
