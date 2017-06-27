@@ -18,34 +18,6 @@
 #include <stdlib.h>
 #include "dbus/address.h"
 
-static bool address_verify_name(const char *name, size_t n_name) {
-        bool has_dot = false, dot = true;
-        size_t i;
-
-        if (n_name > 255)
-                return false;
-
-        for (i = 0; i < n_name; ++i) {
-                if (name[i] == '.') {
-                        if (dot)
-                                return false;
-
-                        has_dot = true;
-                        dot = true;
-                } else if (_c_unlikely_(!((name[i] >= 'a' && name[i] <= 'z') ||
-                                          (name[i] >= 'A' && name[i] <= 'Z') ||
-                                          (name[i] >= '0' && name[i] <= '9' && !dot) ||
-                                          name[i] == '_' ||
-                                          name[i] == '-'))) {
-                        return false;
-                } else {
-                        dot = false;
-                }
-        }
-
-        return has_dot && !dot;
-}
-
 /**
  * address_init_from_id() - initialize ID address
  * @address:            address to operate on
@@ -85,27 +57,38 @@ void address_init_from_name(Address *address, const char *name) {
  *
  * Note that @string is *NOT* copied into @address, but might be referenced
  * from it. Hence, the lifetime of @address is bound to @string.
+ *
+ * This function does not fully validate the address! All it does is to detect
+ * the type of address, but the address might still be invalid. In other words,
+ * this function correctly assigns a type to all valid addresses. However, in
+ * case of invalid addresses, it might give false positives. That is, for the
+ * sake of distinguishing addresses, this is sufficient. However, for the sake
+ * of data validation when creating/acquiring names, you need to further verify
+ * the validity of the name.
  */
 void address_from_string(Address *address, const char *string) {
         uint64_t id;
         char *end;
 
-        if (!strncmp(string, ":1.", strlen(":1."))) {
-                string += strlen(":1.");
+        address->type = ADDRESS_TYPE_OTHER;
 
+        if (!string[0]) {
+                return;
+        } else if (string[0] == ':') {
+                if (strncmp(string, ":1.", strlen(":1.")))
+                        return;
+
+                string += strlen(":1.");
                 errno = 0;
                 id = strtoull(string, &end, 10);
-                if (end == string || *end || errno || id == ULLONG_MAX) {
-                        address->type = ADDRESS_TYPE_OTHER;
-                } else {
-                        address->type = ADDRESS_TYPE_ID;
-                        address->id = id;
-                }
-        } else if (address_verify_name(string, strlen(string))) {
+                if (end == string || *end || errno || id == ULLONG_MAX)
+                        return;
+
+                address->type = ADDRESS_TYPE_ID;
+                address->id = id;
+        } else {
                 address->type = ADDRESS_TYPE_NAME;
                 address->name = string;
-        } else {
-                address->type = ADDRESS_TYPE_OTHER;
         }
 }
 

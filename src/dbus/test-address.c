@@ -40,6 +40,10 @@ static void test_basic(void) {
         /* Non-1 namespaces are invalid. */
         address_from_string(&addr, ":2.0");
         assert(addr.type == ADDRESS_TYPE_OTHER);
+
+        /* Well-known names become type NAME */
+        address_from_string(&addr, "foo.bar");
+        assert(addr.type == ADDRESS_TYPE_NAME);
 }
 
 int main(int argc, char **argv) {
