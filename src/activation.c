@@ -21,6 +21,17 @@ ActivationRequest *activation_request_free(ActivationRequest *request) {
         return NULL;
 }
 
+ActivationMessage *activation_message_free(ActivationMessage *message) {
+        if (!message)
+                return NULL;
+
+        message_unref(message->message);
+        c_list_unlink_init(&message->link);
+        free(message);
+
+        return NULL;
+}
+
 static int activation_compare(CRBTree *tree, void *k, CRBNode *rb) {
         Activation *activation = c_container_of(rb, Activation, registry_node);
 
@@ -48,7 +59,7 @@ int activation_new(Activation **activationp, ActivationRegistry *registry, const
         activation->registry = registry;
         activation->name = name_ref(name);
         activation->user = user_ref(user);
-        activation->socket_buffers = (CList)C_LIST_INIT(activation->socket_buffers);
+        activation->activation_messages = (CList)C_LIST_INIT(activation->activation_messages);
         activation->activation_requests = (CList)C_LIST_INIT(activation->activation_requests);
         activation->registry_node = (CRBNode)C_RBNODE_INIT(activation->registry_node);
         memcpy((char*)activation->path, path, strlen(path) + 1);
@@ -70,7 +81,7 @@ Activation *activation_free(Activation *activation) {
 
         activation_flush(activation);
 
-        assert(c_list_is_empty(&activation->socket_buffers));
+        assert(c_list_is_empty(&activation->activation_messages));
         assert(c_list_is_empty(&activation->activation_requests));
 
         activation->user = user_unref(activation->user);
@@ -83,13 +94,13 @@ Activation *activation_free(Activation *activation) {
 }
 
 int activation_flush(Activation *activation) {
-        SocketBuffer *skb;
         ActivationRequest *request;
+        ActivationMessage *message;
 
         /* XXX: send out error replies */
 
-        while ((skb = c_list_first_entry(&activation->socket_buffers, SocketBuffer, link)))
-                socket_buffer_free(skb);
+        while ((message = c_list_first_entry(&activation->activation_messages, ActivationMessage, link)))
+                activation_message_free(message);
 
         while ((request = c_list_first_entry(&activation->activation_requests, ActivationRequest, link)))
                 activation_request_free(request);
@@ -97,16 +108,17 @@ int activation_flush(Activation *activation) {
         return 0;
 }
 
-int activation_queue_message(Activation *activation, Message *message) {
-        SocketBuffer *skb;
-        int r;
+int activation_queue_message(Activation *activation, Message *m) {
+        ActivationMessage *message;
 
-        r = socket_buffer_new(&skb, message);
-        if (r)
-                return error_fold(r);
+        message = calloc(1, sizeof(*message));
+        if (!message)
+                return error_origin(-ENOMEM);
 
-        c_list_link_tail(&activation->socket_buffers, &skb->link);
+        message->link = (CList)C_LIST_INIT(message->link);
+        message->message = message_ref(m);
 
+        c_list_link_tail(&activation->activation_messages, &message->link);
         return 0;
 }
 

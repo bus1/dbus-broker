@@ -33,25 +33,6 @@ enum {
         SOCKET_E_SHUTDOWN,
 };
 
-/* socket buffer */
-
-struct SocketBuffer {
-        CList link;
-        UserCharge charges[2];
-
-        size_t n_total;
-        Message *message;
-
-        size_t n_vecs;
-        struct iovec *writer;
-        struct iovec vecs[];
-};
-
-int socket_buffer_new(SocketBuffer **bufferp, Message *message);
-SocketBuffer *socket_buffer_free(SocketBuffer *buffer);
-
-C_DEFINE_CLEANUP(SocketBuffer *, socket_buffer_free);
-
 /* socket IO */
 
 struct Socket {

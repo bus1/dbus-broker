@@ -24,6 +24,18 @@
 #include "util/fdlist.h"
 #include "util/user.h"
 
+struct SocketBuffer {
+        CList link;
+        UserCharge charges[2];
+
+        size_t n_total;
+        Message *message;
+
+        size_t n_vecs;
+        struct iovec *writer;
+        struct iovec vecs[];
+};
+
 static char *socket_buffer_get_base(SocketBuffer *buffer) {
         return (char *)(buffer->vecs + buffer->n_vecs);
 }
@@ -61,17 +73,7 @@ static int socket_buffer_new_line(SocketBuffer **bufferp, size_t n) {
         return 0;
 }
 
-/**
- * socket_buffer_new() - allocate message socket-buffer
- * @bufferp:            output argument for new skb
- * @message:            message to create skb for
- *
- * This allocated a new socket buffer, pinning the message given as @message.
- * This socket buffer can now be used to queue the message on any socket.
- *
- * Return: 0 on success, negative error code on failure.
- */
-int socket_buffer_new(SocketBuffer **bufferp, Message *message) {
+static int socket_buffer_new_message(SocketBuffer **bufferp, Message *message) {
         SocketBuffer *buffer;
         int r;
 
@@ -86,15 +88,7 @@ int socket_buffer_new(SocketBuffer **bufferp, Message *message) {
         return 0;
 }
 
-/**
- * socket_buffer_free() - deallocate message socket-buffer
- * @buffer:             buffer to operate on
- *
- * This deallocates and destroys an skb.
- *
- * Return: NULL is returned.
- */
-SocketBuffer *socket_buffer_free(SocketBuffer *buffer) {
+static SocketBuffer *socket_buffer_free(SocketBuffer *buffer) {
         if (!buffer)
                 return NULL;
 
@@ -106,6 +100,8 @@ SocketBuffer *socket_buffer_free(SocketBuffer *buffer) {
 
         return NULL;
 }
+
+C_DEFINE_CLEANUP(SocketBuffer *, socket_buffer_free);
 
 static size_t socket_buffer_get_line_space(SocketBuffer *buffer) {
         size_t n_remaining;
@@ -573,7 +569,7 @@ int socket_queue(Socket *socket, User *user, Message *message) {
         if (_c_unlikely_(socket->hup_out || socket->shutdown))
                 return SOCKET_E_SHUTDOWN;
 
-        r = socket_buffer_new(&buffer, message);
+        r = socket_buffer_new_message(&buffer, message);
         if (r)
                 return error_trace(r);
 

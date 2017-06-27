@@ -581,8 +581,8 @@ static int driver_name_owner_changed(Bus *bus, const char *name, Peer *old_owner
 }
 
 static int driver_name_activated(Activation *activation, Peer *receiver) {
-        SocketBuffer *skb, *skb_safe;
         ActivationRequest *request, *request_safe;
+        ActivationMessage *message, *message_safe;
         int r;
 
         if (!activation)
@@ -611,29 +611,28 @@ static int driver_name_activated(Activation *activation, Peer *receiver) {
                 activation_request_free(request);
         }
 
-        c_list_for_each_entry_safe(skb, skb_safe, &activation->socket_buffers, link) {
-                Message *message = skb->message;
+        c_list_for_each_entry_safe(message, message_safe, &activation->activation_messages, link) {
                 Peer *sender;
 
-                sender = peer_registry_find_peer(&receiver->bus->peers, message->sender_id);
+                sender = peer_registry_find_peer(&receiver->bus->peers, message->message->sender_id);
 
-                r = peer_queue_call(sender, receiver, message);
+                r = peer_queue_call(sender, receiver, message->message);
                 if (r) {
                         switch (r) {
                         case PEER_E_QUOTA:
-                                r = driver_send_error(sender, message_read_serial(message), "org.freedesktop.DBus.Error.LimitsExceeded", driver_error_to_string(r));
+                                r = driver_send_error(sender, message_read_serial(message->message), "org.freedesktop.DBus.Error.LimitsExceeded", driver_error_to_string(r));
                                 break;
                         case PEER_E_SEND_DENIED:
                         case PEER_E_RECEIVE_DENIED:
                         case PEER_E_EXPECTED_REPLY_EXISTS:
-                                r = driver_send_error(sender, message_read_serial(message), "org.freedesktop.DBus.Error.AccessDenied", driver_error_to_string(r));
+                                r = driver_send_error(sender, message_read_serial(message->message), "org.freedesktop.DBus.Error.AccessDenied", driver_error_to_string(r));
                                 break;
                         default:
                                 return error_fold(r);
                         }
                 }
 
-                socket_buffer_free(skb);
+                activation_message_free(message);
         }
 
         return 0;

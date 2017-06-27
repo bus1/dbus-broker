@@ -10,9 +10,10 @@
 #include <stdlib.h>
 #include <sys/types.h>
 
-typedef struct ActivationRequest ActivationRequest;
 typedef struct Activation Activation;
+typedef struct ActivationMessage ActivationMessage;
 typedef struct ActivationRegistry ActivationRegistry;
+typedef struct ActivationRequest ActivationRequest;
 typedef struct Message Message;
 typedef struct Name Name;
 typedef struct User User;
@@ -30,12 +31,17 @@ struct ActivationRequest {
         CList link;
 };
 
+struct ActivationMessage {
+        CList link;
+        Message *message;
+};
+
 struct Activation {
         ActivationRegistry *registry;
         Name *name;
 
         User *user;
-        CList socket_buffers;
+        CList activation_messages;
         CList activation_requests;
         bool requested : 1;
 
@@ -49,10 +55,12 @@ struct ActivationRegistry {
 
 ActivationRequest *activation_request_free(ActivationRequest *request);
 
+ActivationMessage *activation_message_free(ActivationMessage *message);
+
 int activation_new(Activation **activationp, ActivationRegistry *registry, const char *path, Name *name, User *user);
 Activation *activation_free(Activation *free);
 
-int activation_queue_message(Activation *activation, Message *message);
+int activation_queue_message(Activation *activation, Message *m);
 int activation_queue_request(Activation *activation, uint64_t sender_id, uint32_t serial);
 
 int activation_flush(Activation *activation);
