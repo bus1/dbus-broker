@@ -60,7 +60,6 @@ static void test_line(void) {
 static void test_message(void) {
         _c_cleanup_(socket_deinit) Socket client = SOCKET_NULL(client), server = SOCKET_NULL(server);
         _c_cleanup_(message_unrefp) Message *message1 = NULL, *message2 = NULL;
-        SocketBuffer *skb;
         MessageHeader header = {
                 .endian = 'l',
         };
@@ -78,10 +77,7 @@ static void test_message(void) {
         r = message_new_incoming(&message1, header);
         assert(r == 0);
 
-        r = socket_buffer_new(&skb, message1);
-        assert(!r);
-
-        r = socket_queue(&client, NULL, skb);
+        r = socket_queue(&client, NULL, message1);
         assert(!r);
 
         r = socket_dispatch(&client, EPOLLOUT);

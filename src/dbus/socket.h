@@ -97,7 +97,7 @@ int socket_dequeue_line(Socket *socket, const char **linep, size_t *np);
 int socket_dequeue(Socket *socket, Message **messagep);
 
 int socket_queue_line(Socket *socket, User *user, const char *line, size_t n);
-int socket_queue(Socket *socket, User *user, SocketBuffer *buffer);
+int socket_queue(Socket *socket, User *user, Message *message);
 
 int socket_dispatch(Socket *socket, uint32_t event);
 void socket_shutdown(Socket *socket);

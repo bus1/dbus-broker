@@ -555,24 +555,27 @@ int socket_queue_line(Socket *socket, User *user, const char *line_in, size_t n)
 /**
  * socket_queue() - queue socket buffer on socket
  * @socket:             socket to operate on
- * @buffer:             skb to queue
+ * @user:               user to charge as
+ * @message:            message to queue
  *
- * This queues @skb on the socket @socket. This transfers ownership of the skb
- * to the socket on success.
+ * This queues @message on the socket @socket, charging @user for the required
+ * quota on the socket owner of @socket.
  *
  * Return: 0 on success, SOCKET_E_QUOTA if quota failed, SOCKET_E_SHUTDOWN if
  *         write-side end is already shutdown, negative error code on failure.
  */
-int socket_queue(Socket *socket, User *user, SocketBuffer *buffer) {
+int socket_queue(Socket *socket, User *user, Message *message) {
+        _c_cleanup_(socket_buffer_freep) SocketBuffer *buffer = NULL;
         int r;
-
-        assert(buffer->message);
-        assert(!c_list_is_linked(&buffer->link));
 
         socket_lines_done(socket);
 
         if (_c_unlikely_(socket->hup_out || socket->shutdown))
                 return SOCKET_E_SHUTDOWN;
+
+        r = socket_buffer_new(&buffer, message);
+        if (r)
+                return error_trace(r);
 
         r = user_charge(socket->user, &buffer->charges[0], user, USER_SLOT_BYTES, buffer->message->n_data);
         r = r ?: user_charge(socket->user, &buffer->charges[1], user, USER_SLOT_FDS, fdlist_count(buffer->message->fds));
@@ -580,6 +583,7 @@ int socket_queue(Socket *socket, User *user, SocketBuffer *buffer) {
                 return (r == USER_E_QUOTA) ? SOCKET_E_QUOTA : error_fold(r);
 
         c_list_link_tail(&socket->out.queue, &buffer->link);
+        buffer = NULL;
         return 0;
 }
 

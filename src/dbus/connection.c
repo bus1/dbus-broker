@@ -244,7 +244,6 @@ int connection_dequeue(Connection *connection, Message **messagep) {
  * connection_queue() - XXX
  */
 int connection_queue(Connection *connection, User *user, uint64_t transaction_id, Message *message) {
-        SocketBuffer *skb;
         int r;
 
         if (transaction_id) {
@@ -257,21 +256,14 @@ int connection_queue(Connection *connection, User *user, uint64_t transaction_id
                 }
         }
 
-        r = socket_buffer_new(&skb, message);
-        if (r)
+        r = socket_queue(&connection->socket, user, message);
+        if (r == SOCKET_E_QUOTA)
+                return CONNECTION_E_QUOTA;
+        else if (r == SOCKET_E_SHUTDOWN)
+                return 0;
+        else if (r)
                 return error_fold(r);
 
-        r = socket_queue(&connection->socket, user, skb);
-        if (!r) {
-                dispatch_file_select(&connection->socket_file, EPOLLOUT);
-        } else {
-                socket_buffer_free(skb);
-
-                if (r == SOCKET_E_QUOTA)
-                        return CONNECTION_E_QUOTA;
-                else if (r != SOCKET_E_SHUTDOWN)
-                        return error_fold(r);
-        }
-
+        dispatch_file_select(&connection->socket_file, EPOLLOUT);
         return 0;
 }
