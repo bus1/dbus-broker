@@ -711,6 +711,9 @@ static int driver_method_request_name(Peer *peer, CDVar *in_v, uint32_t serial, 
         if (r)
                 return error_trace(r);
 
+        if (!dbus_validate_name(name, strlen(name)))
+                return DRIVER_E_NAME_INVALID;
+
         r = peer_request_name(peer, name, flags, &change);
         if (!r)
                 reply = DBUS_REQUEST_NAME_REPLY_PRIMARY_OWNER;
@@ -726,8 +729,6 @@ static int driver_method_request_name(Peer *peer, CDVar *in_v, uint32_t serial, 
                 return DRIVER_E_NAME_RESERVED;
         else if (r == PEER_E_NAME_UNIQUE)
                 return DRIVER_E_NAME_UNIQUE;
-        else if (r == PEER_E_NAME_INVALID)
-                return DRIVER_E_NAME_INVALID;
         else if (r == PEER_E_NAME_REFUSED)
                 return DRIVER_E_NAME_REFUSED;
         else
@@ -770,6 +771,9 @@ static int driver_method_release_name(Peer *peer, CDVar *in_v, uint32_t serial, 
         if (r)
                 return error_trace(r);
 
+        if (!dbus_validate_name(name, strlen(name)))
+                return DRIVER_E_NAME_INVALID;
+
         r = peer_release_name(peer, name, &change);
         if (!r)
                 reply = DBUS_RELEASE_NAME_REPLY_RELEASED;
@@ -781,8 +785,6 @@ static int driver_method_release_name(Peer *peer, CDVar *in_v, uint32_t serial, 
                 return DRIVER_E_NAME_RESERVED;
         else if (r == PEER_E_NAME_UNIQUE)
                 return DRIVER_E_NAME_UNIQUE;
-        else if (r == PEER_E_NAME_INVALID)
-                return DRIVER_E_NAME_INVALID;
         else
                 return error_fold(r);
 

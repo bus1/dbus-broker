@@ -4,6 +4,9 @@
  * DBus Protocol Constants
  */
 
+#include <c-macro.h>
+#include <stdlib.h>
+
 enum {
     DBUS_NAME_FLAG_ALLOW_REPLACEMENT = (1ULL << 0),
     DBUS_NAME_FLAG_REPLACE_EXISTING  = (1ULL << 1),
@@ -57,3 +60,4 @@ enum {
     DBUS_HEADER_FLAG_ALLOW_INTERACTIVE_AUTHORIZATION = (1UL << 2),
 };
 
+bool dbus_validate_name(const char *name, size_t n_name);

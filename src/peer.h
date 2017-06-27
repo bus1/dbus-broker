@@ -36,7 +36,6 @@ enum {
 
         PEER_E_NAME_RESERVED,
         PEER_E_NAME_UNIQUE,
-        PEER_E_NAME_INVALID,
         PEER_E_NAME_REFUSED,
         PEER_E_NAME_ALREADY_OWNER,
         PEER_E_NAME_IN_QUEUE,

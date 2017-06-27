@@ -204,6 +204,8 @@ static int controller_method_add_name(Bus *bus, const char *_path, CDVar *in_v, 
 
         if (strncmp(path, "/org/bus1/DBus/Name/", strlen("/org/bus1/DBus/Name/")) != 0)
                 return CONTROLLER_E_UNEXPECTED_PATH;
+        if (!dbus_validate_name(name_str, strlen(name_str)))
+                return CONTROLLER_E_NAME_INVALID;
 
         r = name_registry_ref_name(&bus->names, &name, name_str);
         if (r)
