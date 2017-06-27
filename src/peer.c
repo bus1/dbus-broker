@@ -764,28 +764,27 @@ static int peer_broadcast_to_matches(Peer *sender, MatchRegistry *matches, Match
         return 0;
 }
 
-int peer_broadcast(Peer *sender, Peer *destination, Bus *bus, MatchFilter *filterp, Message *message) {
-        MatchFilter filter;
+int peer_broadcast(Peer *sender, Peer *destination, Bus *bus, MatchFilter *filter, Message *message) {
+        MatchFilter fallback_filter;
         int r;
 
-        if (filterp) {
-                filter = *filterp;
-        } else {
-                match_filter_init(&filter);
+        if (!filter) {
+                filter = &fallback_filter;
+                match_filter_init(filter);
 
-                filter.type = message->metadata.header.type;
-                filter.sender = sender ? sender->id : ADDRESS_ID_INVALID;
-                filter.destination = destination ? destination->id : ADDRESS_ID_INVALID;
-                filter.interface = message->metadata.fields.interface;
-                filter.member = message->metadata.fields.member,
-                filter.path = message->metadata.fields.path;
+                filter->type = message->metadata.header.type;
+                filter->sender = sender ? sender->id : ADDRESS_ID_INVALID;
+                filter->destination = destination ? destination->id : ADDRESS_ID_INVALID;
+                filter->interface = message->metadata.fields.interface;
+                filter->member = message->metadata.fields.member,
+                filter->path = message->metadata.fields.path;
 
                 for (size_t i = 0; i < 64; ++i) {
                         if (message->metadata.args[i].element == 's') {
-                                filter.args[i] = message->metadata.args[i].value;
-                                filter.argpaths[i] = message->metadata.args[i].value;
+                                filter->args[i] = message->metadata.args[i].value;
+                                filter->argpaths[i] = message->metadata.args[i].value;
                         } else if (message->metadata.args[i].element == 'o') {
-                                filter.argpaths[i] = message->metadata.args[i].value;
+                                filter->argpaths[i] = message->metadata.args[i].value;
                         }
                 }
         }
@@ -793,7 +792,7 @@ int peer_broadcast(Peer *sender, Peer *destination, Bus *bus, MatchFilter *filte
         /* start a new transaction, to avoid duplicates */
         ++bus->transaction_ids;
 
-        r = peer_broadcast_to_matches(sender, &bus->wildcard_matches, &filter, bus->transaction_ids, message);
+        r = peer_broadcast_to_matches(sender, &bus->wildcard_matches, filter, bus->transaction_ids, message);
         if (r)
                 return error_trace(r);
 
@@ -804,17 +803,17 @@ int peer_broadcast(Peer *sender, Peer *destination, Bus *bus, MatchFilter *filte
                         if (!name_ownership_is_primary(ownership))
                                 continue;
 
-                        r = peer_broadcast_to_matches(sender, &ownership->name->matches, &filter, bus->transaction_ids, message);
+                        r = peer_broadcast_to_matches(sender, &ownership->name->matches, filter, bus->transaction_ids, message);
                         if (r)
                                 return error_trace(r);
                 }
 
-                r = peer_broadcast_to_matches(sender, &sender->matches, &filter, bus->transaction_ids, message);
+                r = peer_broadcast_to_matches(sender, &sender->matches, filter, bus->transaction_ids, message);
                 if (r)
                         return error_trace(r);
         } else {
                 /* sent from the driver */
-                r = peer_broadcast_to_matches(NULL, &bus->driver_matches, &filter, bus->transaction_ids, message);
+                r = peer_broadcast_to_matches(NULL, &bus->driver_matches, filter, bus->transaction_ids, message);
                 if (r)
                         return error_trace(r);
         }
