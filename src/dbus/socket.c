@@ -215,8 +215,8 @@ void socket_deinit(Socket *socket) {
         if (socket->in.data != socket->input_buffer)
                 socket->in.data = c_free(socket->in.data);
 
-        user_charge_init(&socket->in.charges[1]);
-        user_charge_init(&socket->in.charges[0]);
+        user_charge_deinit(&socket->in.charges[1]);
+        user_charge_deinit(&socket->in.charges[0]);
 
         socket->fd = -1;
         socket->user = user_unref(socket->user);
