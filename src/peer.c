@@ -678,7 +678,7 @@ int peer_queue_call(Peer *sender, Peer *receiver, Message *message) {
         }
 
         /* for eavesdropping */
-        r = peer_broadcast(sender, receiver, sender->bus, message);
+        r = peer_broadcast(sender, receiver, sender->bus, NULL, message);
         if (r)
                 return error_trace(r);
 
@@ -711,7 +711,7 @@ int peer_queue_reply(Peer *sender, const char *destination, uint32_t reply_seria
         }
 
         /* for eavesdropping */
-        r = peer_broadcast(sender, receiver, sender->bus, message);
+        r = peer_broadcast(sender, receiver, sender->bus, NULL, message);
         if (r)
                 return error_trace(r);
 
@@ -764,25 +764,29 @@ static int peer_broadcast_to_matches(Peer *sender, MatchRegistry *matches, Match
         return 0;
 }
 
-int peer_broadcast(Peer *sender, Peer *destination, Bus *bus, Message *message) {
+int peer_broadcast(Peer *sender, Peer *destination, Bus *bus, MatchFilter *filterp, Message *message) {
         MatchFilter filter;
         int r;
 
-        match_filter_init(&filter);
+        if (filterp) {
+                filter = *filterp;
+        } else {
+                match_filter_init(&filter);
 
-        filter.type = message->metadata.header.type;
-        filter.sender = sender ? sender->id : ADDRESS_ID_INVALID;
-        filter.destination = destination ? destination->id : ADDRESS_ID_INVALID;
-        filter.interface = message->metadata.fields.interface;
-        filter.member = message->metadata.fields.member,
-        filter.path = message->metadata.fields.path;
+                filter.type = message->metadata.header.type;
+                filter.sender = sender ? sender->id : ADDRESS_ID_INVALID;
+                filter.destination = destination ? destination->id : ADDRESS_ID_INVALID;
+                filter.interface = message->metadata.fields.interface;
+                filter.member = message->metadata.fields.member,
+                filter.path = message->metadata.fields.path;
 
-        for (size_t i = 0; i < 64; ++i) {
-                if (message->metadata.args[i].element == 's') {
-                        filter.args[i] = message->metadata.args[i].value;
-                        filter.argpaths[i] = message->metadata.args[i].value;
-                } else if (message->metadata.args[i].element == 'o') {
-                        filter.argpaths[i] = message->metadata.args[i].value;
+                for (size_t i = 0; i < 64; ++i) {
+                        if (message->metadata.args[i].element == 's') {
+                                filter.args[i] = message->metadata.args[i].value;
+                                filter.argpaths[i] = message->metadata.args[i].value;
+                        } else if (message->metadata.args[i].element == 'o') {
+                                filter.argpaths[i] = message->metadata.args[i].value;
+                        }
                 }
         }
 

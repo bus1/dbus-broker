@@ -328,7 +328,7 @@ const char *driver_error_to_string(int r) {
         return error_strings[r];
 }
 
-static int driver_send_unicast(Peer *receiver, Message *message) {
+static int driver_send_unicast(Peer *receiver, MatchFilter *filter, Message *message) {
         int r;
 
         /* XXX: handle quota */
@@ -337,7 +337,7 @@ static int driver_send_unicast(Peer *receiver, Message *message) {
                 return error_fold(r);
 
         /* for eavesdropping */
-        r = peer_broadcast(NULL, receiver, receiver->bus, message);
+        r = peer_broadcast(NULL, receiver, receiver->bus, filter, message);
         if (r)
                 return error_fold(r);
 
@@ -345,6 +345,12 @@ static int driver_send_unicast(Peer *receiver, Message *message) {
 }
 
 static int driver_send_error(Peer *receiver, uint32_t serial, const char *error, const char *error_message) {
+        MatchFilter filter = {
+                .type = DBUS_MESSAGE_TYPE_ERROR,
+                .destination = receiver->id,
+                .args[0] = error_message,
+                .argpaths[0] = error_message,
+        };
         static const CDVarType type[] = {
                 C_DVAR_T_INIT(
                         DRIVER_T_MESSAGE(
@@ -379,11 +385,7 @@ static int driver_send_error(Peer *receiver, uint32_t serial, const char *error,
         if (r)
                 return error_fold(r);
 
-        message->metadata.header.type = DBUS_MESSAGE_TYPE_ERROR;
-        message->metadata.args[0].element = 's';
-        message->metadata.args[0].value = error_message;
-
-        r = driver_send_unicast(receiver, message);
+        r = driver_send_unicast(receiver, &filter, message);
         if (r)
                 return error_trace(r);
 
@@ -391,6 +393,12 @@ static int driver_send_error(Peer *receiver, uint32_t serial, const char *error,
 }
 
 static int driver_send_reply(Peer *peer, CDVar *var, const char *arg0) {
+        MatchFilter filter = {
+                .type = DBUS_MESSAGE_TYPE_METHOD_RETURN,
+                .destination = peer->id,
+                .args[0] = arg0,
+                .argpaths[0] = arg0,
+        };
         _c_cleanup_(message_unrefp) Message *message = NULL;
         void *data;
         size_t n_data;
@@ -413,13 +421,7 @@ static int driver_send_reply(Peer *peer, CDVar *var, const char *arg0) {
         if (r)
                 return error_fold(r);
 
-        message->metadata.header.type = DBUS_MESSAGE_TYPE_METHOD_RETURN;
-        if (arg0) {
-                message->metadata.args[0].element = 's';
-                message->metadata.args[0].value = arg0;
-        }
-
-        r = driver_send_unicast(peer, message);
+        r = driver_send_unicast(peer, &filter, message);
         if (r)
                 return error_trace(r);
 
@@ -427,6 +429,15 @@ static int driver_send_reply(Peer *peer, CDVar *var, const char *arg0) {
 }
 
 static int driver_notify_name_acquired(Peer *peer, const char *name) {
+        MatchFilter filter = {
+                .type = DBUS_MESSAGE_TYPE_SIGNAL,
+                .destination = peer->id,
+                .interface = "org.freedesktop.DBus",
+                .member = "NameAcquired",
+                .path = "/org/freedesktop/DBus",
+                .args[0] = name,
+                .argpaths[0] = name,
+        };
         static const CDVarType type[] = {
                 C_DVAR_T_INIT(
                         DRIVER_T_MESSAGE(
@@ -455,14 +466,7 @@ static int driver_notify_name_acquired(Peer *peer, const char *name) {
         if (r)
                 return error_fold(r);
 
-        message->metadata.header.type = DBUS_MESSAGE_TYPE_SIGNAL;
-        message->metadata.fields.path = "/org/freedesktop/DBus";
-        message->metadata.fields.interface = "org.freedesktop.DBus";
-        message->metadata.fields.member = "NameAcquired";
-        message->metadata.args[0].element = 's';
-        message->metadata.args[0].value = name;
-
-        r = driver_send_unicast(peer, message);
+        r = driver_send_unicast(peer, &filter, message);
         if (r)
                 return error_trace(r);
 
@@ -470,6 +474,15 @@ static int driver_notify_name_acquired(Peer *peer, const char *name) {
 }
 
 static int driver_notify_name_lost(Peer *peer, const char *name) {
+        MatchFilter filter = {
+                .type = DBUS_MESSAGE_TYPE_SIGNAL,
+                .destination = peer->id,
+                .interface = "org.freedesktop.DBus",
+                .member = "NameLost",
+                .path = "/org/freedesktop/DBus",
+                .args[0] = name,
+                .argpaths[0] = name,
+        };
         static const CDVarType type[] = {
                 C_DVAR_T_INIT(
                         DRIVER_T_MESSAGE(
@@ -498,14 +511,7 @@ static int driver_notify_name_lost(Peer *peer, const char *name) {
         if (r)
                 return error_fold(r);
 
-        message->metadata.header.type = DBUS_MESSAGE_TYPE_SIGNAL;
-        message->metadata.fields.path = "/org/freedesktop/DBus";
-        message->metadata.fields.interface = "org.freedesktop.DBus";
-        message->metadata.fields.member = "NameLost";
-        message->metadata.args[0].element = 's';
-        message->metadata.args[0].value = name;
-
-        r = driver_send_unicast(peer, message);
+        r = driver_send_unicast(peer, &filter, message);
         if (r)
                 return error_trace(r);
 
@@ -513,6 +519,19 @@ static int driver_notify_name_lost(Peer *peer, const char *name) {
 }
 
 static int driver_notify_name_owner_changed(Bus *bus, const char *name, const char *old_owner, const char *new_owner) {
+        MatchFilter filter = {
+                .type = DBUS_MESSAGE_TYPE_SIGNAL,
+                .destination = ADDRESS_ID_INVALID,
+                .interface = "org.freedesktop.DBus",
+                .member = "NameOwnerChanged",
+                .path = "/org/freedesktop/DBus",
+                .args[0] = name,
+                .argpaths[0] = name,
+                .args[1] = old_owner,
+                .argpaths[1] = old_owner,
+                .args[2] = new_owner,
+                .argpaths[2] = new_owner,
+        };
         static const CDVarType type[] = {
                 C_DVAR_T_INIT(
                         DRIVER_T_MESSAGE(
@@ -543,7 +562,7 @@ static int driver_notify_name_owner_changed(Bus *bus, const char *name, const ch
         if (r)
                 return error_fold(r);
 
-        r = peer_broadcast(NULL, NULL, bus, message);
+        r = peer_broadcast(NULL, NULL, bus, &filter, message);
         if (r)
                 return error_fold(r);
 
@@ -1783,7 +1802,7 @@ static int driver_dispatch_internal(Peer *peer, Message *message) {
 
         if (!message->metadata.fields.destination) {
                 if (message->metadata.header.type == DBUS_MESSAGE_TYPE_SIGNAL)
-                        return error_fold(peer_broadcast(peer, NULL, peer->bus, message));
+                        return error_fold(peer_broadcast(peer, NULL, peer->bus, NULL, message));
                 else
                         return DRIVER_E_UNEXPECTED_MESSAGE_TYPE;
         }
