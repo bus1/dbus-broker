@@ -40,6 +40,21 @@ static char *socket_buffer_get_base(SocketBuffer *buffer) {
         return (char *)(buffer->vecs + buffer->n_vecs);
 }
 
+static SocketBuffer *socket_buffer_free(SocketBuffer *buffer) {
+        if (!buffer)
+                return NULL;
+
+        user_charge_deinit(&buffer->charges[1]);
+        user_charge_deinit(&buffer->charges[0]);
+        c_list_unlink_init(&buffer->link);
+        message_unref(buffer->message);
+        free(buffer);
+
+        return NULL;
+}
+
+C_DEFINE_CLEANUP(SocketBuffer *, socket_buffer_free);
+
 static int socket_buffer_new_internal(SocketBuffer **bufferp, size_t n_vecs, size_t n_line) {
         SocketBuffer *buffer;
 
@@ -59,8 +74,11 @@ static int socket_buffer_new_internal(SocketBuffer **bufferp, size_t n_vecs, siz
         return 0;
 }
 
-static int socket_buffer_new_line(SocketBuffer **bufferp, size_t n) {
-        SocketBuffer *buffer;
+static int socket_buffer_new_line(SocketBuffer **bufferp,
+                                  Socket *socket,
+                                  User *user,
+                                  size_t n) {
+        _c_cleanup_(socket_buffer_freep) SocketBuffer *buffer = NULL;
         int r;
 
         r = socket_buffer_new_internal(&buffer, 1, c_max(n, SOCKET_LINE_PREALLOC));
@@ -69,12 +87,24 @@ static int socket_buffer_new_line(SocketBuffer **bufferp, size_t n) {
 
         buffer->vecs[0] = (struct iovec){ socket_buffer_get_base(buffer), 0 };
 
+        r = user_charge(socket->user,
+                        &buffer->charges[0],
+                        user,
+                        USER_SLOT_BYTES,
+                        sizeof(SocketBuffer) + buffer->n_total);
+        if (r)
+                return (r == USER_E_QUOTA) ? SOCKET_E_QUOTA : error_fold(r);
+
         *bufferp = buffer;
+        buffer = NULL;
         return 0;
 }
 
-static int socket_buffer_new_message(SocketBuffer **bufferp, Message *message) {
-        SocketBuffer *buffer;
+static int socket_buffer_new_message(SocketBuffer **bufferp,
+                                     Socket *socket,
+                                     User *user,
+                                     Message *message) {
+        _c_cleanup_(socket_buffer_freep) SocketBuffer *buffer = NULL;
         int r;
 
         r = socket_buffer_new_internal(&buffer, C_ARRAY_SIZE(message->vecs), 0);
@@ -84,24 +114,26 @@ static int socket_buffer_new_message(SocketBuffer **bufferp, Message *message) {
         buffer->message = message_ref(message);
         memcpy(buffer->vecs, message->vecs, sizeof(message->vecs));
 
+        r = user_charge(socket->user,
+                        &buffer->charges[0],
+                        user,
+                        USER_SLOT_BYTES,
+                        sizeof(SocketBuffer) + sizeof(Message) + message->n_data);
+        if (r)
+                return (r == USER_E_QUOTA) ? SOCKET_E_QUOTA : error_fold(r);
+
+        r = user_charge(socket->user,
+                        &buffer->charges[1],
+                        user,
+                        USER_SLOT_FDS,
+                        fdlist_count(buffer->message->fds));
+        if (r)
+                return (r == USER_E_QUOTA) ? SOCKET_E_QUOTA : error_fold(r);
+
         *bufferp = buffer;
+        buffer = NULL;
         return 0;
 }
-
-static SocketBuffer *socket_buffer_free(SocketBuffer *buffer) {
-        if (!buffer)
-                return NULL;
-
-        user_charge_deinit(&buffer->charges[1]);
-        user_charge_deinit(&buffer->charges[0]);
-        c_list_unlink_init(&buffer->link);
-        message_unref(buffer->message);
-        free(buffer);
-
-        return NULL;
-}
-
-C_DEFINE_CLEANUP(SocketBuffer *, socket_buffer_free);
 
 static size_t socket_buffer_get_line_space(SocketBuffer *buffer) {
         size_t n_remaining;
@@ -519,22 +551,12 @@ int socket_queue_line(Socket *socket, User *user, const char *line_in, size_t n)
 
         buffer = c_list_last_entry(&socket->out.queue, SocketBuffer, link);
         if (!buffer || n + strlen("\r\n") > socket_buffer_get_line_space(buffer)) {
-                r = socket_buffer_new_line(&buffer, n + strlen("\r\n"));
+                r = socket_buffer_new_line(&buffer, socket, user, n + strlen("\r\n"));
                 if (r)
                         return error_trace(r);
 
-                r = user_charge(socket->user, &buffer->charges[0], user, USER_SLOT_BYTES, n + strlen("\r\n"));
-                if (r) {
-                        socket_buffer_free(buffer);
-                        return (r == USER_E_QUOTA) ? SOCKET_E_QUOTA : error_fold(r);
-                }
-
                 c_list_link_tail(&socket->out.queue, &buffer->link);
         }
-
-        r = user_charge(socket->user, &buffer->charges[0], user, USER_SLOT_BYTES, n + strlen("\r\n"));
-        if (r)
-                return (r == USER_E_QUOTA) ? SOCKET_E_QUOTA : error_fold(r);
 
         socket_buffer_get_line_cursor(buffer, &line_out, &pos);
 
@@ -569,14 +591,9 @@ int socket_queue(Socket *socket, User *user, Message *message) {
         if (_c_unlikely_(socket->hup_out || socket->shutdown))
                 return SOCKET_E_SHUTDOWN;
 
-        r = socket_buffer_new_message(&buffer, message);
+        r = socket_buffer_new_message(&buffer, socket, user, message);
         if (r)
                 return error_trace(r);
-
-        r = user_charge(socket->user, &buffer->charges[0], user, USER_SLOT_BYTES, buffer->message->n_data);
-        r = r ?: user_charge(socket->user, &buffer->charges[1], user, USER_SLOT_FDS, fdlist_count(buffer->message->fds));
-        if (r)
-                return (r == USER_E_QUOTA) ? SOCKET_E_QUOTA : error_fold(r);
 
         c_list_link_tail(&socket->out.queue, &buffer->link);
         buffer = NULL;
