@@ -20,16 +20,6 @@
 #include "util/error.h"
 #include "util/user.h"
 
-struct Manager {
-        Bus bus;
-        DispatchContext dispatcher;
-
-        int signals_fd;
-        DispatchFile signals_file;
-
-        Connection controller;
-};
-
 static int manager_dispatch_signals(DispatchFile *file, uint32_t events) {
         Manager *manager = c_container_of(file, Manager, signals_file);
         struct signalfd_siginfo si;
@@ -67,7 +57,7 @@ static int manager_dispatch_controller_connection(Manager *manager, uint32_t eve
                 if (r || !m)
                         return error_trace(r);
 
-                r = controller_dispatch(&manager->bus, m);
+                r = controller_dispatch(&manager->ctrl, m);
                 if (r)
                         return error_fold(r);
         }
@@ -126,6 +116,7 @@ int manager_new(Manager **managerp, int controller_fd) {
         manager->signals_fd = -1;
         manager->signals_file = (DispatchFile)DISPATCH_FILE_NULL(manager->signals_file);
         manager->controller = (Connection)CONNECTION_NULL(manager->controller);
+        manager->ctrl = (Controller)CONTROLLER_INIT(manager);
 
         /*
          * XXX: We need to assign BUS_NULL to manager->bus first. However, it
@@ -182,6 +173,7 @@ Manager *manager_free(Manager *manager) {
         if (!manager)
                 return NULL;
 
+        controller_deinit(&manager->ctrl);
         connection_deinit(&manager->controller);
         dispatch_file_deinit(&manager->signals_file);
         c_close(manager->signals_fd);

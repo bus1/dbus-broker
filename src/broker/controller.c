@@ -11,6 +11,7 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include "broker/controller.h"
+#include "broker/manager.h"
 #include "activation.h"
 #include "bus.h"
 #include "dbus/connection.h"
@@ -22,7 +23,7 @@
 
 typedef struct DispatchContext DispatchContext;
 typedef struct ControllerMethod ControllerMethod;
-typedef int (*ControllerMethodFn) (Bus *bus, const char *path, CDVar *var_in, FDList *fds_in, CDVar *var_out);
+typedef int (*ControllerMethodFn) (Controller *controller, const char *path, CDVar *var_in, FDList *fds_in, CDVar *var_out);
 
 struct ControllerMethod {
         const char *name;
@@ -190,11 +191,9 @@ static int controller_end_read(CDVar *var) {
         }
 }
 
-static int controller_method_add_name(Bus *bus, const char *_path, CDVar *in_v, FDList *fds, CDVar *out_v) {
-        Activation *activation;
-        _c_cleanup_(name_unrefp) Name *name = NULL;
-        _c_cleanup_(user_unrefp) User *user = NULL;
+static int controller_method_add_name(Controller *controller, const char *_path, CDVar *in_v, FDList *fds, CDVar *out_v) {
         const char *path, *name_str;
+        ControllerName *name;
         uid_t uid;
         int r;
 
@@ -209,38 +208,23 @@ static int controller_method_add_name(Bus *bus, const char *_path, CDVar *in_v, 
         if (!dbus_validate_name(name_str, strlen(name_str)))
                 return CONTROLLER_E_NAME_INVALID;
 
-        r = name_registry_ref_name(&bus->names, &name, name_str);
+        r = controller_add_name(controller, &name, path, name_str, uid);
         if (r)
-                return error_fold(r);
-
-        r = user_registry_ref_user(&bus->users, &user, uid);
-        if (r)
-                return error_fold(r);
-
-        r = activation_new(&activation, &bus->activations, path, name, user);
-        if (r) {
-                if (r == ACTIVATION_E_EXISTS)
-                        return CONTROLLER_E_ACTIVATION_EXISTS;
-                else if (r == ACTIVATION_E_ALREADY_ACTIVATABLE)
-                        return CONTROLLER_E_NAME_IS_ACTIVATABLE;
-                else
-                        return error_fold(r);
-        }
+                return error_trace(r);
 
         c_dvar_write(out_v, "()");
 
         return 0;
 }
 
-static int controller_method_add_listener(Bus *bus, const char *_path, CDVar *in_v, FDList *fds, CDVar *out_v) {
-        Listener *listener;
-        DispatchContext *dispatcher = bus->controller->socket_file.context;
-        uint32_t fd_index;
-        const char *path, *policypath;
+static int controller_method_add_listener(Controller *controller, const char *_path, CDVar *in_v, FDList *fds, CDVar *out_v) {
+        const char *path, *policy_path;
+        ControllerListener *listener;
         int r, listener_fd, v1, v2;
+        uint32_t fd_index;
         socklen_t n;
 
-        c_dvar_read(in_v, "(ohs)", &path, &fd_index, &policypath);
+        c_dvar_read(in_v, "(ohs)", &path, &fd_index, &policy_path);
 
         r = controller_end_read(in_v);
         if (r)
@@ -263,13 +247,10 @@ static int controller_method_add_listener(Bus *bus, const char *_path, CDVar *in
         if (v1 != AF_UNIX || v2 != SOCK_STREAM)
                 return CONTROLLER_E_LISTENER_INVALID;
 
-        r = listener_new_with_fd(&listener, bus, path, dispatcher, listener_fd, policypath);
-        if (r) {
-                if (r == LISTENER_E_EXISTS)
-                        return CONTROLLER_E_LISTENER_EXISTS;
-                else
-                        return error_fold(r);
-        }
+        r = controller_add_listener(controller, &listener, path, listener_fd, policy_path);
+        if (r)
+                return error_trace(r);
+
         fdlist_steal(fds, fd_index);
 
         c_dvar_write(out_v, "()");
@@ -277,8 +258,8 @@ static int controller_method_add_listener(Bus *bus, const char *_path, CDVar *in
         return 0;
 }
 
-static int controller_method_listener_release(Bus *bus, const char *path, CDVar *in_v, FDList *fds, CDVar *out_v) {
-        Listener *listener;
+static int controller_method_listener_release(Controller *controller, const char *path, CDVar *in_v, FDList *fds, CDVar *out_v) {
+        ControllerListener *listener;
         int r;
 
         c_dvar_read(in_v, "()");
@@ -287,19 +268,19 @@ static int controller_method_listener_release(Bus *bus, const char *path, CDVar 
         if (r)
                 return error_trace(r);
 
-        listener = listener_find(bus, path);
+        listener = controller_find_listener(controller, path);
         if (!listener)
                 return CONTROLLER_E_LISTENER_NOT_FOUND;
 
-        listener_free(listener);
+        controller_listener_free(listener);
 
         c_dvar_write(out_v, "()");
 
         return 0;
 }
 
-static int controller_method_name_release(Bus *bus, const char *path, CDVar *in_v, FDList *fds, CDVar *out_v) {
-        Activation *activation;
+static int controller_method_name_release(Controller *controller, const char *path, CDVar *in_v, FDList *fds, CDVar *out_v) {
+        ControllerName *name;
         int r;
 
         c_dvar_read(in_v, "()");
@@ -308,19 +289,19 @@ static int controller_method_name_release(Bus *bus, const char *path, CDVar *in_
         if (r)
                 return error_trace(r);
 
-        activation = activation_registry_find(&bus->activations, path);
-        if (!activation)
+        name = controller_find_name(controller, path);
+        if (!name)
                 return CONTROLLER_E_ACTIVATION_NOT_FOUND;
 
-        activation_free(activation);
+        controller_name_free(name);
 
         c_dvar_write(out_v, "()");
 
         return 0;
 }
 
-static int controller_method_name_reset(Bus *bus, const char *path, CDVar *in_v, FDList *fds, CDVar *out_v) {
-        Activation *activation;
+static int controller_method_name_reset(Controller *controller, const char *path, CDVar *in_v, FDList *fds, CDVar *out_v) {
+        ControllerName *name;
         int r;
 
         c_dvar_read(in_v, "()");
@@ -329,18 +310,18 @@ static int controller_method_name_reset(Bus *bus, const char *path, CDVar *in_v,
         if (r)
                 return error_trace(r);
 
-        activation = activation_registry_find(&bus->activations, path);
-        if (!activation)
+        name = controller_find_name(controller, path);
+        if (!name)
                 return CONTROLLER_E_ACTIVATION_NOT_FOUND;
 
-        activation_flush(activation);
+        controller_name_reset(name);
 
         c_dvar_write(out_v, "()");
 
         return 0;
 }
 
-static int controller_handle_method(const ControllerMethod *method, Bus *bus, const char *path, uint32_t serial, const char *signature_in, Message *message_in) {
+static int controller_handle_method(const ControllerMethod *method, Controller *controller, const char *path, uint32_t serial, const char *signature_in, Message *message_in) {
         _c_cleanup_(c_dvar_deinitp) CDVar var_in = C_DVAR_INIT, var_out = C_DVAR_INIT;
         _c_cleanup_(message_unrefp) Message *message_out = NULL;
         void *data;
@@ -369,7 +350,7 @@ static int controller_handle_method(const ControllerMethod *method, Bus *bus, co
         c_dvar_write(&var_out, "(");
         controller_write_reply_header(&var_out, serial, method->out);
 
-        r = method->fn(bus, path, &var_in, message_in->fds, &var_out);
+        r = method->fn(controller, path, &var_in, message_in->fds, &var_out);
         if (r)
                 return error_trace(r);
 
@@ -390,10 +371,10 @@ static int controller_handle_method(const ControllerMethod *method, Bus *bus, co
         if (r)
                 return error_fold(r);
 
-        r = connection_queue(bus->controller, NULL, 0, message_out);
+        r = connection_queue(&controller->manager->controller, NULL, 0, message_out);
         if (r) {
                 if (r == CONNECTION_E_QUOTA)
-                        connection_close(bus->controller);
+                        connection_close(&controller->manager->controller);
                 else
                         return error_fold(r);
         }
@@ -401,7 +382,7 @@ static int controller_handle_method(const ControllerMethod *method, Bus *bus, co
         return 0;
 }
 
-static int controller_dispatch_controller(Bus *bus, uint32_t serial, const char *method, const char *path, const char *signature, Message *message) {
+static int controller_dispatch_controller(Controller *controller, uint32_t serial, const char *method, const char *path, const char *signature, Message *message) {
         static const ControllerMethod methods[] = {
                 { "AddName",            controller_method_add_name,     controller_type_in_osu, controller_type_out_unit },
                 { "AddListener",        controller_method_add_listener, controller_type_in_ohs,  controller_type_out_unit },
@@ -411,13 +392,13 @@ static int controller_dispatch_controller(Bus *bus, uint32_t serial, const char 
                 if (strcmp(methods[i].name, method) != 0)
                         continue;
 
-                return controller_handle_method(&methods[i], bus, path, serial, signature, message);
+                return controller_handle_method(&methods[i], controller, path, serial, signature, message);
         }
 
         return CONTROLLER_E_UNEXPECTED_METHOD;
 }
 
-static int controller_dispatch_name(Bus *bus, uint32_t serial, const char *method, const char *path, const char *signature, Message *message) {
+static int controller_dispatch_name(Controller *controller, uint32_t serial, const char *method, const char *path, const char *signature, Message *message) {
         static const ControllerMethod methods[] = {
                 { "Reset",      controller_method_name_reset,   c_dvar_type_unit,       controller_type_out_unit },
                 { "Release",    controller_method_name_release, c_dvar_type_unit,       controller_type_out_unit },
@@ -427,13 +408,13 @@ static int controller_dispatch_name(Bus *bus, uint32_t serial, const char *metho
                 if (strcmp(methods[i].name, method) != 0)
                         continue;
 
-                return controller_handle_method(&methods[i], bus, path, serial, signature, message);
+                return controller_handle_method(&methods[i], controller, path, serial, signature, message);
         }
 
         return CONTROLLER_E_UNEXPECTED_METHOD;
 }
 
-static int controller_dispatch_listener(Bus *bus, uint32_t serial, const char *method, const char *path, const char *signature, Message *message) {
+static int controller_dispatch_listener(Controller *controller, uint32_t serial, const char *method, const char *path, const char *signature, Message *message) {
         static const ControllerMethod methods[] = {
                 { "Release",    controller_method_listener_release,     c_dvar_type_unit,       controller_type_out_unit },
                 /* XXX: SetPolicy */
@@ -443,34 +424,35 @@ static int controller_dispatch_listener(Bus *bus, uint32_t serial, const char *m
                 if (strcmp(methods[i].name, method) != 0)
                         continue;
 
-                return controller_handle_method(&methods[i], bus, path, serial, signature, message);
+                return controller_handle_method(&methods[i], controller, path, serial, signature, message);
         }
 
         return CONTROLLER_E_UNEXPECTED_METHOD;
 }
 
-static int controller_dispatch_object(Bus *bus, uint32_t serial, const char *interface, const char *member, const char *path, const char *signature, Message *message) {
+static int controller_dispatch_object(Controller *controller, uint32_t serial, const char *interface, const char *member, const char *path, const char *signature, Message *message) {
         if (strcmp(path, "/org/bus1/DBus/Broker") == 0) {
                 if (interface && _c_unlikely_(strcmp(interface, "org.bus1.DBus.Broker") != 0))
                         return CONTROLLER_E_UNEXPECTED_INTERFACE;
 
-                return controller_dispatch_controller(bus, serial, member, path, signature, message);
+                return controller_dispatch_controller(controller, serial, member, path, signature, message);
         } else if (strncmp(path, "/org/bus1/DBus/Name/", strlen("/org/bus1/DBus/Name/")) == 0) {
                 if (interface && _c_unlikely_(strcmp(interface, "org.bus1.DBus.Name") != 0))
                         return CONTROLLER_E_UNEXPECTED_INTERFACE;
 
-                return controller_dispatch_name(bus, serial, member, path, signature, message);
+                return controller_dispatch_name(controller, serial, member, path, signature, message);
         } else if (strncmp(path, "/org/bus1/DBus/Listener/", strlen("/org/bus1/DBus/Listener/")) == 0) {
                 if (interface && _c_unlikely_(strcmp(interface, "org.bus1.DBus.Listener") != 0))
                         return CONTROLLER_E_UNEXPECTED_INTERFACE;
 
-                return controller_dispatch_listener(bus, serial, member, path, signature, message);
+                return controller_dispatch_listener(controller, serial, member, path, signature, message);
         }
 
         return CONTROLLER_E_UNEXPECTED_PATH;
 }
 
-int controller_dispatch(Bus *bus, Message *message) {
+int controller_dispatch(Controller *controller, Message *message) {
+        Bus *bus = &controller->manager->bus;
         int r;
 
         if (message->header->type != DBUS_MESSAGE_TYPE_METHOD_CALL)
@@ -482,7 +464,7 @@ int controller_dispatch(Bus *bus, Message *message) {
         else if (r < 0)
                 return error_fold(r);
 
-        r = controller_dispatch_object(bus,
+        r = controller_dispatch_object(controller,
                                        message->metadata.header.serial,
                                        message->metadata.fields.interface,
                                        message->metadata.fields.member,
@@ -510,4 +492,196 @@ int controller_dispatch(Bus *bus, Message *message) {
         }
 
         return error_trace(r);
+}
+
+static int controller_name_compare(CRBTree *t, void *k, CRBNode *rb) {
+        ControllerName *name = c_container_of(rb, ControllerName, controller_node);
+
+        return strcmp(k, name->path);
+}
+
+/**
+ * controller_name_free() - XXX
+ */
+ControllerName *controller_name_free(ControllerName *name) {
+        if (!name)
+                return NULL;
+
+        activation_free(name->activation);
+        c_rbtree_remove_init(&name->controller->name_tree, &name->controller_node);
+        free(name);
+
+        return NULL;
+}
+
+static int controller_name_new(ControllerName **namep, Controller *controller, const char *path) {
+        CRBNode **slot, *parent;
+        ControllerName *name;
+        size_t n_path;
+
+        slot = c_rbtree_find_slot(&controller->name_tree, controller_name_compare, path, &parent);
+        if (!slot)
+                return CONTROLLER_E_ACTIVATION_EXISTS;
+
+        n_path = strlen(path);
+        name = calloc(1, sizeof(*name) + n_path + 1);
+        if (!name)
+                return error_origin(-ENOMEM);
+
+        name->controller = controller;
+        name->controller_node = (CRBNode)C_RBNODE_INIT(name->controller_node);
+        memcpy(name->path, path, n_path + 1);
+
+        c_rbtree_add(&controller->name_tree, parent, slot, &name->controller_node);
+        *namep = name;
+        return 0;
+}
+
+void controller_name_reset(ControllerName *name) {
+        assert(!name->activation);
+
+        activation_flush(name->activation);
+}
+
+static int controller_listener_compare(CRBTree *t, void *k, CRBNode *rb) {
+        ControllerListener *listener = c_container_of(rb, ControllerListener, controller_node);
+
+        return strcmp(k, listener->path);
+}
+
+/**
+ * controller_listener_free() - XXX
+ */
+ControllerListener *controller_listener_free(ControllerListener *listener) {
+        if (!listener)
+                return NULL;
+
+        listener_free(listener->listener);
+        c_rbtree_remove_init(&listener->controller->listener_tree, &listener->controller_node);
+        free(listener);
+
+        return NULL;
+}
+
+static int controller_listener_new(ControllerListener **listenerp, Controller *controller, const char *path) {
+        CRBNode **slot, *parent;
+        ControllerListener *listener;
+        size_t n_path;
+
+        slot = c_rbtree_find_slot(&controller->listener_tree, controller_listener_compare, path, &parent);
+        if (!slot)
+                return CONTROLLER_E_LISTENER_EXISTS;
+
+        n_path = strlen(path);
+        listener = calloc(1, sizeof(*listener) + n_path + 1);
+        if (!listener)
+                return error_origin(-ENOMEM);
+
+        listener->controller = controller;
+        listener->controller_node = (CRBNode)C_RBNODE_INIT(listener->controller_node);
+        memcpy(listener->path, path, n_path + 1);
+
+        c_rbtree_add(&controller->listener_tree, parent, slot, &listener->controller_node);
+        *listenerp = listener;
+        return 0;
+}
+
+/**
+ * controller_init() - XXX
+ */
+void controller_init(Controller *controller, Manager *manager) {
+        *controller = (Controller)CONTROLLER_INIT(manager);
+}
+
+/**
+ * controller_deinit() - XXX
+ */
+void controller_deinit(Controller *controller) {
+        assert(c_rbtree_is_empty(&controller->name_tree));
+        assert(c_rbtree_is_empty(&controller->listener_tree));
+}
+
+/**
+ * controller_add_name() - XXX
+ */
+int controller_add_name(Controller *controller,
+                        ControllerName **namep,
+                        const char *path,
+                        const char *name_str,
+                        uid_t uid) {
+        _c_cleanup_(controller_name_freep) ControllerName *name = NULL;
+        _c_cleanup_(name_unrefp) Name *name_entry = NULL;
+        _c_cleanup_(user_unrefp) User *user_entry = NULL;
+        int r;
+
+        r = name_registry_ref_name(&controller->manager->bus.names, &name_entry, name_str);
+        if (r)
+                return error_fold(r);
+
+        r = user_registry_ref_user(&controller->manager->bus.users, &user_entry, uid);
+        if (r)
+                return error_fold(r);
+
+        r = controller_name_new(&name, controller, path);
+        if (r)
+                return error_trace(r);
+
+        r = activation_new(&name->activation, &controller->manager->bus.activations, path, name_entry, user_entry);
+        if (r)
+                return (r == ACTIVATION_E_ALREADY_ACTIVATABLE) ? CONTROLLER_E_NAME_IS_ACTIVATABLE : error_fold(r);
+
+        *namep = name;
+        name = NULL;
+        return 0;
+}
+
+/**
+ * controller_add_listener() - XXX
+ */
+int controller_add_listener(Controller *controller,
+                            ControllerListener **listenerp,
+                            const char *path,
+                            int listener_fd,
+                            const char *policy_path) {
+        _c_cleanup_(controller_listener_freep) ControllerListener *listener = NULL;
+        int r;
+
+        r = controller_listener_new(&listener, controller, path);
+        if (r)
+                return error_trace(r);
+
+        r = listener_new_with_fd(&listener->listener,
+                                 &controller->manager->bus,
+                                 path,
+                                 &controller->manager->dispatcher,
+                                 listener_fd,
+                                 policy_path);
+        if (r)
+                return error_fold(r);
+
+        *listenerp = listener;
+        listener = NULL;
+        return 0;
+}
+
+/**
+ * controller_find_name() - XXX
+ */
+ControllerName *controller_find_name(Controller *controller, const char *path) {
+        return c_container_of(c_rbtree_find_node(&controller->name_tree,
+                                                 controller_name_compare,
+                                                 path),
+                              ControllerName,
+                              controller_node);
+}
+
+/**
+ * controller_find_listener() - XXX
+ */
+ControllerListener *controller_find_listener(Controller *controller, const char *path) {
+        return c_container_of(c_rbtree_find_node(&controller->listener_tree,
+                                                 controller_listener_compare,
+                                                 path),
+                              ControllerListener,
+                              controller_node);
 }
