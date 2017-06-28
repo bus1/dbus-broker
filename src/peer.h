@@ -56,6 +56,7 @@ struct Peer {
         pid_t pid;
         char *seclabel;
         size_t n_seclabel;
+        UserCharge charges[3];
 
         uint64_t id;
         CRBNode registry_node;

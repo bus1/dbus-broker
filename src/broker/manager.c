@@ -119,7 +119,7 @@ int manager_new(Manager **managerp, int controller_fd) {
         manager->controller = (Connection)CONNECTION_NULL(manager->controller);
         manager->ctrl = (Controller)CONTROLLER_INIT(manager);
 
-        r = bus_init(&manager->bus, 16 * 1024 * 1024, 1024, 1024, 10 * 1024, 10 * 1024);
+        r = bus_init(&manager->bus, 16 * 1024 * 1024, 1024, 10 * 1024, 10 * 1024);
         if (r)
                 return error_fold(r);
 

@@ -271,9 +271,6 @@ int peer_new_with_fd(Peer **peerp,
         if (r < 0)
                 return error_fold(r);
 
-        if (user->slots[USER_SLOT_PEERS].n < 1)
-                return PEER_E_QUOTA;
-
         r = peer_get_peersec(fd, &seclabel, &n_seclabel);
         if (r < 0)
                 return error_trace(r);
@@ -288,8 +285,6 @@ int peer_new_with_fd(Peer **peerp,
         if (!peer)
                 return error_origin(-ENOMEM);
 
-        --user->slots[USER_SLOT_PEERS].n;
-
         peer->bus = bus;
         peer->connection = (Connection)CONNECTION_NULL(peer->connection);
         peer->registry_node = (CRBNode)C_RBNODE_INIT(peer->registry_node);
@@ -299,12 +294,25 @@ int peer_new_with_fd(Peer **peerp,
         peer->seclabel = seclabel;
         seclabel = NULL;
         peer->n_seclabel = n_seclabel;
+        peer->charges[0] = (UserCharge)USER_CHARGE_INIT;
+        peer->charges[1] = (UserCharge)USER_CHARGE_INIT;
+        peer->charges[2] = (UserCharge)USER_CHARGE_INIT;
         peer->policy = (PeerPolicy)PEER_POLICY_INIT;
         peer->owned_names = (NameOwner)NAME_OWNER_INIT;
         peer->matches = (MatchRegistry)MATCH_REGISTRY_INIT(peer->matches);
         peer->owned_matches = (MatchOwner)MATCH_OWNER_INIT;
         peer->replies_outgoing = (ReplyRegistry)REPLY_REGISTRY_INIT;
         peer->owned_replies = (ReplyOwner)REPLY_OWNER_INIT(peer->owned_replies);
+
+        r = user_charge(user, &peer->charges[0], NULL, USER_SLOT_BYTES, sizeof(Peer));
+        r = r ?: user_charge(user, &peer->charges[1], NULL, USER_SLOT_FDS, 1);
+        r = r ?: user_charge(user, &peer->charges[2], NULL, USER_SLOT_NAMES, 1);
+        if (r) {
+                if (r == USER_E_QUOTA)
+                        return PEER_E_QUOTA;
+
+                return error_fold(r);
+        }
 
         r = peer_policy_instantiate(&peer->policy, policy, ucred.uid, gids, n_gids);
         if (r) {
@@ -344,8 +352,6 @@ Peer *peer_free(Peer *peer) {
 
         assert(!peer->registered);
 
-        ++peer->user->slots[USER_SLOT_PEERS].n;
-
         c_rbtree_remove_init(&peer->bus->peers.peer_tree, &peer->registry_node);
 
         fd = peer->connection.socket.fd;
@@ -358,6 +364,9 @@ Peer *peer_free(Peer *peer) {
         peer_policy_deinit(&peer->policy);
         connection_deinit(&peer->connection);
         user_unref(peer->user);
+        user_charge_deinit(&peer->charges[2]);
+        user_charge_deinit(&peer->charges[1]);
+        user_charge_deinit(&peer->charges[0]);
         free(peer->seclabel);
         free(peer);
 

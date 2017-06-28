@@ -61,7 +61,6 @@ struct Bus {
 int bus_init(Bus *bus,
              unsigned int max_bytes,
              unsigned int max_fds,
-             unsigned int max_peers,
              unsigned int max_names,
              unsigned int max_matches);
 void bus_deinit(Bus *bus);
