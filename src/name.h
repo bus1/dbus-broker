@@ -8,12 +8,13 @@
 #include <c-ref.h>
 #include <stdlib.h>
 #include "match.h"
+#include "util/user.h"
 
 typedef struct Activation Activation;
-typedef struct NameChange NameChange;
 typedef struct Name Name;
-typedef struct NameOwnership NameOwnership;
+typedef struct NameChange NameChange;
 typedef struct NameOwner NameOwner;
+typedef struct NameOwnership NameOwnership;
 typedef struct NameRegistry NameRegistry;
 
 enum {
@@ -22,10 +23,9 @@ enum {
         NAME_E_NOT_FOUND,
         NAME_E_NOT_OWNER,
 
-        NAME_E_OWNER_NEW,
-        NAME_E_OWNER_UPDATED,
-        NAME_E_IN_QUEUE_NEW,
-        NAME_E_IN_QUEUE_UPDATED,
+        NAME_E_QUOTA,
+        NAME_E_ALREADY_OWNER,
+        NAME_E_IN_QUEUE,
         NAME_E_EXISTS,
 };
 
@@ -35,72 +35,99 @@ struct NameChange {
         NameOwner *new_owner;
 };
 
+#define NAME_CHANGE_INIT {}
+
 struct NameOwnership {
         NameOwner *owner;
         Name *name;
         CRBNode owner_node;
         CList name_link;
         uint64_t flags;
+        UserCharge charge;
 };
 
 struct Name {
         _Atomic unsigned long n_refs;
         NameRegistry *registry;
+        CRBNode registry_node;
 
         Activation *activation;
-
         MatchRegistry matches;
 
         CList ownership_list;
-        CRBNode registry_node;
-        const char name[];
+        char name[];
 };
 
 struct NameRegistry {
         CRBTree name_tree;
 };
 
-#define NAME_REGISTRY_INIT {}
+#define NAME_REGISTRY_INIT {                                                    \
+                .name_tree = C_RBTREE_INIT,                                     \
+        }
 
 struct NameOwner {
         CRBTree ownership_tree;
 };
 
+#define NAME_OWNER_INIT {                                                       \
+                .ownership_tree = C_RBTREE_INIT,                                \
+        }
+
+/* notifications */
+
 void name_change_init(NameChange *change);
 void name_change_deinit(NameChange *change);
+
+/* ownerships */
 
 void name_ownership_release(NameOwnership *owner, NameChange *change);
 bool name_ownership_is_primary(NameOwnership *owner);
 
-void name_free(_Atomic unsigned long *n_refs, void *userpointer);
+/* names */
 
-bool name_is_owned(Name *name);
+void name_free(_Atomic unsigned long *n_refs, void *userdata);
+
+/* owners */
 
 void name_owner_init(NameOwner *owner);
 void name_owner_deinit(NameOwner *owner);
+
+/* registry */
 
 void name_registry_init(NameRegistry *registry);
 void name_registry_deinit(NameRegistry *registry);
 
 int name_registry_ref_name(NameRegistry *registry, Name **namep, const char *name_str);
-
 Name *name_registry_find_name(NameRegistry *registry, const char *name_str);
 
-int name_registry_request_name(NameRegistry *registry, NameOwner *owner, const char *name_str, uint32_t flags, NameChange *change);
-int name_registry_release_name(NameRegistry *registry, NameOwner *owner, const char *name_str, NameChange *change);
+int name_registry_request_name(NameRegistry *registry,
+                               NameOwner *owner,
+                               User *user,
+                               const char *name_str,
+                               uint32_t flags,
+                               NameChange *change);
+int name_registry_release_name(NameRegistry *registry,
+                               NameOwner *owner,
+                               const char *name_str,
+                               NameChange *change);
+
+/* inline helpers */
 
 static inline Name *name_ref(Name *name) {
         if (name)
                 c_ref_inc(&name->n_refs);
-
         return name;
 }
 
 static inline Name *name_unref(Name *name) {
         if (name)
                 c_ref_dec(&name->n_refs, name_free, NULL);
-
         return NULL;
+}
+
+static inline NameOwnership *name_primary(Name *name) {
+        return c_container_of(c_list_first(&name->ownership_list), NameOwnership, name_link);
 }
 
 C_DEFINE_CLEANUP(Name *, name_unref);

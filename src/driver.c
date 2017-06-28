@@ -826,7 +826,7 @@ static int driver_method_list_names(Peer *peer, CDVar *in_v, uint32_t serial, CD
                 driver_dvar_write_unique_name(out_v, p);
         }
         c_rbtree_for_each_entry(name, &peer->bus->names.name_tree, registry_node) {
-                if (!name_is_owned(name))
+                if (!name_primary(name))
                         continue;
 
                 c_dvar_write(out_v, "s", name->name);
@@ -911,7 +911,7 @@ static int driver_method_start_service_by_name(Peer *peer, CDVar *in_v, uint32_t
         if (!name || !name->activation)
                 return DRIVER_E_NAME_NOT_ACTIVATABLE;
 
-        ownership = c_list_first_entry(&name->ownership_list, NameOwnership, name_link);
+        ownership = name_primary(name);
         if (ownership) {
                 c_dvar_write(out_v, "(u)", DBUS_START_REPLY_ALREADY_RUNNING);
 

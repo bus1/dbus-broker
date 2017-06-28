@@ -13,60 +13,127 @@
 #include "util/error.h"
 #include "util/user.h"
 
+/**
+ * name_change_init() - initialize notification
+ * @change:             object to operate on
+ *
+ * Initialize a name-change notification object. All fields are cleared and set
+ * to their default values.
+ */
 void name_change_init(NameChange *change) {
-        *change = (NameChange){};
+        *change = (NameChange)NAME_CHANGE_INIT;
 }
 
+/**
+ * name_change_deinit() - deinitialize notification
+ * @change:             object to operate on
+ *
+ * Clear a notification object and drop all references. The object is reset to
+ * its default state, as if name_change_init() was called afterwards.
+ */
 void name_change_deinit(NameChange *change) {
         change->name = name_unref(change->name);
-        change->old_owner = NULL;
-        change->new_owner = NULL;
-}
-
-/* new owner object linked into the owning peer */
-static int name_ownership_new(NameOwnership **ownershipp, NameOwner *owner, Name *name, CRBNode *parent, CRBNode **slot) {
-        NameOwnership *ownership;
-
-        ownership = calloc(1, sizeof(*ownership));
-        if (!ownership)
-                return error_origin(-ENOMEM);
-
-        ownership->name_link = (CList)C_LIST_INIT(ownership->name_link);
-        ownership->name = name_ref(name);
-        c_rbtree_add(&owner->ownership_tree, parent, slot, &ownership->owner_node);
-        ownership->owner = owner;
-
-        *ownershipp = ownership;
-        return 0;
-}
-
-/* unlink from peer and entry */
-static NameOwnership *name_ownership_free(NameOwnership *ownership) {
-        if (!ownership)
-                return NULL;
-
-        c_rbtree_remove_init(&ownership->owner->ownership_tree, &ownership->owner_node);
-        c_list_unlink(&ownership->name_link);
-        name_unref(ownership->name);
-
-        free(ownership);
-
-        return NULL;
+        *change = (NameChange)NAME_CHANGE_INIT;
 }
 
 static int name_ownership_compare(CRBTree *tree, void *k, CRBNode *rb) {
         NameOwnership *ownership = c_container_of(rb, NameOwnership, owner_node);
 
-        if ((Name*)k < ownership->name)
+        if ((Name *)k < ownership->name)
                 return -1;
-        if ((Name*)k > ownership->name)
+        if ((Name *)k > ownership->name)
                 return 1;
 
         return 0;
 }
 
+static void name_ownership_link(NameOwnership *ownership, CRBNode *parent, CRBNode **slot) {
+        assert(!c_rbnode_is_linked(&ownership->owner_node));
+
+        c_rbtree_add(&ownership->owner->ownership_tree, parent, slot, &ownership->owner_node);
+}
+
+static NameOwnership *name_ownership_free(NameOwnership *ownership) {
+        if (!ownership)
+                return NULL;
+
+        assert(!c_list_is_linked(&ownership->name_link));
+
+        user_charge_deinit(&ownership->charge);
+        c_rbtree_remove_init(&ownership->owner->ownership_tree, &ownership->owner_node);
+        name_unref(ownership->name);
+        free(ownership);
+
+        return NULL;
+}
+
+C_DEFINE_CLEANUP(NameOwnership *, name_ownership_free);
+
+static int name_ownership_new(NameOwnership **ownershipp, NameOwner *owner, User *user, Name *name) {
+        _c_cleanup_(name_ownership_freep) NameOwnership *ownership = NULL;
+        int r;
+
+        ownership = calloc(1, sizeof(*ownership));
+        if (!ownership)
+                return error_origin(-ENOMEM);
+
+        ownership->owner = owner;
+        ownership->name = name_ref(name);
+        ownership->owner_node = (CRBNode)C_RBNODE_INIT(ownership->owner_node);
+        ownership->name_link = (CList)C_LIST_INIT(ownership->name_link);
+        ownership->charge = (UserCharge)USER_CHARGE_INIT;
+
+        r = user_charge(user, &ownership->charge, NULL, USER_SLOT_NAMES, 1);
+        if (r)
+                return (r == USER_E_QUOTA) ? NAME_E_QUOTA : error_fold(r);
+
+        *ownershipp = ownership;
+        ownership = NULL;
+        return 0;
+}
+
+/**
+ * name_ownership_is_primary() - check primary state
+ * @ownership:          object to operate on
+ *
+ * This checks whether the given ownership is the primary one.
+ *
+ * Return: True if @ownership is primary, false otherwise.
+ */
 bool name_ownership_is_primary(NameOwnership *ownership) {
-        return (c_list_first(&ownership->name->ownership_list) == &ownership->name_link);
+        return ownership == name_primary(ownership->name);
+}
+
+/**
+ * name_ownership_release() - release name ownership
+ * @ownership:          object to operate on
+ * @change:             notification object
+ *
+ * This releases and destroys the name-ownership object @ownership. This is
+ * meant as replacement for name_ownership_free(). Releasing name ownership
+ * might require the caller to trigger notifications. Hence, rather than calling
+ * name_ownership_free(), you must call its wrapper name_ownership_release(),
+ * which then additionally returns required information to you.
+ */
+void name_ownership_release(NameOwnership *ownership, NameChange *change) {
+        NameOwnership *primary;
+
+        assert(!change->name);
+        assert(!change->old_owner);
+        assert(!change->new_owner);
+
+        primary = name_primary(ownership->name);
+        c_list_unlink_init(&ownership->name_link);
+
+        if (ownership == primary) {
+                primary = name_primary(ownership->name);
+
+                change->name = name_ref(ownership->name);
+                change->old_owner = ownership->owner;
+                change->new_owner = primary ? primary->owner : NULL;
+        }
+
+        name_ownership_free(ownership);
 }
 
 static int name_ownership_update(NameOwnership *ownership, uint32_t flags, NameChange *change) {
@@ -78,119 +145,52 @@ static int name_ownership_update(NameOwnership *ownership, uint32_t flags, NameC
         assert(!change->old_owner);
         assert(!change->new_owner);
 
-        primary = c_container_of(c_list_first(&name->ownership_list), NameOwnership, name_link);
-        if (primary == ownership) {
-                /* we are already the primary owner */
-                ownership->flags = flags;
-                r =  0;
-        } else if (!primary) {
+        primary = name_primary(name);
+        ownership->flags = flags;
+
+        if (!primary) {
                 /* there is no primary owner */
                 change->name = name_ref(name);
-                change->new_owner = ownership->owner;
                 change->old_owner = NULL;
+                change->new_owner = ownership->owner;
 
                 /* @owner cannot already be linked */
+                assert(!c_list_is_linked(&ownership->name_link));
+
                 c_list_link_front(&name->ownership_list, &ownership->name_link);
-                ownership->flags = flags;
-                r = NAME_E_OWNER_NEW;
-        } else if ((flags & DBUS_NAME_FLAG_REPLACE_EXISTING) &&
+                r = 0;
+        } else if (primary == ownership) {
+                /* we are already the primary owner */
+                r = NAME_E_ALREADY_OWNER;
+        } else if ((ownership->flags & DBUS_NAME_FLAG_REPLACE_EXISTING) &&
                    (primary->flags & DBUS_NAME_FLAG_ALLOW_REPLACEMENT)) {
                 /* we replace the primary owner */
                 change->name = name_ref(name);
                 change->old_owner = primary->owner;
                 change->new_owner = ownership->owner;
 
-                if (primary->flags & DBUS_NAME_FLAG_DO_NOT_QUEUE)
-                        /* the previous primary owner is dropped */
-                        name_ownership_free(primary);
-
-                if (c_list_is_linked(&ownership->name_link)) {
-                        c_list_unlink(&ownership->name_link);
-                        r = NAME_E_OWNER_UPDATED;
-                } else {
-                        r = NAME_E_OWNER_NEW;
-                }
+                c_list_unlink_init(&ownership->name_link);
                 c_list_link_front(&name->ownership_list, &ownership->name_link);
-                ownership->flags = flags;
-        } else if (!(flags & DBUS_NAME_FLAG_DO_NOT_QUEUE)) {
-                /* we are appended to the queue */
-                if (!c_list_is_linked(&ownership->name_link)) {
-                        c_list_link_tail(&name->ownership_list, &ownership->name_link);
-                        r = NAME_E_IN_QUEUE_NEW;
-                } else {
-                        r = NAME_E_IN_QUEUE_UPDATED;
+
+                /* drop previous primary owner, if queuing is not requested */
+                if (primary->flags & DBUS_NAME_FLAG_DO_NOT_QUEUE) {
+                        c_list_unlink_init(&primary->name_link);
+                        name_ownership_free(primary);
                 }
-                ownership->flags = flags;
+
+                r = 0;
+        } else if (!(ownership->flags & DBUS_NAME_FLAG_DO_NOT_QUEUE)) {
+                /* we are appended to the queue */
+                if (!c_list_is_linked(&ownership->name_link))
+                        c_list_link_tail(&name->ownership_list, &ownership->name_link);
+                r = NAME_E_IN_QUEUE;
         } else {
                 /* we are dropped */
-                name_ownership_free(ownership);
+                c_list_unlink_init(&ownership->name_link);
                 r = NAME_E_EXISTS;
         }
 
         return r;
-}
-
-void name_ownership_release(NameOwnership *ownership, NameChange *change) {
-        assert(!change->name);
-        assert(!change->old_owner);
-        assert(!change->new_owner);
-
-        if (name_ownership_is_primary(ownership)) {
-                NameOwner *new_owner;
-
-                if (c_list_last(&ownership->name->ownership_list) != &ownership->name_link) {
-                        NameOwnership *next = c_list_entry(ownership->name_link.next, NameOwnership, name_link);
-                        new_owner = next->owner;
-                } else {
-                        new_owner = NULL;
-                }
-
-                change->name = name_ref(ownership->name);
-                change->old_owner = ownership->owner;
-                change->new_owner = new_owner;
-        }
-
-        name_ownership_free(ownership);
-}
-
-/* new name entry linked into the registry */
-static int name_new(Name **namep, NameRegistry *registry, const char *name_str, CRBNode *parent, CRBNode **slot) {
-        Name *name;
-        size_t n_name;
-
-        n_name = strlen(name_str) + 1;
-
-        name = malloc(sizeof(*name) + n_name);
-        if (!name)
-                return error_origin(-ENOMEM);
-
-        name->n_refs = C_REF_INIT;
-        name->registry = registry;
-        name->activation = NULL;
-        match_registry_init(&name->matches);
-        c_rbtree_add(&registry->name_tree, parent, slot, &name->registry_node);
-        name->ownership_list = (CList)C_LIST_INIT(name->ownership_list);
-        memcpy((char*)name->name, name_str, n_name);
-
-        *namep = name;
-        return 0;
-}
-
-void name_free(_Atomic unsigned long *n_refs, void *userpointer) {
-        Name *name = c_container_of(n_refs, Name, n_refs);
-
-        assert(c_list_is_empty(&name->ownership_list));
-        assert(!name->activation);
-
-        c_rbtree_remove_init(&name->registry->name_tree, &name->registry_node);
-
-        match_registry_deinit(&name->matches);
-
-        free(name);
-}
-
-bool name_is_owned(Name *name) {
-        return !c_list_is_empty(&name->ownership_list);
 }
 
 static int name_compare(CRBTree *tree, void *k, CRBNode *rb) {
@@ -199,37 +199,100 @@ static int name_compare(CRBTree *tree, void *k, CRBNode *rb) {
         return strcmp(k, name->name);
 }
 
-void name_owner_init(NameOwner *owner) {
-        *owner = (NameOwner){};
+static void name_link(Name *name, CRBNode *parent, CRBNode **slot) {
+        assert(!c_rbnode_is_linked(&name->registry_node));
+
+        c_rbtree_add(&name->registry->name_tree, parent, slot, &name->registry_node);
 }
 
+static int name_new(Name **namep, NameRegistry *registry, const char *name_str) {
+        _c_cleanup_(name_unrefp) Name *name = NULL;
+        size_t n_name;
+
+        n_name = strlen(name_str);
+        name = malloc(sizeof(*name) + n_name + 1);
+        if (!name)
+                return error_origin(-ENOMEM);
+
+        name->n_refs = C_REF_INIT;
+        name->registry = registry;
+        name->registry_node = (CRBNode)C_RBNODE_INIT(name->registry_node);
+        name->activation = NULL;
+        match_registry_init(&name->matches);
+        name->ownership_list = (CList)C_LIST_INIT(name->ownership_list);
+        memcpy(name->name, name_str, n_name + 1);
+
+        *namep = name;
+        name = NULL;
+        return 0;
+}
+
+void name_free(_Atomic unsigned long *n_refs, void *userdata) {
+        Name *name = c_container_of(n_refs, Name, n_refs);
+
+        assert(c_list_is_empty(&name->ownership_list));
+        assert(!name->activation);
+
+        match_registry_deinit(&name->matches);
+        c_rbtree_remove_init(&name->registry->name_tree, &name->registry_node);
+        free(name);
+}
+
+/**
+ * name_owner_init() - initialize owner
+ * @owner:              object to operate on
+ *
+ * This initializes a name-owner context.
+ */
+void name_owner_init(NameOwner *owner) {
+        *owner = (NameOwner)NAME_OWNER_INIT;
+}
+
+/**
+ * name_owner_deinit() - deinitialize owner
+ * @owner:              object to operate on
+ *
+ * This deinitializes a name-owner context. The caller must make sure that the
+ * context is unused and does not own any names.
+ */
 void name_owner_deinit(NameOwner *owner) {
         assert(c_rbtree_is_empty(&owner->ownership_tree));
 }
 
-static int name_owner_get_ownership(NameOwner *owner, NameOwnership **ownershipp, Name *name) {
-        CRBNode **slot, *parent;
-        int r;
-
-        slot = c_rbtree_find_slot(&owner->ownership_tree, name_ownership_compare, name, &parent);
-        if (!slot) {
-                *ownershipp = c_container_of(parent, NameOwnership, owner_node);
-        } else {
-                r = name_ownership_new(ownershipp, owner, name, parent, slot);
-                if (r)
-                        return error_trace(r);
-        }
-
-        return 0;
-}
+/**
+ * name_registry_init() - initialize registry
+ * @registry:           object to operate on
+ *
+ * This initializes a name registry.
+ */
 void name_registry_init(NameRegistry *registry) {
         *registry = (NameRegistry)NAME_REGISTRY_INIT;
 }
 
+/**
+ * name_registry_deinit() - deinitialize registry
+ * @registry:           object to operate on
+ *
+ * This deinitializes a name registry. The caller must make sure that the
+ * registry is unused and none of its names is pinned, anymore.
+ */
 void name_registry_deinit(NameRegistry *registry) {
         assert(c_rbtree_is_empty(&registry->name_tree));
 }
 
+/**
+ * name_registry_ref_name() - reference name object
+ * @registry:           registry to operate on
+ * @namep:              output argument for name object
+ * @name_str:           name to lookup
+ *
+ * This either creates a new name object with a single reference, or creates a
+ * new reference to the name, if it already exists.
+ *
+ * The pointer to the name is returned in @namep.
+ *
+ * Return: 0 on success, negative error code on failure.
+ */
 int name_registry_ref_name(NameRegistry *registry, Name **namep, const char *name_str) {
         CRBNode **slot, *parent;
         int r;
@@ -238,53 +301,112 @@ int name_registry_ref_name(NameRegistry *registry, Name **namep, const char *nam
         if (!slot) {
                 *namep = name_ref(c_container_of(parent, Name, registry_node));
         } else {
-                r = name_new(namep, registry, name_str, parent, slot);
+                r = name_new(namep, registry, name_str);
                 if (r)
                         return error_trace(r);
+
+                name_link(*namep, parent, slot);
         }
 
         return 0;
 }
 
-int name_registry_request_name(NameRegistry *registry, NameOwner *owner, const char *name_str, uint32_t flags, NameChange *change) {
+/**
+ * name_registry_find_name() - find name object
+ * @registry:           registry to operate on
+ * @name_str:           name to lookup
+ *
+ * This looks for a name-entry for name @name_str and returns it.
+ *
+ * Return: Pointer to name-entry, or NULL if not found.
+ */
+Name *name_registry_find_name(NameRegistry *registry, const char *name_str) {
+        return c_rbtree_find_entry(&registry->name_tree, name_compare, name_str, Name, registry_node);
+}
+
+/**
+ * name_registry_request_name() - request name ownership
+ * @registry:           registry to operate on
+ * @owner:              owner to act as
+ * @user:               user to charge
+ * @name_str:           name to request
+ * @flags:              flags that affect the operation
+ * @change:             notification context
+ *
+ * This performs a RequestName() operation as defined by the D-Bus
+ * specification.
+ *
+ * Return: 0 on success, NAME_E_QUOTA if @user exceeded its quota,
+ *         NAME_E_ALREADY_OWNER if @owner is already the owner of @name_str,
+ *         NAME_E_IN_QUEUE of @owner is now queued @name_str, NAME_E_EXISTS if
+ *         the name could not be acquired, negative error code on failure.
+ */
+int name_registry_request_name(NameRegistry *registry,
+                               NameOwner *owner,
+                               User *user,
+                               const char *name_str,
+                               uint32_t flags,
+                               NameChange *change) {
         _c_cleanup_(name_unrefp) Name *name = NULL;
         NameOwnership *ownership;
+        CRBNode **slot, *parent;
         int r;
 
         r = name_registry_ref_name(registry, &name, name_str);
         if (r)
                 return error_trace(r);
 
-        r = name_owner_get_ownership(owner, &ownership, name);
-        if (r)
-                return error_trace(r);
+        slot = c_rbtree_find_slot(&owner->ownership_tree,
+                                  name_ownership_compare,
+                                  name,
+                                  &parent);
+        if (!slot) {
+                ownership = c_container_of(parent, NameOwnership, owner_node);
+        } else {
+                r = name_ownership_new(&ownership, owner, user, name);
+                if (r)
+                        return error_trace(r);
 
-        /* this function must not fail, or an ownership object may leak */
+                name_ownership_link(ownership, parent, slot);
+        }
 
         r = name_ownership_update(ownership, flags, change);
-        if (r)
-                return error_trace(r);
-
-        return 0;
+        if (!c_list_is_linked(&ownership->name_link))
+                name_ownership_free(ownership);
+        return error_trace(r);
 }
 
-Name *name_registry_find_name(NameRegistry *registry, const char *name_str) {
-        return c_rbtree_find_entry(&registry->name_tree, name_compare, name_str, Name, registry_node);
-}
-
-int name_registry_release_name(NameRegistry *registry, NameOwner *owner, const char *name_str, NameChange *change) {
-        Name *name;
+/**
+ * name_registry_release_name() - release name ownership
+ * @registry:           registry to operate on
+ * @owner:              owner to act as
+ * @name_str:           name to release
+ * @change:             notification context
+ *
+ * This performs a ReleaseName() operation as defined by the D-Bus
+ * specification.
+ *
+ * Return: 0 on success, NAME_E_NOT_FOUND if @owner does not own the name.
+ */
+int name_registry_release_name(NameRegistry *registry,
+                               NameOwner *owner,
+                               const char *name_str,
+                               NameChange *change) {
         NameOwnership *ownership;
+        Name *name;
 
         name = name_registry_find_name(registry, name_str);
         if (!name)
                 return NAME_E_NOT_FOUND;
 
-        ownership = c_rbtree_find_entry(&owner->ownership_tree, name_ownership_compare, name, NameOwnership, owner_node);
+        ownership = c_rbtree_find_entry(&owner->ownership_tree,
+                                        name_ownership_compare,
+                                        name,
+                                        NameOwnership,
+                                        owner_node);
         if (!ownership)
                 return NAME_E_NOT_OWNER;
 
         name_ownership_release(ownership, change);
-
         return 0;
 }

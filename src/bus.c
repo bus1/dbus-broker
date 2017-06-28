@@ -65,7 +65,7 @@ Peer *bus_find_peer_by_name(Bus *bus, Name **namep, const char *name_str) {
         case ADDRESS_TYPE_NAME:
                 name = name_registry_find_name(&bus->names, addr.name);
                 if (name) {
-                        ownership = c_list_first_entry(&name->ownership_list, NameOwnership, name_link);
+                        ownership = name_primary(name);
                         if (ownership)
                                 peer = c_container_of(ownership->owner, Peer, owned_names);
                 }

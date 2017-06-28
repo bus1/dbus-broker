@@ -397,9 +397,6 @@ bool peer_is_privileged(Peer *peer) {
 int peer_request_name(Peer *peer, const char *name, uint32_t flags, NameChange *change) {
         int r;
 
-        if (peer->user->slots[USER_SLOT_NAMES].n == 0)
-                return PEER_E_QUOTA;
-
         if (!strcmp(name, "org.freedesktop.DBus"))
                 return PEER_E_NAME_RESERVED;
 
@@ -416,25 +413,24 @@ int peer_request_name(Peer *peer, const char *name, uint32_t flags, NameChange *
                 return error_fold(r);
         }
 
-        r = name_registry_request_name(&peer->bus->names, &peer->owned_names, name, flags, change);
-        switch (r) {
-        case 0:
+        r = name_registry_request_name(&peer->bus->names,
+                                       &peer->owned_names,
+                                       peer->user,
+                                       name,
+                                       flags,
+                                       change);
+        if (r == NAME_E_QUOTA)
+                return PEER_E_QUOTA;
+        else if (r == NAME_E_ALREADY_OWNER)
                 return PEER_E_NAME_ALREADY_OWNER;
-        case NAME_E_OWNER_NEW:
-                --peer->user->slots[USER_SLOT_NAMES].n;
-                /* fall-through */
-        case NAME_E_OWNER_UPDATED:
-                return 0;
-        case NAME_E_IN_QUEUE_NEW:
-                --peer->user->slots[USER_SLOT_NAMES].n;
-                /* fall-through */
-        case NAME_E_IN_QUEUE_UPDATED:
+        else if (r == NAME_E_IN_QUEUE)
                 return PEER_E_NAME_IN_QUEUE;
-        case NAME_E_EXISTS:
+        else if (r == NAME_E_EXISTS)
                 return PEER_E_NAME_EXISTS;
-        }
+        else if (r)
+                return error_fold(r);
 
-        return error_fold(r);
+        return 0;
 }
 
 int peer_release_name(Peer *peer, const char *name, NameChange *change) {
@@ -449,22 +445,18 @@ int peer_release_name(Peer *peer, const char *name, NameChange *change) {
         /* XXX: refuse invalid names */
 
         r = name_registry_release_name(&peer->bus->names, &peer->owned_names, name, change);
-        if (!r) {
-                ++peer->user->slots[USER_SLOT_NAMES].n;
-                return 0;
-        } else if (r == NAME_E_NOT_FOUND) {
+        if (r == NAME_E_NOT_FOUND)
                 return PEER_E_NAME_NOT_FOUND;
-        } else if (r == NAME_E_NOT_OWNER) {
+        else if (r == NAME_E_NOT_OWNER)
                 return PEER_E_NAME_NOT_OWNER;
-        } else {
+        else if (r)
                 return error_fold(r);
-        }
 
+        return 0;
 }
 
 void peer_release_name_ownership(Peer *peer, NameOwnership *ownership, NameChange *change) {
         name_ownership_release(ownership, change);
-        ++peer->user->slots[USER_SLOT_NAMES].n;
 }
 
 static int peer_link_match(Peer *peer, MatchRule *rule, bool monitor) {
