@@ -386,7 +386,9 @@ int name_registry_request_name(NameRegistry *registry,
  * This performs a ReleaseName() operation as defined by the D-Bus
  * specification.
  *
- * Return: 0 on success, NAME_E_NOT_FOUND if @owner does not own the name.
+ * Return: 0 on success, NAME_E_NOT_FOUND if the name does not exist,
+ *         NAME_E_NOT_OWNER if @owner does not own the name, negative error
+ *         code on failure.
  */
 int name_registry_release_name(NameRegistry *registry,
                                NameOwner *owner,
@@ -396,7 +398,7 @@ int name_registry_release_name(NameRegistry *registry,
         Name *name;
 
         name = name_registry_find_name(registry, name_str);
-        if (!name)
+        if (!name || !name_primary(name))
                 return NAME_E_NOT_FOUND;
 
         ownership = c_rbtree_find_entry(&owner->ownership_tree,
