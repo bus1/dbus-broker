@@ -112,17 +112,13 @@ int manager_new(Manager **managerp, int controller_fd) {
         if (!manager)
                 return error_origin(-ENOMEM);
 
+        manager->bus = (Bus)BUS_NULL(manager->bus);
         manager->dispatcher = (DispatchContext)DISPATCH_CONTEXT_NULL(manager->dispatcher);
         manager->signals_fd = -1;
         manager->signals_file = (DispatchFile)DISPATCH_FILE_NULL(manager->signals_file);
         manager->controller = (Connection)CONNECTION_NULL(manager->controller);
         manager->ctrl = (Controller)CONTROLLER_INIT(manager);
 
-        /*
-         * XXX: We need to assign BUS_NULL to manager->bus first. However, it
-         *      does not exist, yet, since most of its dependencies lack _NULL
-         *      annotations. Really need to fix that!
-         */
         r = bus_init(&manager->bus, 16 * 1024 * 1024, 1024, 1024, 10 * 1024, 10 * 1024);
         if (r)
                 return error_fold(r);
