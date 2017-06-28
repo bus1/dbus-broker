@@ -701,7 +701,7 @@ static int manager_load_services(Manager *manager) {
 }
 
 static int manager_add_listener(Manager *manager) {
-        _c_cleanup_(policy_registry_deinit) PolicyRegistry registry = POLICY_REGISTRY_INIT(registry);
+        _c_cleanup_(policy_parser_registry_deinit) PolicyParserRegistry registry = POLICY_PARSER_REGISTRY_INIT(registry);
         const char *policypath;
         int r;
 
@@ -714,7 +714,7 @@ static int manager_add_listener(Manager *manager) {
         else
                 return error_origin(-ENOTRECOVERABLE);
 
-        r = policy_parser_parse_file(&registry, policypath, NULL);
+        r = policy_parser_registry_from_file(&registry, policypath, NULL);
         if (r)
                 return error_fold(r);
 

@@ -24,7 +24,7 @@
 typedef struct PolicyParser PolicyParser;
 
 struct PolicyParser {
-        PolicyRegistry *registry;
+        PolicyParserRegistry *registry;
         PolicyParser *parent;
         XML_Parser parser;
         const char *filename;
@@ -35,13 +35,8 @@ struct PolicyParser {
         size_t level;
 
         Policy *policy;
-        uint64_t priority_base;
         uint64_t priority;
 };
-
-#define POLICY_PARSER_NULL {                    \
-                .priority_base = (uint64_t)-1,  \
-        }
 
 static int policy_parse_directory(PolicyParser *parent, const char *dirpath) {
         const char suffix[] = ".conf";
@@ -76,7 +71,7 @@ static int policy_parse_directory(PolicyParser *parent, const char *dirpath) {
                 if (r < 0)
                         return error_origin(-ENOMEM);
 
-                r = policy_parser_parse_file(parent->registry, filename, parent);
+                r = policy_parser_registry_from_file(parent->registry, filename, parent);
                 if (r)
                         return error_trace(r);
         }
@@ -94,28 +89,23 @@ static int policy_parser_handler_policy(PolicyParser *parser, const XML_Char **a
                 if (!*(++attributes))
                         goto error;
 
-                parser->policy = &parser->registry->default_policy;
-
-                if (!strcmp(*attributes, "default")) {
-                        parser->priority_base = POLICY_PRIORITY_BASE_DEFAULT;
-                } else if (!strcmp(*attributes, "mandatory")) {
-                        parser->priority_base = POLICY_PRIORITY_BASE_MANDATORY;
-                } else {
+                if (!strcmp(*attributes, "default"))
+                        parser->policy = &parser->registry->default_policy;
+                else if (!strcmp(*attributes, "mandatory"))
+                        parser->policy = &parser->registry->mandatory_policy;
+                else
                         goto error;
-                }
         } else if (!strcmp(*attributes, "user")) {
                 struct passwd *passwd;
 
                 if (!*(++attributes))
                         goto error;
 
-                parser->priority_base = POLICY_PRIORITY_BASE_USER;
-
                 passwd = getpwnam(*attributes);
                 if (!passwd)
                         return error_origin(-errno);
 
-                r = policy_registry_get_policy_by_uid(parser->registry, &parser->policy, passwd->pw_uid);
+                r = policy_registry_get_policy_by_uid(&parser->registry->registry, &parser->policy, passwd->pw_uid);
                 if (r)
                         return error_trace(r);
         } else if (!strcmp(*attributes, "group")) {
@@ -124,25 +114,21 @@ static int policy_parser_handler_policy(PolicyParser *parser, const XML_Char **a
                 if (!*(++attributes))
                         goto error;
 
-                parser->priority_base = POLICY_PRIORITY_BASE_GROUP;
-
                 group = getgrnam(*attributes);
                 if (!group)
                         return error_origin(-errno);
 
-                r = policy_registry_get_policy_by_gid(parser->registry, &parser->policy, group->gr_gid);
+                r = policy_registry_get_policy_by_gid(&parser->registry->registry, &parser->policy, group->gr_gid);
                 if (r)
                         return error_trace(r);
         } else if (!strcmp(*attributes, "at_console")) {
                 if (!*(++attributes))
                         goto error;
 
-                parser->priority_base = POLICY_PRIORITY_BASE_CONSOLE;
-
                 if (!strcmp(*attributes, "true")) {
-                        parser->policy = &parser->registry->at_console_policy;
+                        parser->policy = NULL;
                 } else if (!strcmp(*attributes, "false")) {
-                        parser->policy = &parser->registry->not_at_console_policy;
+                        parser->policy = &parser->registry->console_policy;
                 } else {
                         goto error;
                 }
@@ -170,27 +156,23 @@ static int policy_parser_handler_entry(PolicyParser *parser, const XML_Char **at
 
                 if (!strcmp(key, "own")) {
                         if (!strcmp(value, "*")) {
-                                r = ownership_policy_set_wildcard(&parser->policy->ownership_policy,
-                                                                  deny, parser->priority_base + parser->priority ++);
+                                r = ownership_policy_set_wildcard(&parser->policy->ownership_policy, deny, parser->priority ++);
                                 if (r)
                                         return error_trace(r);
                         } else {
-                                r = ownership_policy_add_name(&parser->policy->ownership_policy, value,
-                                                              deny, parser->priority_base + parser->priority ++);
+                                r = ownership_policy_add_name(&parser->policy->ownership_policy, value, deny, parser->priority ++);
                                 if (r)
                                         return error_trace(r);
                         }
                         continue;
                 } else if (!strcmp(key, "own_prefix")) {
-                        r = ownership_policy_add_prefix(&parser->policy->ownership_policy, value,
-                                                        deny, parser->priority_base + parser->priority ++);
+                        r = ownership_policy_add_prefix(&parser->policy->ownership_policy, value, deny, parser->priority ++);
                         if (r)
                                 return error_trace(r);
                         continue;
                 } else if (!strcmp(key, "user")) {
                         if (!strcmp(value, "*")) {
-                                r = connection_policy_set_wildcard(&parser->registry->connection_policy,
-                                                                   deny, parser->priority_base + parser->priority ++);
+                                r = connection_policy_set_wildcard(&parser->registry->registry.connection_policy, deny, parser->priority ++);
                                 if (r)
                                         return error_trace(r);
                         } else {
@@ -200,16 +182,14 @@ static int policy_parser_handler_entry(PolicyParser *parser, const XML_Char **at
                                 if (!passwd)
                                         return error_origin(-errno);
 
-                                r = connection_policy_add_uid(&parser->registry->connection_policy, passwd->pw_uid,
-                                                              deny, parser->priority_base + parser->priority ++);
+                                r = connection_policy_add_uid(&parser->registry->registry.connection_policy, passwd->pw_uid, deny, parser->priority ++);
                                 if (r)
                                         return error_trace(r);
                         }
                         continue;
                 } else if (!strcmp(key, "group")) {
                         if (!strcmp(value, "*")) {
-                                r = connection_policy_set_wildcard(&parser->registry->connection_policy,
-                                                                   deny, parser->priority_base + parser->priority ++);
+                                r = connection_policy_set_wildcard(&parser->registry->registry.connection_policy, deny, parser->priority ++);
                                 if (r)
                                         return error_trace(r);
                         } else {
@@ -219,8 +199,7 @@ static int policy_parser_handler_entry(PolicyParser *parser, const XML_Char **at
                                 if (!group)
                                         return error_origin(-errno);
 
-                                r = connection_policy_add_gid(&parser->registry->connection_policy, group->gr_gid,
-                                                              deny, parser->priority_base + parser->priority ++);
+                                r = connection_policy_add_gid(&parser->registry->registry.connection_policy, group->gr_gid, deny, parser->priority ++);
                                 if (r)
                                         return error_trace(r);
                         }
@@ -293,8 +272,7 @@ static int policy_parser_handler_entry(PolicyParser *parser, const XML_Char **at
         }
 
         if (transmission_policy) {
-                r = transmission_policy_add_entry(transmission_policy, name, interface, member, path, type,
-                                                  deny, parser->priority_base + parser->priority ++);
+                r = transmission_policy_add_entry(transmission_policy, name, interface, member, path, type, deny, parser->priority ++);
                 if (r)
                         return error_trace(r);
         }
@@ -356,9 +334,7 @@ static void policy_parser_handler_end(void *userdata, const XML_Char *name) {
         case 1:
                 if (parser->busconfig) {
                         if (!strcmp(name, "policy")) {
-                                assert(parser->policy);
                                 parser->policy = NULL;
-                                parser->priority_base = (uint64_t)-1;
                         } else if (!strcmp(name, "includedir")) {
                                 assert(parser->includedir);
                                 policy_parse_directory(parser, parser->characterdata);
@@ -403,8 +379,8 @@ error:
         fprintf(stderr, "This isn't good.\n");
 }
 
-static void policy_parser_init(PolicyParser *parser, PolicyRegistry *registry, PolicyParser *parent, const char *filename) {
-        *parser = (PolicyParser)POLICY_PARSER_NULL;
+static void policy_parser_init(PolicyParser *parser, PolicyParserRegistry *registry, PolicyParser *parent, const char *filename) {
+        *parser = (PolicyParser){};
         if (parent) {
                 parser->parent = parent;
                 parser->priority = parent->priority;
@@ -419,18 +395,17 @@ static void policy_parser_init(PolicyParser *parser, PolicyRegistry *registry, P
 
 static void policy_parser_deinit(PolicyParser *parser) {
         assert(!parser->policy);
-        assert(parser->priority_base == (uint64_t)-1);
         assert(parser->priority < POLICY_PRIORITY_INCREMENT);
 
         if (parser->parent)
                 parser->parent->priority = parser->priority;
 
         XML_ParserFree(parser->parser);
-        *parser = (PolicyParser)POLICY_PARSER_NULL;
+        *parser = (PolicyParser){};
 }
 
-int policy_parser_parse_file(PolicyRegistry *registry, const char *filename, PolicyParser *parent) {
-        PolicyParser parser = (PolicyParser)POLICY_PARSER_NULL;
+int policy_parser_registry_from_file(PolicyParserRegistry *registry, const char *filename, PolicyParser *parent) {
+        _c_cleanup_(policy_parser_deinit) PolicyParser parser = (PolicyParser){};
         _c_cleanup_(c_fclosep) FILE *file = NULL;
         char buffer[1024];
         size_t len;
@@ -465,7 +440,6 @@ int policy_parser_parse_file(PolicyRegistry *registry, const char *filename, Pol
         r = XML_Parse(parser.parser, NULL, 0, XML_TRUE);
         if (r != XML_STATUS_OK)
                 goto error;
-        policy_parser_deinit(&parser);
 
         return 0;
 error:
@@ -473,6 +447,12 @@ error:
                 parser.filename,
                 XML_GetCurrentLineNumber(parser.parser),
                 XML_ErrorString(XML_GetErrorCode(parser.parser)));
-        policy_parser_deinit(&parser);
         return POLICY_PARSER_E_INVALID_XML;
+}
+
+void policy_parser_registry_deinit(PolicyParserRegistry *registry) {
+        policy_deinit(&registry->mandatory_policy);
+        policy_deinit(&registry->console_policy);
+        policy_registry_deinit(&registry->registry);
+        policy_deinit(&registry->default_policy);
 }

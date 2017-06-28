@@ -7,6 +7,7 @@
 #include <c-list.h>
 #include <c-rbtree.h>
 #include <stdlib.h>
+#include "policy.h"
 
 enum {
         _POLICY_PARSER_E_SUCCESS,
@@ -16,6 +17,21 @@ enum {
 };
 
 typedef struct PolicyParser PolicyParser;
-typedef struct PolicyRegistry PolicyRegistry;
+typedef struct PolicyParserRegistry PolicyParserRegistry;
 
-int policy_parser_parse_file(PolicyRegistry *registry, const char *filename, PolicyParser *parent);
+struct PolicyParserRegistry {
+        Policy default_policy;
+        PolicyRegistry registry;
+        Policy console_policy;
+        Policy mandatory_policy;
+};
+
+#define POLICY_PARSER_REGISTRY_INIT(_x) {                               \
+                .default_policy = POLICY_INIT((_x).default_policy),     \
+                .registry = POLICY_REGISTRY_INIT((_x).registry),        \
+                .console_policy = POLICY_INIT((_x).console_policy),     \
+                .mandatory_policy = POLICY_INIT((_x).mandatory_policy),  \
+        }
+
+int policy_parser_registry_from_file(PolicyParserRegistry *registry, const char *filename, PolicyParser *parent);
+void policy_parser_registry_deinit(PolicyParserRegistry *registry);
