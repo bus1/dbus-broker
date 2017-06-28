@@ -151,13 +151,13 @@ static void test_print_policy_registry_tree(CRBTree *policy, const char *name, u
                 test_print_policy(entry, NULL, entry->uid, indent + 1);
 }
 
-static void test_print_policy_registry(PolicyRegistry *registry) {
-        test_print_connection_policy(&registry->connection_policy, 0);
+static void test_print_policy_registry(PolicyParserRegistry *registry) {
+        test_print_connection_policy(&registry->registry.connection_policy, 0);
         test_print_policy(&registry->default_policy, "DEFAULT", 0, 0);
-        test_print_policy_registry_tree(&registry->gid_policy_tree, "GROUP", 0);
-        test_print_policy_registry_tree(&registry->uid_policy_tree, "USER", 0);
-        test_print_policy(&registry->at_console_policy, "AT CONSOLE", 0, 0);
-        test_print_policy(&registry->not_at_console_policy, "NOT AT CONSOLE", 0, 0);
+        test_print_policy_registry_tree(&registry->registry.gid_policy_tree, "GROUP", 0);
+        test_print_policy_registry_tree(&registry->registry.uid_policy_tree, "USER", 0);
+        test_print_policy(&registry->console_policy, "NOT AT CONSOLE", 0, 0);
+        test_print_policy(&registry->mandatory_policy, "MANDATORY", 0, 0);
 }
 
 static void test_basic() {
@@ -167,7 +167,7 @@ static void test_basic() {
         r = policy_parser_registry_from_file(&registry, "/usr/share/dbus-1/system.conf", NULL);
         assert(!r);
 
-        test_print_policy_registry(&registry.registry);
+        test_print_policy_registry(&registry);
 }
 
 int main(int argc, char **argv) {

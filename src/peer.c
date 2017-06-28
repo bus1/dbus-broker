@@ -299,7 +299,7 @@ int peer_new_with_fd(Peer **peerp,
         peer->seclabel = seclabel;
         seclabel = NULL;
         peer->n_seclabel = n_seclabel;
-        peer->policy = (PeerPolicy)PEER_POLICY_INIT(peer->policy);
+        peer->policy = (PeerPolicy){};
         peer->owned_names = (NameOwner){};
         match_registry_init(&peer->matches);
         match_owner_init(&peer->owned_matches);

@@ -14,6 +14,7 @@ libdbus_broker_private = static_library(
                 'dbus/socket.c',
                 'activation.c',
                 'driver.c',
+                'launch/policy-parser.c', # XXX: drop once pre-parsed
                 'listener.c',
                 'match.c',
                 'name.c',

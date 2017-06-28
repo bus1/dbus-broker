@@ -322,6 +322,29 @@ static int connection_policy_check_allowed(ConnectionPolicy *policy, uid_t uid, 
         return decision.deny ? POLICY_E_ACCESS_DENIED : 0;
 }
 
+int connection_policy_instantiate(ConnectionPolicy *target, ConnectionPolicy *source) {
+        ConnectionPolicyEntry *entry;
+        int r;
+
+        r = connection_policy_set_wildcard(target, source->wildcard.deny, source->wildcard.priority);
+        if (r)
+                return error_trace(r);
+
+        c_rbtree_for_each_entry(entry, &source->uid_tree, rb) {
+                r = connection_policy_add_uid(target, entry->uid, entry->decision.deny, entry->decision.priority);
+                if (r)
+                        return error_trace(r);
+        }
+
+        c_rbtree_for_each_entry(entry, &source->gid_tree, rb) {
+                r = connection_policy_add_gid(target, entry->uid, entry->decision.deny, entry->decision.priority);
+                if (r)
+                        return error_trace(r);
+        }
+
+        return 0;
+}
+
 /* transmission policy */
 static int transmission_policy_entry_new(TransmissionPolicyEntry **entryp, CList *policy,
                                          const char *interface, const char *member, const char *path, int type,
@@ -633,7 +656,7 @@ static Policy *policy_free(Policy *policy) {
         return NULL;
 }
 
-static int policy_instantiate(Policy *target, Policy *source) {
+int policy_instantiate(Policy *target, Policy *source) {
         int r;
 
         r = ownership_policy_instantiate(&target->ownership_policy, &source->ownership_policy);
@@ -665,32 +688,21 @@ static int policy_compare(CRBTree *tree, void *k, CRBNode *rb) {
 
 /* peer policy */
 int peer_policy_instantiate(PeerPolicy *policy, PolicyRegistry *registry, uid_t uid, gid_t *gids, size_t n_gids) {
-        Policy *source, *target = &policy->uid_policy;
+        Policy *source;
         int r;
 
-        policy_init(&policy->uid_policy);
-        policy->gid_policies = NULL;
-        policy->n_gid_policies = 0;
+        assert(!policy->uid_policy);
+        assert(!policy->gid_policies);
+        assert(!policy->n_gid_policies);
 
         r = connection_policy_check_allowed(&registry->connection_policy, uid, gids, n_gids);
         if (r)
                 return error_trace(r);
 
-        r = policy_instantiate(target, &registry->default_policy);
-        if (r)
-                return error_trace(r);
-
         source = c_rbtree_find_entry(&registry->uid_policy_tree, policy_compare, &uid, Policy, registry_node);
-        if (source) {
-                r = policy_instantiate(target, source);
-                if (r)
-                        return error_trace(r);
-        }
-
-        /* consider all peers not to be at the console */
-        r = policy_instantiate(target, &registry->not_at_console_policy);
-        if (r)
-                return error_trace(r);
+        if (!source)
+                source = &registry->wildcard_uid_policy;
+        policy->uid_policy = source;
 
         if (n_gids) {
                 policy->gid_policies = malloc(n_gids * sizeof(*policy->gid_policies));
@@ -708,7 +720,7 @@ int peer_policy_instantiate(PeerPolicy *policy, PolicyRegistry *registry, uid_t 
 }
 
 void peer_policy_deinit(PeerPolicy *policy) {
-        policy_deinit(&policy->uid_policy);
+        policy->uid_policy = NULL;
         /* the gid policy array may be overallocated, so make sure to free even if it is empty */
         policy->gid_policies = c_free(policy->gid_policies);
         policy->n_gid_policies = 0;
@@ -717,7 +729,7 @@ void peer_policy_deinit(PeerPolicy *policy) {
 int peer_policy_check_own(PeerPolicy *policy, const char *name) {
         PolicyDecision decision = {};
 
-        ownership_policy_check_allowed(&policy->uid_policy.ownership_policy, name, &decision);
+        ownership_policy_check_allowed(&policy->uid_policy->ownership_policy, name, &decision);
 
         for (size_t i = 0; policy->n_gid_policies; ++i)
                 ownership_policy_check_allowed(&policy->gid_policies[i]->ownership_policy, name, &decision);
@@ -728,7 +740,7 @@ int peer_policy_check_own(PeerPolicy *policy, const char *name) {
 int peer_policy_check_send(PeerPolicy *policy, NameOwner *subject, const char *interface, const char *method, const char *path, int type) {
         PolicyDecision decision = {};
 
-        transmission_policy_check_allowed(&policy->uid_policy.send_policy, subject, interface, method, path, type, &decision);
+        transmission_policy_check_allowed(&policy->uid_policy->send_policy, subject, interface, method, path, type, &decision);
 
         for (size_t i = 0; policy->n_gid_policies; ++i)
                 transmission_policy_check_allowed(&policy->gid_policies[i]->send_policy, subject, interface, method, path, type, &decision);
@@ -739,7 +751,7 @@ int peer_policy_check_send(PeerPolicy *policy, NameOwner *subject, const char *i
 int peer_policy_check_receive(PeerPolicy *policy, NameOwner *subject, const char *interface, const char *method, const char *path, int type) {
         PolicyDecision decision = {};
 
-        transmission_policy_check_allowed(&policy->uid_policy.receive_policy, subject, interface, method, path, type, &decision);
+        transmission_policy_check_allowed(&policy->uid_policy->receive_policy, subject, interface, method, path, type, &decision);
 
         for (size_t i = 0; policy->n_gid_policies; ++i)
                 transmission_policy_check_allowed(&policy->gid_policies[i]->receive_policy, subject, interface, method, path, type, &decision);
@@ -755,13 +767,11 @@ void policy_registry_init(PolicyRegistry *registry) {
 void policy_registry_deinit(PolicyRegistry *registry) {
         Policy *policy, *safe;
 
-        policy_deinit(&registry->not_at_console_policy);
-        policy_deinit(&registry->at_console_policy);
         c_rbtree_for_each_entry_unlink(policy, safe, &registry->gid_policy_tree, registry_node)
                 policy_free(policy);
         c_rbtree_for_each_entry_unlink(policy, safe, &registry->uid_policy_tree, registry_node)
                 policy_free(policy);
-        policy_deinit(&registry->default_policy);
+        policy_deinit(&registry->wildcard_uid_policy);
         connection_policy_deinit(&registry->connection_policy);
 }
 
@@ -802,439 +812,4 @@ int policy_registry_get_policy_by_gid(PolicyRegistry *registry, Policy **policyp
 bool policy_registry_needs_groups(PolicyRegistry *registry) {
         return !c_rbtree_is_empty(&registry->connection_policy.gid_tree) ||
                !c_rbtree_is_empty(&registry->gid_policy_tree);
-}
-
-/* parser */
-static int policy_parse_directory(PolicyParser *parent, const char *dirpath) {
-        const char suffix[] = ".conf";
-        _c_cleanup_(c_closedirp) DIR *dir = NULL;
-        struct dirent *de;
-        size_t n;
-        int r;
-
-        dir = opendir(dirpath);
-        if (!dir) {
-                if (errno == ENOENT || errno == ENOTDIR)
-                        return 0;
-                else
-                        return error_origin(-errno);
-        }
-
-        for (errno = 0, de = readdir(dir);
-             de;
-             errno = 0, de = readdir(dir)) {
-                _c_cleanup_(c_freep) char *filename = NULL;
-
-                if (de->d_name[0] == '.')
-                        continue;
-
-                n = strlen(de->d_name);
-                if (n <= strlen(suffix))
-                        continue;
-                if (strcmp(de->d_name + n - strlen(suffix), suffix))
-                        continue;
-
-                r = asprintf(&filename, "%s/%s", dirpath, de->d_name);
-                if (r < 0)
-                        return error_origin(-ENOMEM);
-
-                r = policy_registry_from_file(parent->registry, filename, parent);
-                if (r)
-                        return error_trace(r);
-        }
-
-        return 0;
-}
-
-static int policy_parser_handler_policy(PolicyParser *parser, const XML_Char **attributes) {
-        int r;
-
-        if (!attributes)
-                goto error;
-
-        if (!strcmp(*attributes, "context")) {
-                if (!*(++attributes))
-                        goto error;
-
-                parser->policy = &parser->registry->default_policy;
-
-                if (!strcmp(*attributes, "default")) {
-                        parser->priority_base = POLICY_PRIORITY_BASE_DEFAULT;
-                } else if (!strcmp(*attributes, "mandatory")) {
-                        parser->priority_base = POLICY_PRIORITY_BASE_MANDATORY;
-                } else {
-                        goto error;
-                }
-        } else if (!strcmp(*attributes, "user")) {
-                struct passwd *passwd;
-
-                if (!*(++attributes))
-                        goto error;
-
-                parser->priority_base = POLICY_PRIORITY_BASE_USER;
-
-                passwd = getpwnam(*attributes);
-                if (!passwd)
-                        return error_origin(-errno);
-
-                r = policy_registry_get_policy_by_uid(parser->registry, &parser->policy, passwd->pw_uid);
-                if (r)
-                        return error_trace(r);
-        } else if (!strcmp(*attributes, "group")) {
-                struct group *group;
-
-                if (!*(++attributes))
-                        goto error;
-
-                parser->priority_base = POLICY_PRIORITY_BASE_GROUP;
-
-                group = getgrnam(*attributes);
-                if (!group)
-                        return error_origin(-errno);
-
-                r = policy_registry_get_policy_by_gid(parser->registry, &parser->policy, group->gr_gid);
-                if (r)
-                        return error_trace(r);
-        } else if (!strcmp(*attributes, "at_console")) {
-                if (!*(++attributes))
-                        goto error;
-
-                parser->priority_base = POLICY_PRIORITY_BASE_CONSOLE;
-
-                if (!strcmp(*attributes, "true")) {
-                        parser->policy = &parser->registry->at_console_policy;
-                } else if (!strcmp(*attributes, "false")) {
-                        parser->policy = &parser->registry->not_at_console_policy;
-                } else {
-                        goto error;
-                }
-        } else {
-                goto error;
-        }
-
-        if (*(++attributes))
-                goto error;
-
-        return 0;
-error:
-        fprintf(stderr, "This isn't good\n");
-        return 0; /* XXX: error handling */
-}
-
-static int policy_parser_handler_entry(PolicyParser *parser, const XML_Char **attributes, bool deny) {
-        TransmissionPolicy *transmission_policy = NULL;
-        bool send = false, receive = false;
-        const char *name = NULL, *interface = NULL, *member = NULL, *error = NULL, *path = NULL;
-        int type = 0, r;
-
-        while (*attributes) {
-                const char *key = *(attributes++), *value = *(attributes++);
-
-                if (!strcmp(key, "own")) {
-                        if (!strcmp(value, "*")) {
-                                r = ownership_policy_set_wildcard(&parser->policy->ownership_policy,
-                                                                  deny, parser->priority_base + parser->priority ++);
-                                if (r)
-                                        return error_trace(r);
-                        } else {
-                                r = ownership_policy_add_name(&parser->policy->ownership_policy, value,
-                                                              deny, parser->priority_base + parser->priority ++);
-                                if (r)
-                                        return error_trace(r);
-                        }
-                        continue;
-                } else if (!strcmp(key, "own_prefix")) {
-                        r = ownership_policy_add_prefix(&parser->policy->ownership_policy, value,
-                                                        deny, parser->priority_base + parser->priority ++);
-                        if (r)
-                                return error_trace(r);
-                        continue;
-                } else if (!strcmp(key, "user")) {
-                        if (!strcmp(value, "*")) {
-                                r = connection_policy_set_wildcard(&parser->registry->connection_policy,
-                                                                   deny, parser->priority_base + parser->priority ++);
-                                if (r)
-                                        return error_trace(r);
-                        } else {
-                                struct passwd *passwd;
-
-                                passwd = getpwnam(value);
-                                if (!passwd)
-                                        return error_origin(-errno);
-
-                                r = connection_policy_add_uid(&parser->registry->connection_policy, passwd->pw_uid,
-                                                              deny, parser->priority_base + parser->priority ++);
-                                if (r)
-                                        return error_trace(r);
-                        }
-                        continue;
-                } else if (!strcmp(key, "group")) {
-                        if (!strcmp(value, "*")) {
-                                r = connection_policy_set_wildcard(&parser->registry->connection_policy,
-                                                                   deny, parser->priority_base + parser->priority ++);
-                                if (r)
-                                        return error_trace(r);
-                        } else {
-                                struct group *group;
-
-                                group = getgrnam(value);
-                                if (!group)
-                                        return error_origin(-errno);
-
-                                r = connection_policy_add_gid(&parser->registry->connection_policy, group->gr_gid,
-                                                              deny, parser->priority_base + parser->priority ++);
-                                if (r)
-                                        return error_trace(r);
-                        }
-                        continue;
-                } else if (!strncmp(key, "send_", strlen("send_"))) {
-                        if (receive)
-                                goto error;
-
-                        send = true;
-                        transmission_policy = &parser->policy->send_policy;
-
-                        key += strlen("send_");
-                } else if (!strncmp(key, "receive_", strlen("receive_"))) {
-                        if (send)
-                                goto error;
-
-                        receive = true;
-                        transmission_policy = &parser->policy->receive_policy;
-
-                        key += strlen("receive_");
-                } else {
-                        continue;
-                }
-
-                if (send == true && !strcmp(key, "destination")) {
-                        if (name)
-                                goto error;
-
-                        name = value;
-                } else if (receive == true && !strcmp(key, "sender")) {
-                        if (name)
-                                goto error;
-
-                        name = value;
-                } else if (!strcmp(key, "interface")) {
-                        if (interface)
-                                goto error;
-
-                        interface = value;
-                } else if (!strcmp(key, "member")) {
-                        if (member)
-                                goto error;
-
-                        member = value;
-                } else if (!strcmp(key, "error")) {
-                        if (error)
-                                goto error;
-
-                        error = value;
-                } else if (!strcmp(key, "path")) {
-                        if (path)
-                                goto error;
-
-                        path = value;
-                } else if (!strcmp(key, "type")) {
-                        if (type)
-                                goto error;
-
-                        if (!strcmp(value, "method_call"))
-                                type = DBUS_MESSAGE_TYPE_METHOD_CALL;
-                        else if (!strcmp(value, "method_return"))
-                                type = DBUS_MESSAGE_TYPE_METHOD_RETURN;
-                        else if (!strcmp(value, "error"))
-                                type = DBUS_MESSAGE_TYPE_ERROR;
-                        else if (!strcmp(value, "signal"))
-                                type = DBUS_MESSAGE_TYPE_SIGNAL;
-                        else
-                                goto error;
-                }
-        }
-
-        if (transmission_policy) {
-                r = transmission_policy_add_entry(transmission_policy, name, interface, member, path, type,
-                                                  deny, parser->priority_base + parser->priority ++);
-                if (r)
-                        return error_trace(r);
-        }
-
-        return 0;
-error:
-        fprintf(stderr, "This isn't good!\n");
-        return 0; /* XXX: error handling */
-}
-
-static void policy_parser_handler_start(void *userdata, const XML_Char *name, const XML_Char **attributes) {
-        PolicyParser *parser = userdata;
-        int r;
-
-        switch (parser->level++) {
-                case 0:
-                        if (!strcmp(name, "busconfig"))
-                                parser->busconfig = true;
-
-                        break;
-                case 1:
-                        if (!parser->busconfig)
-                                break;
-
-                        if (!strcmp(name, "policy")) {
-                                r = policy_parser_handler_policy(parser, attributes);
-                                assert(!r); /* XXX: error handling */
-                        } else if (!strcmp(name, "includedir")) {
-                                parser->includedir = true;
-                        }
-                        break;
-                case 2:
-                        if (!parser->policy)
-                                break;
-
-                        if (!strcmp(name, "deny")) {
-                                r = policy_parser_handler_entry(parser, attributes, true);
-                                assert(!r); /* XXX: error handling */
-                        } else if (!strcmp(name, "allow")) {
-                                r = policy_parser_handler_entry(parser, attributes, false);
-                                assert(!r); /* XXX: error handling */
-                        }
-                        break;
-                default:
-                        break;
-        }
-}
-
-static void policy_parser_handler_end(void *userdata, const XML_Char *name) {
-        PolicyParser *parser = userdata;
-
-        switch (--parser->level) {
-        case 0:
-                if (!strcmp(name, "busconfig")) {
-                        assert(parser->busconfig);
-                        parser->busconfig = false;
-                }
-                break;
-        case 1:
-                if (parser->busconfig) {
-                        if (!strcmp(name, "policy")) {
-                                assert(parser->policy);
-                                parser->policy = NULL;
-                                parser->priority_base = (uint64_t)-1;
-                        } else if (!strcmp(name, "includedir")) {
-                                assert(parser->includedir);
-                                policy_parse_directory(parser, parser->characterdata);
-                                parser->includedir = false;
-                                memset(parser->characterdata, 0, sizeof(parser->characterdata));
-                                parser->n_characterdata = 0;
-                        }
-                }
-                break;
-        default:
-                break;
-        }
-}
-
-static void policy_parser_character_handler(void *userdata, const XML_Char *data, int n_data) {
-        PolicyParser *parser = userdata;
-
-        if (!n_data)
-                return;
-
-        if (!parser->includedir)
-                return;
-
-        if (!parser->n_characterdata && data[0] != '/') {
-                const char *end;
-
-                end = strrchr(parser->filename, '/');
-                if (!end)
-                        goto error;
-
-                memcpy(parser->characterdata, parser->filename, end - parser->filename + 1);
-                parser->n_characterdata = end - parser->filename + 1;
-        }
-
-        if (parser->n_characterdata + n_data > PATH_MAX)
-                goto error;
-
-        memcpy(parser->characterdata + parser->n_characterdata, data, n_data);
-
-        return;
-error:
-        fprintf(stderr, "This isn't good.\n");
-}
-
-static void policy_parser_init(PolicyParser *parser, PolicyRegistry *registry, PolicyParser *parent, const char *filename) {
-        *parser = (PolicyParser)POLICY_PARSER_NULL;
-        if (parent) {
-                parser->parent = parent;
-                parser->priority = parent->priority;
-        }
-        parser->registry = registry;
-        parser->filename = filename;
-        parser->parser = XML_ParserCreate(NULL);
-        XML_SetUserData(parser->parser, parser);
-        XML_SetElementHandler(parser->parser, policy_parser_handler_start, policy_parser_handler_end);
-        XML_SetCharacterDataHandler(parser->parser, policy_parser_character_handler);
-}
-
-static void policy_parser_deinit(PolicyParser *parser) {
-        assert(!parser->policy);
-        assert(parser->priority_base == (uint64_t)-1);
-        assert(parser->priority < POLICY_PRIORITY_INCREMENT);
-
-        if (parser->parent)
-                parser->parent->priority = parser->priority;
-
-        XML_ParserFree(parser->parser);
-        *parser = (PolicyParser)POLICY_PARSER_NULL;
-}
-
-int policy_registry_from_file(PolicyRegistry *registry, const char *filename, PolicyParser *parent) {
-        PolicyParser parser = (PolicyParser)POLICY_PARSER_NULL;
-        _c_cleanup_(c_fclosep) FILE *file = NULL;
-        char buffer[1024];
-        size_t len;
-        int r;
-
-        if (filename[0] == '\0')
-                return 0;
-
-        for (PolicyParser *p = parent; p; p = p->parent)
-                if (!strcmp(p->filename, filename))
-                        return POLICY_E_CIRCULAR_INCLUDE;
-
-        file = fopen(filename, "r");
-        if (!file) {
-                if (errno == ENOENT)
-                        return 0;
-
-                return error_origin(-errno);
-        }
-
-        policy_parser_init(&parser, registry, parent, filename);
-        do {
-                len = fread(buffer, sizeof(char), sizeof(buffer), file);
-                if (!len && ferror(file))
-                        return error_origin(-EIO);
-
-                r = XML_Parse(parser.parser, buffer, len, XML_FALSE);
-                if (r != XML_STATUS_OK)
-                        goto error;
-        } while (len == sizeof(buffer));
-
-        r = XML_Parse(parser.parser, NULL, 0, XML_TRUE);
-        if (r != XML_STATUS_OK)
-                goto error;
-        policy_parser_deinit(&parser);
-
-        return 0;
-error:
-        fprintf(stderr, "%s +%lu: %s\n",
-                parser.filename,
-                XML_GetCurrentLineNumber(parser.parser),
-                XML_ErrorString(XML_GetErrorCode(parser.parser)));
-        policy_parser_deinit(&parser);
-        return POLICY_E_INVALID_XML;
 }

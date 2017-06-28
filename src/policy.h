@@ -12,8 +12,6 @@ enum {
         _POLICY_E_SUCCESS,
 
         POLICY_E_ACCESS_DENIED,
-        POLICY_E_INVALID_XML,
-        POLICY_E_CIRCULAR_INCLUDE,
 };
 
 typedef struct ConnectionPolicy ConnectionPolicy;
@@ -103,28 +101,20 @@ struct Policy {
         }
 
 struct PeerPolicy {
-        Policy uid_policy;
+        Policy *uid_policy;
         Policy **gid_policies;
         size_t n_gid_policies;
 };
 
-#define PEER_POLICY_INIT(_x) {                                  \
-                .uid_policy = POLICY_INIT((_x).uid_policy),     \
-        }
-
 struct PolicyRegistry {
         ConnectionPolicy connection_policy;
-        Policy default_policy;
+        Policy wildcard_uid_policy;
         CRBTree uid_policy_tree;
         CRBTree gid_policy_tree;
-        Policy at_console_policy;
-        Policy not_at_console_policy;
 };
 
-#define POLICY_REGISTRY_INIT(_x) {                                                      \
-                .default_policy = POLICY_INIT((_x).default_policy),                     \
-                .at_console_policy = POLICY_INIT((_x).at_console_policy),               \
-                .not_at_console_policy = POLICY_INIT((_x).not_at_console_policy),       \
+#define POLICY_REGISTRY_INIT(_x) {                                              \
+                .wildcard_uid_policy = POLICY_INIT((_x).wildcard_uid_policy),   \
         }
 
 bool policy_decision_is_default(PolicyDecision *decision);
@@ -147,6 +137,8 @@ int connection_policy_set_wildcard(ConnectionPolicy *policy, bool deny, uint64_t
 int connection_policy_add_uid(ConnectionPolicy *policy, uid_t uid, bool deny, uint64_t priority);
 int connection_policy_add_gid(ConnectionPolicy *policy, gid_t gid, bool deny, uint64_t priority);
 
+int connection_policy_instantiate(ConnectionPolicy *target, ConnectionPolicy *source);
+
 void transmission_policy_init(TransmissionPolicy *policy);
 void transmission_policy_deinit(TransmissionPolicy *policy);
 
@@ -160,6 +152,7 @@ void policy_init(Policy *policy);
 void policy_deinit(Policy *policy);
 
 bool policy_is_empty(Policy *policy);
+int policy_instantiate(Policy *target, Policy *source);
 
 int peer_policy_instantiate(PeerPolicy *policy, PolicyRegistry *registry, uid_t uid, gid_t *gids, size_t n_gids);
 void peer_policy_deinit(PeerPolicy *policy);
@@ -175,5 +168,3 @@ bool policy_registry_needs_groups(PolicyRegistry *registry);
 
 int policy_registry_get_policy_by_uid(PolicyRegistry *registry, Policy **policyp, uid_t uid);
 int policy_registry_get_policy_by_gid(PolicyRegistry *registry, Policy **policyp, gid_t gid);
-
-int policy_registry_from_file(PolicyRegistry *registry, const char *filename, PolicyParser *parent);
