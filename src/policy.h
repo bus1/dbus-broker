@@ -162,6 +162,8 @@ void policy_registry_deinit(PolicyRegistry *registry);
 
 bool policy_registry_needs_groups(PolicyRegistry *registry);
 
+int policy_registry_get_policy_by_uid(PolicyRegistry *registry, Policy **policyp, uid_t uid);
+int policy_registry_get_policy_by_gid(PolicyRegistry *registry, Policy **policyp, gid_t gid);
 int policy_registry_instantiate_policy(PolicyRegistry *registry, uid_t uid, gid_t *gids, size_t n_gids, Policy *policy);
 
 int policy_registry_from_file(PolicyRegistry *registry, const char *filename, PolicyParser *parent);

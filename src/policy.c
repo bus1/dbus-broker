@@ -713,7 +713,7 @@ static int policy_compare(CRBTree *tree, void *k, CRBNode *rb) {
                 return 0;
 }
 
-static int policy_registry_get_policy_by_uid(PolicyRegistry *registry, Policy **policyp, uid_t uid) {
+int policy_registry_get_policy_by_uid(PolicyRegistry *registry, Policy **policyp, uid_t uid) {
         CRBNode *parent, **slot;
         int r;
 
@@ -730,7 +730,7 @@ static int policy_registry_get_policy_by_uid(PolicyRegistry *registry, Policy **
         return 0;
 }
 
-static int policy_registry_get_policy_by_gid(PolicyRegistry *registry, Policy **policyp, gid_t gid) {
+int policy_registry_get_policy_by_gid(PolicyRegistry *registry, Policy **policyp, gid_t gid) {
         CRBNode *parent, **slot;
         int r;
 
