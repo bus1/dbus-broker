@@ -98,7 +98,7 @@ int listener_new_with_fd(Listener **listenerp, Bus *bus, const char *path, Dispa
         for (size_t i = 0; i < sizeof(uint64_t); i++)
                 listener->guid[i] ^= (bus->listener_ids >> (8 * i)) & 0xff;
 
-        r = policy_parser_parse_file(&listener->policy, policypath, NULL);
+        r = policy_registry_from_file(&listener->policy, policypath, NULL);
         if (r)
                 return error_fold(r);
 

@@ -822,7 +822,7 @@ static int policy_parse_directory(PolicyParser *parent, const char *dirpath) {
                 if (r < 0)
                         return error_origin(-ENOMEM);
 
-                r = policy_parser_parse_file(parent->registry, filename, parent);
+                r = policy_registry_from_file(parent->registry, filename, parent);
                 if (r)
                         return error_trace(r);
         }
@@ -1175,7 +1175,7 @@ static void policy_parser_deinit(PolicyParser *parser) {
         *parser = (PolicyParser)POLICY_PARSER_NULL;
 }
 
-int policy_parser_parse_file(PolicyRegistry *registry, const char *filename, PolicyParser *parent) {
+int policy_registry_from_file(PolicyRegistry *registry, const char *filename, PolicyParser *parent) {
         PolicyParser parser = (PolicyParser)POLICY_PARSER_NULL;
         _c_cleanup_(c_fclosep) FILE *file = NULL;
         char buffer[1024];

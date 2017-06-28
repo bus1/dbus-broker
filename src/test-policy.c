@@ -163,7 +163,7 @@ static void test_basic() {
         _c_cleanup_(policy_registry_deinit) PolicyRegistry registry = POLICY_REGISTRY_INIT(registry);
         int r;
 
-        r = policy_parser_parse_file(&registry, "/usr/share/dbus-1/system.conf", NULL);
+        r = policy_registry_from_file(&registry, "/usr/share/dbus-1/system.conf", NULL);
         assert(!r);
 
         test_print_policy_registry(&registry);

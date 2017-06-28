@@ -164,4 +164,4 @@ bool policy_registry_needs_groups(PolicyRegistry *registry);
 
 int policy_registry_instantiate_policy(PolicyRegistry *registry, uid_t uid, gid_t *gids, size_t n_gids, Policy *policy);
 
-int policy_parser_parse_file(PolicyRegistry *registry, const char *filename, PolicyParser *parent);
+int policy_registry_from_file(PolicyRegistry *registry, const char *filename, PolicyParser *parent);
