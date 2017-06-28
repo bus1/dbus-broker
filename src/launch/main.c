@@ -645,7 +645,7 @@ exit:
         return r;
 }
 
-static int manager_load(Manager *manager) {
+static int manager_load_services(Manager *manager) {
         const char suffix[] = ".service";
         _c_cleanup_(c_closedirp) DIR *dir = NULL;
         const char *dirpath;
@@ -698,6 +698,36 @@ static int manager_load(Manager *manager) {
         return 0;
 }
 
+static int manager_add_listener(Manager *manager) {
+        const char *policypath;
+        int r;
+
+        if (main_arg_policypath)
+                policypath = main_arg_policypath;
+        else if (!strcmp(main_arg_scope, "user"))
+                policypath = "/usr/share/dbus-1/session.conf";
+        else if (!strcmp(main_arg_scope, "system"))
+                policypath = "/usr/share/dbus-1/system.conf";
+        else
+                return error_origin(-ENOTRECOVERABLE);
+
+        r = sd_bus_call_method(manager->bus_controller,
+                               NULL,
+                               "/org/bus1/DBus/Broker",
+                               "org.bus1.DBus.Broker",
+                               "AddListener",
+                               NULL,
+                               NULL,
+                               "ohs",
+                               "/org/bus1/DBus/Listener/0",
+                               manager->fd_listen,
+                               policypath);
+        if (r < 0)
+                return error_origin(r);
+
+        return 0;
+}
+
 static int manager_connect(Manager *manager) {
         _c_cleanup_(sd_bus_unrefp) sd_bus *b = NULL;
         _c_cleanup_(c_closep) int s = -1;
@@ -743,19 +773,9 @@ static int manager_connect(Manager *manager) {
 }
 
 static int manager_run(Manager *manager) {
-        const char *policypath;
         int r, controller[2];
 
         assert(manager->fd_listen >= 0);
-
-        if (main_arg_policypath)
-                policypath = main_arg_policypath;
-        else if (!strcmp(main_arg_scope, "user"))
-                policypath = "/usr/share/dbus-1/session.conf";
-        else if (!strcmp(main_arg_scope, "system"))
-                policypath = "/usr/share/dbus-1/system.conf";
-        else
-                return error_origin(-ENOTRECOVERABLE);
 
         r = socketpair(PF_UNIX, SOCK_STREAM | SOCK_CLOEXEC | SOCK_NONBLOCK, 0, controller);
         if (r < 0)
@@ -784,23 +804,13 @@ static int manager_run(Manager *manager) {
         if (r < 0)
                 return error_origin(r);
 
-        r = manager_load(manager);
+        r = manager_load_services(manager);
         if (r)
                 return error_trace(r);
 
-        r = sd_bus_call_method(manager->bus_controller,
-                               NULL,
-                               "/org/bus1/DBus/Broker",
-                               "org.bus1.DBus.Broker",
-                               "AddListener",
-                               NULL,
-                               NULL,
-                               "ohs",
-                               "/org/bus1/DBus/Listener/0",
-                               manager->fd_listen,
-                               policypath);
-        if (r < 0)
-                return error_origin(r);
+        r = manager_add_listener(manager);
+        if (r)
+                return error_trace(r);
 
         r = manager_connect(manager);
         if (r)
