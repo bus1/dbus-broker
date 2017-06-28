@@ -61,6 +61,7 @@ exe_dbus_broker = executable(
         'dbus-broker',
         [
                 'broker/controller.c',
+                'broker/controller-dbus.c',
                 'broker/main.c',
                 'broker/manager.c',
         ],
