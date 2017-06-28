@@ -50,7 +50,7 @@ static OwnershipPolicyEntry *ownership_policy_entry_free(OwnershipPolicyEntry *e
 }
 
 void ownership_policy_init(OwnershipPolicy *policy) {
-        *policy = (OwnershipPolicy){};
+        *policy = (OwnershipPolicy)OWNERSHIP_POLICY_INIT;
 }
 
 void ownership_policy_deinit(OwnershipPolicy *policy) {
@@ -225,7 +225,7 @@ static ConnectionPolicyEntry *connection_policy_entry_free(ConnectionPolicyEntry
 }
 
 void connection_policy_init(ConnectionPolicy *policy) {
-        *policy = (ConnectionPolicy){};
+        *policy = (ConnectionPolicy)CONNECTION_POLICY_INIT;
 }
 
 void connection_policy_deinit(ConnectionPolicy *policy) {

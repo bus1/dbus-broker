@@ -32,6 +32,8 @@ struct ReplyRegistry {
         CRBTree reply_tree;
 };
 
+#define REPLY_REGISTRY_INIT {};
+
 struct ReplyOwner {
         CList reply_list;
 };

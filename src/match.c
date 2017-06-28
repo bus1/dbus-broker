@@ -450,7 +450,7 @@ void match_registry_deinit(MatchRegistry *registry) {
 }
 
 void match_owner_init(MatchOwner *owner) {
-        *owner = (MatchOwner){};
+        *owner = (MatchOwner)MATCH_OWNER_INIT;
 }
 
 void match_owner_deinit(MatchOwner *owner) {
@@ -496,8 +496,5 @@ int match_owner_ref_rule(MatchOwner *owner, MatchRule **rulep, const char *rule_
 }
 
 void match_filter_init(MatchFilter *filter) {
-        *filter = (MatchFilter) {
-                        .type = DBUS_MESSAGE_TYPE_INVALID,
-                        .destination = ADDRESS_ID_INVALID,
-                };
+        *filter = (MatchFilter)MATCH_FILTER_INIT;
 }

@@ -824,8 +824,7 @@ int peer_broadcast(Peer *sender, Peer *destination, Bus *bus, MatchFilter *filte
 }
 
 void peer_registry_init(PeerRegistry *registry) {
-        c_rbtree_init(&registry->peer_tree);
-        registry->ids = 0;
+        *registry = (PeerRegistry)PEER_REGISTRY_INIT;
 }
 
 void peer_registry_deinit(PeerRegistry *registry) {

@@ -86,7 +86,7 @@ ReplySlot *reply_slot_get_by_id(ReplyRegistry *registry, uint64_t id, uint32_t s
 }
 
 void reply_registry_init(ReplyRegistry *registry) {
-        *registry = (ReplyRegistry){};
+        *registry = (ReplyRegistry)REPLY_REGISTRY_INIT;
 }
 
 void reply_registry_deinit(ReplyRegistry *registry) {

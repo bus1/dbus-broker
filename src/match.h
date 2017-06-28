@@ -33,6 +33,11 @@ struct MatchFilter {
         const char *argpaths[64];
 };
 
+#define MATCH_FILTER_INIT {                             \
+                .type = DBUS_MESSAGE_TYPE_INVALID,      \
+                .destination = ADDRESS_ID_INVALID,      \
+        }
+
 struct MatchRuleKeys {
         const char *destination;
         const char *sender;
@@ -62,9 +67,17 @@ struct MatchRegistry {
         CList monitor_list;
 };
 
+#define MATCH_REGISTRY_INIT(_x) {                                               \
+                .rule_list = (CList)C_LIST_INIT((_x).rule_list),                \
+                .eavesdrop_list = (CList)C_LIST_INIT((_x).eavesdrop_list),      \
+                .monitor_list = (CList)C_LIST_INIT((_x).monitor_list),          \
+        }
+
 struct MatchOwner {
         CRBTree rule_tree;
 };
+
+#define MATCH_OWNER_INIT {};
 
 MatchRule *match_rule_user_ref(MatchRule *rule);
 MatchRule *match_rule_user_unref(MatchRule *rule);
@@ -75,12 +88,6 @@ int match_rule_get(MatchRule **rulep, MatchOwner *owner, const char *rule_string
 
 MatchRule *match_rule_next_match(MatchRegistry *registry, MatchRule *rule, MatchFilter *filter);
 MatchRule *match_rule_next_monitor_match(MatchRegistry *registry, MatchRule *rule, MatchFilter *filter);
-
-#define MATCH_REGISTRY_INIT(_x) {                                               \
-                .rule_list = (CList)C_LIST_INIT((_x).rule_list),                \
-                .eavesdrop_list = (CList)C_LIST_INIT((_x).eavesdrop_list),      \
-                .monitor_list = (CList)C_LIST_INIT((_x).monitor_list),          \
-        }
 
 void match_registry_init(MatchRegistry *registry);
 void match_registry_deinit(MatchRegistry *registry);

@@ -39,6 +39,8 @@ struct OwnershipPolicy {
         PolicyDecision wildcard;
 };
 
+#define OWNERSHIP_POLICY_INIT {};
+
 struct OwnershipPolicyEntry {
         CRBTree *policy;
         PolicyDecision decision;
@@ -51,6 +53,8 @@ struct ConnectionPolicy {
         CRBTree gid_tree;
         PolicyDecision wildcard;
 };
+
+#define CONNECTION_POLICY_INIT {};
 
 struct ConnectionPolicyEntry {
         CRBTree *policy;
@@ -105,6 +109,8 @@ struct PeerPolicy {
         Policy **gid_policies;
         size_t n_gid_policies;
 };
+
+#define PEER_POLICY_INIT {};
 
 struct PolicyRegistry {
         ConnectionPolicy connection_policy;
