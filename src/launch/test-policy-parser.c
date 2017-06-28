@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include "dbus/protocol.h"
 #include "policy.h"
+#include "policy-parser.h"
 
 static void test_print_policy_decision(PolicyDecision *decision) {
         fprintf(stderr, "%s (%lu)\n", decision->deny ? "deny" : "allow", decision->priority);
@@ -160,13 +161,13 @@ static void test_print_policy_registry(PolicyRegistry *registry) {
 }
 
 static void test_basic() {
-        _c_cleanup_(policy_registry_deinit) PolicyRegistry registry = POLICY_REGISTRY_INIT(registry);
+        _c_cleanup_(policy_parser_registry_deinit) PolicyParserRegistry registry = POLICY_PARSER_REGISTRY_INIT(registry);
         int r;
 
-        r = policy_registry_from_file(&registry, "/usr/share/dbus-1/system.conf", NULL);
+        r = policy_parser_registry_from_file(&registry, "/usr/share/dbus-1/system.conf", NULL);
         assert(!r);
 
-        test_print_policy_registry(&registry);
+        test_print_policy_registry(&registry.registry);
 }
 
 int main(int argc, char **argv) {

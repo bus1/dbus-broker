@@ -129,8 +129,8 @@ test('D-Bus Message Abstraction', test_message)
 test_name = executable('test-name', ['test-name.c'], dependencies: libdbus_broker_dep)
 test('Name Registry', test_name)
 
-test_policy = executable('test-policy', ['test-policy.c'], dependencies: libdbus_broker_dep)
-test('Policy Database', test_policy)
+test_policy_parser = executable('test-policy-parser', ['launch/test-policy-parser.c', 'launch/policy-parser.c'], dependencies: libdbus_broker_dep)
+test('Policy Database Parser', test_policy_parser)
 
 test_reply = executable('test-reply', ['test-reply.c'], dependencies: libdbus_broker_dep)
 test('Reply Tracking', test_reply)
