@@ -780,10 +780,10 @@ int policy_registry_instantiate_policy(PolicyRegistry *registry, uid_t uid, gid_
                 }
         }
 
-        if (!policy_is_empty(&registry->at_console_policy) ||
-            !policy_is_empty(&registry->not_at_console_policy)) {
-                /* XXX: console policies */
-        }
+        /* consider all peers not to be at the console */
+        r = policy_instantiate(target, &registry->not_at_console_policy);
+        if (r)
+                return error_trace(r);
 
         return 0;
 }
