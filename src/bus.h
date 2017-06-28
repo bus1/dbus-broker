@@ -32,7 +32,6 @@ struct Bus {
         pid_t pid;
         char guid[16];
 
-        CRBTree listener_tree;
         UserRegistry users;
         ActivationRegistry activations;
         NameRegistry names;

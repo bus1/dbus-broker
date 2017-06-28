@@ -7,6 +7,7 @@
 #include <c-macro.h>
 #include <c-rbtree.h>
 #include <stdlib.h>
+#include "listener.h"
 
 typedef struct Activation Activation;
 typedef struct Bus Bus;
@@ -14,7 +15,6 @@ typedef struct Connection Connection;
 typedef struct Controller Controller;
 typedef struct ControllerName ControllerName;
 typedef struct ControllerListener ControllerListener;
-typedef struct Listener Listener;
 typedef struct Manager Manager;
 typedef struct Message Message;
 
@@ -52,7 +52,7 @@ struct ControllerName {
 struct ControllerListener {
         Controller *controller;
         CRBNode controller_node;
-        Listener *listener;
+        Listener listener;
         char path[];
 };
 

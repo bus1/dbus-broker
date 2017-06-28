@@ -186,7 +186,6 @@ Manager *manager_free(Manager *manager) {
 
 int manager_run(Manager *manager) {
         sigset_t signew, sigold;
-        Listener *listener, *safe;
         int r;
 
         sigemptyset(&signew);
@@ -213,8 +212,6 @@ int manager_run(Manager *manager) {
 
         peer_registry_flush(&manager->bus.peers);
         activation_registry_flush(&manager->bus.activations);
-        c_rbtree_for_each_entry_unlink(listener, safe, &manager->bus.listener_tree, bus_node)
-                listener_free(listener);
 
         sigprocmask(SIG_SETMASK, &sigold, NULL);
 

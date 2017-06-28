@@ -75,7 +75,7 @@ ControllerListener *controller_listener_free(ControllerListener *listener) {
         if (!listener)
                 return NULL;
 
-        listener_free(listener->listener);
+        listener_deinit(&listener->listener);
         c_rbtree_remove_init(&listener->controller->listener_tree, &listener->controller_node);
         free(listener);
 
@@ -116,8 +116,12 @@ void controller_init(Controller *controller, Manager *manager) {
  * controller_deinit() - XXX
  */
 void controller_deinit(Controller *controller) {
+        ControllerListener *listener, *safe;
+
         assert(c_rbtree_is_empty(&controller->name_tree));
-        assert(c_rbtree_is_empty(&controller->listener_tree));
+
+        c_rbtree_for_each_entry_unlink(listener, safe, &controller->listener_tree, controller_node)
+                controller_listener_free(listener);
 }
 
 /**
@@ -169,12 +173,11 @@ int controller_add_listener(Controller *controller,
         if (r)
                 return error_trace(r);
 
-        r = listener_new_with_fd(&listener->listener,
-                                 &controller->manager->bus,
-                                 path,
-                                 &controller->manager->dispatcher,
-                                 listener_fd,
-                                 policy_path);
+        r = listener_init_with_fd(&listener->listener,
+                                  &controller->manager->bus,
+                                  &controller->manager->dispatcher,
+                                  listener_fd,
+                                  policy_path);
         if (r)
                 return error_fold(r);
 

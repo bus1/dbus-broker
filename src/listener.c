@@ -15,8 +15,8 @@
 
 static int listener_dispatch(DispatchFile *file, uint32_t events) {
         Listener *listener = c_container_of(file, Listener, socket_file);
-        _c_cleanup_(c_closep) int fd = -1;
         _c_cleanup_(peer_freep) Peer *peer = NULL;
+        _c_cleanup_(c_closep) int fd = -1;
         int r;
 
         if (!(events & EPOLLIN))
@@ -61,42 +61,28 @@ static int listener_dispatch(DispatchFile *file, uint32_t events) {
         return 0;
 }
 
-static int listener_compare(CRBTree *tree, void *k, CRBNode *rb) {
-        Listener *listener = c_container_of(rb, Listener, bus_node);
-        const char *path = k;
-
-        return strcmp(listener->path, path);
-}
-
 /**
- * listener_new_with_fd() - XXX
+ * listener_init_with_fd() - XXX
  */
-int listener_new_with_fd(Listener **listenerp, Bus *bus, const char *path, DispatchContext *dispatcher, int socket_fd, const char *policypath) {
-        _c_cleanup_(listener_freep) Listener *listener = NULL;
-        CRBNode **slot, *parent;
+int listener_init_with_fd(Listener *l, Bus *bus, DispatchContext *dispatcher, int socket_fd, const char *policypath) {
+        _c_cleanup_(listener_deinitp) Listener *listener = l;
         int r;
 
-        slot = c_rbtree_find_slot(&bus->listener_tree, listener_compare, path, &parent);
-        if (!slot)
-                return LISTENER_E_EXISTS;
-
-        listener = calloc(1, sizeof(*listener) + strlen(path) + 1);
-        if (!listener)
-                return error_origin(-ENOMEM);
-
+        *listener = (Listener)LISTENER_NULL(*listener);
         listener->bus = bus;
-        listener->socket_fd = -1;
-        listener->socket_file = (DispatchFile)DISPATCH_FILE_NULL(listener->socket_file);
-        listener->bus_node = (CRBNode)C_RBNODE_INIT(listener->bus_node);
-        listener->peer_list = (CList)C_LIST_INIT(listener->peer_list);
-        policy_registry_init(&listener->policy);
-        memcpy(listener->guid, bus->guid, sizeof(listener->guid));
-        memcpy((char*)listener->path, path, strlen(path) + 1);
 
-        /* make sure the guid is unique per listener */
-        ++ bus->listener_ids;
-        for (size_t i = 0; i < sizeof(uint64_t); i++)
-                listener->guid[i] ^= (bus->listener_ids >> (8 * i)) & 0xff;
+        /*
+         * Every listener socket needs its own, unique UUID for clients to
+         * identify it. We simply generate those UUIDs from the bus-uuid, by
+         * XOR'ing a unique 64bit counter on the lower 64bit, leaving the upper
+         * 64bit unchanged.
+         */
+        ++bus->listener_ids;
+        for (size_t i = 0; i < sizeof(listener->guid); ++i) {
+                listener->guid[i] = bus->guid[i];
+                if (i < sizeof(uint64_t))
+                        listener->guid[i] ^= (bus->listener_ids >> (8 * i)) & 0xff;
+        }
 
         r = policy_registry_from_file(&listener->policy, policypath, NULL);
         if (r)
@@ -111,32 +97,20 @@ int listener_new_with_fd(Listener **listenerp, Bus *bus, const char *path, Dispa
                 return error_fold(r);
 
         dispatch_file_select(&listener->socket_file, EPOLLIN);
-        c_rbtree_add(&bus->listener_tree, parent, slot, &listener->bus_node);
 
         listener->socket_fd = socket_fd;
-        *listenerp = listener;
         listener = NULL;
         return 0;
 }
 
 /**
- * listener_free() - XXX
+ * listener_deinit() - XXX
  */
-Listener *listener_free(Listener *listener) {
-        if (!listener)
-                return NULL;
-
+void listener_deinit(Listener *listener) {
         assert(c_list_is_empty(&listener->peer_list));
 
         policy_registry_deinit(&listener->policy);
-        c_rbtree_remove_init(&listener->bus->listener_tree, &listener->bus_node);
         dispatch_file_deinit(&listener->socket_file);
         listener->socket_fd = c_close(listener->socket_fd);
-        free(listener);
-
-        return NULL;
-}
-
-Listener *listener_find(Bus *bus, const char *path) {
-        return c_rbtree_find_entry(&bus->listener_tree, listener_compare, path, Listener, bus_node);
+        listener->bus = NULL;
 }
