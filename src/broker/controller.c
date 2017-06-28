@@ -8,6 +8,8 @@
 #include <c-string.h>
 #include <stdlib.h>
 #include <sys/epoll.h>
+#include <sys/socket.h>
+#include <sys/types.h>
 #include "broker/controller.h"
 #include "activation.h"
 #include "bus.h"
@@ -235,7 +237,8 @@ static int controller_method_add_listener(Bus *bus, const char *_path, CDVar *in
         DispatchContext *dispatcher = bus->controller->socket_file.context;
         uint32_t fd_index;
         const char *path, *policypath;
-        int r;
+        int r, listener_fd, v1, v2;
+        socklen_t n;
 
         c_dvar_read(in_v, "(ohs)", &path, &fd_index, &policypath);
 
@@ -246,8 +249,21 @@ static int controller_method_add_listener(Bus *bus, const char *_path, CDVar *in
         if (strncmp(path, "/org/bus1/DBus/Listener/", strlen("/org/bus1/DBus/Listener/")) != 0)
                 return CONTROLLER_E_UNEXPECTED_PATH;
 
-        /* XXX: verify correctness of fd? */
-        r = listener_new_with_fd(&listener, bus, path, dispatcher, fdlist_get(fds, fd_index), policypath);
+        listener_fd = fdlist_get(fds, fd_index);
+        if (listener_fd < 0)
+                return CONTROLLER_E_LISTENER_INVALID;
+
+        n = sizeof(v1);
+        r = getsockopt(listener_fd, SOL_SOCKET, SO_DOMAIN, &v1, &n);
+        n = sizeof(v2);
+        r = r ?: getsockopt(listener_fd, SOL_SOCKET, SO_TYPE, &v2, &n);
+
+        if (r < 0)
+                return (errno == EBADF || errno == ENOTSOCK) ? CONTROLLER_E_LISTENER_INVALID : error_origin(-errno);
+        if (v1 != AF_UNIX || v2 != SOCK_STREAM)
+                return CONTROLLER_E_LISTENER_INVALID;
+
+        r = listener_new_with_fd(&listener, bus, path, dispatcher, listener_fd, policypath);
         if (r) {
                 if (r == LISTENER_E_EXISTS)
                         return CONTROLLER_E_LISTENER_EXISTS;
