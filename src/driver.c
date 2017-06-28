@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <sys/epoll.h>
 #include "activation.h"
+#include "broker/controller.h"
 #include "bus.h"
 #include "dbus/address.h"
 #include "dbus/message.h"
@@ -249,45 +250,6 @@ static void driver_write_signal_header(CDVar *var, Peer *peer, const char *membe
                      DBUS_MESSAGE_FIELD_INTERFACE, c_dvar_type_s, "org.freedesktop.DBus",
                      DBUS_MESSAGE_FIELD_MEMBER, c_dvar_type_s, member,
                      DBUS_MESSAGE_FIELD_SIGNATURE, c_dvar_type_g, signature);
-}
-
-/* XXX: move this where it belongs */
-int activation_send_signal(Connection *controller, const char *path) {
-        static const CDVarType type[] = {
-                C_DVAR_T_INIT(
-                        DRIVER_T_MESSAGE(
-                                C_DVAR_T_TUPLE0
-                        )
-                )
-        };
-        _c_cleanup_(c_dvar_deinitp) CDVar var = C_DVAR_INIT;
-        _c_cleanup_(message_unrefp) Message *message = NULL;
-        void *data;
-        size_t n_data;
-        int r;
-
-        c_dvar_begin_write(&var, type, 1);
-        c_dvar_write(&var, "((yyyyuu[(y<o>)(y<s>)(y<s>)])())",
-                     c_dvar_is_big_endian(&var) ? 'B' : 'l', DBUS_MESSAGE_TYPE_SIGNAL, DBUS_HEADER_FLAG_NO_REPLY_EXPECTED, 1, 0, (uint32_t)-1,
-                     DBUS_MESSAGE_FIELD_PATH, c_dvar_type_o, path,
-                     DBUS_MESSAGE_FIELD_INTERFACE, c_dvar_type_s, "org.bus1.DBus.Name",
-                     DBUS_MESSAGE_FIELD_MEMBER, c_dvar_type_s, "Activate");
-
-        r = c_dvar_end_write(&var, &data, &n_data);
-        if (r)
-                return error_origin(r);
-
-        r = message_new_outgoing(&message, data, n_data);
-        if (r)
-                return error_fold(r);
-
-        /* XXX: accounting */
-        /* this is excluded from monitoring as it is on our private connection */
-        r = connection_queue(controller, NULL, 0, message);
-        if (r)
-                return error_fold(r);
-
-        return 0;
 }
 
 const char *driver_error_to_string(int r) {
@@ -959,7 +921,7 @@ static int driver_method_start_service_by_name(Peer *peer, CDVar *in_v, uint32_t
                         return error_trace(r);
         } else {
                 if (!name->activation->requested) {
-                        r = activation_send_signal(peer->bus->controller, name->activation->path);
+                        r = controller_name_activate(CONTROLLER_NAME(name->activation));
                         if (r)
                                 return error_fold(r);
 
@@ -1688,7 +1650,7 @@ static int driver_forward_unicast(Peer *sender, const char *destination, Message
                         return error_fold(r);
 
                 if (!name->activation->requested) {
-                        r = activation_send_signal(sender->bus->controller, name->activation->path);
+                        r = controller_name_activate(CONTROLLER_NAME(name->activation));
                         if (r)
                                 return error_fold(r);
 

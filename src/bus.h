@@ -7,7 +7,6 @@
 #include <c-macro.h>
 #include <c-rbtree.h>
 #include <stdlib.h>
-#include "activation.h"
 #include "listener.h"
 #include "match.h"
 #include "name.h"
@@ -33,7 +32,6 @@ struct Bus {
         char guid[16];
 
         UserRegistry users;
-        ActivationRegistry activations;
         NameRegistry names;
         MatchRegistry wildcard_matches;
         MatchRegistry driver_matches;

@@ -4,6 +4,7 @@
 
 #include <c-macro.h>
 #include <stdlib.h>
+#include <sys/types.h>
 #include "activation.h"
 #include "broker/controller.h"
 #include "broker/manager.h"
@@ -23,7 +24,7 @@ ControllerName *controller_name_free(ControllerName *name) {
         if (!name)
                 return NULL;
 
-        activation_free(name->activation);
+        activation_deinit(&name->activation);
         c_rbtree_remove_init(&name->controller->name_tree, &name->controller_node);
         free(name);
 
@@ -37,7 +38,7 @@ static int controller_name_new(ControllerName **namep, Controller *controller, c
 
         slot = c_rbtree_find_slot(&controller->name_tree, controller_name_compare, path, &parent);
         if (!slot)
-                return CONTROLLER_E_ACTIVATION_EXISTS;
+                return CONTROLLER_E_NAME_EXISTS;
 
         n_path = strlen(path);
         name = calloc(1, sizeof(*name) + n_path + 1);
@@ -57,9 +58,14 @@ static int controller_name_new(ControllerName **namep, Controller *controller, c
  * controller_name_reset() - XXX
  */
 void controller_name_reset(ControllerName *name) {
-        assert(!name->activation);
+        activation_flush(&name->activation);
+}
 
-        activation_flush(name->activation);
+/**
+ * controller_name_activate() - XXX
+ */
+int controller_name_activate(ControllerName *name) {
+        return controller_dbus_send_activation(name->controller, name->path);
 }
 
 static int controller_listener_compare(CRBTree *t, void *k, CRBNode *rb) {
@@ -116,11 +122,15 @@ void controller_init(Controller *controller, Manager *manager) {
  * controller_deinit() - XXX
  */
 void controller_deinit(Controller *controller) {
-        ControllerListener *listener, *safe;
+        ControllerListener *listener, *listener_safe;
+        ControllerName *name, *name_safe;
 
         assert(c_rbtree_is_empty(&controller->name_tree));
 
-        c_rbtree_for_each_entry_unlink(listener, safe, &controller->listener_tree, controller_node)
+        c_rbtree_for_each_entry_unlink(name, name_safe, &controller->name_tree, controller_node)
+                controller_name_free(name);
+
+        c_rbtree_for_each_entry_unlink(listener, listener_safe, &controller->listener_tree, controller_node)
                 controller_listener_free(listener);
 }
 
@@ -149,7 +159,7 @@ int controller_add_name(Controller *controller,
         if (r)
                 return error_trace(r);
 
-        r = activation_new(&name->activation, &controller->manager->bus.activations, path, name_entry, user_entry);
+        r = activation_init(&name->activation, name_entry, user_entry);
         if (r)
                 return (r == ACTIVATION_E_ALREADY_ACTIVATABLE) ? CONTROLLER_E_NAME_IS_ACTIVATABLE : error_fold(r);
 

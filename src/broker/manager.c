@@ -211,7 +211,6 @@ int manager_run(Manager *manager) {
         } while (!r);
 
         peer_registry_flush(&manager->bus.peers);
-        activation_registry_flush(&manager->bus.activations);
 
         sigprocmask(SIG_SETMASK, &sigold, NULL);
 

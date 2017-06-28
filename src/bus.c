@@ -25,7 +25,6 @@ int bus_init(Bus *bus,
         int r;
 
         bus->users = (UserRegistry)USER_REGISTRY_NULL;
-        activation_registry_init(&bus->activations);
         match_registry_init(&bus->wildcard_matches);
         match_registry_init(&bus->driver_matches);
         name_registry_init(&bus->names);
@@ -57,7 +56,6 @@ void bus_deinit(Bus *bus) {
         name_registry_deinit(&bus->names);
         match_registry_deinit(&bus->driver_matches);
         match_registry_deinit(&bus->wildcard_matches);
-        activation_registry_deinit(&bus->activations);
 }
 
 Peer *bus_find_peer_by_name(Bus *bus, Name **namep, const char *name_str) {
