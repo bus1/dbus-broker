@@ -9,7 +9,6 @@
 #include <stdlib.h>
 #include <sys/epoll.h>
 #include "activation.h"
-#include "broker/controller.h"
 #include "bus.h"
 #include "dbus/address.h"
 #include "dbus/message.h"
@@ -920,14 +919,6 @@ static int driver_method_start_service_by_name(Peer *peer, CDVar *in_v, uint32_t
                 if (r)
                         return error_trace(r);
         } else {
-                if (!name->activation->requested) {
-                        r = controller_name_activate(CONTROLLER_NAME(name->activation));
-                        if (r)
-                                return error_fold(r);
-
-                        name->activation->requested = true;
-                }
-
                 r = activation_queue_request(name->activation, peer->id, serial);
                 if (r)
                         return error_fold(r);
@@ -1648,14 +1639,6 @@ static int driver_forward_unicast(Peer *sender, const char *destination, Message
                 r = activation_queue_message(name->activation, message);
                 if (r)
                         return error_fold(r);
-
-                if (!name->activation->requested) {
-                        r = controller_name_activate(CONTROLLER_NAME(name->activation));
-                        if (r)
-                                return error_fold(r);
-
-                        name->activation->requested = true;
-                }
 
                 return 0;
         }

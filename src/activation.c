@@ -6,6 +6,7 @@
 #include <c-macro.h>
 #include <stdlib.h>
 #include "activation.h"
+#include "broker/controller.h"
 #include "dbus/message.h"
 #include "name.h"
 #include "util/error.h"
@@ -67,6 +68,20 @@ void activation_deinit(Activation *activation) {
         }
 }
 
+static int activation_request(Activation *activation) {
+        int r;
+
+        if (activation->requested)
+                return 0;
+
+        r = controller_name_activate(CONTROLLER_NAME(activation));
+        if (r)
+                return error_fold(r);
+
+        activation->requested = true;
+        return 0;
+}
+
 int activation_flush(Activation *activation) {
         ActivationRequest *request;
         ActivationMessage *message;
@@ -84,6 +99,11 @@ int activation_flush(Activation *activation) {
 
 int activation_queue_message(Activation *activation, Message *m) {
         ActivationMessage *message;
+        int r;
+
+        r = activation_request(activation);
+        if (r)
+                return error_trace(r);
 
         message = calloc(1, sizeof(*message));
         if (!message)
@@ -98,6 +118,11 @@ int activation_queue_message(Activation *activation, Message *m) {
 
 int activation_queue_request(Activation *activation, uint64_t sender_id, uint32_t serial) {
         ActivationRequest *request;
+        int r;
+
+        r = activation_request(activation);
+        if (r)
+                return error_trace(r);
 
         request = calloc(1, sizeof(*request));
         if (!request)
