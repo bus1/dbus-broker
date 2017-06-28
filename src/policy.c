@@ -201,14 +201,16 @@ static void ownership_policy_update_decision(CRBTree *policy, struct stringn *st
         return;
 }
 
-int ownership_policy_check_allowed(OwnershipPolicy *policy, const char *name) {
-        PolicyDecision decision = policy->wildcard;
+static void ownership_policy_check_allowed(OwnershipPolicy *policy, const char *name, PolicyDecision *decision) {
         struct stringn stringn = {
                 .string = name,
                 .n_string = strlen(name),
         };
 
-        ownership_policy_update_decision(&policy->names, &stringn, &decision);
+        if (decision->priority < policy->wildcard.priority)
+                *decision = policy->wildcard;
+
+        ownership_policy_update_decision(&policy->names, &stringn, decision);
 
         if (!c_rbtree_is_empty(&policy->prefixes)) {
                 const char *dot = name;
@@ -216,11 +218,9 @@ int ownership_policy_check_allowed(OwnershipPolicy *policy, const char *name) {
                 do {
                         dot = strchrnul(dot + 1, '.');
                         stringn.n_string = dot - name;
-                        ownership_policy_update_decision(&policy->prefixes, &stringn, &decision);
+                        ownership_policy_update_decision(&policy->prefixes, &stringn, decision);
                 } while (*dot);
         }
-
-        return decision.deny ? POLICY_E_ACCESS_DENIED : 0;
 }
 
 /* connection policy */
@@ -340,7 +340,7 @@ static void connection_policy_update_decision(CRBTree *policy, uid_t uid, Policy
         return;
 }
 
-int connection_policy_check_allowed(ConnectionPolicy *policy, uid_t uid, gid_t *gids, size_t n_gids) {
+static int connection_policy_check_allowed(ConnectionPolicy *policy, uid_t uid, gid_t *gids, size_t n_gids) {
         PolicyDecision decision = policy->wildcard;
 
         connection_policy_update_decision(&policy->uid_tree, uid, &decision);
@@ -582,11 +582,10 @@ static void transmission_policy_update_decision_by_name(CRBTree *policy, const c
         transmission_policy_update_decision(&by_name->entry_list, interface, member, path, type, decision);
 }
 
-int transmission_policy_check_allowed(TransmissionPolicy *policy, NameOwner *subject,
-                                      const char *interface, const char *member, const char *path, int type) {
-        PolicyDecision decision = {};
-
-        transmission_policy_update_decision(&policy->wildcard_entry_list, interface, member, path, type, &decision);
+static void transmission_policy_check_allowed(TransmissionPolicy *policy, NameOwner *subject,
+                                              const char *interface, const char *member, const char *path, int type,
+                                              PolicyDecision *decision) {
+        transmission_policy_update_decision(&policy->wildcard_entry_list, interface, member, path, type, decision);
 
         if (!c_rbtree_is_empty(&policy->policy_by_name_tree)) {
                 if (subject) {
@@ -598,17 +597,15 @@ int transmission_policy_check_allowed(TransmissionPolicy *policy, NameOwner *sub
 
                                 transmission_policy_update_decision_by_name(&policy->policy_by_name_tree, ownership->name->name,
                                                                             interface, member, path, type,
-                                                                            &decision);
+                                                                            decision);
                         }
                 } else {
                         /* the subject is the driver */
                         transmission_policy_update_decision_by_name(&policy->policy_by_name_tree, "org.freedesktop.DBus",
                                                                     interface, member, path, type,
-                                                                    &decision);
+                                                                    decision);
                 }
         }
-
-        return decision.deny ? POLICY_E_ACCESS_DENIED : 0;
 }
 
 /* policy */
@@ -700,6 +697,10 @@ int peer_policy_instantiate(PeerPolicy *policy, PolicyRegistry *registry, uid_t 
         Policy *source, *target = &policy->uid_policy;
         int r;
 
+        policy_init(&policy->uid_policy);
+        policy->gid_policies = NULL;
+        policy->n_gid_policies = 0;
+
         r = connection_policy_check_allowed(&registry->connection_policy, uid, gids, n_gids);
         if (r)
                 return error_trace(r);
@@ -715,43 +716,64 @@ int peer_policy_instantiate(PeerPolicy *policy, PolicyRegistry *registry, uid_t 
                         return error_trace(r);
         }
 
-        for (size_t i = 0; i < n_gids; ++i) {
-                source = c_rbtree_find_entry(&registry->gid_policy_tree, policy_compare, gids + i, Policy, registry_node);
-                if (source) {
-                        r = policy_instantiate(target, source);
-                        if (r)
-                                return error_trace(r);
-                }
-        }
-
         /* consider all peers not to be at the console */
         r = policy_instantiate(target, &registry->not_at_console_policy);
         if (r)
                 return error_trace(r);
 
+        if (n_gids) {
+                policy->gid_policies = malloc(n_gids * sizeof(*policy->gid_policies));
+                if (!policy->gid_policies)
+                        return error_origin(-ENOMEM);
+
+                for (size_t i = 0; i < n_gids; ++i) {
+                        source = c_rbtree_find_entry(&registry->gid_policy_tree, policy_compare, gids + i, Policy, registry_node);
+                        if (source)
+                                policy->gid_policies[policy->n_gid_policies++] = source;
+                }
+        }
+
         return 0;
 }
 
 void peer_policy_deinit(PeerPolicy *policy) {
-        assert(!policy->gid_policies);
-        assert(!policy->n_gid_policies);
-
         policy_deinit(&policy->uid_policy);
+        /* the gid policy array may be overallocated, so make sure to free even if it is empty */
+        policy->gid_policies = c_free(policy->gid_policies);
+        policy->n_gid_policies = 0;
 }
 
 int peer_policy_check_own(PeerPolicy *policy, const char *name) {
-        assert(!policy->n_gid_policies);
-        return ownership_policy_check_allowed(&policy->uid_policy.ownership_policy, name);
+        PolicyDecision decision = {};
+
+        ownership_policy_check_allowed(&policy->uid_policy.ownership_policy, name, &decision);
+
+        for (size_t i = 0; policy->n_gid_policies; ++i)
+                ownership_policy_check_allowed(&policy->gid_policies[i]->ownership_policy, name, &decision);
+
+        return decision.deny ? POLICY_E_ACCESS_DENIED : 0;
 }
 
 int peer_policy_check_send(PeerPolicy *policy, NameOwner *subject, const char *interface, const char *method, const char *path, int type) {
-        assert(!policy->n_gid_policies);
-        return transmission_policy_check_allowed(&policy->uid_policy.send_policy, subject, interface, method, path, type);
+        PolicyDecision decision = {};
+
+        transmission_policy_check_allowed(&policy->uid_policy.send_policy, subject, interface, method, path, type, &decision);
+
+        for (size_t i = 0; policy->n_gid_policies; ++i)
+                transmission_policy_check_allowed(&policy->gid_policies[i]->send_policy, subject, interface, method, path, type, &decision);
+
+        return decision.deny ? POLICY_E_ACCESS_DENIED : 0;
 }
 
 int peer_policy_check_receive(PeerPolicy *policy, NameOwner *subject, const char *interface, const char *method, const char *path, int type) {
-        assert(!policy->n_gid_policies);
-        return transmission_policy_check_allowed(&policy->uid_policy.receive_policy, subject, interface, method, path, type);
+        PolicyDecision decision = {};
+
+        transmission_policy_check_allowed(&policy->uid_policy.receive_policy, subject, interface, method, path, type, &decision);
+
+        for (size_t i = 0; policy->n_gid_policies; ++i)
+                transmission_policy_check_allowed(&policy->gid_policies[i]->receive_policy, subject, interface, method, path, type, &decision);
+
+        return decision.deny ? POLICY_E_ACCESS_DENIED : 0;
 }
 
 /* policy registry */

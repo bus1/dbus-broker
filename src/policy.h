@@ -138,8 +138,6 @@ int ownership_policy_set_wildcard(OwnershipPolicy *policy, bool deny, uint64_t p
 int ownership_policy_add_prefix(OwnershipPolicy *policy, const char *prefix, bool deny, uint64_t priority);
 int ownership_policy_add_name(OwnershipPolicy *policy, const char *name, bool deny, uint64_t priority);
 
-int ownership_policy_check_allowed(OwnershipPolicy *policy, const char *name);
-
 void connection_policy_init(ConnectionPolicy *policy);
 void connection_policy_deinit(ConnectionPolicy *policy);
 
@@ -149,8 +147,6 @@ int connection_policy_set_wildcard(ConnectionPolicy *policy, bool deny, uint64_t
 int connection_policy_add_uid(ConnectionPolicy *policy, uid_t uid, bool deny, uint64_t priority);
 int connection_policy_add_gid(ConnectionPolicy *policy, gid_t gid, bool deny, uint64_t priority);
 
-int connection_policy_check_allowed(ConnectionPolicy *policy, uid_t uid, gid_t *gids, size_t n_gids);
-
 void transmission_policy_init(TransmissionPolicy *policy);
 void transmission_policy_deinit(TransmissionPolicy *policy);
 
@@ -159,9 +155,6 @@ bool transmission_policy_is_empty(TransmissionPolicy *policy);
 int transmission_policy_add_entry(TransmissionPolicy *policy,
                                   const char *name, const char *interface, const char *method, const char *path, int type,
                                   bool deny, uint64_t priority);
-
-int transmission_policy_check_allowed(TransmissionPolicy *policy, NameOwner *subject,
-                                      const char *interface, const char *method, const char *path, int type);
 
 void policy_init(Policy *policy);
 void policy_deinit(Policy *policy);
