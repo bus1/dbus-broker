@@ -17,6 +17,8 @@
 #include <systemd/sd-bus.h>
 #include <systemd/sd-daemon.h>
 #include <systemd/sd-event.h>
+#include "policy.h"
+#include "policy-parser.h"
 #include "util/error.h"
 
 typedef struct Manager Manager;
@@ -699,6 +701,7 @@ static int manager_load_services(Manager *manager) {
 }
 
 static int manager_add_listener(Manager *manager) {
+        _c_cleanup_(policy_registry_deinit) PolicyRegistry registry = POLICY_REGISTRY_INIT(registry);
         const char *policypath;
         int r;
 
@@ -710,6 +713,10 @@ static int manager_add_listener(Manager *manager) {
                 policypath = "/usr/share/dbus-1/system.conf";
         else
                 return error_origin(-ENOTRECOVERABLE);
+
+        r = policy_parser_parse_file(&registry, policypath, NULL);
+        if (r)
+                return error_fold(r);
 
         r = sd_bus_call_method(manager->bus_controller,
                                NULL,

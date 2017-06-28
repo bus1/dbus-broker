@@ -81,6 +81,8 @@ if dep_systemd.found() and dep_glib.found()
                 'dbus-broker-launch',
                 [
                         'launch/main.c',
+                        'launch/policy-parser.c',
+                        'policy.c',
                 ],
                 dependencies: [
                         dep_crbtree,
