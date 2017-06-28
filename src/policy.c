@@ -446,8 +446,7 @@ static TransmissionPolicyByName *transmission_policy_by_name_free(TransmissionPo
 }
 
 void transmission_policy_init(TransmissionPolicy *policy) {
-        policy->policy_by_name_tree = (CRBTree){};
-        policy->wildcard_entry_list = (CList)C_LIST_INIT(policy->wildcard_entry_list);
+        *policy = (TransmissionPolicy)TRANSMISSION_POLICY_INIT(*policy);
 }
 
 void transmission_policy_deinit(TransmissionPolicy *policy) {
@@ -614,12 +613,7 @@ int transmission_policy_check_allowed(TransmissionPolicy *policy, NameOwner *sub
 
 /* policy */
 void policy_init(Policy *policy) {
-        ownership_policy_init(&policy->ownership_policy);
-        transmission_policy_init(&policy->send_policy);
-        transmission_policy_init(&policy->receive_policy);
-        policy->registry = NULL;
-        c_rbnode_init(&policy->registry_node);
-        policy->uid = (uid_t)-1;
+        *policy = (Policy)POLICY_INIT(*policy);
 }
 
 void policy_deinit(Policy *policy) {
@@ -691,12 +685,7 @@ static int policy_instantiate(Policy *target, Policy *source) {
 
 /* policy registry */
 void policy_registry_init(PolicyRegistry *registry) {
-        connection_policy_init(&registry->connection_policy);
-        policy_init(&registry->default_policy);
-        registry->uid_policy_tree = (CRBTree){};
-        registry->gid_policy_tree = (CRBTree){};
-        policy_init(&registry->at_console_policy);
-        policy_init(&registry->not_at_console_policy);
+        *registry = (PolicyRegistry)POLICY_REGISTRY_INIT(*registry);
 }
 
 void policy_registry_deinit(PolicyRegistry *registry) {

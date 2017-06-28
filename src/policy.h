@@ -65,6 +65,10 @@ struct TransmissionPolicy {
         CList wildcard_entry_list;
 };
 
+#define TRANSMISSION_POLICY_INIT(_x) {                                          \
+                .wildcard_entry_list = C_LIST_INIT((_x).wildcard_entry_list),   \
+        }
+
 struct TransmissionPolicyByName {
         CList entry_list;
         CRBTree *policy;
@@ -90,6 +94,13 @@ struct Policy {
         uid_t uid;
 };
 
+#define POLICY_INIT(_x) {                                                               \
+                .send_policy = TRANSMISSION_POLICY_INIT((_x).send_policy),              \
+                .receive_policy = TRANSMISSION_POLICY_INIT((_x).receive_policy),        \
+                .registry_node = C_RBNODE_INIT((_x).registry_node),                     \
+                .uid = -1,                                                              \
+        }
+
 struct PolicyRegistry {
         ConnectionPolicy connection_policy;
         Policy default_policy;
@@ -98,6 +109,12 @@ struct PolicyRegistry {
         Policy at_console_policy;
         Policy not_at_console_policy;
 };
+
+#define POLICY_REGISTRY_INIT(_x) {                                                      \
+                .default_policy = POLICY_INIT((_x).default_policy),                     \
+                .at_console_policy = POLICY_INIT((_x).at_console_policy),               \
+                .not_at_console_policy = POLICY_INIT((_x).not_at_console_policy),       \
+        }
 
 bool policy_decision_is_default(PolicyDecision *decision);
 
