@@ -1595,7 +1595,7 @@ static int driver_dispatch_interface(Peer *peer, uint32_t serial, const char *in
                 /* ignore */
                 return 0;
 
-        r = transmission_policy_check_allowed(&peer->policy.send_policy, NULL, interface, member, path, message->header->type);
+        r = peer_policy_check_send(&peer->policy, NULL, interface, member, path, message->header->type);
         if (r) {
                 if (r == POLICY_E_ACCESS_DENIED)
                         return DRIVER_E_SEND_DENIED;

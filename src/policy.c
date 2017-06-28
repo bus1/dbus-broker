@@ -683,6 +683,77 @@ static int policy_instantiate(Policy *target, Policy *source) {
         return 0;
 }
 
+static int policy_compare(CRBTree *tree, void *k, CRBNode *rb) {
+        uid_t uid = *(uid_t*)k;
+        Policy *policy = c_container_of(rb, Policy, registry_node);
+
+        if (uid < policy->uid)
+                return -1;
+        else if (uid > policy->uid)
+                return 1;
+        else
+                return 0;
+}
+
+/* peer policy */
+int peer_policy_instantiate(PeerPolicy *policy, PolicyRegistry *registry, uid_t uid, gid_t *gids, size_t n_gids) {
+        Policy *source, *target = &policy->uid_policy;
+        int r;
+
+        r = connection_policy_check_allowed(&registry->connection_policy, uid, gids, n_gids);
+        if (r)
+                return error_trace(r);
+
+        r = policy_instantiate(target, &registry->default_policy);
+        if (r)
+                return error_trace(r);
+
+        source = c_rbtree_find_entry(&registry->uid_policy_tree, policy_compare, &uid, Policy, registry_node);
+        if (source) {
+                r = policy_instantiate(target, source);
+                if (r)
+                        return error_trace(r);
+        }
+
+        for (size_t i = 0; i < n_gids; ++i) {
+                source = c_rbtree_find_entry(&registry->gid_policy_tree, policy_compare, gids + i, Policy, registry_node);
+                if (source) {
+                        r = policy_instantiate(target, source);
+                        if (r)
+                                return error_trace(r);
+                }
+        }
+
+        /* consider all peers not to be at the console */
+        r = policy_instantiate(target, &registry->not_at_console_policy);
+        if (r)
+                return error_trace(r);
+
+        return 0;
+}
+
+void peer_policy_deinit(PeerPolicy *policy) {
+        assert(!policy->gid_policies);
+        assert(!policy->n_gid_policies);
+
+        policy_deinit(&policy->uid_policy);
+}
+
+int peer_policy_check_own(PeerPolicy *policy, const char *name) {
+        assert(!policy->n_gid_policies);
+        return ownership_policy_check_allowed(&policy->uid_policy.ownership_policy, name);
+}
+
+int peer_policy_check_send(PeerPolicy *policy, NameOwner *subject, const char *interface, const char *method, const char *path, int type) {
+        assert(!policy->n_gid_policies);
+        return transmission_policy_check_allowed(&policy->uid_policy.send_policy, subject, interface, method, path, type);
+}
+
+int peer_policy_check_receive(PeerPolicy *policy, NameOwner *subject, const char *interface, const char *method, const char *path, int type) {
+        assert(!policy->n_gid_policies);
+        return transmission_policy_check_allowed(&policy->uid_policy.receive_policy, subject, interface, method, path, type);
+}
+
 /* policy registry */
 void policy_registry_init(PolicyRegistry *registry) {
         *registry = (PolicyRegistry)POLICY_REGISTRY_INIT(*registry);
@@ -699,18 +770,6 @@ void policy_registry_deinit(PolicyRegistry *registry) {
                 policy_free(policy);
         policy_deinit(&registry->default_policy);
         connection_policy_deinit(&registry->connection_policy);
-}
-
-static int policy_compare(CRBTree *tree, void *k, CRBNode *rb) {
-        uid_t uid = *(uid_t*)k;
-        Policy *policy = c_container_of(rb, Policy, registry_node);
-
-        if (uid < policy->uid)
-                return -1;
-        else if (uid > policy->uid)
-                return 1;
-        else
-                return 0;
 }
 
 int policy_registry_get_policy_by_uid(PolicyRegistry *registry, Policy **policyp, uid_t uid) {
@@ -750,42 +809,6 @@ int policy_registry_get_policy_by_gid(PolicyRegistry *registry, Policy **policyp
 bool policy_registry_needs_groups(PolicyRegistry *registry) {
         return !c_rbtree_is_empty(&registry->connection_policy.gid_tree) ||
                !c_rbtree_is_empty(&registry->gid_policy_tree);
-}
-
-int policy_registry_instantiate_policy(PolicyRegistry *registry, uid_t uid, gid_t *gids, size_t n_gids, Policy *target) {
-        Policy *source;
-        int r;
-
-        r = connection_policy_check_allowed(&registry->connection_policy, uid, gids, n_gids);
-        if (r)
-                return error_trace(r);
-
-        r = policy_instantiate(target, &registry->default_policy);
-        if (r)
-                return error_trace(r);
-
-        source = c_rbtree_find_entry(&registry->uid_policy_tree, policy_compare, &uid, Policy, registry_node);
-        if (source) {
-                r = policy_instantiate(target, source);
-                if (r)
-                        return error_trace(r);
-        }
-
-        for (size_t i = 0; i < n_gids; ++i) {
-                source = c_rbtree_find_entry(&registry->gid_policy_tree, policy_compare, gids + i, Policy, registry_node);
-                if (source) {
-                        r = policy_instantiate(target, source);
-                        if (r)
-                                return error_trace(r);
-                }
-        }
-
-        /* consider all peers not to be at the console */
-        r = policy_instantiate(target, &registry->not_at_console_policy);
-        if (r)
-                return error_trace(r);
-
-        return 0;
 }
 
 /* parser */

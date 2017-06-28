@@ -299,14 +299,14 @@ int peer_new_with_fd(Peer **peerp,
         peer->seclabel = seclabel;
         seclabel = NULL;
         peer->n_seclabel = n_seclabel;
-        policy_init(&peer->policy);
+        peer->policy = (PeerPolicy)PEER_POLICY_INIT(peer->policy);
         peer->owned_names = (NameOwner){};
         match_registry_init(&peer->matches);
         match_owner_init(&peer->owned_matches);
         reply_registry_init(&peer->replies_outgoing);
         peer->owned_replies = (ReplyOwner)REPLY_OWNER_INIT(peer->owned_replies);
 
-        r = policy_registry_instantiate_policy(policy, ucred.uid, gids, n_gids, &peer->policy);
+        r = peer_policy_instantiate(&peer->policy, policy, ucred.uid, gids, n_gids);
         if (r) {
                 if (r == POLICY_E_ACCESS_DENIED)
                         return PEER_E_CONNECTION_REFUSED;
@@ -355,7 +355,7 @@ Peer *peer_free(Peer *peer) {
         match_owner_deinit(&peer->owned_matches);
         match_registry_deinit(&peer->matches);
         name_owner_deinit(&peer->owned_names);
-        policy_deinit(&peer->policy);
+        peer_policy_deinit(&peer->policy);
         connection_deinit(&peer->connection);
         user_unref(peer->user);
         free(peer->seclabel);
@@ -408,7 +408,7 @@ int peer_request_name(Peer *peer, const char *name, uint32_t flags, NameChange *
 
         /* XXX: refuse invalid names */
 
-        r = ownership_policy_check_allowed(&peer->policy.ownership_policy, name);
+        r = peer_policy_check_own(&peer->policy, name);
         if (r) {
                 if (r == POLICY_E_ACCESS_DENIED)
                         return PEER_E_NAME_REFUSED;
@@ -642,9 +642,9 @@ int peer_queue_call(Peer *sender, Peer *receiver, Message *message) {
         _c_cleanup_(reply_slot_freep) ReplySlot *slot = NULL;
         int r;
 
-        r = transmission_policy_check_allowed(&sender->policy.send_policy, &receiver->owned_names,
-                                              message->metadata.fields.interface, message->metadata.fields.member,
-                                              message->metadata.fields.path, message->header->type);
+        r = peer_policy_check_send(&sender->policy, &receiver->owned_names,
+                                   message->metadata.fields.interface, message->metadata.fields.member,
+                                   message->metadata.fields.path, message->header->type);
         if (r) {
                 if (r == POLICY_E_ACCESS_DENIED)
                         return PEER_E_SEND_DENIED;
@@ -652,9 +652,9 @@ int peer_queue_call(Peer *sender, Peer *receiver, Message *message) {
                 return error_fold(r);
         }
 
-        r = transmission_policy_check_allowed(&receiver->policy.receive_policy, &sender->owned_names,
-                                              message->metadata.fields.interface, message->metadata.fields.member,
-                                              message->metadata.fields.path, message->header->type);
+        r = peer_policy_check_receive(&receiver->policy, &sender->owned_names,
+                                      message->metadata.fields.interface, message->metadata.fields.member,
+                                      message->metadata.fields.path, message->header->type);
         if (r) {
                 if (r == POLICY_E_ACCESS_DENIED)
                         return PEER_E_RECEIVE_DENIED;
@@ -733,9 +733,9 @@ static int peer_broadcast_to_matches(Peer *sender, MatchRegistry *matches, Match
                         continue;
 
                 if (sender) {
-                        r = transmission_policy_check_allowed(&sender->policy.send_policy, &receiver->owned_names,
-                                                              message->metadata.fields.interface, message->metadata.fields.member,
-                                                              message->metadata.fields.path, message->header->type);
+                        r = peer_policy_check_send(&sender->policy, &receiver->owned_names,
+                                                   message->metadata.fields.interface, message->metadata.fields.member,
+                                                   message->metadata.fields.path, message->header->type);
                         if (r) {
                                 if (r == POLICY_E_ACCESS_DENIED)
                                         continue;
@@ -744,9 +744,9 @@ static int peer_broadcast_to_matches(Peer *sender, MatchRegistry *matches, Match
                         }
                 }
 
-                r = transmission_policy_check_allowed(&receiver->policy.receive_policy, sender ? &sender->owned_names : NULL,
-                                                      message->metadata.fields.interface, message->metadata.fields.member,
-                                                      message->metadata.fields.path, message->header->type);
+                r = peer_policy_check_receive(&receiver->policy, sender ? &sender->owned_names : NULL,
+                                              message->metadata.fields.interface, message->metadata.fields.member,
+                                              message->metadata.fields.path, message->header->type);
                 if (r) {
                         if (r == POLICY_E_ACCESS_DENIED)
                                 continue;

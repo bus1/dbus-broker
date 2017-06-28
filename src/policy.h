@@ -25,6 +25,7 @@ typedef struct Policy Policy;
 typedef struct PolicyDecision PolicyDecision;
 typedef struct PolicyParser PolicyParser;
 typedef struct PolicyRegistry PolicyRegistry;
+typedef struct PeerPolicy PeerPolicy;
 typedef struct TransmissionPolicy TransmissionPolicy;
 typedef struct TransmissionPolicyByName TransmissionPolicyByName;
 typedef struct TransmissionPolicyEntry TransmissionPolicyEntry;
@@ -101,6 +102,16 @@ struct Policy {
                 .uid = -1,                                                              \
         }
 
+struct PeerPolicy {
+        Policy uid_policy;
+        Policy **gid_policies;
+        size_t n_gid_policies;
+};
+
+#define PEER_POLICY_INIT(_x) {                                  \
+                .uid_policy = POLICY_INIT((_x).uid_policy),     \
+        }
+
 struct PolicyRegistry {
         ConnectionPolicy connection_policy;
         Policy default_policy;
@@ -157,6 +168,13 @@ void policy_deinit(Policy *policy);
 
 bool policy_is_empty(Policy *policy);
 
+int peer_policy_instantiate(PeerPolicy *policy, PolicyRegistry *registry, uid_t uid, gid_t *gids, size_t n_gids);
+void peer_policy_deinit(PeerPolicy *policy);
+
+int peer_policy_check_own(PeerPolicy *policy, const char *name);
+int peer_policy_check_send(PeerPolicy *policy, NameOwner *subject, const char *interface, const char *method, const char *path, int type);
+int peer_policy_check_receive(PeerPolicy *policy, NameOwner *subject, const char *interface, const char *method, const char *path, int type);
+
 void policy_registry_init(PolicyRegistry *registry);
 void policy_registry_deinit(PolicyRegistry *registry);
 
@@ -164,6 +182,5 @@ bool policy_registry_needs_groups(PolicyRegistry *registry);
 
 int policy_registry_get_policy_by_uid(PolicyRegistry *registry, Policy **policyp, uid_t uid);
 int policy_registry_get_policy_by_gid(PolicyRegistry *registry, Policy **policyp, gid_t gid);
-int policy_registry_instantiate_policy(PolicyRegistry *registry, uid_t uid, gid_t *gids, size_t n_gids, Policy *policy);
 
 int policy_registry_from_file(PolicyRegistry *registry, const char *filename, PolicyParser *parent);
