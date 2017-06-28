@@ -57,7 +57,6 @@ struct Name {
 };
 
 struct NameRegistry {
-        /* XXX: use a trie instead? */
         CRBTree name_tree;
 };
 
