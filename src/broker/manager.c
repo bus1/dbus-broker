@@ -89,9 +89,9 @@ static int manager_dispatch_controller(DispatchFile *file, uint32_t events) {
         if (r == CONNECTION_E_EOF) {
                 connection_shutdown(&manager->controller);
                 if (connection_is_running(&manager->controller))
-                        r = 0;
+                        return 0;
                 else
-                        r = DISPATCH_E_EXIT;
+                        return DISPATCH_E_EXIT;
         }
 
         return error_fold(r);
