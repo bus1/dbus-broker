@@ -292,18 +292,18 @@ int peer_new_with_fd(Peer **peerp,
 
         peer->bus = bus;
         peer->connection = (Connection)CONNECTION_NULL(peer->connection);
-        c_rbnode_init(&peer->registry_node);
+        peer->registry_node = (CRBNode)C_RBNODE_INIT(peer->registry_node);
         peer->user = user;
         user = NULL;
         peer->pid = ucred.pid;
         peer->seclabel = seclabel;
         seclabel = NULL;
         peer->n_seclabel = n_seclabel;
-        peer->policy = (PeerPolicy){};
-        peer->owned_names = (NameOwner){};
-        match_registry_init(&peer->matches);
-        match_owner_init(&peer->owned_matches);
-        reply_registry_init(&peer->replies_outgoing);
+        peer->policy = (PeerPolicy)PEER_POLICY_INIT;
+        peer->owned_names = (NameOwner)NAME_OWNER_INIT;
+        peer->matches = (MatchRegistry)MATCH_REGISTRY_INIT(peer->matches);
+        peer->owned_matches = (MatchOwner)MATCH_OWNER_INIT;
+        peer->replies_outgoing = (ReplyRegistry)REPLY_REGISTRY_INIT;
         peer->owned_replies = (ReplyOwner)REPLY_OWNER_INIT(peer->owned_replies);
 
         r = peer_policy_instantiate(&peer->policy, policy, ucred.uid, gids, n_gids);

@@ -40,6 +40,15 @@ struct PolicyParser {
 };
 
 #define POLICY_PARSER_NULL {                            \
+                .registry = NULL,                       \
+                .parent = NULL,                         \
+                .filename = NULL,                       \
+                .busconfig = false,                     \
+                .includedir = false,                    \
+                .n_characterdata = 0,                   \
+                .level = 0,                             \
+                .policy = NULL,                         \
+                .priority = 0,                          \
                 .priority_base = (uint64_t) -1,         \
         }
 
@@ -425,7 +434,7 @@ static void policy_parser_deinit(PolicyParser *parser) {
                 parser->parent->priority = parser->priority;
 
         XML_ParserFree(parser->parser);
-        *parser = (PolicyParser){};
+        *parser = (PolicyParser)POLICY_PARSER_NULL;
 }
 
 int policy_parser_registry_from_file(PolicyParserRegistry *registry, const char *filename, PolicyParser *parent) {

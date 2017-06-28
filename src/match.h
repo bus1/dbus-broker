@@ -36,6 +36,12 @@ struct MatchFilter {
 #define MATCH_FILTER_INIT {                             \
                 .type = DBUS_MESSAGE_TYPE_INVALID,      \
                 .destination = ADDRESS_ID_INVALID,      \
+                .sender = ADDRESS_ID_INVALID,           \
+                .interface = NULL,                      \
+                .member = NULL,                         \
+                .path = NULL,                           \
+                .args = {},                             \
+                .argpaths = {},                         \
         }
 
 struct MatchRuleKeys {
@@ -77,7 +83,9 @@ struct MatchOwner {
         CRBTree rule_tree;
 };
 
-#define MATCH_OWNER_INIT {};
+#define MATCH_OWNER_INIT {                      \
+                .rule_tree = C_RBTREE_INIT,     \
+        };
 
 MatchRule *match_rule_user_ref(MatchRule *rule);
 MatchRule *match_rule_user_unref(MatchRule *rule);

@@ -661,7 +661,7 @@ static int driver_method_hello(Peer *peer, CDVar *in_v, uint32_t serial, CDVar *
 }
 
 static int driver_method_request_name(Peer *peer, CDVar *in_v, uint32_t serial, CDVar *out_v) {
-        NameChange change = {};
+        NameChange change = NAME_CHANGE_INIT;
         const char *name;
         uint32_t flags, reply;
         int r;
@@ -721,7 +721,7 @@ static int driver_method_request_name(Peer *peer, CDVar *in_v, uint32_t serial, 
 }
 
 static int driver_method_release_name(Peer *peer, CDVar *in_v, uint32_t serial, CDVar *out_v) {
-        NameChange change = {};
+        NameChange change = NAME_CHANGE_INIT;
         const char *name;
         uint32_t reply;
         int r;

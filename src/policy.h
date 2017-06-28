@@ -33,13 +33,22 @@ struct PolicyDecision {
         uint64_t priority;
 };
 
+#define POLICY_DECISION_INIT {  \
+                .deny = false,  \
+                .priority = 0,  \
+        }
+
 struct OwnershipPolicy {
         CRBTree names;
         CRBTree prefixes;
         PolicyDecision wildcard;
 };
 
-#define OWNERSHIP_POLICY_INIT {};
+#define OWNERSHIP_POLICY_INIT {                         \
+                .names = C_RBTREE_INIT,                 \
+                .prefixes = C_RBTREE_INIT,              \
+                .wildcard = POLICY_DECISION_INIT,       \
+        }
 
 struct OwnershipPolicyEntry {
         CRBTree *policy;
@@ -54,7 +63,11 @@ struct ConnectionPolicy {
         PolicyDecision wildcard;
 };
 
-#define CONNECTION_POLICY_INIT {};
+#define CONNECTION_POLICY_INIT {                        \
+                .uid_tree = C_RBTREE_INIT,              \
+                .gid_tree = C_RBTREE_INIT,              \
+                .wildcard = POLICY_DECISION_INIT,       \
+        }
 
 struct ConnectionPolicyEntry {
         CRBTree *policy;
@@ -69,6 +82,7 @@ struct TransmissionPolicy {
 };
 
 #define TRANSMISSION_POLICY_INIT(_x) {                                          \
+                .policy_by_name_tree = C_RBTREE_INIT,                           \
                 .wildcard_entry_list = C_LIST_INIT((_x).wildcard_entry_list),   \
         }
 
@@ -98,8 +112,10 @@ struct Policy {
 };
 
 #define POLICY_INIT(_x) {                                                               \
+                .ownership_policy = OWNERSHIP_POLICY_INIT,                              \
                 .send_policy = TRANSMISSION_POLICY_INIT((_x).send_policy),              \
                 .receive_policy = TRANSMISSION_POLICY_INIT((_x).receive_policy),        \
+                .registry = NULL,                                                       \
                 .registry_node = C_RBNODE_INIT((_x).registry_node),                     \
                 .uid = -1,                                                              \
         }
@@ -110,7 +126,11 @@ struct PeerPolicy {
         size_t n_gid_policies;
 };
 
-#define PEER_POLICY_INIT {};
+#define PEER_POLICY_INIT {              \
+                .uid_policy = NULL,     \
+                .gid_policies = NULL,   \
+                .n_gid_policies = 0,    \
+        }
 
 struct PolicyRegistry {
         ConnectionPolicy connection_policy;
@@ -120,7 +140,10 @@ struct PolicyRegistry {
 };
 
 #define POLICY_REGISTRY_INIT(_x) {                                              \
+                .connection_policy = CONNECTION_POLICY_INIT,                    \
                 .wildcard_uid_policy = POLICY_INIT((_x).wildcard_uid_policy),   \
+                .uid_policy_tree = C_RBTREE_INIT,                               \
+                .gid_policy_tree = C_RBTREE_INIT,                               \
         }
 
 bool policy_decision_is_default(PolicyDecision *decision);
