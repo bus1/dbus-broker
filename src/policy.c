@@ -13,35 +13,6 @@
 #include "policy.h"
 #include "util/error.h"
 
-#define POLICY_PRIORITY_INCREMENT       (((uint64_t)-1) / 5)
-#define POLICY_PRIORITY_BASE_DEFAULT    (POLICY_PRIORITY_INCREMENT * 0)
-#define POLICY_PRIORITY_BASE_USER       (POLICY_PRIORITY_INCREMENT * 1)
-#define POLICY_PRIORITY_BASE_GROUP      (POLICY_PRIORITY_INCREMENT * 2)
-#define POLICY_PRIORITY_BASE_CONSOLE    (POLICY_PRIORITY_INCREMENT * 3)
-#define POLICY_PRIORITY_BASE_MANDATORY  (POLICY_PRIORITY_INCREMENT * 4)
-
-typedef struct PolicyParser PolicyParser;
-
-struct PolicyParser {
-        PolicyRegistry *registry;
-        PolicyParser *parent;
-        XML_Parser parser;
-        const char *filename;
-        bool busconfig;
-        bool includedir;
-        char characterdata[PATH_MAX + 1];
-        size_t n_characterdata;
-        size_t level;
-
-        Policy *policy;
-        uint64_t priority_base;
-        uint64_t priority;
-};
-
-#define POLICY_PARSER_NULL {                    \
-                .priority_base = (uint64_t)-1,  \
-        }
-
 bool policy_decision_is_default(PolicyDecision *decision) {
         return !decision->priority && !decision->deny;
 }
