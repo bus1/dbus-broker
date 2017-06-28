@@ -24,14 +24,7 @@ int bus_init(Bus *bus,
         void *random;
         int r;
 
-        bus->users = (UserRegistry)USER_REGISTRY_NULL;
-        bus->wildcard_matches = (MatchRegistry)MATCH_REGISTRY_INIT(bus->wildcard_matches);
-        bus->driver_matches = (MatchRegistry)MATCH_REGISTRY_INIT(bus->driver_matches);
-        name_registry_init(&bus->names);
-        bus->peers = (PeerRegistry)PEER_REGISTRY_INIT;
-        bus->metrics = (Metrics)METRICS_INIT;
-        bus->user = NULL;
-        bus->pid = 0;
+        *bus = (Bus)BUS_NULL(*bus);
 
         random = (void *)getauxval(AT_RANDOM);
         assert(random);

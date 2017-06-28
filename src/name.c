@@ -223,7 +223,7 @@ static int name_owner_get_ownership(NameOwner *owner, NameOwnership **ownershipp
         return 0;
 }
 void name_registry_init(NameRegistry *registry) {
-        *registry = (NameRegistry) {};
+        *registry = (NameRegistry)NAME_REGISTRY_INIT;
 }
 
 void name_registry_deinit(NameRegistry *registry) {

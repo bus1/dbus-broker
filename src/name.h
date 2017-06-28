@@ -60,6 +60,8 @@ struct NameRegistry {
         CRBTree name_tree;
 };
 
+#define NAME_REGISTRY_INIT {}
+
 struct NameOwner {
         CRBTree ownership_tree;
 };

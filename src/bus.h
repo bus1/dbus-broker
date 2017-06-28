@@ -43,6 +43,15 @@ struct Bus {
         Metrics metrics;
 };
 
+#define BUS_NULL(_x) {                                                                          \
+                .users = (UserRegistry)USER_REGISTRY_NULL,                                      \
+                .wildcard_matches = (MatchRegistry)MATCH_REGISTRY_INIT((_x).wildcard_matches),  \
+                .driver_matches = (MatchRegistry)MATCH_REGISTRY_INIT((_x).driver_matches),      \
+                .names = (NameRegistry)NAME_REGISTRY_INIT,                                      \
+                .peers = (PeerRegistry)PEER_REGISTRY_INIT,                                      \
+                .metrics = (Metrics)METRICS_INIT,                                               \
+        }
+
 int bus_init(Bus *bus,
              unsigned int max_bytes,
              unsigned int max_fds,
