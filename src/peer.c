@@ -539,7 +539,7 @@ int peer_add_match(Peer *peer, const char *rule_string, bool force_eavesdrop) {
         _c_cleanup_(match_rule_user_unrefp) MatchRule *rule = NULL;
         int r;
 
-        r = match_owner_ref_rule(&peer->owned_matches, peer->user, &rule, rule_string);
+        r = match_owner_ref_rule(&peer->owned_matches, &rule, peer->user, rule_string);
         if (r) {
                 if (r == MATCH_E_QUOTA)
                         return PEER_E_QUOTA;

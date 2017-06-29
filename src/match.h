@@ -102,7 +102,7 @@ void match_registry_deinit(MatchRegistry *registry);
 void match_owner_init(MatchOwner *owner);
 void match_owner_deinit(MatchOwner *owner);
 
-int match_owner_ref_rule(MatchOwner *owner, User *user, MatchRule **rulep, const char *rule_string);
+int match_owner_ref_rule(MatchOwner *owner, MatchRule **rulep, User *user, const char *rule_string);
 
 void match_filter_init(MatchFilter *filter);
 

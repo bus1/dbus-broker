@@ -15,7 +15,7 @@ static void test_arg(MatchOwner *owner,
         _c_cleanup_(match_rule_user_unrefp) MatchRule *rule = NULL;
         int r;
 
-        r = match_owner_ref_rule(owner, NULL, &rule, match);
+        r = match_owner_ref_rule(owner, &rule, NULL, match);
         assert(r == 0);
         assert(strcmp(rule->keys.filter.args[0], arg0) == 0);
 }
@@ -35,7 +35,7 @@ static void test_args(MatchOwner *owner,
         _c_cleanup_(match_rule_user_unrefp) MatchRule *rule = NULL;
         int r;
 
-        r = match_owner_ref_rule(owner, NULL, &rule, match);
+        r = match_owner_ref_rule(owner,  &rule, NULL, match);
         assert(r == 0);
         assert(strcmp(rule->keys.filter.args[0], arg0) == 0);
         assert(strcmp(rule->keys.filter.args[1], arg1) == 0);
@@ -63,7 +63,7 @@ static bool test_validity(MatchOwner *owner, const char *match) {
         _c_cleanup_(match_rule_user_unrefp) MatchRule *rule = NULL;
         int r;
 
-        r = match_owner_ref_rule(owner, NULL, &rule, match);
+        r = match_owner_ref_rule(owner, &rule, NULL, match);
         assert(r == 0 || r == MATCH_E_INVALID);
 
         return !r;
@@ -85,7 +85,7 @@ static void test_eavesdrop(MatchOwner *owner, const char *match, bool eavesdrop)
         _c_cleanup_(match_rule_user_unrefp) MatchRule *rule = NULL;
         int r;
 
-        r = match_owner_ref_rule(owner, NULL, &rule, match);
+        r = match_owner_ref_rule(owner, &rule, NULL, match);
         assert(r == 0);
         assert(rule->keys.eavesdrop == eavesdrop);
 }
@@ -137,7 +137,7 @@ static bool test_match(const char *match_string, MatchFilter *filter) {
         match_registry_init(&registry);
         match_owner_init(&owner);
 
-        r = match_owner_ref_rule(&owner, NULL, &rule, match_string);
+        r = match_owner_ref_rule(&owner, &rule, NULL, match_string);
         assert(!r);
 
         match_rule_link(rule, &registry, false);
@@ -270,22 +270,22 @@ void test_iterator(void) {
         match_owner_init(&owner2);
         match_filter_init(&filter);
 
-        r = match_owner_ref_rule(&owner1, NULL, &rule1, "eavesdrop=true");
+        r = match_owner_ref_rule(&owner1, &rule1, NULL, "eavesdrop=true");
         assert(!r);
 
         match_rule_link(rule1, &registry, false);
 
-        r = match_owner_ref_rule(&owner1, NULL, &rule2, "");
+        r = match_owner_ref_rule(&owner1, &rule2, NULL, "");
         assert(!r);
 
         match_rule_link(rule2, &registry, false);
 
-        r = match_owner_ref_rule(&owner2, NULL, &rule3, "eavesdrop=true");
+        r = match_owner_ref_rule(&owner2, &rule3, NULL, "eavesdrop=true");
         assert(!r);
 
         match_rule_link(rule3, &registry, false);
 
-        r = match_owner_ref_rule(&owner2, NULL, &rule4, "");
+        r = match_owner_ref_rule(&owner2, &rule4, NULL, "");
         assert(!r);
 
         match_rule_link(rule4, &registry, false);

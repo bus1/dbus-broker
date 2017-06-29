@@ -1384,7 +1384,7 @@ static int driver_method_become_monitor(Peer *peer, CDVar *in_v, uint32_t serial
         c_dvar_read(in_v, "([");
         if (!c_dvar_more(in_v)) {
                 /* if no matches are passed, install a wildcard */
-                r = match_owner_ref_rule(&owned_matches, peer->user, NULL, "");
+                r = match_owner_ref_rule(&owned_matches, NULL, peer->user, "");
                 if (r) {
                         if (r == MATCH_E_INVALID)
                                 poison = DRIVER_E_MATCH_INVALID;
@@ -1397,7 +1397,7 @@ static int driver_method_become_monitor(Peer *peer, CDVar *in_v, uint32_t serial
 
                         c_dvar_read(in_v, "s", &match_string);
 
-                        r = match_owner_ref_rule(&owned_matches, peer->user, NULL, match_string);
+                        r = match_owner_ref_rule(&owned_matches, NULL, peer->user, match_string);
                         if (r) {
                                 if (r == MATCH_E_INVALID)
                                         poison = DRIVER_E_MATCH_INVALID;

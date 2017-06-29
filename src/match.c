@@ -457,7 +457,7 @@ void match_owner_deinit(MatchOwner *owner) {
         assert(c_rbtree_is_empty(&owner->rule_tree));
 }
 
-int match_owner_ref_rule(MatchOwner *owner, User *user, MatchRule **rulep, const char *rule_string) {
+int match_owner_ref_rule(MatchOwner *owner, MatchRule **rulep, User *user, const char *rule_string) {
         _c_cleanup_(match_rule_user_unrefp) MatchRule *rule = NULL;
         CRBNode **slot, *parent;
         size_t n_buffer;
