@@ -10,6 +10,7 @@
 #include "dbus/message.h"
 #include "name.h"
 #include "util/error.h"
+#include "util/fdlist.h"
 #include "util/user.h"
 
 ActivationRequest *activation_request_free(ActivationRequest *request) {
@@ -17,10 +18,13 @@ ActivationRequest *activation_request_free(ActivationRequest *request) {
                 return NULL;
 
         c_list_unlink_init(&request->link);
+        user_charge_deinit(&request->charge);
         free(request);
 
         return NULL;
 }
+
+C_DEFINE_CLEANUP(ActivationRequest *, activation_request_free);
 
 ActivationMessage *activation_message_free(ActivationMessage *message) {
         if (!message)
@@ -28,10 +32,14 @@ ActivationMessage *activation_message_free(ActivationMessage *message) {
 
         message_unref(message->message);
         c_list_unlink_init(&message->link);
+        user_charge_deinit(&message->charges[1]);
+        user_charge_deinit(&message->charges[0]);
         free(message);
 
         return NULL;
 }
+
+C_DEFINE_CLEANUP(ActivationMessage *, activation_message_free);
 
 /**
  * activation_init() - XXX
@@ -97,8 +105,8 @@ int activation_flush(Activation *activation) {
         return 0;
 }
 
-int activation_queue_message(Activation *activation, Message *m) {
-        ActivationMessage *message;
+int activation_queue_message(Activation *activation, User *user, Message *m) {
+        _c_cleanup_(activation_message_freep) ActivationMessage *message = NULL;
         int r;
 
         r = activation_request(activation);
@@ -109,15 +117,25 @@ int activation_queue_message(Activation *activation, Message *m) {
         if (!message)
                 return error_origin(-ENOMEM);
 
+        message->charges[0] = (UserCharge)USER_CHARGE_INIT;
+        message->charges[1] = (UserCharge)USER_CHARGE_INIT;
         message->link = (CList)C_LIST_INIT(message->link);
         message->message = message_ref(m);
 
+        r = user_charge(activation->user, &message->charges[0], user, USER_SLOT_BYTES,
+                        sizeof(ActivationMessage) + sizeof(Message) + m->n_data);
+        r = r ?: user_charge(activation->user, &message->charges[1], user, USER_SLOT_FDS,
+                             fdlist_count(m->fds));
+        if (r)
+                return (r == USER_E_QUOTA) ? ACTIVATION_E_QUOTA : error_fold(r);
+
         c_list_link_tail(&activation->activation_messages, &message->link);
+        message = NULL;
         return 0;
 }
 
-int activation_queue_request(Activation *activation, uint64_t sender_id, uint32_t serial) {
-        ActivationRequest *request;
+int activation_queue_request(Activation *activation, User *user, uint64_t sender_id, uint32_t serial) {
+        _c_cleanup_(activation_request_freep) ActivationRequest *request = NULL;
         int r;
 
         r = activation_request(activation);
@@ -128,9 +146,16 @@ int activation_queue_request(Activation *activation, uint64_t sender_id, uint32_
         if (!request)
                 return error_origin(-ENOMEM);
 
-        c_list_link_tail(&activation->activation_requests, &request->link);
+        request->charge = (UserCharge)USER_CHARGE_INIT;
+        request->link = (CList)C_LIST_INIT(request->link);
         request->sender_id = sender_id;
         request->serial = serial;
 
+        r = user_charge(activation->user, &request->charge, user, USER_SLOT_BYTES, sizeof(ActivationRequest));
+        if (r)
+                return (r == USER_E_QUOTA) ? ACTIVATION_E_QUOTA : error_fold(r);
+
+        c_list_link_tail(&activation->activation_requests, &request->link);
+        request = NULL;
         return 0;
 }

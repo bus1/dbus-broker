@@ -919,7 +919,7 @@ static int driver_method_start_service_by_name(Peer *peer, CDVar *in_v, uint32_t
                 if (r)
                         return error_trace(r);
         } else {
-                r = activation_queue_request(name->activation, peer->id, serial);
+                r = activation_queue_request(name->activation, peer->user, peer->id, serial);
                 if (r)
                         return error_fold(r);
         }
@@ -1626,7 +1626,7 @@ static int driver_forward_unicast(Peer *sender, const char *destination, Message
                 if (!name || !name->activation)
                         return DRIVER_E_DESTINATION_NOT_FOUND;
 
-                r = activation_queue_message(name->activation, message);
+                r = activation_queue_message(name->activation, sender->user, message);
                 if (r)
                         return error_fold(r);
 

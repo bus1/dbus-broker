@@ -7,27 +7,31 @@
 #include <c-list.h>
 #include <c-macro.h>
 #include <stdlib.h>
+#include "util/user.h"
 
 typedef struct Activation Activation;
 typedef struct ActivationMessage ActivationMessage;
 typedef struct ActivationRequest ActivationRequest;
 typedef struct Message Message;
 typedef struct Name Name;
-typedef struct User User;
 
 enum {
         _ACTIVATION_E_SUCCESS,
+
+        ACTIVATION_E_QUOTA,
 
         ACTIVATION_E_ALREADY_ACTIVATABLE,
 };
 
 struct ActivationRequest {
+        UserCharge charge;
         uint64_t sender_id;
         uint32_t serial;
         CList link;
 };
 
 struct ActivationMessage {
+        UserCharge charges[2];
         CList link;
         Message *message;
 };
@@ -58,8 +62,8 @@ ActivationMessage *activation_message_free(ActivationMessage *message);
 int activation_init(Activation *activation, Name *name, User *user);
 void activation_deinit(Activation *activation);
 
-int activation_queue_message(Activation *activation, Message *m);
-int activation_queue_request(Activation *activation, uint64_t sender_id, uint32_t serial);
+int activation_queue_message(Activation *activation, User *user, Message *m);
+int activation_queue_request(Activation *activation, User *user, uint64_t sender_id, uint32_t serial);
 
 int activation_flush(Activation *activation);
 
