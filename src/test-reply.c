@@ -17,10 +17,10 @@ static void test_basic() {
         reply_registry_init(&registry);
         reply_owner_init(&owner);
 
-        r = reply_slot_new(&slot1, &registry, &owner, 1, 1);
+        r = reply_slot_new(&slot1, &registry, &owner, NULL, NULL, 1, 1);
         assert(!r);
 
-        r = reply_slot_new(&slot1, &registry, &owner, 1, 1);
+        r = reply_slot_new(&slot1, &registry, &owner, NULL, NULL, 1, 1);
         assert(r == REPLY_E_EXISTS);
 
         slot2 = reply_slot_get_by_id(&registry, 1, 1);

@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include "reply.h"
 #include "util/error.h"
+#include "util/user.h"
 
 typedef struct ReplySlotKey ReplySlotKey;
 
@@ -33,13 +34,14 @@ static int reply_slot_compare(CRBTree *tree, void *k, CRBNode *rb) {
         return 0;
 }
 
-int reply_slot_new(ReplySlot **replyp, ReplyRegistry *registry, ReplyOwner *owner, uint64_t id, uint32_t serial) {
+int reply_slot_new(ReplySlot **replyp, ReplyRegistry *registry, ReplyOwner *owner, User *user, User *actor, uint64_t id, uint32_t serial) {
         ReplySlot *reply;
         CRBNode **slot, *parent;
         ReplySlotKey key = {
                 .id = id,
                 .serial = serial,
         };
+        int r;
 
         slot = c_rbtree_find_slot(&registry->reply_tree, reply_slot_compare, &key, &parent);
         if (!slot)
@@ -51,10 +53,15 @@ int reply_slot_new(ReplySlot **replyp, ReplyRegistry *registry, ReplyOwner *owne
 
         reply->registry = registry;
         reply->owner = owner;
-        c_rbnode_init(&reply->registry_node);
+        reply->charge = (UserCharge)USER_CHARGE_INIT;
+        reply->registry_node = (CRBNode)C_RBNODE_INIT(reply->registry_node);
         reply->owner_link = (CList)C_LIST_INIT(reply->owner_link);
         reply->id = id;
         reply->serial = serial;
+
+        r = user_charge(user, &reply->charge, actor, USER_SLOT_OBJECTS, 1);
+        if (r)
+                return (r == USER_E_QUOTA) ? REPLY_E_QUOTA : error_fold(r);
 
         c_rbtree_add(&registry->reply_tree, parent, slot, &reply->registry_node);
         c_list_link_tail(&owner->reply_list, &reply->owner_link);
@@ -68,6 +75,7 @@ ReplySlot *reply_slot_free(ReplySlot *slot) {
         if (!slot)
                 return NULL;
 
+        user_charge_deinit(&slot->charge);
         c_list_unlink(&slot->owner_link);
         c_rbtree_remove_init(&slot->registry->reply_tree, &slot->registry_node);
 

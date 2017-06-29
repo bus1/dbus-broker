@@ -658,9 +658,12 @@ int peer_queue_call(Peer *sender, Peer *receiver, Message *message) {
 
         if ((message->header->type == DBUS_MESSAGE_TYPE_METHOD_CALL) &&
             !(message->header->flags & DBUS_HEADER_FLAG_NO_REPLY_EXPECTED)) {
-                r = reply_slot_new(&slot, &receiver->replies_outgoing, &sender->owned_replies, sender->id, message_read_serial(message));
+                r = reply_slot_new(&slot, &receiver->replies_outgoing, &sender->owned_replies,
+                                   receiver->user, sender->user, sender->id, message_read_serial(message));
                 if (r == REPLY_E_EXISTS)
                         return PEER_E_EXPECTED_REPLY_EXISTS;
+                else if (r == REPLY_E_QUOTA)
+                        return PEER_E_QUOTA;
                 else if (r)
                         return error_fold(r);
         }
