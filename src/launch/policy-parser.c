@@ -40,15 +40,6 @@ struct PolicyParser {
 };
 
 #define POLICY_PARSER_NULL {                            \
-                .registry = NULL,                       \
-                .parent = NULL,                         \
-                .filename = NULL,                       \
-                .busconfig = false,                     \
-                .includedir = false,                    \
-                .n_characterdata = 0,                   \
-                .level = 0,                             \
-                .policy = NULL,                         \
-                .priority = 0,                          \
                 .priority_base = (uint64_t) -1,         \
         }
 

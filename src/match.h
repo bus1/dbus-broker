@@ -39,11 +39,6 @@ struct MatchFilter {
                 .type = DBUS_MESSAGE_TYPE_INVALID,      \
                 .destination = ADDRESS_ID_INVALID,      \
                 .sender = ADDRESS_ID_INVALID,           \
-                .interface = NULL,                      \
-                .member = NULL,                         \
-                .path = NULL,                           \
-                .args = {},                             \
-                .argpaths = {},                         \
         }
 
 struct MatchRuleKeys {

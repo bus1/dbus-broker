@@ -33,10 +33,7 @@ struct PolicyDecision {
         uint64_t priority;
 };
 
-#define POLICY_DECISION_INIT {  \
-                .deny = false,  \
-                .priority = 0,  \
-        }
+#define POLICY_DECISION_INIT {}
 
 struct OwnershipPolicy {
         CRBTree names;
@@ -115,7 +112,6 @@ struct Policy {
                 .ownership_policy = OWNERSHIP_POLICY_INIT,                              \
                 .send_policy = TRANSMISSION_POLICY_INIT((_x).send_policy),              \
                 .receive_policy = TRANSMISSION_POLICY_INIT((_x).receive_policy),        \
-                .registry = NULL,                                                       \
                 .registry_node = C_RBNODE_INIT((_x).registry_node),                     \
                 .uid = -1,                                                              \
         }
@@ -126,11 +122,7 @@ struct PeerPolicy {
         size_t n_gid_policies;
 };
 
-#define PEER_POLICY_INIT {              \
-                .uid_policy = NULL,     \
-                .gid_policies = NULL,   \
-                .n_gid_policies = 0,    \
-        }
+#define PEER_POLICY_INIT {}
 
 struct PolicyRegistry {
         ConnectionPolicy connection_policy;

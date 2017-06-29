@@ -44,17 +44,11 @@ struct Bus {
 };
 
 #define BUS_NULL(_x) {                                                          \
-                .controller = NULL,                                             \
-                .user = NULL,                                                   \
-                .pid = 0,                                                       \
-                .guid = {},                                                     \
                 .users = USER_REGISTRY_NULL,                                    \
                 .names = NAME_REGISTRY_INIT,                                    \
                 .wildcard_matches = MATCH_REGISTRY_INIT((_x).wildcard_matches), \
                 .driver_matches = MATCH_REGISTRY_INIT((_x).driver_matches),     \
                 .peers = PEER_REGISTRY_INIT,                                    \
-                .transaction_ids = 0,                                           \
-                .listener_ids = 0,                                              \
                 .metrics = METRICS_INIT,                                        \
         }
 
