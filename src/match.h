@@ -7,6 +7,7 @@
 #include <c-list.h>
 #include <c-rbtree.h>
 #include <stdlib.h>
+#include "util/user.h"
 
 typedef struct MatchFilter MatchFilter;
 typedef struct MatchRuleKeys MatchRuleKeys;
@@ -20,6 +21,7 @@ enum {
         MATCH_E_EOF,
         MATCH_E_INVALID,
         MATCH_E_NOT_FOUND,
+        MATCH_E_QUOTA,
 };
 
 struct MatchFilter {
@@ -62,6 +64,8 @@ struct MatchRule {
         CList registry_link;
         CRBNode owner_node;
 
+        UserCharge charge;
+
         MatchRuleKeys keys;
 
         char buffer[];
@@ -103,7 +107,7 @@ void match_registry_deinit(MatchRegistry *registry);
 void match_owner_init(MatchOwner *owner);
 void match_owner_deinit(MatchOwner *owner);
 
-int match_owner_ref_rule(MatchOwner *owner, MatchRule **rulep, const char *rule_string);
+int match_owner_ref_rule(MatchOwner *owner, User *user, MatchRule **rulep, const char *rule_string);
 
 void match_filter_init(MatchFilter *filter);
 

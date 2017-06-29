@@ -1372,7 +1372,6 @@ static int driver_method_introspect(Peer *peer, CDVar *in_v, uint32_t serial, CD
 
 static int driver_method_become_monitor(Peer *peer, CDVar *in_v, uint32_t serial, CDVar *out_v) {
         MatchOwner owned_matches;
-        size_t n_matches = 0;
         uint32_t flags;
         int r, poison = 0;
 
@@ -1385,30 +1384,26 @@ static int driver_method_become_monitor(Peer *peer, CDVar *in_v, uint32_t serial
         c_dvar_read(in_v, "([");
         if (!c_dvar_more(in_v)) {
                 /* if no matches are passed, install a wildcard */
-                r = match_owner_ref_rule(&owned_matches, NULL, "");
+                r = match_owner_ref_rule(&owned_matches, peer->user, NULL, "");
                 if (r) {
                         if (r == MATCH_E_INVALID)
                                 poison = DRIVER_E_MATCH_INVALID;
                         else
                                 poison = error_fold(r);
                 }
-
-                ++n_matches;
         } else {
                 while (c_dvar_more(in_v) && !poison) {
                         const char *match_string;
 
                         c_dvar_read(in_v, "s", &match_string);
 
-                        r = match_owner_ref_rule(&owned_matches, NULL, match_string);
+                        r = match_owner_ref_rule(&owned_matches, peer->user, NULL, match_string);
                         if (r) {
                                 if (r == MATCH_E_INVALID)
                                         poison = DRIVER_E_MATCH_INVALID;
                                 else
                                         poison = error_fold(r);
                         }
-
-                        ++n_matches;
                 }
         }
         c_dvar_read(in_v, "]u)", &flags);
@@ -1417,11 +1412,6 @@ static int driver_method_become_monitor(Peer *peer, CDVar *in_v, uint32_t serial
         r = driver_end_read(in_v);
         if (r) {
                 r = error_trace(r);
-                goto error;
-        }
-
-        if (n_matches > peer->user->slots[USER_SLOT_MATCHES].n) {
-                r = DRIVER_E_QUOTA;
                 goto error;
         }
 

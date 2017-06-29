@@ -457,7 +457,7 @@ void match_owner_deinit(MatchOwner *owner) {
         assert(c_rbtree_is_empty(&owner->rule_tree));
 }
 
-int match_owner_ref_rule(MatchOwner *owner, MatchRule **rulep, const char *rule_string) {
+int match_owner_ref_rule(MatchOwner *owner, User *user, MatchRule **rulep, const char *rule_string) {
         _c_cleanup_(match_rule_user_unrefp) MatchRule *rule = NULL;
         CRBNode **slot, *parent;
         size_t n_buffer;
@@ -472,8 +472,13 @@ int match_owner_ref_rule(MatchOwner *owner, MatchRule **rulep, const char *rule_
 
         rule->n_user_refs = 1;
         rule->owner = owner;
+        rule->charge = (UserCharge)USER_CHARGE_INIT;
         rule->registry_link = (CList)C_LIST_INIT(rule->registry_link);
         rule->owner_node = (CRBNode)C_RBNODE_INIT(rule->owner_node);
+
+        r = user_charge(user, &rule->charge, NULL, USER_SLOT_MATCHES, 1);
+        if (r)
+                return (r == USER_E_QUOTA) ? MATCH_E_QUOTA : error_fold(r);
 
         r = match_rule_keys_parse(&rule->keys, rule->buffer, n_buffer, rule_string);
         if (r)
