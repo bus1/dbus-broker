@@ -595,20 +595,23 @@ static int driver_name_activated(Activation *activation, Peer *receiver) {
                 Peer *sender;
 
                 sender = peer_registry_find_peer(&receiver->bus->peers, message->message->sender_id);
-
-                r = peer_queue_call(sender, receiver, message->message);
-                if (r) {
-                        switch (r) {
-                        case PEER_E_QUOTA:
-                                r = driver_send_error(sender, message_read_serial(message->message), "org.freedesktop.DBus.Error.LimitsExceeded", driver_error_to_string(r));
-                                break;
-                        case PEER_E_SEND_DENIED:
-                        case PEER_E_RECEIVE_DENIED:
-                        case PEER_E_EXPECTED_REPLY_EXISTS:
-                                r = driver_send_error(sender, message_read_serial(message->message), "org.freedesktop.DBus.Error.AccessDenied", driver_error_to_string(r));
-                                break;
-                        default:
-                                return error_fold(r);
+                if (sender) {
+                        r = peer_queue_call(sender, receiver, message->message);
+                        if (r) {
+                                switch (r) {
+                                case PEER_E_QUOTA:
+                                        r = driver_send_error(sender, message_read_serial(message->message),
+                                                              "org.freedesktop.DBus.Error.LimitsExceeded", driver_error_to_string(r));
+                                        break;
+                                case PEER_E_SEND_DENIED:
+                                case PEER_E_RECEIVE_DENIED:
+                                case PEER_E_EXPECTED_REPLY_EXISTS:
+                                        r = driver_send_error(sender, message_read_serial(message->message),
+                                                              "org.freedesktop.DBus.Error.AccessDenied", driver_error_to_string(r));
+                                        break;
+                                default:
+                                        return error_fold(r);
+                                }
                         }
                 }
 
