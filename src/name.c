@@ -83,7 +83,7 @@ static int name_ownership_new(NameOwnership **ownershipp, NameOwner *owner, User
         ownership->name_link = (CList)C_LIST_INIT(ownership->name_link);
         ownership->charge = (UserCharge)USER_CHARGE_INIT;
 
-        r = user_charge(user, &ownership->charge, NULL, USER_SLOT_NAMES, 1);
+        r = user_charge(user, &ownership->charge, NULL, USER_SLOT_OBJECTS, 1);
         if (r)
                 return (r == USER_E_QUOTA) ? NAME_E_QUOTA : error_fold(r);
 

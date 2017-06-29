@@ -306,7 +306,7 @@ int peer_new_with_fd(Peer **peerp,
 
         r = user_charge(user, &peer->charges[0], NULL, USER_SLOT_BYTES, sizeof(Peer));
         r = r ?: user_charge(user, &peer->charges[1], NULL, USER_SLOT_FDS, 1);
-        r = r ?: user_charge(user, &peer->charges[2], NULL, USER_SLOT_NAMES, 1);
+        r = r ?: user_charge(user, &peer->charges[2], NULL, USER_SLOT_OBJECTS, 1);
         if (r) {
                 if (r == USER_E_QUOTA)
                         return PEER_E_QUOTA;
