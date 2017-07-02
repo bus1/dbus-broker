@@ -64,7 +64,7 @@ static int listener_dispatch(DispatchFile *file, uint32_t events) {
 }
 
 static int listener_instantiate_policy_registry(PolicyRegistry *registry, const char *policypath) {
-        _c_cleanup_(policy_parser_registry_deinit) PolicyParserRegistry parser = POLICY_PARSER_REGISTRY_INIT(parser);
+        _c_cleanup_(policy_parser_registry_deinit) PolicyParserRegistry parser = POLICY_PARSER_REGISTRY_NULL(parser);
         Policy *source;
         int r;
 
@@ -72,19 +72,23 @@ static int listener_instantiate_policy_registry(PolicyRegistry *registry, const 
         if (r)
                 return error_fold(r);
 
+        r = policy_registry_init(registry);
+        if (r)
+                return error_fold(r);
+
         r = connection_policy_instantiate(&registry->connection_policy, &parser.registry.connection_policy);
         if (r)
                 return error_fold(r);
 
-        r = policy_instantiate(&registry->wildcard_uid_policy, &parser.default_policy);
+        r = policy_instantiate(registry->wildcard_uid_policy, &parser.default_policy);
         if (r)
                 return error_fold(r);
 
-        r = policy_instantiate(&registry->wildcard_uid_policy, &parser.console_policy);
+        r = policy_instantiate(registry->wildcard_uid_policy, &parser.console_policy);
         if (r)
                 return error_fold(r);
 
-        r = policy_instantiate(&registry->wildcard_uid_policy, &parser.mandatory_policy);
+        r = policy_instantiate(registry->wildcard_uid_policy, &parser.mandatory_policy);
         if (r)
                 return error_fold(r);
 

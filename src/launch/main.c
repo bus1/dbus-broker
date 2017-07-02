@@ -701,7 +701,7 @@ static int manager_load_services(Manager *manager) {
 }
 
 static int manager_add_listener(Manager *manager) {
-        _c_cleanup_(policy_parser_registry_deinit) PolicyParserRegistry registry = POLICY_PARSER_REGISTRY_INIT(registry);
+        _c_cleanup_(policy_parser_registry_deinit) PolicyParserRegistry registry = POLICY_PARSER_REGISTRY_NULL(registry);
         const char *policypath;
         int r;
 

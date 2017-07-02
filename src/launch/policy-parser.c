@@ -428,6 +428,18 @@ static void policy_parser_deinit(PolicyParser *parser) {
         *parser = (PolicyParser)POLICY_PARSER_NULL;
 }
 
+static int policy_parser_registry_init(PolicyParserRegistry *registry) {
+        int r;
+
+        *registry = (PolicyParserRegistry)POLICY_PARSER_REGISTRY_NULL(*registry);
+
+        r = policy_registry_init(&registry->registry);
+        if (r)
+                return error_trace(r);
+
+        return 0;
+}
+
 int policy_parser_registry_from_file(PolicyParserRegistry *registry, const char *filename, PolicyParser *parent) {
         _c_cleanup_(policy_parser_deinit) PolicyParser parser = (PolicyParser)POLICY_PARSER_NULL;
         _c_cleanup_(c_fclosep) FILE *file = NULL;
@@ -449,6 +461,10 @@ int policy_parser_registry_from_file(PolicyParserRegistry *registry, const char 
 
                 return error_origin(-errno);
         }
+
+        r = policy_parser_registry_init(registry);
+        if (r)
+                return error_trace(r);
 
         policy_parser_init(&parser, registry, parent, filename);
         do {

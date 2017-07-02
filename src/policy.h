@@ -6,6 +6,7 @@
 
 #include <c-list.h>
 #include <c-rbtree.h>
+#include <c-ref.h>
 #include <stdlib.h>
 
 enum {
@@ -100,15 +101,16 @@ struct TransmissionPolicyEntry {
 };
 
 struct Policy {
+        _Atomic unsigned long n_refs;
         OwnershipPolicy ownership_policy;
         TransmissionPolicy send_policy;
         TransmissionPolicy receive_policy;
-        CRBTree *registry;
         CRBNode registry_node;
         uid_t uid;
 };
 
 #define POLICY_INIT(_x) {                                                               \
+                .n_refs = C_REF_INIT,                                                   \
                 .ownership_policy = OWNERSHIP_POLICY_INIT,                              \
                 .send_policy = TRANSMISSION_POLICY_INIT((_x).send_policy),              \
                 .receive_policy = TRANSMISSION_POLICY_INIT((_x).receive_policy),        \
@@ -126,14 +128,13 @@ struct PeerPolicy {
 
 struct PolicyRegistry {
         ConnectionPolicy connection_policy;
-        Policy wildcard_uid_policy;
+        Policy *wildcard_uid_policy;
         CRBTree uid_policy_tree;
         CRBTree gid_policy_tree;
 };
 
-#define POLICY_REGISTRY_INIT(_x) {                                              \
+#define POLICY_REGISTRY_NULL(_x) {                                              \
                 .connection_policy = CONNECTION_POLICY_INIT,                    \
-                .wildcard_uid_policy = POLICY_INIT((_x).wildcard_uid_policy),   \
                 .uid_policy_tree = C_RBTREE_INIT,                               \
                 .gid_policy_tree = C_RBTREE_INIT,                               \
         }
@@ -175,6 +176,8 @@ void policy_deinit(Policy *policy);
 bool policy_is_empty(Policy *policy);
 int policy_instantiate(Policy *target, Policy *source);
 
+void policy_free(_Atomic unsigned long *n_refs, void *userdata);
+
 int peer_policy_instantiate(PeerPolicy *policy, PolicyRegistry *registry, uid_t uid, gid_t *gids, size_t n_gids);
 void peer_policy_deinit(PeerPolicy *policy);
 
@@ -182,10 +185,24 @@ int peer_policy_check_own(PeerPolicy *policy, const char *name);
 int peer_policy_check_send(PeerPolicy *policy, NameOwner *subject, const char *interface, const char *method, const char *path, int type);
 int peer_policy_check_receive(PeerPolicy *policy, NameOwner *subject, const char *interface, const char *method, const char *path, int type);
 
-void policy_registry_init(PolicyRegistry *registry);
+int policy_registry_init(PolicyRegistry *registry);
 void policy_registry_deinit(PolicyRegistry *registry);
 
 bool policy_registry_needs_groups(PolicyRegistry *registry);
 
 int policy_registry_get_policy_by_uid(PolicyRegistry *registry, Policy **policyp, uid_t uid);
 int policy_registry_get_policy_by_gid(PolicyRegistry *registry, Policy **policyp, gid_t gid);
+
+/* inline helpers */
+
+static inline Policy *policy_ref(Policy *policy) {
+        if (policy)
+                c_ref_inc(&policy->n_refs);
+        return policy;
+}
+
+static inline Policy *policy_unref(Policy *policy) {
+        if (policy)
+                c_ref_dec(&policy->n_refs, policy_free, NULL);
+        return NULL;
+}

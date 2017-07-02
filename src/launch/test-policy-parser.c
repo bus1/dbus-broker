@@ -161,7 +161,7 @@ static void test_print_policy_registry(PolicyParserRegistry *registry) {
 }
 
 static void test_basic() {
-        _c_cleanup_(policy_parser_registry_deinit) PolicyParserRegistry registry = POLICY_PARSER_REGISTRY_INIT(registry);
+        _c_cleanup_(policy_parser_registry_deinit) PolicyParserRegistry registry = POLICY_PARSER_REGISTRY_NULL(registry);
         int r;
 
         r = policy_parser_registry_from_file(&registry, "/usr/share/dbus-1/system.conf", NULL);

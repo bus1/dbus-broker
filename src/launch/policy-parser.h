@@ -26,11 +26,11 @@ struct PolicyParserRegistry {
         Policy mandatory_policy;
 };
 
-#define POLICY_PARSER_REGISTRY_INIT(_x) {                               \
+#define POLICY_PARSER_REGISTRY_NULL(_x) {                               \
                 .default_policy = POLICY_INIT((_x).default_policy),     \
-                .registry = POLICY_REGISTRY_INIT((_x).registry),        \
+                .registry = POLICY_REGISTRY_NULL((_x).registry),        \
                 .console_policy = POLICY_INIT((_x).console_policy),     \
-                .mandatory_policy = POLICY_INIT((_x).mandatory_policy),  \
+                .mandatory_policy = POLICY_INIT((_x).mandatory_policy), \
         }
 
 int policy_parser_registry_from_file(PolicyParserRegistry *registry, const char *filename, PolicyParser *parent);

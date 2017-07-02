@@ -26,7 +26,7 @@ struct Listener {
 #define LISTENER_NULL(_x) {                                                     \
                 .socket_fd = -1,                                                \
                 .socket_file = DISPATCH_FILE_NULL((_x).socket_file),            \
-                .policy = POLICY_REGISTRY_INIT((_x).policy),                    \
+                .policy = POLICY_REGISTRY_NULL((_x).policy),                    \
                 .peer_list = C_LIST_INIT((_x).peer_list),                       \
         }
 

@@ -608,8 +608,6 @@ void policy_init(Policy *policy) {
 }
 
 void policy_deinit(Policy *policy) {
-        assert(!policy->registry);
-        assert(!c_rbnode_is_linked(&policy->registry_node));
         assert(policy->uid == (uid_t)-1);
 
         transmission_policy_deinit(&policy->receive_policy);
@@ -632,28 +630,25 @@ static int policy_new(Policy **policyp, CRBTree *registry, uid_t uid, CRBNode *p
 
         policy_init(policy);
 
-        policy->registry = registry;
         policy->uid = uid;
-        c_rbtree_add(registry, parent, slot, &policy->registry_node);
+
+        if (registry)
+                c_rbtree_add(registry, parent, slot, &policy->registry_node);
 
         if (policyp)
                 *policyp = policy;
         return 0;
 }
 
-static Policy *policy_free(Policy *policy) {
-        if (!policy)
-                return NULL;
+void policy_free(_Atomic unsigned long *n_refs, void *userdata) {
+        Policy *policy = c_container_of(n_refs, Policy, n_refs);
 
-        c_rbtree_remove_init(policy->registry, &policy->registry_node);
-        policy->registry = NULL;
+        assert(!c_rbnode_is_linked(&policy->registry_node));
         policy->uid = (uid_t) -1;
 
         policy_deinit(policy);
 
         free(policy);
-
-        return NULL;
 }
 
 int policy_instantiate(Policy *target, Policy *source) {
@@ -701,8 +696,8 @@ int peer_policy_instantiate(PeerPolicy *policy, PolicyRegistry *registry, uid_t 
 
         source = c_rbtree_find_entry(&registry->uid_policy_tree, policy_compare, &uid, Policy, registry_node);
         if (!source)
-                source = &registry->wildcard_uid_policy;
-        policy->uid_policy = source;
+                source = registry->wildcard_uid_policy;
+        policy->uid_policy = policy_ref(source);
 
         if (n_gids) {
                 policy->gid_policies = malloc(n_gids * sizeof(*policy->gid_policies));
@@ -712,7 +707,7 @@ int peer_policy_instantiate(PeerPolicy *policy, PolicyRegistry *registry, uid_t 
                 for (size_t i = 0; i < n_gids; ++i) {
                         source = c_rbtree_find_entry(&registry->gid_policy_tree, policy_compare, gids + i, Policy, registry_node);
                         if (source)
-                                policy->gid_policies[policy->n_gid_policies++] = source;
+                                policy->gid_policies[policy->n_gid_policies++] = policy_ref(source);
                 }
         }
 
@@ -720,7 +715,10 @@ int peer_policy_instantiate(PeerPolicy *policy, PolicyRegistry *registry, uid_t 
 }
 
 void peer_policy_deinit(PeerPolicy *policy) {
-        policy->uid_policy = NULL;
+        policy->uid_policy = policy_unref(policy->uid_policy);
+        for (size_t i = 0; i < policy->n_gid_policies; ++i)
+                policy_unref(policy->gid_policies[i]);
+
         /* the gid policy array may be overallocated, so make sure to free even if it is empty */
         policy->gid_policies = c_free(policy->gid_policies);
         policy->n_gid_policies = 0;
@@ -760,18 +758,26 @@ int peer_policy_check_receive(PeerPolicy *policy, NameOwner *subject, const char
 }
 
 /* policy registry */
-void policy_registry_init(PolicyRegistry *registry) {
-        *registry = (PolicyRegistry)POLICY_REGISTRY_INIT(*registry);
+int policy_registry_init(PolicyRegistry *registry) {
+        int r;
+
+        *registry = (PolicyRegistry)POLICY_REGISTRY_NULL(*registry);
+
+        r = policy_new(&registry->wildcard_uid_policy, NULL, (uid_t)-1, NULL, NULL);
+        if (r)
+                return error_trace(r);
+
+        return 0;
 }
 
 void policy_registry_deinit(PolicyRegistry *registry) {
         Policy *policy, *safe;
 
         c_rbtree_for_each_entry_unlink(policy, safe, &registry->gid_policy_tree, registry_node)
-                policy_free(policy);
+                policy_unref(policy);
         c_rbtree_for_each_entry_unlink(policy, safe, &registry->uid_policy_tree, registry_node)
-                policy_free(policy);
-        policy_deinit(&registry->wildcard_uid_policy);
+                policy_unref(policy);
+        policy_unref(registry->wildcard_uid_policy);
         connection_policy_deinit(&registry->connection_policy);
 }
 
