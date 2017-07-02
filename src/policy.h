@@ -179,6 +179,7 @@ int policy_instantiate(Policy *target, Policy *source);
 void policy_free(_Atomic unsigned long *n_refs, void *userdata);
 
 int peer_policy_instantiate(PeerPolicy *policy, PolicyRegistry *registry, uid_t uid, gid_t *gids, size_t n_gids);
+int peer_policy_copy(PeerPolicy *target, PeerPolicy *source);
 void peer_policy_deinit(PeerPolicy *policy);
 
 int peer_policy_check_own(PeerPolicy *policy, const char *name);

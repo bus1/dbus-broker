@@ -714,6 +714,27 @@ int peer_policy_instantiate(PeerPolicy *policy, PolicyRegistry *registry, uid_t 
         return 0;
 }
 
+int peer_policy_copy(PeerPolicy *target, PeerPolicy *source) {
+        assert(!target->uid_policy);
+        assert(!target->gid_policies);
+        assert(!target->n_gid_policies);
+
+        target->uid_policy = policy_ref(source->uid_policy);
+
+        if (source->n_gid_policies) {
+                target->gid_policies = malloc(source->n_gid_policies * sizeof(*target->gid_policies));
+                if (!target->gid_policies)
+                        return error_origin(-ENOMEM);
+
+                for (size_t i = 0; i < source->n_gid_policies; ++i)
+                        target->gid_policies[i] = policy_ref(source->gid_policies[i]);
+
+                target->n_gid_policies = source->n_gid_policies;
+        }
+
+        return 0;
+}
+
 void peer_policy_deinit(PeerPolicy *policy) {
         policy->uid_policy = policy_unref(policy->uid_policy);
         for (size_t i = 0; i < policy->n_gid_policies; ++i)

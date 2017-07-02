@@ -594,6 +594,7 @@ static int driver_name_activated(Activation *activation, Peer *receiver) {
         c_list_for_each_entry_safe(message, message_safe, &activation->activation_messages, link) {
                 Peer *sender;
 
+                /* XXX: use sender's policy and names as captured at send */
                 sender = peer_registry_find_peer(&receiver->bus->peers, message->message->sender_id);
                 if (sender) {
                         r = peer_queue_call(sender, receiver, message->message);
@@ -1629,7 +1630,7 @@ static int driver_forward_unicast(Peer *sender, const char *destination, Message
                 if (!name || !name->activation)
                         return DRIVER_E_DESTINATION_NOT_FOUND;
 
-                r = activation_queue_message(name->activation, sender->user, message);
+                r = activation_queue_message(name->activation, sender->user, &sender->owned_names, &sender->policy, message);
                 if (r)
                         return error_fold(r);
 
