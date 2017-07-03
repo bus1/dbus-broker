@@ -634,26 +634,6 @@ int peer_queue_call(Peer *sender, Peer *receiver, Message *message) {
         _c_cleanup_(reply_slot_freep) ReplySlot *slot = NULL;
         int r;
 
-        r = peer_policy_check_send(&sender->policy, &receiver->owned_names,
-                                   message->metadata.fields.interface, message->metadata.fields.member,
-                                   message->metadata.fields.path, message->header->type);
-        if (r) {
-                if (r == POLICY_E_ACCESS_DENIED)
-                        return PEER_E_SEND_DENIED;
-
-                return error_fold(r);
-        }
-
-        r = peer_policy_check_receive(&receiver->policy, &sender->owned_names,
-                                      message->metadata.fields.interface, message->metadata.fields.member,
-                                      message->metadata.fields.path, message->header->type);
-        if (r) {
-                if (r == POLICY_E_ACCESS_DENIED)
-                        return PEER_E_RECEIVE_DENIED;
-
-                return error_fold(r);
-        }
-
         if ((message->header->type == DBUS_MESSAGE_TYPE_METHOD_CALL) &&
             !(message->header->flags & DBUS_HEADER_FLAG_NO_REPLY_EXPECTED)) {
                 r = reply_slot_new(&slot, &receiver->replies_outgoing, &sender->owned_replies,

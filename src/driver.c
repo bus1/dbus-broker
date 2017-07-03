@@ -597,22 +597,49 @@ static int driver_name_activated(Activation *activation, Peer *receiver) {
                 /* XXX: use sender's policy and names as captured at send */
                 sender = peer_registry_find_peer(&receiver->bus->peers, message->message->sender_id);
                 if (sender) {
+                        r = peer_policy_check_receive(&receiver->policy, &sender->owned_names,
+                                                      message->message->metadata.fields.interface, message->message->metadata.fields.member,
+                                                      message->message->metadata.fields.path, message->message->header->type);
+                        if (r) {
+                                if (r == POLICY_E_ACCESS_DENIED)
+                                        r = driver_send_error(sender, message_read_serial(message->message),
+                                                              "org.freedesktop.DBus.Error.AccessDenied",
+                                                              driver_error_to_string(DRIVER_E_RECEIVE_DENIED));
+
+                                if (r)
+                                        return error_fold(r);
+                        }
+
+                        r = peer_policy_check_send(&sender->policy, &receiver->owned_names,
+                                                   message->message->metadata.fields.interface, message->message->metadata.fields.member,
+                                                   message->message->metadata.fields.path, message->message->header->type);
+                        if (r) {
+                                if (r == POLICY_E_ACCESS_DENIED)
+                                        r = driver_send_error(sender, message_read_serial(message->message),
+                                                              "org.freedesktop.DBus.Error.AccessDenied",
+                                                              driver_error_to_string(DRIVER_E_SEND_DENIED));
+
+                                if (r)
+                                        return error_fold(r);
+                        }
+
                         r = peer_queue_call(sender, receiver, message->message);
                         if (r) {
                                 switch (r) {
                                 case PEER_E_QUOTA:
                                         r = driver_send_error(sender, message_read_serial(message->message),
-                                                              "org.freedesktop.DBus.Error.LimitsExceeded", driver_error_to_string(r));
+                                                              "org.freedesktop.DBus.Error.LimitsExceeded",
+                                                              driver_error_to_string(DRIVER_E_QUOTA));
                                         break;
-                                case PEER_E_SEND_DENIED:
-                                case PEER_E_RECEIVE_DENIED:
                                 case PEER_E_EXPECTED_REPLY_EXISTS:
                                         r = driver_send_error(sender, message_read_serial(message->message),
-                                                              "org.freedesktop.DBus.Error.AccessDenied", driver_error_to_string(r));
+                                                              "org.freedesktop.DBus.Error.AccessDenied",
+                                                              driver_error_to_string(DRIVER_E_EXPECTED_REPLY_EXISTS));
                                         break;
-                                default:
-                                        return error_fold(r);
                                 }
+
+                                if (r)
+                                        return error_fold(r);
                         }
                 }
 
@@ -1627,16 +1654,32 @@ static int driver_forward_unicast(Peer *sender, const char *destination, Message
                 return 0;
         }
 
+        r = peer_policy_check_receive(&receiver->policy, &sender->owned_names,
+                                      message->metadata.fields.interface, message->metadata.fields.member,
+                                      message->metadata.fields.path, message->header->type);
+        if (r) {
+                if (r == POLICY_E_ACCESS_DENIED)
+                        return DRIVER_E_RECEIVE_DENIED;
+
+                return error_fold(r);
+        }
+
+        r = peer_policy_check_send(&sender->policy, &receiver->owned_names,
+                                   message->metadata.fields.interface, message->metadata.fields.member,
+                                   message->metadata.fields.path, message->header->type);
+        if (r) {
+                if (r == POLICY_E_ACCESS_DENIED)
+                        return DRIVER_E_SEND_DENIED;
+
+                return error_fold(r);
+        }
+
         r = peer_queue_call(sender, receiver, message);
         if (r) {
                 if (r == PEER_E_EXPECTED_REPLY_EXISTS)
                         return DRIVER_E_EXPECTED_REPLY_EXISTS;
                 else if (r == PEER_E_QUOTA)
                         return DRIVER_E_QUOTA;
-                else if (r == PEER_E_SEND_DENIED)
-                        return DRIVER_E_SEND_DENIED;
-                else if (r == PEER_E_RECEIVE_DENIED)
-                        return DRIVER_E_RECEIVE_DENIED;
                 else
                         return error_fold(r);
         }
