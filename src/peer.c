@@ -630,15 +630,16 @@ void peer_flush_matches(Peer *peer) {
         }
 }
 
-int peer_queue_call(Peer *sender, Peer *receiver, Message *message) {
+int peer_queue_call(PeerPolicy *sender_policy, NameSet *sender_names, MatchRegistry *sender_matches, ReplyOwner *sender_replies, User *sender_user, uint64_t sender_id, Peer *receiver, Message *message) {
         _c_cleanup_(reply_slot_freep) ReplySlot *slot = NULL;
-        NameSet sender_names = NAME_SET_INIT_FROM_OWNER(&sender->owned_names);
+        NameSet receiver_names = NAME_SET_INIT_FROM_OWNER(&receiver->owned_names);
         int r;
 
-        if ((message->header->type == DBUS_MESSAGE_TYPE_METHOD_CALL) &&
+        if (sender_replies &&
+            (message->header->type == DBUS_MESSAGE_TYPE_METHOD_CALL) &&
             !(message->header->flags & DBUS_HEADER_FLAG_NO_REPLY_EXPECTED)) {
-                r = reply_slot_new(&slot, &receiver->replies_outgoing, &sender->owned_replies,
-                                   receiver->user, sender->user, sender->id, message_read_serial(message));
+                r = reply_slot_new(&slot, &receiver->replies_outgoing, sender_replies,
+                                   receiver->user, sender_user, sender_id, message_read_serial(message));
                 if (r == REPLY_E_EXISTS)
                         return PEER_E_EXPECTED_REPLY_EXISTS;
                 else if (r == REPLY_E_QUOTA)
@@ -647,7 +648,27 @@ int peer_queue_call(Peer *sender, Peer *receiver, Message *message) {
                         return error_fold(r);
         }
 
-        r = connection_queue(&receiver->connection, sender->user, 0, message);
+        r = peer_policy_check_receive(&receiver->policy, sender_names,
+                                      message->metadata.fields.interface, message->metadata.fields.member,
+                                      message->metadata.fields.path, message->header->type);
+        if (r) {
+                if (r == POLICY_E_ACCESS_DENIED)
+                        return PEER_E_RECEIVE_DENIED;
+
+                return error_fold(r);
+        }
+
+        r = peer_policy_check_send(sender_policy, &receiver_names,
+                                   message->metadata.fields.interface, message->metadata.fields.member,
+                                   message->metadata.fields.path, message->header->type);
+        if (r) {
+                if (r == POLICY_E_ACCESS_DENIED)
+                        return PEER_E_SEND_DENIED;
+
+                return error_fold(r);
+        }
+
+        r = connection_queue(&receiver->connection, sender_user, 0, message);
         if (r) {
                 if (CONNECTION_E_QUOTA)
                         return PEER_E_QUOTA;
@@ -656,7 +677,7 @@ int peer_queue_call(Peer *sender, Peer *receiver, Message *message) {
         }
 
         /* for eavesdropping */
-        r = peer_broadcast(&sender->policy, &sender_names, &sender->matches, sender->id, receiver, receiver->bus, NULL, message);
+        r = peer_broadcast(sender_policy, sender_names, sender_matches, sender_id, receiver, receiver->bus, NULL, message);
         if (r)
                 return error_trace(r);
 
