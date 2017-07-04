@@ -160,7 +160,7 @@ static void test_print_policy_registry(PolicyParserRegistry *registry) {
         test_print_policy(&registry->mandatory_policy, "MANDATORY", 0, 0);
 }
 
-static void test_basic() {
+static void test_basic(void) {
         _c_cleanup_(policy_parser_registry_deinit) PolicyParserRegistry registry = POLICY_PARSER_REGISTRY_NULL(registry);
         int r;
 
