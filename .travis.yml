@@ -1,28 +1,20 @@
 dist: trusty
 language: c
+os: linux
 
-matrix:
-  include:
-    - os: linux
-      addons:
-        apt:
-          sources:
-            - ubuntu-toolchain-r-test
-            - llvm-toolchain-trusty-3.9
-          packages:
-            - gcc-5
-      env:
-        - MATRIX_CC="gcc-5"
-    - os: linux
-      addons:
-        apt:
-          sources:
-            - ubuntu-toolchain-r-test
-            - llvm-toolchain-trusty-3.9
-          packages:
-            - clang-3.9
-      env:
-        - MATRIX_CC="clang-3.9"
+addons:
+  apt:
+    sources:
+      - ubuntu-toolchain-r-test
+      - llvm-toolchain-trusty-4.0
+    packages:
+      - gcc-6
+      - clang-4.0
+      - valgrind
+
+env:
+  - MATRIX_CC="gcc-6"
+  - MATRIX_CC="clang-4.0"
 
 install:
   - curl -L "https://github.com/ninja-build/ninja/releases/download/v1.7.2/ninja-linux.zip" -o "ninja-linux.zip"
@@ -37,3 +29,6 @@ script:
   - meson "build"
   - ninja -C "build"
   - ninja -C "build" test
+
+after_failure:
+  - cat build/meson-logs/*.txt
