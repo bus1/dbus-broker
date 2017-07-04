@@ -16,6 +16,8 @@ typedef struct NameChange NameChange;
 typedef struct NameOwner NameOwner;
 typedef struct NameOwnership NameOwnership;
 typedef struct NameRegistry NameRegistry;
+typedef struct NameSet NameSet;
+typedef struct NameSnapshot NameSnapshot;
 
 enum {
         _NAME_E_SUCCESS,
@@ -74,6 +76,34 @@ struct NameOwner {
                 .ownership_tree = C_RBTREE_INIT,                                \
         }
 
+struct NameSnapshot {
+        size_t n_names;
+        Name *names[];
+};
+
+enum {
+        NAME_SET_TYPE_OWNER,
+        NAME_SET_TYPE_SNAPSHOT,
+};
+
+struct NameSet {
+        unsigned int type;
+        union {
+                NameOwner *owner;
+                NameSnapshot *snapshot;
+        };
+};
+
+#define NAME_SET_INIT_FROM_OWNER(_x) {          \
+                .type = NAME_SET_TYPE_OWNER,    \
+                .owner = (_x),                  \
+        }
+
+#define NAME_SET_INIT_FROM_SNAPSHOT(_x) {       \
+                .type = NAME_SET_TYPE_SNAPSHOT, \
+                .snapshot = (_x),               \
+        }
+
 /* notifications */
 
 void name_change_init(NameChange *change);
@@ -92,6 +122,10 @@ void name_free(_Atomic unsigned long *n_refs, void *userdata);
 
 void name_owner_init(NameOwner *owner);
 void name_owner_deinit(NameOwner *owner);
+
+/* snapshopts */
+int name_snapshot_new(NameSnapshot **snapshotp, NameOwner *owner);
+NameSnapshot *name_snapshopt_free(NameSnapshot *snapshot);
 
 /* registry */
 
