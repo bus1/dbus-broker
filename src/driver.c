@@ -1376,8 +1376,9 @@ static int driver_method_introspect(Peer *peer, CDVar *in_v, uint32_t serial, CD
 
 static int driver_method_become_monitor(Peer *peer, CDVar *in_v, uint32_t serial, CDVar *out_v) {
         MatchOwner owned_matches;
+        const char *match_string;
         uint32_t flags;
-        int r, poison = 0;
+        int r;
 
         if (!peer_is_privileged(peer))
                 return DRIVER_E_PEER_NOT_PRIVILEGED;
@@ -1386,41 +1387,29 @@ static int driver_method_become_monitor(Peer *peer, CDVar *in_v, uint32_t serial
         match_owner_init(&owned_matches);
 
         c_dvar_read(in_v, "([");
-        if (!c_dvar_more(in_v)) {
-                /* if no matches are passed, install a wildcard */
-                r = match_owner_ref_rule(&owned_matches, NULL, peer->user, "");
-                if (r) {
-                        if (r == MATCH_E_INVALID)
-                                poison = DRIVER_E_MATCH_INVALID;
-                        else
-                                poison = error_fold(r);
-                }
-        } else {
-                while (c_dvar_more(in_v) && !poison) {
-                        const char *match_string;
-
+        do {
+                /*
+                 * dbus-daemon treats an empty match-array as if an array with
+                 * a single empty string was passed. This effectively becomes a
+                 * wildcard match, thus the monitor receives everything.
+                 */
+                if (c_dvar_more(in_v))
                         c_dvar_read(in_v, "s", &match_string);
+                else
+                        match_string = "";
 
-                        r = match_owner_ref_rule(&owned_matches, NULL, peer->user, match_string);
-                        if (r) {
-                                if (r == MATCH_E_INVALID)
-                                        poison = DRIVER_E_MATCH_INVALID;
-                                else
-                                        poison = error_fold(r);
-                        }
+                r = match_owner_ref_rule(&owned_matches, NULL, peer->user, match_string);
+                if (r) {
+                        r = (r == MATCH_E_INVALID) ? DRIVER_E_MATCH_INVALID : error_fold(r);
+                        goto error;
                 }
-        }
+        } while (c_dvar_more(in_v));
         c_dvar_read(in_v, "]u)", &flags);
 
         /* verify the input arguments*/
         r = driver_end_read(in_v);
         if (r) {
                 r = error_trace(r);
-                goto error;
-        }
-
-        if (poison) {
-                r = poison;
                 goto error;
         }
 
