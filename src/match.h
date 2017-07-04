@@ -59,7 +59,7 @@ struct MatchRule {
         MatchOwner *owner;
         CList registry_link;
         CRBNode owner_node;
-        UserCharge charge;
+        UserCharge charge[2];
 
         MatchRuleKeys keys;
         char buffer[];
@@ -68,7 +68,7 @@ struct MatchRule {
 #define MATCH_RULE_NULL(_x) {                                                   \
                 .registry_link = C_LIST_INIT((_x).registry_link),               \
                 .owner_node = C_RBNODE_INIT((_x).owner_node),                   \
-                .charge = USER_CHARGE_INIT,                                     \
+                .charge = { USER_CHARGE_INIT, USER_CHARGE_INIT },               \
                 .keys = MATCH_RULE_KEYS_INIT,                                   \
         }
 

@@ -326,7 +326,8 @@ static MatchRule *match_rule_free(MatchRule *rule) {
 
         assert(!rule->n_user_refs);
 
-        user_charge_deinit(&rule->charge);
+        user_charge_deinit(&rule->charge[1]);
+        user_charge_deinit(&rule->charge[0]);
         c_rbtree_remove_init(&rule->owner->rule_tree, &rule->owner_node);
         match_rule_unlink(rule);
         free(rule);
@@ -347,7 +348,8 @@ static int match_rule_new(MatchRule **rulep, MatchOwner *owner, User *user, size
         *rule = (MatchRule)MATCH_RULE_NULL(*rule);
         rule->owner = owner;
 
-        r = user_charge(user, &rule->charge, NULL, USER_SLOT_MATCHES, 1);
+        r = user_charge(user, &rule->charge[0], NULL, USER_SLOT_BYTES, sizeof(*rule) + n);
+        r = r ?: user_charge(user, &rule->charge[1], NULL, USER_SLOT_MATCHES, 1);
         if (r)
                 return (r == USER_E_QUOTA) ? MATCH_E_QUOTA : error_fold(r);
 
