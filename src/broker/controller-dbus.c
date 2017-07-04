@@ -9,7 +9,6 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include "broker/controller.h"
-#include "broker/manager.h"
 #include "dbus/connection.h"
 #include "dbus/message.h"
 #include "dbus/protocol.h"
