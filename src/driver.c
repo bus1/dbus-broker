@@ -298,7 +298,7 @@ static int driver_send_unicast(Peer *receiver, MatchFilter *filter, Message *mes
                 return error_fold(r);
 
         /* for eavesdropping */
-        r = peer_broadcast(NULL, receiver, receiver->bus, filter, message);
+        r = peer_broadcast(NULL, NULL, NULL, ADDRESS_ID_INVALID, receiver, receiver->bus, filter, message);
         if (r)
                 return error_fold(r);
 
@@ -523,7 +523,7 @@ static int driver_notify_name_owner_changed(Bus *bus, const char *name, const ch
         if (r)
                 return error_fold(r);
 
-        r = peer_broadcast(NULL, NULL, bus, &filter, message);
+        r = peer_broadcast(NULL, NULL, NULL, ADDRESS_ID_INVALID, NULL, bus, &filter, message);
         if (r)
                 return error_fold(r);
 
@@ -1780,10 +1780,17 @@ static int driver_dispatch_internal(Peer *peer, Message *message) {
                 return DRIVER_E_PEER_NOT_REGISTERED;
 
         if (!message->metadata.fields.destination) {
-                if (message->metadata.header.type == DBUS_MESSAGE_TYPE_SIGNAL)
-                        return error_fold(peer_broadcast(peer, NULL, peer->bus, NULL, message));
-                else
+                if (message->metadata.header.type == DBUS_MESSAGE_TYPE_SIGNAL) {
+                        NameSet sender_names = NAME_SET_INIT_FROM_OWNER(&peer->owned_names);
+
+                        r = peer_broadcast(&peer->policy, &sender_names, &peer->matches, peer->id, NULL, peer->bus, NULL, message);
+                        if (r)
+                                return error_fold(r);
+
+                        return 0;
+                } else {
                         return DRIVER_E_UNEXPECTED_MESSAGE_TYPE;
+                }
         }
 
         switch (message->metadata.header.type) {
