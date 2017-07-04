@@ -102,7 +102,7 @@ int controller_add_listener(Controller *controller,
 ControllerName *controller_find_name(Controller *controller, const char *path);
 ControllerListener *controller_find_listener(Controller *controller, const char *path);
 
-int controller_dispatch(Controller *controller, Message *message);
+int controller_dbus_dispatch(Controller *controller, Message *message);
 int controller_dbus_send_activation(Controller *controller, const char *path);
 
 C_DEFINE_CLEANUP(Controller *, controller_deinit);

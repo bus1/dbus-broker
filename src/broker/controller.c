@@ -129,7 +129,7 @@ static int controller_dispatch_connection(DispatchFile *file, uint32_t events) {
                         if (!m)
                                 break;
 
-                        r = controller_dispatch(controller, m);
+                        r = controller_dbus_dispatch(controller, m);
                 }
         } while (!r);
 

@@ -444,7 +444,7 @@ static int controller_dispatch_object(Controller *controller, uint32_t serial, c
         return CONTROLLER_E_UNEXPECTED_PATH;
 }
 
-int controller_dispatch(Controller *controller, Message *message) {
+int controller_dbus_dispatch(Controller *controller, Message *message) {
         Connection *connection = &controller->connection;
         int r;
 
