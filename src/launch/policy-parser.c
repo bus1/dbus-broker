@@ -76,7 +76,7 @@ static int policy_parse_directory(PolicyParser *parent, const char *dirpath) {
                 if (r < 0)
                         return error_origin(-ENOMEM);
 
-                r = policy_parser_registry_from_file(parent->registry, filename, parent);
+                r = policy_parser_registry_append_file(parent->registry, filename, parent);
                 if (r)
                         return error_trace(r);
         }
@@ -428,7 +428,7 @@ static void policy_parser_deinit(PolicyParser *parser) {
         *parser = (PolicyParser)POLICY_PARSER_NULL;
 }
 
-static int policy_parser_registry_init(PolicyParserRegistry *registry) {
+int policy_parser_registry_init(PolicyParserRegistry *registry) {
         int r;
 
         *registry = (PolicyParserRegistry)POLICY_PARSER_REGISTRY_NULL(*registry);
@@ -440,7 +440,13 @@ static int policy_parser_registry_init(PolicyParserRegistry *registry) {
         return 0;
 }
 
-int policy_parser_registry_from_file(PolicyParserRegistry *registry, const char *filename, PolicyParser *parent) {
+void policy_parser_registry_deinit(PolicyParserRegistry *registry) {
+        policy_deinit(&registry->mandatory_policy);
+        policy_deinit(&registry->console_policy);
+        policy_registry_deinit(&registry->registry);
+        policy_deinit(&registry->default_policy);
+}
+int policy_parser_registry_append_file(PolicyParserRegistry *registry, const char *filename, PolicyParser *parent) {
         _c_cleanup_(policy_parser_deinit) PolicyParser parser = (PolicyParser)POLICY_PARSER_NULL;
         _c_cleanup_(c_fclosep) FILE *file = NULL;
         char buffer[1024];
@@ -461,10 +467,6 @@ int policy_parser_registry_from_file(PolicyParserRegistry *registry, const char 
 
                 return error_origin(-errno);
         }
-
-        r = policy_parser_registry_init(registry);
-        if (r)
-                return error_trace(r);
 
         policy_parser_init(&parser, registry, parent, filename);
         do {
@@ -488,11 +490,4 @@ error:
                 XML_GetCurrentLineNumber(parser.parser),
                 XML_ErrorString(XML_GetErrorCode(parser.parser)));
         return POLICY_PARSER_E_INVALID_XML;
-}
-
-void policy_parser_registry_deinit(PolicyParserRegistry *registry) {
-        policy_deinit(&registry->mandatory_policy);
-        policy_deinit(&registry->console_policy);
-        policy_registry_deinit(&registry->registry);
-        policy_deinit(&registry->default_policy);
 }

@@ -68,7 +68,11 @@ static int listener_instantiate_policy_registry(PolicyRegistry *registry, const 
         Policy *source;
         int r;
 
-        r = policy_parser_registry_from_file(&parser, policypath, NULL);
+        r = policy_parser_registry_init(&parser);
+        if (r)
+                return error_fold(r);
+
+        r = policy_parser_registry_append_file(&parser, policypath, NULL);
         if (r)
                 return error_fold(r);
 

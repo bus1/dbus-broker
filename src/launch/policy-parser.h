@@ -33,5 +33,7 @@ struct PolicyParserRegistry {
                 .mandatory_policy = POLICY_INIT((_x).mandatory_policy), \
         }
 
-int policy_parser_registry_from_file(PolicyParserRegistry *registry, const char *filename, PolicyParser *parent);
+int policy_parser_registry_init(PolicyParserRegistry *registry);
 void policy_parser_registry_deinit(PolicyParserRegistry *registry);
+
+int policy_parser_registry_append_file(PolicyParserRegistry *registry, const char *filename, PolicyParser *parent);

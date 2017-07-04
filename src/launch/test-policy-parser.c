@@ -164,7 +164,10 @@ static void test_basic(void) {
         _c_cleanup_(policy_parser_registry_deinit) PolicyParserRegistry registry = POLICY_PARSER_REGISTRY_NULL(registry);
         int r;
 
-        r = policy_parser_registry_from_file(&registry, "/usr/share/dbus-1/system.conf", NULL);
+        r = policy_parser_registry_init(&registry);
+        assert(!r);
+
+        r = policy_parser_registry_append_file(&registry, "/usr/share/dbus-1/system.conf", NULL);
         assert(!r);
 
         test_print_policy_registry(&registry);

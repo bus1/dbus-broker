@@ -714,7 +714,11 @@ static int manager_add_listener(Manager *manager) {
         else
                 return error_origin(-ENOTRECOVERABLE);
 
-        r = policy_parser_registry_from_file(&registry, policypath, NULL);
+        r = policy_parser_registry_init(&registry);
+        if (r)
+                return error_fold(r);
+
+        r = policy_parser_registry_append_file(&registry, policypath, NULL);
         if (r)
                 return error_fold(r);
 
