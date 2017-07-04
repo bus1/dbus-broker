@@ -11,17 +11,18 @@
 #include "util/user.h"
 
 typedef struct MatchFilter MatchFilter;
+typedef struct MatchKeys MatchKeys;
 typedef struct MatchOwner MatchOwner;
 typedef struct MatchRegistry MatchRegistry;
 typedef struct MatchRule MatchRule;
-typedef struct MatchRuleKeys MatchRuleKeys;
+
+#define MATCH_RULE_LENGTH_MAX (1024UL) /* taken from dbus-daemon(1) */
 
 enum {
         _MATCH_E_SUCCESS,
 
         MATCH_E_EOF,
         MATCH_E_INVALID,
-        MATCH_E_NOT_FOUND,
         MATCH_E_QUOTA,
 };
 
@@ -42,16 +43,19 @@ struct MatchFilter {
                 .sender = ADDRESS_ID_INVALID,           \
         }
 
-struct MatchRuleKeys {
+struct MatchKeys {
+        MatchFilter filter;
         const char *destination;
         const char *sender;
-        MatchFilter filter;
-        bool eavesdrop : 1;
         const char *path_namespace;
         const char *arg0namespace;
+
+        bool eavesdrop : 1;
+
+        char buffer[];
 };
 
-#define MATCH_RULE_KEYS_INIT {                                                  \
+#define MATCH_KEYS_NULL {                                                       \
                 .filter = MATCH_FILTER_INIT,                                    \
         }
 
@@ -61,17 +65,17 @@ struct MatchRule {
         MatchOwner *owner;
         CList registry_link;
         CRBNode owner_node;
-        UserCharge charge[2];
 
-        MatchRuleKeys keys;
-        char buffer[];
+        UserCharge charge[2];
+        MatchKeys keys;
+        /* @keys must be last, as it contains a VLA */
 };
 
 #define MATCH_RULE_NULL(_x) {                                                   \
                 .registry_link = C_LIST_INIT((_x).registry_link),               \
                 .owner_node = C_RBNODE_INIT((_x).owner_node),                   \
                 .charge = { USER_CHARGE_INIT, USER_CHARGE_INIT },               \
-                .keys = MATCH_RULE_KEYS_INIT,                                   \
+                .keys = MATCH_KEYS_NULL,                                        \
         }
 
 struct MatchOwner {
@@ -101,7 +105,6 @@ MatchRule *match_rule_user_unref(MatchRule *rule);
 
 void match_rule_link(MatchRule *rule, MatchRegistry *registry, bool monitor);
 void match_rule_unlink(MatchRule *rule);
-int match_rule_get(MatchRule **rulep, MatchOwner *owner, const char *rule_string);
 
 MatchRule *match_rule_next_match(MatchRegistry *registry, MatchRule *rule, MatchFilter *filter);
 MatchRule *match_rule_next_monitor_match(MatchRegistry *registry, MatchRule *rule, MatchFilter *filter);
@@ -114,6 +117,7 @@ void match_owner_init(MatchOwner *owner);
 void match_owner_deinit(MatchOwner *owner);
 
 int match_owner_ref_rule(MatchOwner *owner, MatchRule **rulep, User *user, const char *rule_string);
+int match_owner_find_rule(MatchOwner *owner, MatchRule **rulep, const char *rule_string);
 
 /* registry */
 

@@ -566,15 +566,13 @@ int peer_remove_match(Peer *peer, const char *rule_string) {
         MatchRule *rule;
         int r;
 
-        r = match_rule_get(&rule, &peer->owned_matches, rule_string);
-        if (r) {
-                if (r == MATCH_E_NOT_FOUND)
-                        return PEER_E_MATCH_NOT_FOUND;
-                else if (r == MATCH_E_INVALID)
-                        return PEER_E_MATCH_INVALID;
-                else
-                        return error_fold(r);
-        }
+        r = match_owner_find_rule(&peer->owned_matches, &rule, rule_string);
+        if (r == MATCH_E_INVALID)
+                return PEER_E_MATCH_INVALID;
+        else if (r)
+                return error_fold(r);
+        else if (!rule)
+                return PEER_E_MATCH_NOT_FOUND;
 
         if (rule->keys.sender && *rule->keys.sender != ':' && strcmp(rule->keys.sender, "org.freedesktop.DBus") != 0)
                 name = c_container_of(rule->registry, Name, matches);

@@ -11,113 +11,14 @@
 #include "match.h"
 #include "util/error.h"
 
-static int match_rules_compare(CRBTree *tree, void *k, CRBNode *rb) {
-        MatchRule *rule = c_container_of(rb, MatchRule, owner_node);
-        MatchRuleKeys *key1 = k, *key2 = &rule->keys;
-        int r;
-
-        if ((r = c_string_compare(key1->sender, key2->sender)) ||
-            (r = c_string_compare(key1->destination, key2->destination)) ||
-            (r = c_string_compare(key1->filter.interface, key2->filter.interface)) ||
-            (r = c_string_compare(key1->filter.member, key2->filter.member)) ||
-            (r = c_string_compare(key1->filter.path, key2->filter.path)) ||
-            (r = c_string_compare(key1->path_namespace, key2->path_namespace)) ||
-            (r = c_string_compare(key1->arg0namespace, key2->arg0namespace)))
-                return r;
-
-        if (key1->filter.type > key2->filter.type)
-                return 1;
-        if (key1->filter.type < key2->filter.type)
-                return -1;
-
-        if (key1->eavesdrop > key2->eavesdrop)
-                return 1;
-        if (key1->eavesdrop < key2->eavesdrop)
-                return -1;
-
-        for (unsigned int i = 0; i < C_ARRAY_SIZE(key1->filter.args); i ++) {
-                if ((r = c_string_compare(key1->filter.args[i], key2->filter.args[i])))
-                        return r;
-
-                if ((r = c_string_compare(key1->filter.argpaths[i], key2->filter.argpaths[i])))
-                        return r;
-        }
-
-        return 0;
-}
-
-static bool match_string_prefix(const char *string, const char *prefix, char delimiter, bool delimiter_included) {
-        char *tail;
-
-        if (string == prefix)
-                return true;
-
-        if (!string || !prefix)
-                return false;
-
-        tail = c_string_prefix(string, prefix);
-        if (!tail)
-                return false;
-
-        if (delimiter_included) {
-                if (tail == string || (*tail != '\0' && *(tail - 1) != delimiter))
-                        return false;
-        } else {
-                if (*tail != '\0' && *tail != delimiter)
-                        return false;
-        }
-
-        return true;
-}
-
-static bool match_rule_keys_match_filter(MatchRuleKeys *keys, MatchFilter *filter) {
-        if (keys->filter.type != DBUS_MESSAGE_TYPE_INVALID && keys->filter.type != filter->type)
-                return false;
-
-        if (keys->filter.destination != ADDRESS_ID_INVALID && keys->filter.destination != filter->destination)
-                return false;
-
-        if (keys->filter.sender != ADDRESS_ID_INVALID && keys->filter.sender != filter->sender)
-                return false;
-
-        if (keys->filter.interface && !c_string_equal(keys->filter.interface, filter->interface))
-                return false;
-
-        if (keys->filter.member && !c_string_equal(keys->filter.member, filter->member))
-                return false;
-
-        if (keys->filter.path && !c_string_equal(keys->filter.path, filter->path))
-                return false;
-
-        if (keys->path_namespace && !match_string_prefix(keys->path_namespace, filter->path, '/', false))
-                return false;
-
-        /* XXX: verify that arg0 is a (potentially single-label) bus name */
-        if (keys->arg0namespace && !match_string_prefix(keys->arg0namespace, filter->args[0], '.', false))
-                return false;
-
-        for (unsigned int i = 0; i < C_ARRAY_SIZE(filter->args); i ++) {
-                if (keys->filter.args[i] && !c_string_equal(keys->filter.args[i], filter->args[i]))
-                        return false;
-
-                if (keys->filter.argpaths[i]) {
-                        if (!match_string_prefix(filter->argpaths[i], keys->filter.argpaths[i], '/', true) &&
-                            !match_string_prefix(keys->filter.argpaths[i], filter->argpaths[i], '/', true))
-                                return false;
-                }
-        }
-
-        return true;
-}
-
 static bool match_key_equal(const char *key1, const char *key2, size_t n_key2) {
         if (strlen(key1) != n_key2)
                 return false;
 
-        return (strncmp(key1, key2, n_key2) == 0);
+        return !strncmp(key1, key2, n_key2);
 }
 
-static int match_rule_keys_assign(MatchRuleKeys *keys, const char *key, size_t n_key, const char *value) {
+static int match_keys_assign(MatchKeys *keys, const char *key, size_t n_key, const char *value) {
         Address addr;
 
         if (match_key_equal("type", key, n_key)) {
@@ -209,44 +110,50 @@ static int match_rule_keys_assign(MatchRuleKeys *keys, const char *key, size_t n
         return 0;
 }
 
-/*
- * Takes a null-termianted stream of characters, removes any quoting, breaks them up at commas and returns them one character at a time.
- */
-static char match_string_value_pop(const char **match, bool *quoted) {
+static int match_copy_value(const char **match, char **p) {
+        const char *m = *match;
+        bool quoted = false;
+        char c;
+
         /*
-         * Within single quotes (apostrophe), a backslash represents itself, and an apostrophe ends the quoted section. Outside single quotes, \'
-         * (backslash, apostrophe) represents an apostrophe, and any backslash not followed by an apostrophe represents itself.
+         * Within single quotes (apostrophe), a backslash represents itself,
+         * and an apostrophe ends the quoted section. Outside single quotes, \'
+         * (backslash, apostrophe) represents an apostrophe, and any backslash
+         * not followed by an apostrophe represents itself.
+         *
+         * Note that this is quite counter-intuitive to everyone used to
+         * shell-style quoting. However, we strictly follow the D-Bus
+         * specification and reference-implementation here!
          */
-        while (**match == '\'') {
-                (*match) ++;
-                *quoted = !*quoted;
-        }
 
-        switch (**match) {
-        case '\0':
-                return '\0';
-        case ',':
-                (*match) ++;
+        do {
+                for ( ; *m == '\''; ++m)
+                        quoted = !quoted;
 
-                if (*quoted)
-                        return ',';
-                else
-                        return '\0';
-        case '\\':
-                (*match) ++;
-
-                if (!(*quoted) && **match == '\'') {
-                        (*match) ++;
-                        return '\'';
-                } else {
-                        return '\\';
+                switch ((c = *m++)) {
+                case 0:
+                        --m; /* leave zero-terminating for caller */
+                        break;
+                case ',':
+                        c = quoted ? ',' : 0;
+                        break;
+                case '\\':
+                        c = (!quoted && *m == '\'') ? *m++ : '\\';
+                        break;
                 }
-        default:
-                return *((*match) ++);
-        }
+
+
+                **p = c;
+        } while (*(*p)++);
+
+        if (quoted)
+                return MATCH_E_INVALID;
+
+        *match = m;
+        return 0;
 }
 
-static int match_rule_key_read(const char **keyp, size_t *n_keyp, const char **match) {
+static int match_parse_key(const char **match, const char **keyp, size_t *n_keyp) {
         const char *key;
         size_t n_key = 0;
 
@@ -276,46 +183,188 @@ static int match_rule_key_read(const char **keyp, size_t *n_keyp, const char **m
         return 0;
 }
 
-static int match_rule_keys_parse(MatchRuleKeys *keys, char *buffer, size_t n_buffer, const char *rule_string) {
-        size_t i = 0;
-        int r = 0;
+static int match_keys_parse(MatchKeys *keys, const char *string) {
+        const char *key, *value;
+        size_t n_key;
+        char *p;
+        int r;
 
-        keys->filter.type = DBUS_MESSAGE_TYPE_INVALID;
-        keys->filter.destination = ADDRESS_ID_INVALID;
-        keys->filter.sender = ADDRESS_ID_INVALID;
+        /*
+         * Parse the rule-string @string into @keys. We repeatedly pop off a
+         * key from @string and copy over the value into @keys, remembering the
+         * pointer to it. If anything fails, we simply bail out.
+         *
+         * Note that we rely on @string to be zero-terminated!
+         */
 
-        while (i < n_buffer) {
-                const char *key, *value;
-                size_t n_key;
-                bool quoted = false;
-                char c;
+        p = keys->buffer;
 
-                r = match_rule_key_read(&key, &n_key, &rule_string);
-                if (r) {
-                        if (r == MATCH_E_EOF)
-                                break;
-                        else
-                                return error_trace(r);
-                }
-
-                value = buffer + i;
-
-                do {
-                        c = match_string_value_pop(&rule_string, &quoted);
-                        buffer[i++] = c;
-                } while (c);
-
-                if (quoted)
-                        return MATCH_E_INVALID;
-
-                r = match_rule_keys_assign(keys, key, n_key, value);
+        for (;;) {
+                r = match_parse_key(&string, &key, &n_key);
                 if (r)
-                        return error_trace(r);
+                        break;
+
+                value = p;
+                r = match_copy_value(&string, &p);
+                if (r)
+                        break;
+
+                r = match_keys_assign(keys, key, n_key, value);
+                if (r)
+                        break;
         }
 
-        if (r != MATCH_E_EOF)
-                /* this should not be possible */
-                return error_origin(-ENOTRECOVERABLE);
+        return (r == MATCH_E_EOF) ? 0 : error_trace(r);
+}
+
+static void match_keys_deinit(MatchKeys *keys) {
+        *keys = (MatchKeys)MATCH_KEYS_NULL;
+}
+
+C_DEFINE_CLEANUP(MatchKeys *, match_keys_deinit);
+
+static int match_keys_init(MatchKeys *k, const char *string, size_t n_string) {
+        _c_cleanup_(match_keys_deinitp) MatchKeys *keys = k;
+        int r;
+
+        assert(n_string > 0);
+        assert(n_string - 1 <= MATCH_RULE_LENGTH_MAX);
+
+        *keys = (MatchKeys)MATCH_KEYS_NULL;
+
+        r = match_keys_parse(keys, string);
+        if (r)
+                return error_trace(r);
+
+        keys = NULL;
+        return 0;
+}
+
+static MatchKeys *match_keys_free(MatchKeys *keys) {
+        if (keys) {
+                match_keys_deinit(keys);
+                free(keys);
+        }
+        return NULL;
+}
+
+C_DEFINE_CLEANUP(MatchKeys *, match_keys_free);
+
+static int match_keys_new(MatchKeys **keysp, const char *string) {
+        _c_cleanup_(match_keys_freep) MatchKeys *keys = NULL;
+        size_t n_string;
+        int r;
+
+        n_string = strlen(string) + 1;
+        if (n_string - 1 > MATCH_RULE_LENGTH_MAX)
+                return MATCH_E_INVALID;
+
+        keys = calloc(1, sizeof(*keys) + n_string);
+        if (!keys)
+                return error_origin(-ENOMEM);
+
+        r = match_keys_init(keys, string, n_string);
+        if (r)
+                return error_trace(r);
+
+        *keysp = keys;
+        keys = NULL;
+        return 0;
+}
+
+static bool match_string_prefix(const char *string, const char *prefix, char delimiter, bool delimiter_included) {
+        char *tail;
+
+        if (string == prefix)
+                return true;
+
+        if (!string || !prefix)
+                return false;
+
+        tail = c_string_prefix(string, prefix);
+        if (!tail)
+                return false;
+
+        if (delimiter_included) {
+                if (tail == string || (*tail != '\0' && *(tail - 1) != delimiter))
+                        return false;
+        } else {
+                if (*tail != '\0' && *tail != delimiter)
+                        return false;
+        }
+
+        return true;
+}
+
+static bool match_keys_match_filter(MatchKeys *keys, MatchFilter *filter) {
+        if (keys->filter.type != DBUS_MESSAGE_TYPE_INVALID && keys->filter.type != filter->type)
+                return false;
+
+        if (keys->filter.destination != ADDRESS_ID_INVALID && keys->filter.destination != filter->destination)
+                return false;
+
+        if (keys->filter.sender != ADDRESS_ID_INVALID && keys->filter.sender != filter->sender)
+                return false;
+
+        if (keys->filter.interface && !c_string_equal(keys->filter.interface, filter->interface))
+                return false;
+
+        if (keys->filter.member && !c_string_equal(keys->filter.member, filter->member))
+                return false;
+
+        if (keys->filter.path && !c_string_equal(keys->filter.path, filter->path))
+                return false;
+
+        if (keys->path_namespace && !match_string_prefix(keys->path_namespace, filter->path, '/', false))
+                return false;
+
+        /* XXX: verify that arg0 is a (potentially single-label) bus name */
+        if (keys->arg0namespace && !match_string_prefix(keys->arg0namespace, filter->args[0], '.', false))
+                return false;
+
+        for (unsigned int i = 0; i < C_ARRAY_SIZE(filter->args); i ++) {
+                if (keys->filter.args[i] && !c_string_equal(keys->filter.args[i], filter->args[i]))
+                        return false;
+
+                if (keys->filter.argpaths[i]) {
+                        if (!match_string_prefix(filter->argpaths[i], keys->filter.argpaths[i], '/', true) &&
+                            !match_string_prefix(keys->filter.argpaths[i], filter->argpaths[i], '/', true))
+                                return false;
+                }
+        }
+
+        return true;
+}
+
+static int match_rule_compare(CRBTree *tree, void *k, CRBNode *rb) {
+        MatchRule *rule = c_container_of(rb, MatchRule, owner_node);
+        MatchKeys *key1 = k, *key2 = &rule->keys;
+        int r;
+
+        if ((r = c_string_compare(key1->sender, key2->sender)) ||
+            (r = c_string_compare(key1->destination, key2->destination)) ||
+            (r = c_string_compare(key1->filter.interface, key2->filter.interface)) ||
+            (r = c_string_compare(key1->filter.member, key2->filter.member)) ||
+            (r = c_string_compare(key1->filter.path, key2->filter.path)) ||
+            (r = c_string_compare(key1->path_namespace, key2->path_namespace)) ||
+            (r = c_string_compare(key1->arg0namespace, key2->arg0namespace)))
+                return r;
+
+        if (key1->filter.type > key2->filter.type)
+                return 1;
+        if (key1->filter.type < key2->filter.type)
+                return -1;
+
+        if (key1->eavesdrop > key2->eavesdrop)
+                return 1;
+        if (key1->eavesdrop < key2->eavesdrop)
+                return -1;
+
+        for (size_t i = 0; i < C_ARRAY_SIZE(key1->filter.args); i ++) {
+                if ((r = c_string_compare(key1->filter.args[i], key2->filter.args[i])) ||
+                    (r = c_string_compare(key1->filter.argpaths[i], key2->filter.argpaths[i])))
+                        return r;
+        }
 
         return 0;
 }
@@ -326,6 +375,7 @@ static MatchRule *match_rule_free(MatchRule *rule) {
 
         assert(!rule->n_user_refs);
 
+        match_keys_deinit(&rule->keys);
         user_charge_deinit(&rule->charge[1]);
         user_charge_deinit(&rule->charge[0]);
         c_rbtree_remove_init(&rule->owner->rule_tree, &rule->owner_node);
@@ -337,27 +387,39 @@ static MatchRule *match_rule_free(MatchRule *rule) {
 
 C_DEFINE_CLEANUP(MatchRule *, match_rule_free);
 
-static int match_rule_new(MatchRule **rulep, MatchOwner *owner, User *user, size_t n) {
+static int match_rule_new(MatchRule **rulep, MatchOwner *owner, User *user, const char *string) {
         _c_cleanup_(match_rule_freep) MatchRule *rule = NULL;
+        size_t n_string;
         int r;
 
-        rule = calloc(1, sizeof(*rule) + n);
+        n_string = strlen(string) + 1;
+        if (n_string - 1 > MATCH_RULE_LENGTH_MAX)
+                return MATCH_E_INVALID;
+
+        rule = calloc(1, sizeof(*rule) + n_string);
         if (!rule)
                 return error_origin(-ENOMEM);
 
         *rule = (MatchRule)MATCH_RULE_NULL(*rule);
         rule->owner = owner;
 
-        r = user_charge(user, &rule->charge[0], NULL, USER_SLOT_BYTES, sizeof(*rule) + n);
+        r = user_charge(user, &rule->charge[0], NULL, USER_SLOT_BYTES, sizeof(*rule) + n_string);
         r = r ?: user_charge(user, &rule->charge[1], NULL, USER_SLOT_MATCHES, 1);
         if (r)
                 return (r == USER_E_QUOTA) ? MATCH_E_QUOTA : error_fold(r);
+
+        r = match_keys_init(&rule->keys, string, n_string);
+        if (r)
+                return error_trace(r);
 
         *rulep = rule;
         rule = NULL;
         return 0;
 }
 
+/**
+ * match_rule_user_ref() - XXX
+ */
 MatchRule *match_rule_user_ref(MatchRule *rule) {
         if (!rule)
                 return NULL;
@@ -369,6 +431,9 @@ MatchRule *match_rule_user_ref(MatchRule *rule) {
         return rule;
 }
 
+/**
+ * match_rule_user_unref() - XXX
+ */
 MatchRule *match_rule_user_unref(MatchRule *rule) {
         if (!rule)
                 return NULL;
@@ -383,45 +448,32 @@ MatchRule *match_rule_user_unref(MatchRule *rule) {
         return NULL;
 }
 
+/**
+ * match_rule_link() - XXX
+ */
 void match_rule_link(MatchRule *rule, MatchRegistry *registry, bool monitor) {
-        if (c_list_is_linked(&rule->registry_link)) {
-                assert(rule->registry == registry);
-                return;
+        if (rule->registry) {
+                assert(registry == rule->registry);
+                assert(c_list_is_linked(&rule->registry_link));
+        } else {
+                rule->registry = registry;
+                if (monitor)
+                        c_list_link_tail(&registry->monitor_list, &rule->registry_link);
+                else if (rule->keys.eavesdrop)
+                        c_list_link_tail(&registry->eavesdrop_list, &rule->registry_link);
+                else
+                        c_list_link_tail(&registry->rule_list, &rule->registry_link);
         }
-
-        rule->registry = registry;
-        if (monitor)
-                c_list_link_tail(&registry->monitor_list, &rule->registry_link);
-        else if (rule->keys.eavesdrop)
-                c_list_link_tail(&registry->eavesdrop_list, &rule->registry_link);
-        else
-                c_list_link_tail(&registry->rule_list, &rule->registry_link);
 }
 
+/**
+ * match_rule_unlink() - XXX
+ */
 void match_rule_unlink(MatchRule *rule) {
-        if (!rule->registry)
-                return;
-
-        c_list_unlink_init(&rule->registry_link);
-        rule->registry = NULL;
-}
-
-int match_rule_get(MatchRule **rulep, MatchOwner *owner, const char *rule_string) {
-        char buffer[strlen(rule_string) + 1];
-        MatchRuleKeys keys = {};
-        MatchRule *rule;
-        int r;
-
-        r = match_rule_keys_parse(&keys, buffer, sizeof(buffer), rule_string);
-        if (r)
-                return error_trace(r);
-
-        rule = c_rbtree_find_entry(&owner->rule_tree, match_rules_compare, &keys, MatchRule, owner_node);
-        if (!rule)
-                return MATCH_E_NOT_FOUND;
-
-        *rulep = rule;
-        return 0;
+        if (rule->registry) {
+                c_list_unlink_init(&rule->registry_link);
+                rule->registry = NULL;
+        }
 }
 
 static MatchRule *match_rule_next(MatchRegistry *registry, MatchRule *rule, bool unicast) {
@@ -454,7 +506,7 @@ MatchRule *match_rule_next_match(MatchRegistry *registry, MatchRule *rule, Match
         bool unicast = filter->destination != ADDRESS_ID_INVALID;
 
         for (rule = match_rule_next(registry, rule, unicast); rule; rule = match_rule_next(registry, rule, unicast))
-                if (match_rule_keys_match_filter(&rule->keys, filter))
+                if (match_keys_match_filter(&rule->keys, filter))
                         return rule;
 
         return NULL;
@@ -468,7 +520,7 @@ MatchRule *match_rule_next_monitor_match(MatchRegistry *registry, MatchRule *rul
 
         for (; rule != c_list_last_entry(&registry->monitor_list, MatchRule, registry_link);
                rule = c_list_entry(rule->registry_link.next, MatchRule, registry_link))
-                if (match_rule_keys_match_filter(&rule->keys, filter))
+                if (match_keys_match_filter(&rule->keys, filter))
                         return rule;
 
         return NULL;
@@ -494,23 +546,15 @@ void match_owner_deinit(MatchOwner *owner) {
 int match_owner_ref_rule(MatchOwner *owner, MatchRule **rulep, User *user, const char *rule_string) {
         _c_cleanup_(match_rule_user_unrefp) MatchRule *rule = NULL;
         CRBNode **slot, *parent;
-        size_t n_buffer;
         int r;
 
-        /* the buffer needs at most the size of the string */
-        n_buffer = strlen(rule_string) + 1;
-
-        r = match_rule_new(&rule, owner, user, n_buffer);
+        r = match_rule_new(&rule, owner, user, rule_string);
         if (r)
                 return error_trace(r);
 
         ++rule->n_user_refs;
 
-        r = match_rule_keys_parse(&rule->keys, rule->buffer, n_buffer, rule_string);
-        if (r)
-                return error_trace(r);
-
-        slot = c_rbtree_find_slot(&owner->rule_tree, match_rules_compare, &rule->keys, &parent);
+        slot = c_rbtree_find_slot(&owner->rule_tree, match_rule_compare, &rule->keys, &parent);
         if (!slot) {
                 /* one already exists, take a ref on that instead and drop the one we created */
                 if (rulep)
@@ -523,6 +567,21 @@ int match_owner_ref_rule(MatchOwner *owner, MatchRule **rulep, User *user, const
                 rule = NULL;
         }
 
+        return 0;
+}
+
+/**
+ * match_owner_find_rule() - XXX
+ */
+int match_owner_find_rule(MatchOwner *owner, MatchRule **rulep, const char *rule_string) {
+        _c_cleanup_(match_keys_freep) MatchKeys *keys = NULL;
+        int r;
+
+        r = match_keys_new(&keys, rule_string);
+        if (r)
+                return error_trace(r);
+
+        *rulep = c_rbtree_find_entry(&owner->rule_tree, match_rule_compare, keys, MatchRule, owner_node);
         return 0;
 }
 
