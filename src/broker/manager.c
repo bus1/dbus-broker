@@ -43,60 +43,6 @@ static int manager_dispatch_signals(DispatchFile *file, uint32_t events) {
         return DISPATCH_E_EXIT;
 }
 
-static int manager_dispatch_controller_connection(Manager *manager, uint32_t events) {
-        int r;
-
-        r = connection_dispatch(&manager->controller, events);
-        if (r)
-                return error_fold(r);
-
-        for (;;) {
-                _c_cleanup_(message_unrefp) Message *m = NULL;
-
-                r = connection_dequeue(&manager->controller, &m);
-                if (r || !m)
-                        return error_trace(r);
-
-                r = controller_dispatch(&manager->ctrl, m);
-                if (r)
-                        return error_fold(r);
-        }
-
-        return 0;
-}
-
-static int manager_dispatch_controller(DispatchFile *file, uint32_t events) {
-        Manager *manager = c_container_of(file, Manager, controller.socket_file);
-        static const uint32_t interest[] = { EPOLLIN | EPOLLHUP, EPOLLOUT };
-        size_t i;
-        int r;
-
-        /*
-         * We dispatch two times, once EPOLLIN and EPOLLHUP, the next time just
-         * EPOLLOUT. This makes sure to keep latencies for method-call + reply
-         * combinations low.
-         *
-         * See peer_dispatch() for details.
-         */
-        for (i = 0; i < C_ARRAY_SIZE(interest); ++i) {
-                if (dispatch_file_events(file) & interest[i]) {
-                        r = manager_dispatch_controller_connection(manager, events & interest[i]);
-                        if (r)
-                                break;
-                }
-        }
-
-        if (r == CONNECTION_E_EOF) {
-                connection_shutdown(&manager->controller);
-                if (connection_is_running(&manager->controller))
-                        return 0;
-                else
-                        return DISPATCH_E_EXIT;
-        }
-
-        return error_fold(r);
-}
-
 int manager_new(Manager **managerp, int controller_fd) {
         _c_cleanup_(manager_freep) Manager *manager = NULL;
         struct ucred ucred;
@@ -116,14 +62,13 @@ int manager_new(Manager **managerp, int controller_fd) {
         manager->dispatcher = (DispatchContext)DISPATCH_CONTEXT_NULL(manager->dispatcher);
         manager->signals_fd = -1;
         manager->signals_file = (DispatchFile)DISPATCH_FILE_NULL(manager->signals_file);
-        manager->controller = (Connection)CONNECTION_NULL(manager->controller);
-        manager->ctrl = (Controller)CONTROLLER_NULL(manager->ctrl);
+        manager->controller = (Controller)CONTROLLER_NULL(manager->controller);
 
         r = bus_init(&manager->bus, 16 * 1024 * 1024, 1024, 10 * 1024, 10 * 1024);
         if (r)
                 return error_fold(r);
 
-        manager->bus.controller = &manager->controller;
+        manager->bus.controller = &manager->controller.connection;
         manager->bus.pid = ucred.pid;
         r = user_registry_ref_user(&manager->bus.users, &manager->bus.user, ucred.uid);
         if (r)
@@ -151,16 +96,7 @@ int manager_new(Manager **managerp, int controller_fd) {
 
         dispatch_file_select(&manager->signals_file, EPOLLIN);
 
-        r = connection_init_server(&manager->controller,
-                                   &manager->dispatcher,
-                                   manager_dispatch_controller,
-                                   manager->bus.user,
-                                   "0123456789abcdef",
-                                   controller_fd);
-        if (r)
-                return error_fold(r);
-
-        r = controller_init(&manager->ctrl, manager);
+        r = controller_init(&manager->controller, manager, controller_fd);
         if (r)
                 return error_fold(r);
 
@@ -173,8 +109,7 @@ Manager *manager_free(Manager *manager) {
         if (!manager)
                 return NULL;
 
-        controller_deinit(&manager->ctrl);
-        connection_deinit(&manager->controller);
+        controller_deinit(&manager->controller);
         dispatch_file_deinit(&manager->signals_file);
         c_close(manager->signals_fd);
         dispatch_context_deinit(&manager->dispatcher);
@@ -194,7 +129,7 @@ int manager_run(Manager *manager) {
 
         sigprocmask(SIG_BLOCK, &signew, &sigold);
 
-        r = connection_open(&manager->controller);
+        r = connection_open(&manager->controller.connection);
         if (r == CONNECTION_E_EOF)
                 return MAIN_EXIT;
         else if (r)

@@ -365,10 +365,10 @@ static int controller_handle_method(const ControllerMethod *method, Controller *
         if (r)
                 return error_fold(r);
 
-        r = connection_queue(&controller->manager->controller, NULL, 0, message_out);
+        r = connection_queue(&controller->connection, NULL, 0, message_out);
         if (r) {
                 if (r == CONNECTION_E_QUOTA)
-                        connection_close(&controller->manager->controller);
+                        connection_close(&controller->connection);
                 else
                         return error_fold(r);
         }
@@ -446,7 +446,7 @@ static int controller_dispatch_object(Controller *controller, uint32_t serial, c
 }
 
 int controller_dispatch(Controller *controller, Message *message) {
-        Connection *connection = &controller->manager->controller;
+        Connection *connection = &controller->connection;
         int r;
 
         if (message->header->type != DBUS_MESSAGE_TYPE_METHOD_CALL)
@@ -520,7 +520,7 @@ int controller_dbus_send_activation(Controller *controller, const char *path) {
         if (r)
                 return error_fold(r);
 
-        r = connection_queue(&controller->manager->controller, NULL, 0, message);
+        r = connection_queue(&controller->connection, NULL, 0, message);
         if (r)
                 return error_fold(r);
 

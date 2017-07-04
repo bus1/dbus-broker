@@ -9,6 +9,8 @@
 #include "broker/controller.h"
 #include "broker/manager.h"
 #include "bus.h"
+#include "dbus/connection.h"
+#include "dbus/message.h"
 #include "util/error.h"
 
 static int controller_name_compare(CRBTree *t, void *k, CRBNode *rb) {
@@ -111,13 +113,54 @@ static int controller_listener_new(ControllerListener **listenerp, Controller *c
         return 0;
 }
 
+static int controller_dispatch_connection(DispatchFile *file, uint32_t events) {
+        Controller *controller = c_container_of(file, Controller, connection.socket_file);
+        int r;
+
+        r = connection_dispatch(&controller->connection, events);
+        if (r)
+                return error_fold(r);
+
+        do {
+                _c_cleanup_(message_unrefp) Message *m = NULL;
+
+                r = connection_dequeue(&controller->connection, &m);
+                if (!r) {
+                        if (!m)
+                                break;
+
+                        r = controller_dispatch(controller, m);
+                }
+        } while (!r);
+
+        if (r == CONNECTION_E_EOF) {
+                connection_shutdown(&controller->connection);
+                return connection_is_running(&controller->connection) ? 0 : DISPATCH_E_EXIT;
+        }
+
+        return error_fold(r);
+}
+
 /**
  * controller_init() - XXX
  */
-int controller_init(Controller *controller, Manager *manager) {
+int controller_init(Controller *c, Manager *manager, int controller_fd) {
+        _c_cleanup_(controller_deinitp) Controller *controller = c;
+        int r;
+
         *controller = (Controller)CONTROLLER_NULL(*controller);
         controller->manager = manager;
 
+        r = connection_init_server(&controller->connection,
+                                   &manager->dispatcher,
+                                   controller_dispatch_connection,
+                                   manager->bus.user,
+                                   "0123456789abcdef",
+                                   controller_fd);
+        if (r)
+                return error_fold(r);
+
+        controller = NULL;
         return 0;
 }
 
@@ -133,6 +176,9 @@ void controller_deinit(Controller *controller) {
 
         c_rbtree_for_each_entry_unlink(listener, listener_safe, &controller->listener_tree, controller_node)
                 controller_listener_free(listener);
+
+        connection_deinit(&controller->connection);
+        controller->manager = NULL;
 }
 
 /**

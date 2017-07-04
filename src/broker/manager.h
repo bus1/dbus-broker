@@ -8,7 +8,6 @@
 #include <stdlib.h>
 #include "broker/controller.h"
 #include "bus.h"
-#include "dbus/connection.h"
 #include "util/dispatch.h"
 
 typedef struct Manager Manager;
@@ -20,8 +19,7 @@ struct Manager {
         int signals_fd;
         DispatchFile signals_file;
 
-        Connection controller;
-        Controller ctrl;
+        Controller controller;
 };
 
 int manager_new(Manager **managerp, int controller_fd);
