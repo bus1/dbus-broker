@@ -63,10 +63,9 @@ struct Controller {
         CRBTree listener_tree;
 };
 
-#define CONTROLLER_INIT(_manager) {             \
-                .manager = (_manager),          \
-                .name_tree = C_RBTREE_INIT,     \
-                .listener_tree = C_RBTREE_INIT, \
+#define CONTROLLER_NULL(_x) {                                                   \
+                .name_tree = C_RBTREE_INIT,                                     \
+                .listener_tree = C_RBTREE_INIT,                                 \
         }
 
 /* names */
@@ -85,7 +84,7 @@ C_DEFINE_CLEANUP(ControllerListener *, controller_listener_free);
 
 /* controller */
 
-void controller_init(Controller *controller, Manager *manager);
+int controller_init(Controller *controller, Manager *manager);
 void controller_deinit(Controller *controller);
 
 int controller_add_name(Controller *controller,

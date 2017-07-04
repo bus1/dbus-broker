@@ -117,7 +117,7 @@ int manager_new(Manager **managerp, int controller_fd) {
         manager->signals_fd = -1;
         manager->signals_file = (DispatchFile)DISPATCH_FILE_NULL(manager->signals_file);
         manager->controller = (Connection)CONNECTION_NULL(manager->controller);
-        manager->ctrl = (Controller)CONTROLLER_INIT(manager);
+        manager->ctrl = (Controller)CONTROLLER_NULL(manager->ctrl);
 
         r = bus_init(&manager->bus, 16 * 1024 * 1024, 1024, 10 * 1024, 10 * 1024);
         if (r)
@@ -157,6 +157,10 @@ int manager_new(Manager **managerp, int controller_fd) {
                                    manager->bus.user,
                                    "0123456789abcdef",
                                    controller_fd);
+        if (r)
+                return error_fold(r);
+
+        r = controller_init(&manager->ctrl, manager);
         if (r)
                 return error_fold(r);
 

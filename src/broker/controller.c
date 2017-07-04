@@ -114,8 +114,11 @@ static int controller_listener_new(ControllerListener **listenerp, Controller *c
 /**
  * controller_init() - XXX
  */
-void controller_init(Controller *controller, Manager *manager) {
-        *controller = (Controller)CONTROLLER_INIT(manager);
+int controller_init(Controller *controller, Manager *manager) {
+        *controller = (Controller)CONTROLLER_NULL(*controller);
+        controller->manager = manager;
+
+        return 0;
 }
 
 /**
