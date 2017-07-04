@@ -51,7 +51,9 @@ struct MatchRuleKeys {
         const char *arg0namespace;
 };
 
-#define MATCH_RULE_KEYS_INIT {}
+#define MATCH_RULE_KEYS_INIT {                                                  \
+                .filter = MATCH_FILTER_INIT,                                    \
+        }
 
 struct MatchRule {
         unsigned long int n_user_refs;
