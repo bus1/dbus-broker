@@ -26,9 +26,12 @@ install:
 script:
   - export PATH="$HOME/.local/bin:$PATH"
   - export CC=${MATRIX_CC}
-  - meson "build"
-  - ninja -C "build"
-  - ninja -C "build" test
+  - export CFLAGS="-Werror $CFLAGS"
+  - export BUILDDIR="$PWD/build"
+  - make meson
+  - make ninja
+  - ( cd "build" && mesontest )
+  - ( cd "build" && mesontest -t 128 "--wrap=valgrind --gen-suppressions=all --trace-children=yes --leak-check=full --error-exitcode=1" )
 
 after_failure:
   - cat build/meson-logs/*.txt
