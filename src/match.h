@@ -84,7 +84,7 @@ struct MatchOwner {
 
 #define MATCH_OWNER_INIT {                      \
                 .rule_tree = C_RBTREE_INIT,     \
-        };
+        }
 
 MatchRule *match_rule_user_ref(MatchRule *rule);
 MatchRule *match_rule_user_unref(MatchRule *rule);
