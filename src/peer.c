@@ -764,12 +764,11 @@ static int peer_broadcast_to_matches(Peer *sender, MatchRegistry *matches, Match
 }
 
 int peer_broadcast(Peer *sender, Peer *destination, Bus *bus, MatchFilter *filter, Message *message) {
-        MatchFilter fallback_filter;
+        MatchFilter fallback_filter = MATCH_FILTER_INIT;
         int r;
 
         if (!filter) {
                 filter = &fallback_filter;
-                match_filter_init(filter);
 
                 filter->type = message->metadata.header.type;
                 filter->sender = sender ? sender->id : ADDRESS_ID_INVALID;

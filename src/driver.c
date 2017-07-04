@@ -1664,11 +1664,9 @@ static int driver_monitor_to_matches(MatchRegistry *matches, MatchFilter *filter
 }
 
 static int driver_monitor(Peer *sender, Message *message) {
-        MatchFilter filter;
+        MatchFilter filter = MATCH_FILTER_INIT;
         NameOwnership *ownership;
         int r;
-
-        match_filter_init(&filter);
 
         filter.type = message->metadata.header.type;
         filter.sender = sender->id;

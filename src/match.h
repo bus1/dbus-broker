@@ -7,13 +7,14 @@
 #include <c-list.h>
 #include <c-rbtree.h>
 #include <stdlib.h>
+#include "dbus/address.h"
 #include "util/user.h"
 
 typedef struct MatchFilter MatchFilter;
-typedef struct MatchRuleKeys MatchRuleKeys;
-typedef struct MatchRule MatchRule;
-typedef struct MatchRegistry MatchRegistry;
 typedef struct MatchOwner MatchOwner;
+typedef struct MatchRegistry MatchRegistry;
+typedef struct MatchRule MatchRule;
+typedef struct MatchRuleKeys MatchRuleKeys;
 
 enum {
         _MATCH_E_SUCCESS,
@@ -50,21 +51,34 @@ struct MatchRuleKeys {
         const char *arg0namespace;
 };
 
+#define MATCH_RULE_KEYS_INIT {}
+
 struct MatchRule {
         unsigned long int n_user_refs;
-
         MatchRegistry *registry;
         MatchOwner *owner;
-
         CList registry_link;
         CRBNode owner_node;
-
         UserCharge charge;
 
         MatchRuleKeys keys;
-
         char buffer[];
 };
+
+#define MATCH_RULE_NULL(_x) {                                                   \
+                .registry_link = C_LIST_INIT((_x).registry_link),               \
+                .owner_node = C_RBNODE_INIT((_x).owner_node),                   \
+                .charge = USER_CHARGE_INIT,                                     \
+                .keys = MATCH_RULE_KEYS_INIT,                                   \
+        }
+
+struct MatchOwner {
+        CRBTree rule_tree;
+};
+
+#define MATCH_OWNER_INIT {                      \
+                .rule_tree = C_RBTREE_INIT,     \
+        }
 
 struct MatchRegistry {
         CList rule_list;
@@ -78,13 +92,7 @@ struct MatchRegistry {
                 .monitor_list = (CList)C_LIST_INIT((_x).monitor_list),          \
         }
 
-struct MatchOwner {
-        CRBTree rule_tree;
-};
-
-#define MATCH_OWNER_INIT {                      \
-                .rule_tree = C_RBTREE_INIT,     \
-        }
+/* rules */
 
 MatchRule *match_rule_user_ref(MatchRule *rule);
 MatchRule *match_rule_user_unref(MatchRule *rule);
@@ -96,14 +104,16 @@ int match_rule_get(MatchRule **rulep, MatchOwner *owner, const char *rule_string
 MatchRule *match_rule_next_match(MatchRegistry *registry, MatchRule *rule, MatchFilter *filter);
 MatchRule *match_rule_next_monitor_match(MatchRegistry *registry, MatchRule *rule, MatchFilter *filter);
 
-void match_registry_init(MatchRegistry *registry);
-void match_registry_deinit(MatchRegistry *registry);
+C_DEFINE_CLEANUP(MatchRule *, match_rule_user_unref);
+
+/* owners */
 
 void match_owner_init(MatchOwner *owner);
 void match_owner_deinit(MatchOwner *owner);
 
 int match_owner_ref_rule(MatchOwner *owner, MatchRule **rulep, User *user, const char *rule_string);
 
-void match_filter_init(MatchFilter *filter);
+/* registry */
 
-C_DEFINE_CLEANUP(MatchRule *, match_rule_user_unref);
+void match_registry_init(MatchRegistry *registry);
+void match_registry_deinit(MatchRegistry *registry);

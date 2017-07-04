@@ -153,20 +153,19 @@ static bool test_match(const char *match_string, MatchFilter *filter) {
 }
 
 static void test_individual_matches(void) {
-        MatchFilter filter;
+        MatchFilter filter = MATCH_FILTER_INIT;
 
-        match_filter_init(&filter);
         assert(test_match("", &filter));
 
         /* type */
-        match_filter_init(&filter);
+        filter = (MatchFilter)MATCH_FILTER_INIT;
         assert(!test_match("type=signal", &filter));
         filter.type = DBUS_MESSAGE_TYPE_SIGNAL;
         assert(test_match("type=signal", &filter));
         assert(!test_match("type=error", &filter));
 
         /* destination */
-        match_filter_init(&filter);
+        filter = (MatchFilter)MATCH_FILTER_INIT;
         assert(!test_match("destination=:1.0", &filter));
         filter.destination = 0;
         assert(!test_match("", &filter));
@@ -176,21 +175,21 @@ static void test_individual_matches(void) {
         assert(!test_match("destination=:1.1,eavesdrop=true", &filter));
 
         /* interface */
-        match_filter_init(&filter);
+        filter = (MatchFilter)MATCH_FILTER_INIT;
         assert(!test_match("interface=com.example.foo", &filter));
         filter.interface = "com.example.foo";
         assert(test_match("interface=com.example.foo", &filter));
         assert(!test_match("interface=com.example.bar", &filter));
 
         /* member */
-        match_filter_init(&filter);
+        filter = (MatchFilter)MATCH_FILTER_INIT;
         assert(!test_match("member=FooBar", &filter));
         filter.member = "FooBar";
         assert(test_match("member=FooBar", &filter));
         assert(!test_match("member=FooBaz", &filter));
 
         /* path */
-        match_filter_init(&filter);
+        filter = (MatchFilter)MATCH_FILTER_INIT;
         assert(!test_match("path=/com/example/foo", &filter));
         filter.path = "/com/example/foo";
         assert(test_match("path=/com/example/foo", &filter));
@@ -199,7 +198,7 @@ static void test_individual_matches(void) {
         assert(!test_match("path=/com/example/foo/bar", &filter));
 
         /* path_namespace */
-        match_filter_init(&filter);
+        filter = (MatchFilter)MATCH_FILTER_INIT;
         assert(!test_match("path_namespace=/com/example/foo", &filter));
         filter.path = "/com/example/foo";
         assert(test_match("path_namespace=/com/example/foo", &filter));
@@ -208,7 +207,7 @@ static void test_individual_matches(void) {
         assert(!test_match("path_namespace=/com/example", &filter));
 
         /* arg0 */
-        match_filter_init(&filter);
+        filter = (MatchFilter)MATCH_FILTER_INIT;
         assert(!test_match("arg0=/com/example/foo/", &filter));
         filter.args[0] = "/com/example/foo/";
         assert(test_match("arg0=/com/example/foo/", &filter));
@@ -229,7 +228,7 @@ static void test_individual_matches(void) {
         assert(!test_match("arg0=com.example", &filter));
 
         /* arg0path - parent */
-        match_filter_init(&filter);
+        filter = (MatchFilter)MATCH_FILTER_INIT;
         assert(!test_match("arg0path=/com/example/foo/", &filter));
         filter.argpaths[0] = "/com/example/foo/";
         assert(test_match("arg0path=/com/example/foo/", &filter));
@@ -239,7 +238,7 @@ static void test_individual_matches(void) {
         assert(!test_match("arg0path=/com/example", &filter));
 
         /* arg0path - child */
-        match_filter_init(&filter);
+        filter = (MatchFilter)MATCH_FILTER_INIT;
         assert(!test_match("arg0path=/com/example/foo", &filter));
         filter.argpaths[0] = "/com/example/foo";
         assert(test_match("arg0path=/com/example/foo", &filter));
@@ -249,7 +248,7 @@ static void test_individual_matches(void) {
         assert(!test_match("arg0path=/com/example", &filter));
 
         /* arg0namespace */
-        match_filter_init(&filter);
+        filter = (MatchFilter)MATCH_FILTER_INIT;
         assert(!test_match("arg0namespace=com.example.foo", &filter));
         filter.args[0] = "com.example.foo";
         assert(test_match("arg0namespace=com.example.foo", &filter));
@@ -259,16 +258,14 @@ static void test_individual_matches(void) {
 }
 
 static void test_iterator(void) {
-        MatchRegistry registry;
+        MatchRegistry registry = MATCH_REGISTRY_INIT(registry);
+        MatchFilter filter = MATCH_FILTER_INIT;
         MatchOwner owner1, owner2;
-        MatchFilter filter;
         MatchRule *rule, *rule1, *rule2, *rule3, *rule4;
         int r;
 
-        match_registry_init(&registry);
         match_owner_init(&owner1);
         match_owner_init(&owner2);
-        match_filter_init(&filter);
 
         r = match_owner_ref_rule(&owner1, &rule1, NULL, "eavesdrop=true");
         assert(!r);

@@ -320,6 +320,42 @@ static int match_rule_keys_parse(MatchRuleKeys *keys, char *buffer, size_t n_buf
         return 0;
 }
 
+static MatchRule *match_rule_free(MatchRule *rule) {
+        if (!rule)
+                return NULL;
+
+        assert(!rule->n_user_refs);
+
+        user_charge_deinit(&rule->charge);
+        c_rbtree_remove_init(&rule->owner->rule_tree, &rule->owner_node);
+        match_rule_unlink(rule);
+        free(rule);
+
+        return NULL;
+}
+
+C_DEFINE_CLEANUP(MatchRule *, match_rule_free);
+
+static int match_rule_new(MatchRule **rulep, MatchOwner *owner, User *user, size_t n) {
+        _c_cleanup_(match_rule_freep) MatchRule *rule = NULL;
+        int r;
+
+        rule = calloc(1, sizeof(*rule) + n);
+        if (!rule)
+                return error_origin(-ENOMEM);
+
+        *rule = (MatchRule)MATCH_RULE_NULL(*rule);
+        rule->owner = owner;
+
+        r = user_charge(user, &rule->charge, NULL, USER_SLOT_MATCHES, 1);
+        if (r)
+                return (r == USER_E_QUOTA) ? MATCH_E_QUOTA : error_fold(r);
+
+        *rulep = rule;
+        rule = NULL;
+        return 0;
+}
+
 MatchRule *match_rule_user_ref(MatchRule *rule) {
         if (!rule)
                 return NULL;
@@ -339,11 +375,8 @@ MatchRule *match_rule_user_unref(MatchRule *rule) {
 
         --rule->n_user_refs;
 
-        if (rule->n_user_refs == 0) {
-                match_rule_unlink(rule);
-                c_rbtree_remove_init(&rule->owner->rule_tree, &rule->owner_node);
-                free(rule);
-        }
+        if (rule->n_user_refs == 0)
+                match_rule_free(rule);
 
         return NULL;
 }
@@ -439,24 +472,23 @@ MatchRule *match_rule_next_monitor_match(MatchRegistry *registry, MatchRule *rul
         return NULL;
 }
 
-void match_registry_init(MatchRegistry *registry) {
-        *registry = (MatchRegistry)MATCH_REGISTRY_INIT(*registry);
-}
-
-void match_registry_deinit(MatchRegistry *registry) {
-        assert(c_list_is_empty(&registry->rule_list));
-        assert(c_list_is_empty(&registry->eavesdrop_list));
-        assert(c_list_is_empty(&registry->monitor_list));
-}
-
+/**
+ * match_owner_init() - XXX
+ */
 void match_owner_init(MatchOwner *owner) {
         *owner = (MatchOwner)MATCH_OWNER_INIT;
 }
 
+/**
+ * match_owner_deinit() - XXX
+ */
 void match_owner_deinit(MatchOwner *owner) {
         assert(c_rbtree_is_empty(&owner->rule_tree));
 }
 
+/**
+ * match_owner_ref_rule() - XXX
+ */
 int match_owner_ref_rule(MatchOwner *owner, MatchRule **rulep, User *user, const char *rule_string) {
         _c_cleanup_(match_rule_user_unrefp) MatchRule *rule = NULL;
         CRBNode **slot, *parent;
@@ -466,19 +498,11 @@ int match_owner_ref_rule(MatchOwner *owner, MatchRule **rulep, User *user, const
         /* the buffer needs at most the size of the string */
         n_buffer = strlen(rule_string) + 1;
 
-        rule = calloc(1, sizeof(*rule) + n_buffer);
-        if (!rule)
-                return error_origin(-ENOMEM);
-
-        rule->n_user_refs = 1;
-        rule->owner = owner;
-        rule->charge = (UserCharge)USER_CHARGE_INIT;
-        rule->registry_link = (CList)C_LIST_INIT(rule->registry_link);
-        rule->owner_node = (CRBNode)C_RBNODE_INIT(rule->owner_node);
-
-        r = user_charge(user, &rule->charge, NULL, USER_SLOT_MATCHES, 1);
+        r = match_rule_new(&rule, owner, user, n_buffer);
         if (r)
-                return (r == USER_E_QUOTA) ? MATCH_E_QUOTA : error_fold(r);
+                return error_trace(r);
+
+        ++rule->n_user_refs;
 
         r = match_rule_keys_parse(&rule->keys, rule->buffer, n_buffer, rule_string);
         if (r)
@@ -500,6 +524,18 @@ int match_owner_ref_rule(MatchOwner *owner, MatchRule **rulep, User *user, const
         return 0;
 }
 
-void match_filter_init(MatchFilter *filter) {
-        *filter = (MatchFilter)MATCH_FILTER_INIT;
+/**
+ * match_registry_init() - XXX
+ */
+void match_registry_init(MatchRegistry *registry) {
+        *registry = (MatchRegistry)MATCH_REGISTRY_INIT(*registry);
+}
+
+/**
+ * match_registry_deinit() - XXX
+ */
+void match_registry_deinit(MatchRegistry *registry) {
+        assert(c_list_is_empty(&registry->rule_list));
+        assert(c_list_is_empty(&registry->eavesdrop_list));
+        assert(c_list_is_empty(&registry->monitor_list));
 }
