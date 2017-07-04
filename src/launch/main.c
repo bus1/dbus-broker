@@ -247,7 +247,7 @@ static int manager_listen_path(Manager *manager, const char *path) {
 
 static noreturn void manager_run_child(Manager *manager, int fd_controller) {
         char str_controller[C_DECIMAL_MAX(int) + 1];
-        char *argv[] = {
+        const char * const argv[] = {
                 "dbus-broker",
                 "-v",
                 "--controller",
@@ -277,7 +277,7 @@ static noreturn void manager_run_child(Manager *manager, int fd_controller) {
         r = snprintf(str_controller, sizeof(str_controller), "%d", fd_controller);
         assert(r < (ssize_t)sizeof(str_controller));
 
-        r = execve(main_arg_broker, argv, environ);
+        r = execve(main_arg_broker, (char * const *)argv, environ);
         r = error_origin(-errno);
 
 exit:
