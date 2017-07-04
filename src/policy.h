@@ -17,7 +17,7 @@ enum {
 
 typedef struct ConnectionPolicy ConnectionPolicy;
 typedef struct ConnectionPolicyEntry ConnectionPolicyEntry;
-typedef struct NameOwner NameOwner;
+typedef struct NameSet NameSet;
 typedef struct OwnershipPolicy OwnershipPolicy;
 typedef struct OwnershipPolicyEntry OwnershipPolicyEntry;
 typedef struct Policy Policy;
@@ -183,8 +183,8 @@ int peer_policy_copy(PeerPolicy *target, PeerPolicy *source);
 void peer_policy_deinit(PeerPolicy *policy);
 
 int peer_policy_check_own(PeerPolicy *policy, const char *name);
-int peer_policy_check_send(PeerPolicy *policy, NameOwner *subject, const char *interface, const char *method, const char *path, int type);
-int peer_policy_check_receive(PeerPolicy *policy, NameOwner *subject, const char *interface, const char *method, const char *path, int type);
+int peer_policy_check_send(PeerPolicy *policy, NameSet *subject, const char *interface, const char *method, const char *path, int type);
+int peer_policy_check_receive(PeerPolicy *policy, NameSet *subject, const char *interface, const char *method, const char *path, int type);
 
 int policy_registry_init(PolicyRegistry *registry);
 void policy_registry_deinit(PolicyRegistry *registry);

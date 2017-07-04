@@ -697,18 +697,20 @@ int peer_queue_reply(Peer *sender, const char *destination, uint32_t reply_seria
 }
 
 static int peer_broadcast_to_matches(Peer *sender, MatchRegistry *matches, MatchFilter *filter, uint64_t transaction_id, Message *message) {
+        NameSet sender_names = NAME_SET_INIT_FROM_OWNER(sender ? &sender->owned_names : NULL);
         MatchRule *rule;
         int r;
 
         for (rule = match_rule_next_match(matches, NULL, filter); rule; rule = match_rule_next_match(matches, rule, filter)) {
                 Peer *receiver = c_container_of(rule->owner, Peer, owned_matches);
+                NameSet receiver_names = NAME_SET_INIT_FROM_OWNER(&receiver->owned_names);
 
                 /* exclude the destination from broadcasts */
                 if (filter->destination == receiver->id)
                         continue;
 
                 if (sender) {
-                        r = peer_policy_check_send(&sender->policy, &receiver->owned_names,
+                        r = peer_policy_check_send(&sender->policy, &receiver_names,
                                                    message->metadata.fields.interface, message->metadata.fields.member,
                                                    message->metadata.fields.path, message->header->type);
                         if (r) {
@@ -719,7 +721,7 @@ static int peer_broadcast_to_matches(Peer *sender, MatchRegistry *matches, Match
                         }
                 }
 
-                r = peer_policy_check_receive(&receiver->policy, sender ? &sender->owned_names : NULL,
+                r = peer_policy_check_receive(&receiver->policy, sender ? &sender_names : NULL,
                                               message->metadata.fields.interface, message->metadata.fields.member,
                                               message->metadata.fields.path, message->header->type);
                 if (r) {

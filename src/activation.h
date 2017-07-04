@@ -15,6 +15,7 @@ typedef struct ActivationMessage ActivationMessage;
 typedef struct ActivationRequest ActivationRequest;
 typedef struct Message Message;
 typedef struct Name Name;
+typedef struct NameOwner NameOwner;
 
 enum {
         _ACTIVATION_E_SUCCESS,

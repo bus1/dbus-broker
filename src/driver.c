@@ -563,6 +563,7 @@ static int driver_name_owner_changed(Bus *bus, const char *name, Peer *old_owner
 static int driver_name_activated(Activation *activation, Peer *receiver) {
         ActivationRequest *request, *request_safe;
         ActivationMessage *message, *message_safe;
+        NameSet receiver_names = NAME_SET_INIT_FROM_OWNER(&receiver->owned_names);
         int r;
 
         if (!activation)
@@ -597,7 +598,9 @@ static int driver_name_activated(Activation *activation, Peer *receiver) {
                 /* XXX: use sender's policy and names as captured at send */
                 sender = peer_registry_find_peer(&receiver->bus->peers, message->message->sender_id);
                 if (sender) {
-                        r = peer_policy_check_receive(&receiver->policy, &sender->owned_names,
+                        NameSet sender_names = NAME_SET_INIT_FROM_OWNER(&sender->owned_names);
+
+                        r = peer_policy_check_receive(&receiver->policy, &sender_names,
                                                       message->message->metadata.fields.interface, message->message->metadata.fields.member,
                                                       message->message->metadata.fields.path, message->message->header->type);
                         if (r) {
@@ -610,7 +613,7 @@ static int driver_name_activated(Activation *activation, Peer *receiver) {
                                         return error_fold(r);
                         }
 
-                        r = peer_policy_check_send(&sender->policy, &receiver->owned_names,
+                        r = peer_policy_check_send(&sender->policy, &receiver_names,
                                                    message->message->metadata.fields.interface, message->message->metadata.fields.member,
                                                    message->message->metadata.fields.path, message->message->header->type);
                         if (r) {
@@ -1640,6 +1643,8 @@ int driver_goodbye(Peer *peer, bool silent) {
 static int driver_forward_unicast(Peer *sender, const char *destination, Message *message) {
         Peer *receiver;
         Name *name;
+        NameSet sender_names = NAME_SET_INIT_FROM_OWNER(&sender->owned_names);
+        NameSet receiver_names;
         int r;
 
         receiver = bus_find_peer_by_name(sender->bus, &name, destination);
@@ -1654,7 +1659,7 @@ static int driver_forward_unicast(Peer *sender, const char *destination, Message
                 return 0;
         }
 
-        r = peer_policy_check_receive(&receiver->policy, &sender->owned_names,
+        r = peer_policy_check_receive(&receiver->policy, &sender_names,
                                       message->metadata.fields.interface, message->metadata.fields.member,
                                       message->metadata.fields.path, message->header->type);
         if (r) {
@@ -1664,7 +1669,9 @@ static int driver_forward_unicast(Peer *sender, const char *destination, Message
                 return error_fold(r);
         }
 
-        r = peer_policy_check_send(&sender->policy, &receiver->owned_names,
+        receiver_names = (NameSet)NAME_SET_INIT_FROM_OWNER(&receiver->owned_names);
+
+        r = peer_policy_check_send(&sender->policy, &receiver_names,
                                    message->metadata.fields.interface, message->metadata.fields.member,
                                    message->metadata.fields.path, message->header->type);
         if (r) {

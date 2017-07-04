@@ -576,22 +576,40 @@ static void transmission_policy_update_decision_by_name(CRBTree *policy, const c
         transmission_policy_update_decision(&by_name->entry_list, interface, member, path, type, decision);
 }
 
-static void transmission_policy_check_allowed(TransmissionPolicy *policy, NameOwner *subject,
+static void transmission_policy_check_allowed(TransmissionPolicy *policy, NameSet *subject,
                                               const char *interface, const char *member, const char *path, int type,
                                               PolicyDecision *decision) {
         transmission_policy_update_decision(&policy->wildcard_entry_list, interface, member, path, type, decision);
 
         if (!c_rbtree_is_empty(&policy->policy_by_name_tree)) {
                 if (subject) {
+                        NameOwner *owner;
                         NameOwnership *ownership;
+                        NameSnapshot *snapshot;
 
-                        c_rbtree_for_each_entry(ownership, &subject->ownership_tree, owner_node) {
-                                if (!name_ownership_is_primary(ownership))
-                                        continue;
+                        switch (subject->type) {
+                        case NAME_SET_TYPE_OWNER:
+                                owner = subject->owner;
 
-                                transmission_policy_update_decision_by_name(&policy->policy_by_name_tree, ownership->name->name,
-                                                                            interface, member, path, type,
-                                                                            decision);
+                                c_rbtree_for_each_entry(ownership, &owner->ownership_tree, owner_node) {
+                                        if (!name_ownership_is_primary(ownership))
+                                                continue;
+
+                                        transmission_policy_update_decision_by_name(&policy->policy_by_name_tree, ownership->name->name,
+                                                                                    interface, member, path, type,
+                                                                                    decision);
+                                }
+                                break;
+                        case NAME_SET_TYPE_SNAPSHOT:
+                                snapshot = subject->snapshot;
+
+                                for (size_t i = 0; i < snapshot->n_names; ++i)
+                                        transmission_policy_update_decision_by_name(&policy->policy_by_name_tree, snapshot->names[i]->name,
+                                                                                    interface, member, path, type,
+                                                                                    decision);
+                                break;
+                        default:
+                                assert(0);
                         }
                 } else {
                         /* the subject is the driver */
@@ -756,7 +774,7 @@ int peer_policy_check_own(PeerPolicy *policy, const char *name) {
         return decision.deny ? POLICY_E_ACCESS_DENIED : 0;
 }
 
-int peer_policy_check_send(PeerPolicy *policy, NameOwner *subject, const char *interface, const char *method, const char *path, int type) {
+int peer_policy_check_send(PeerPolicy *policy, NameSet *subject, const char *interface, const char *method, const char *path, int type) {
         PolicyDecision decision = {};
 
         transmission_policy_check_allowed(&policy->uid_policy->send_policy, subject, interface, method, path, type, &decision);
@@ -767,7 +785,7 @@ int peer_policy_check_send(PeerPolicy *policy, NameOwner *subject, const char *i
         return decision.deny ? POLICY_E_ACCESS_DENIED : 0;
 }
 
-int peer_policy_check_receive(PeerPolicy *policy, NameOwner *subject, const char *interface, const char *method, const char *path, int type) {
+int peer_policy_check_receive(PeerPolicy *policy, NameSet *subject, const char *interface, const char *method, const char *path, int type) {
         PolicyDecision decision = {};
 
         transmission_policy_check_allowed(&policy->uid_policy->receive_policy, subject, interface, method, path, type, &decision);
