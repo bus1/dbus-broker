@@ -271,7 +271,7 @@ void name_owner_deinit(NameOwner *owner) {
  *
  * Return: 0 on success, negative error code on failure.
  */
-int name_snapshopt_new(NameSnapshot **snapshotp, NameOwner *owner) {
+int name_snapshot_new(NameSnapshot **snapshotp, NameOwner *owner) {
         NameSnapshot *snapshot;
         NameOwnership *ownership;
         size_t n_names = 0;

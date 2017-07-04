@@ -30,14 +30,13 @@ ActivationMessage *activation_message_free(ActivationMessage *message) {
         if (!message)
                 return NULL;
 
-        for (size_t i = 0; i < message->n_senders_names; ++i)
-                name_unref(message->senders_names[i]);
-        free(message->senders_names);
+        name_snapshot_free(message->senders_names);
         peer_policy_deinit(&message->senders_policy);
         message_unref(message->message);
         c_list_unlink_init(&message->link);
         user_charge_deinit(&message->charges[1]);
         user_charge_deinit(&message->charges[0]);
+        user_unref(message->user);
         free(message);
 
         return NULL;
@@ -111,8 +110,6 @@ int activation_flush(Activation *activation) {
 
 int activation_queue_message(Activation *activation, User *user, NameOwner *names, PeerPolicy *policy, Message *m) {
         _c_cleanup_(activation_message_freep) ActivationMessage *message = NULL;
-        NameOwnership *ownership;
-        size_t n_senders_names = 0;
         int r;
 
         r = activation_request(activation);
@@ -123,13 +120,13 @@ int activation_queue_message(Activation *activation, User *user, NameOwner *name
         if (!message)
                 return error_origin(-ENOMEM);
 
+        message->user = user_ref(user);
         message->charges[0] = (UserCharge)USER_CHARGE_INIT;
         message->charges[1] = (UserCharge)USER_CHARGE_INIT;
         message->link = (CList)C_LIST_INIT(message->link);
         message->message = message_ref(m);
         message->senders_policy = (PeerPolicy)PEER_POLICY_INIT;
         message->senders_names = NULL;
-        message->n_senders_names = 0;
 
         r = user_charge(activation->user, &message->charges[0], user, USER_SLOT_BYTES,
                         sizeof(ActivationMessage) + sizeof(Message) + m->n_data);
@@ -142,25 +139,9 @@ int activation_queue_message(Activation *activation, User *user, NameOwner *name
         if (r)
                 return error_fold(r);
 
-        c_rbtree_for_each_entry(ownership, &names->ownership_tree, owner_node) {
-                if (!name_ownership_is_primary(ownership))
-                        continue;
-
-                ++n_senders_names;
-        }
-
-        message->senders_names = malloc(n_senders_names * sizeof(*message->senders_names));
-        if (!message->senders_names)
-                return error_origin(-ENOMEM);
-
-        c_rbtree_for_each_entry(ownership, &names->ownership_tree, owner_node) {
-                if (!name_ownership_is_primary(ownership))
-                        continue;
-
-                message->senders_names[message->n_senders_names++] = name_ref(ownership->name);
-        }
-
-        assert(message->n_senders_names == n_senders_names);
+        r = name_snapshot_new(&message->senders_names, names);
+        if (r)
+                return error_fold(r);
 
         c_list_link_tail(&activation->activation_messages, &message->link);
         message = NULL;

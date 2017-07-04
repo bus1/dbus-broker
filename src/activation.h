@@ -16,6 +16,7 @@ typedef struct ActivationRequest ActivationRequest;
 typedef struct Message Message;
 typedef struct Name Name;
 typedef struct NameOwner NameOwner;
+typedef struct NameSnapshot NameSnapshot;
 
 enum {
         _ACTIVATION_E_SUCCESS,
@@ -33,12 +34,12 @@ struct ActivationRequest {
 };
 
 struct ActivationMessage {
+        User *user;
         UserCharge charges[2];
         CList link;
         Message *message;
         PeerPolicy senders_policy;
-        Name **senders_names;
-        size_t n_senders_names;
+        NameSnapshot *senders_names;
 };
 
 struct Activation {

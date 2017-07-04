@@ -125,7 +125,7 @@ void name_owner_deinit(NameOwner *owner);
 
 /* snapshopts */
 int name_snapshot_new(NameSnapshot **snapshotp, NameOwner *owner);
-NameSnapshot *name_snapshopt_free(NameSnapshot *snapshot);
+NameSnapshot *name_snapshot_free(NameSnapshot *snapshot);
 
 /* registry */
 
