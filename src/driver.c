@@ -251,7 +251,7 @@ static void driver_write_signal_header(CDVar *var, Peer *peer, const char *membe
                      DBUS_MESSAGE_FIELD_SIGNATURE, c_dvar_type_g, signature);
 }
 
-const char *driver_error_to_string(int r) {
+static const char *driver_error_to_string(int r) {
         static const char *error_strings[_DRIVER_E_MAX] = {
                 [DRIVER_E_INVALID_MESSAGE]                      = "Invalid message body",
                 [DRIVER_E_PEER_NOT_REGISTERED]                  = "Hello() was not the first method called",

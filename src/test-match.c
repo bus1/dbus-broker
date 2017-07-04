@@ -258,7 +258,7 @@ static void test_individual_matches(void) {
         assert(!test_match("arg0namespace=com.example", &filter));
 }
 
-void test_iterator(void) {
+static void test_iterator(void) {
         MatchRegistry registry;
         MatchOwner owner1, owner2;
         MatchFilter filter;

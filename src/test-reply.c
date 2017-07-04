@@ -8,7 +8,7 @@
 #include <sys/socket.h>
 #include "reply.h"
 
-static void test_basic() {
+static void test_basic(void) {
         ReplyRegistry registry;
         ReplyOwner owner;
         ReplySlot *slot1, *slot2;

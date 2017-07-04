@@ -276,7 +276,7 @@ static int match_rule_key_read(const char **keyp, size_t *n_keyp, const char **m
         return 0;
 }
 
-int match_rule_keys_parse(MatchRuleKeys *keys, char *buffer, size_t n_buffer, const char *rule_string) {
+static int match_rule_keys_parse(MatchRuleKeys *keys, char *buffer, size_t n_buffer, const char *rule_string) {
         size_t i = 0;
         int r = 0;
 

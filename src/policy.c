@@ -125,7 +125,7 @@ static int ownership_policy_entry_compare(CRBTree *tree, void *k, CRBNode *rb) {
         return 0;
 }
 
-int ownership_policy_add_entry(CRBTree *policy, const char *name, bool deny, uint64_t priority) {
+static int ownership_policy_add_entry(CRBTree *policy, const char *name, bool deny, uint64_t priority) {
         CRBNode *parent, **slot;
         struct stringn stringn = {
                 .string = name,
@@ -268,7 +268,7 @@ static int connection_policy_entry_compare(CRBTree *tree, void *k, CRBNode *rb) 
                 return 0;
 }
 
-int connection_policy_add_entry(CRBTree *policy, uid_t uid, bool deny, uint64_t priority) {
+static int connection_policy_add_entry(CRBTree *policy, uid_t uid, bool deny, uint64_t priority) {
         CRBNode *parent, **slot;
         int r;
 
