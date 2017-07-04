@@ -1582,7 +1582,6 @@ int driver_goodbye(Peer *peer, bool silent) {
 
         c_rbtree_for_each_entry_unlink(ownership, ownership_safe, &peer->owned_names.ownership_tree, owner_node) {
                 NameChange change;
-                int r = 0;
 
                 name_change_init(&change);
                 peer_release_name_ownership(peer, ownership, &change);
@@ -1591,6 +1590,8 @@ int driver_goodbye(Peer *peer, bool silent) {
                                                       change.name->name,
                                                       c_container_of(change.old_owner, Peer, owned_names),
                                                       c_container_of(change.new_owner, Peer, owned_names));
+                else
+                        r = 0;
                 name_change_deinit(&change);
                 if (r)
                         return error_fold(r);
