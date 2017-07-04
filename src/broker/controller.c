@@ -128,8 +128,6 @@ void controller_deinit(Controller *controller) {
         ControllerListener *listener, *listener_safe;
         ControllerName *name, *name_safe;
 
-        assert(c_rbtree_is_empty(&controller->name_tree));
-
         c_rbtree_for_each_entry_unlink(name, name_safe, &controller->name_tree, controller_node)
                 controller_name_free(name);
 
