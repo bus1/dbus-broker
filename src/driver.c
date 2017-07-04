@@ -592,41 +592,43 @@ static int driver_name_activated(Activation *activation, Peer *receiver) {
         }
 
         c_list_for_each_entry_safe(message, message_safe, &activation->activation_messages, link) {
+                NameSet sender_names = NAME_SET_INIT_FROM_SNAPSHOT(message->senders_names);
                 Peer *sender;
 
-                /* XXX: use sender's policy and names as captured at send */
                 sender = peer_registry_find_peer(&receiver->bus->peers, message->message->sender_id);
-                if (sender) {
-                        NameSet sender_names = NAME_SET_INIT_FROM_OWNER(&sender->owned_names);
 
-                        r = peer_queue_call(&sender->policy, &sender_names, &sender->matches, &sender->owned_replies, sender->user, sender->id, receiver, message->message);
-                        if (r) {
-                                switch (r) {
-                                case PEER_E_QUOTA:
+                /* XXX: deal with sender matches on the unique name */
+                r = peer_queue_call(&message->senders_policy, &sender_names, NULL, sender ? &sender->owned_replies : NULL, message->user, message->message->sender_id, receiver, message->message);
+                if (r) {
+                        switch (r) {
+                        case PEER_E_QUOTA:
+                                if (sender)
                                         r = driver_send_error(sender, message_read_serial(message->message),
                                                               "org.freedesktop.DBus.Error.LimitsExceeded",
                                                               driver_error_to_string(DRIVER_E_QUOTA));
-                                        break;
-                                case PEER_E_EXPECTED_REPLY_EXISTS:
+                                break;
+                        case PEER_E_EXPECTED_REPLY_EXISTS:
+                                if (sender)
                                         r = driver_send_error(sender, message_read_serial(message->message),
                                                               "org.freedesktop.DBus.Error.AccessDenied",
                                                               driver_error_to_string(DRIVER_E_EXPECTED_REPLY_EXISTS));
-                                        break;
-                                case PEER_E_RECEIVE_DENIED:
+                                break;
+                        case PEER_E_RECEIVE_DENIED:
+                                if (sender)
                                         r = driver_send_error(sender, message_read_serial(message->message),
                                                               "org.freedesktop.DBus.Error.AccessDenied",
                                                               driver_error_to_string(DRIVER_E_RECEIVE_DENIED));
-                                        break;
-                                case PEER_E_SEND_DENIED:
+                                break;
+                        case PEER_E_SEND_DENIED:
+                                if (sender)
                                         r = driver_send_error(sender, message_read_serial(message->message),
                                                               "org.freedesktop.DBus.Error.AccessDenied",
                                                               driver_error_to_string(DRIVER_E_SEND_DENIED));
-                                        break;
-                                }
-
-                                if (r)
-                                        return error_fold(r);
+                                break;
                         }
+
+                        if (r)
+                                return error_fold(r);
                 }
 
                 activation_message_free(message);
