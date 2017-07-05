@@ -995,8 +995,6 @@ static int driver_method_update_activation_environment(Peer *peer, CDVar *in_v, 
         if (r)
                 return error_origin(r);
 
-        /* XXX: perform access checks */
-
         r = message_new_outgoing(&message, data, n_data);
         if (r)
                 return error_fold(r);
