@@ -8,7 +8,7 @@
 #include <sys/epoll.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
-#include "dispatch.h"
+#include "util/dispatch.h"
 
 static void q_assert(int s, bool has_in, bool has_out) {
         int r, v;

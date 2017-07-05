@@ -12,8 +12,8 @@
 #include <c-macro.h>
 #include <stdlib.h>
 #include <sys/socket.h>
-#include "fdlist.h"
-#include "error.h"
+#include "util/error.h"
+#include "util/fdlist.h"
 
 /**
  * fdlist_new_with_fds() - create fdlist with a set of FDs

@@ -5,22 +5,22 @@
 libdbus_broker_private = static_library(
         'dbus-broker-private',
         [
-                'bus.c',
+                'bus/activation.c',
+                'bus/bus.c',
+                'bus/driver.c',
+                'bus/listener.c',
+                'bus/match.c',
+                'bus/name.c',
+                'bus/peer.c',
+                'bus/policy.c',
+                'bus/reply.c',
                 'dbus/address.c',
                 'dbus/connection.c',
                 'dbus/message.c',
                 'dbus/protocol.c',
                 'dbus/sasl.c',
                 'dbus/socket.c',
-                'activation.c',
-                'driver.c',
                 'launch/policy-parser.c', # XXX: drop once pre-parsed
-                'listener.c',
-                'match.c',
-                'name.c',
-                'peer.c',
-                'policy.c',
-                'reply.c',
                 'util/error.c',
                 'util/dispatch.c',
                 'util/fdlist.c',
@@ -84,7 +84,7 @@ if dep_systemd.found() and dep_glib.found()
                 [
                         'launch/main.c',
                         'launch/policy-parser.c',
-                        'policy.c',
+                        'bus/policy.c',
                 ],
                 dependencies: [
                         dep_crbtree,
@@ -121,19 +121,19 @@ test('Error Handling', test_error)
 test_fdlist = executable('test-fdlist', ['util/test-fdlist.c'], dependencies: libdbus_broker_dep)
 test('Utility File-Desciptor Lists', test_fdlist)
 
-test_match = executable('test-match', ['test-match.c'], dependencies: libdbus_broker_dep)
+test_match = executable('test-match', ['bus/test-match.c'], dependencies: libdbus_broker_dep)
 test('D-Bus Match Handling', test_match)
 
 test_message = executable('test-message', ['dbus/test-message.c'], dependencies: libdbus_broker_dep)
 test('D-Bus Message Abstraction', test_message)
 
-test_name = executable('test-name', ['test-name.c'], dependencies: libdbus_broker_dep)
+test_name = executable('test-name', ['bus/test-name.c'], dependencies: libdbus_broker_dep)
 test('Name Registry', test_name)
 
 test_policy_parser = executable('test-policy-parser', ['launch/test-policy-parser.c', 'launch/policy-parser.c'], dependencies: libdbus_broker_dep)
 test('Policy Database Parser', test_policy_parser)
 
-test_reply = executable('test-reply', ['test-reply.c'], dependencies: libdbus_broker_dep)
+test_reply = executable('test-reply', ['bus/test-reply.c'], dependencies: libdbus_broker_dep)
 test('Reply Tracking', test_reply)
 
 test_sasl = executable('test-sasl', ['dbus/test-sasl.c'], dependencies: libdbus_broker_dep)

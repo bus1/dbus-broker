@@ -6,9 +6,9 @@
 #include <c-macro.h>
 #include <c-rbtree.h>
 #include <c-string.h>
+#include "bus/match.h"
 #include "dbus/address.h"
 #include "dbus/protocol.h"
-#include "match.h"
 #include "util/error.h"
 
 static bool match_key_equal(const char *key1, const char *key2, size_t n_key2) {

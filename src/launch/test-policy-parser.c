@@ -4,9 +4,9 @@
 
 #include <c-macro.h>
 #include <stdlib.h>
+#include "bus/policy.h"
 #include "dbus/protocol.h"
-#include "policy.h"
-#include "policy-parser.h"
+#include "launch/policy-parser.h"
 
 static void test_print_policy_decision(PolicyDecision *decision) {
         fprintf(stderr, "%s (%lu)\n", decision->deny ? "deny" : "allow", decision->priority);

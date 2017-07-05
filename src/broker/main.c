@@ -8,8 +8,8 @@
 #include <stdlib.h>
 #include <sys/socket.h>
 #include <sys/types.h>
-#include "main.h"
-#include "manager.h"
+#include "broker/main.h"
+#include "broker/manager.h"
 #include "util/error.h"
 
 int main_arg_controller = 3;

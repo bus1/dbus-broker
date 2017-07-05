@@ -7,7 +7,7 @@
 #include <c-list.h>
 #include <c-macro.h>
 #include <stdlib.h>
-#include "policy.h"
+#include "bus/policy.h"
 #include "util/user.h"
 
 typedef struct Activation Activation;

@@ -4,7 +4,7 @@
 
 #include <c-macro.h>
 #include <stdlib.h>
-#include "error.h"
+#include "util/error.h"
 
 static void test_basic(void) {
         int r;

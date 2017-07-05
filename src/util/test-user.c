@@ -4,7 +4,7 @@
 
 #include <c-macro.h>
 #include <stdlib.h>
-#include "user.h"
+#include "util/user.h"
 
 static void test_setup(void) {
         UserRegistry registry;

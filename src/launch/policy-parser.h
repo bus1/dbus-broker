@@ -7,7 +7,7 @@
 #include <c-list.h>
 #include <c-rbtree.h>
 #include <stdlib.h>
-#include "policy.h"
+#include "bus/policy.h"
 
 enum {
         _POLICY_PARSER_E_SUCCESS,

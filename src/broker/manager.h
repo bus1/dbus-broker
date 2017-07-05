@@ -7,7 +7,7 @@
 #include <c-macro.h>
 #include <stdlib.h>
 #include "broker/controller.h"
-#include "bus.h"
+#include "bus/bus.h"
 #include "util/dispatch.h"
 
 typedef struct Manager Manager;

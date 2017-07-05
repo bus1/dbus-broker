@@ -7,10 +7,10 @@
 #include <c-macro.h>
 #include <c-rbtree.h>
 #include <stdlib.h>
-#include "listener.h"
-#include "match.h"
-#include "name.h"
-#include "peer.h"
+#include "bus/listener.h"
+#include "bus/match.h"
+#include "bus/name.h"
+#include "bus/peer.h"
 #include "util/metrics.h"
 #include "util/user.h"
 

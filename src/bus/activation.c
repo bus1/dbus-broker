@@ -7,8 +7,8 @@
 #include <stdlib.h>
 #include "activation.h"
 #include "broker/controller.h"
+#include "bus/name.h"
 #include "dbus/message.h"
-#include "name.h"
 #include "util/error.h"
 #include "util/fdlist.h"
 #include "util/user.h"

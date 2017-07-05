@@ -5,10 +5,10 @@
 #include <c-macro.h>
 #include <stdlib.h>
 #include <sys/types.h>
-#include "activation.h"
 #include "broker/controller.h"
 #include "broker/manager.h"
-#include "bus.h"
+#include "bus/activation.h"
+#include "bus/bus.h"
 #include "dbus/connection.h"
 #include "dbus/message.h"
 #include "util/error.h"

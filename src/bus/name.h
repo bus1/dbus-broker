@@ -7,7 +7,7 @@
 #include <c-macro.h>
 #include <c-ref.h>
 #include <stdlib.h>
-#include "match.h"
+#include "bus/match.h"
 #include "util/user.h"
 
 typedef struct Activation Activation;

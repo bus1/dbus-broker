@@ -8,9 +8,9 @@
 #include <grp.h>
 #include <pwd.h>
 #include <stdlib.h>
+#include "bus/name.h"
+#include "bus/policy.h"
 #include "dbus/protocol.h"
-#include "name.h"
-#include "policy.h"
 #include "util/error.h"
 
 bool policy_decision_is_default(PolicyDecision *decision) {

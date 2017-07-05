@@ -6,8 +6,8 @@
 #include <stdlib.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include "bus/match.h"
 #include "dbus/protocol.h"
-#include "match.h"
 
 static void test_arg(MatchOwner *owner,
                      const char *match,

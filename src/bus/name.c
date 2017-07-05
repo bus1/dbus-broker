@@ -7,9 +7,9 @@
 #include <c-ref.h>
 #include <c-list.h>
 #include <stdlib.h>
+#include "bus/name.h"
 #include "dbus/protocol.h"
 #include "dbus/socket.h"
-#include "name.h"
 #include "util/error.h"
 #include "util/user.h"
 

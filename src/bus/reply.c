@@ -6,7 +6,7 @@
 #include <c-macro.h>
 #include <c-rbtree.h>
 #include <stdlib.h>
-#include "reply.h"
+#include "bus/reply.h"
 #include "util/error.h"
 #include "util/user.h"
 

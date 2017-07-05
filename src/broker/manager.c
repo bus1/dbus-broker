@@ -10,12 +10,12 @@
 #include <sys/signalfd.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+#include "broker/controller.h"
+#include "broker/main.h"
+#include "broker/manager.h"
+#include "bus/bus.h"
 #include "dbus/connection.h"
 #include "dbus/message.h"
-#include "bus.h"
-#include "controller.h"
-#include "main.h"
-#include "manager.h"
 #include "util/dispatch.h"
 #include "util/error.h"
 #include "util/user.h"

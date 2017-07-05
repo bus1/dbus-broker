@@ -47,8 +47,8 @@
 #include <c-ref.h>
 #include <stdlib.h>
 #include <sys/epoll.h>
-#include "dispatch.h"
-#include "error.h"
+#include "util/dispatch.h"
+#include "util/error.h"
 
 /**
  * dispatch_file_init() - initialize dispatch file

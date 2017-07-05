@@ -8,15 +8,15 @@
 #include <c-string.h>
 #include <stdlib.h>
 #include <sys/epoll.h>
-#include "activation.h"
-#include "bus.h"
+#include "bus/activation.h"
+#include "bus/bus.h"
+#include "bus/driver.h"
+#include "bus/match.h"
+#include "bus/peer.h"
 #include "dbus/address.h"
 #include "dbus/message.h"
 #include "dbus/protocol.h"
 #include "dbus/socket.h"
-#include "driver.h"
-#include "match.h"
-#include "peer.h"
 #include "util/error.h"
 
 typedef struct DriverMethod DriverMethod;

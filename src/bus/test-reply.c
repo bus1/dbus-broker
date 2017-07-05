@@ -6,7 +6,7 @@
 #include <stdlib.h>
 #include <sys/types.h>
 #include <sys/socket.h>
-#include "reply.h"
+#include "bus/reply.h"
 
 static void test_basic(void) {
         ReplyRegistry registry;

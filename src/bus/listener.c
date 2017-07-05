@@ -7,10 +7,10 @@
 #include <stdlib.h>
 #include <sys/epoll.h>
 #include <sys/socket.h>
-#include "bus.h"
-#include "listener.h"
-#include "peer.h"
-#include "policy.h"
+#include "bus/bus.h"
+#include "bus/listener.h"
+#include "bus/peer.h"
+#include "bus/policy.h"
 #include "launch/policy-parser.h" /* XXX: drop once we get the policy pre-parsed */
 #include "util/dispatch.h"
 #include "util/error.h"

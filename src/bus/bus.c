@@ -6,11 +6,11 @@
 #include <stdlib.h>
 #include <sys/auxv.h>
 #include <sys/socket.h>
-#include "bus.h"
+#include "bus/bus.h"
+#include "bus/driver.h"
+#include "bus/match.h"
+#include "bus/name.h"
 #include "dbus/address.h"
-#include "driver.h"
-#include "match.h"
-#include "name.h"
 #include "util/error.h"
 #include "util/user.h"
 

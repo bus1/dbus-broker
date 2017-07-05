@@ -5,8 +5,8 @@
 #include <c-macro.h>
 #include <stdlib.h>
 #include <sys/socket.h>
+#include "bus/name.h"
 #include "dbus/protocol.h"
-#include "name.h"
 
 static NameOwner *resolve_owner(NameRegistry *registry, const char *name_str) {
         NameOwnership *ownership;

@@ -17,8 +17,8 @@
 #include <systemd/sd-bus.h>
 #include <systemd/sd-daemon.h>
 #include <systemd/sd-event.h>
-#include "policy.h"
-#include "policy-parser.h"
+#include "bus/policy.h"
+#include "launch/policy-parser.h"
 #include "util/error.h"
 
 typedef struct Manager Manager;

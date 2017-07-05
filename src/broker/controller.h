@@ -8,9 +8,9 @@
 #include <c-rbtree.h>
 #include <stdlib.h>
 #include <sys/types.h>
-#include "activation.h"
+#include "bus/activation.h"
+#include "bus/listener.h"
 #include "dbus/connection.h"
-#include "listener.h"
 
 typedef struct Bus Bus;
 typedef struct Controller Controller;

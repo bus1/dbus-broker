@@ -8,10 +8,10 @@
 #include <grp.h>
 #include <pwd.h>
 #include <stdlib.h>
+#include "bus/name.h"
+#include "bus/policy.h"
 #include "dbus/protocol.h"
-#include "name.h"
-#include "policy.h"
-#include "policy-parser.h"
+#include "launch/policy-parser.h"
 #include "util/error.h"
 
 #define POLICY_PRIORITY_INCREMENT       (((uint64_t)-1) / 5)

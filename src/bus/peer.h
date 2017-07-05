@@ -8,11 +8,11 @@
 #include <c-rbtree.h>
 #include <stdlib.h>
 #include <sys/types.h>
+#include "bus/match.h"
+#include "bus/name.h"
+#include "bus/policy.h"
+#include "bus/reply.h"
 #include "dbus/connection.h"
-#include "match.h"
-#include "name.h"
-#include "policy.h"
-#include "reply.h"
 
 typedef struct Bus Bus;
 typedef struct DispatchContext DispatchContext;
