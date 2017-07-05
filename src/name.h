@@ -60,14 +60,6 @@ struct Name {
         char name[];
 };
 
-struct NameRegistry {
-        CRBTree name_tree;
-};
-
-#define NAME_REGISTRY_INIT {                                                    \
-                .name_tree = C_RBTREE_INIT,                                     \
-        }
-
 struct NameOwner {
         CRBTree ownership_tree;
 };
@@ -76,10 +68,20 @@ struct NameOwner {
                 .ownership_tree = C_RBTREE_INIT,                                \
         }
 
+struct NameRegistry {
+        CRBTree name_tree;
+};
+
+#define NAME_REGISTRY_INIT {                                                    \
+                .name_tree = C_RBTREE_INIT,                                     \
+        }
+
 struct NameSnapshot {
         size_t n_names;
         Name *names[];
 };
+
+#define NAME_SNAPSHOT_NULL {}
 
 enum {
         NAME_SET_TYPE_OWNER,
@@ -123,10 +125,6 @@ void name_free(_Atomic unsigned long *n_refs, void *userdata);
 void name_owner_init(NameOwner *owner);
 void name_owner_deinit(NameOwner *owner);
 
-/* snapshopts */
-int name_snapshot_new(NameSnapshot **snapshotp, NameOwner *owner);
-NameSnapshot *name_snapshot_free(NameSnapshot *snapshot);
-
 /* registry */
 
 void name_registry_init(NameRegistry *registry);
@@ -145,6 +143,13 @@ int name_registry_release_name(NameRegistry *registry,
                                NameOwner *owner,
                                const char *name_str,
                                NameChange *change);
+
+/* snapshots */
+
+int name_snapshot_new(NameSnapshot **snapshotp, NameOwner *owner);
+NameSnapshot *name_snapshot_free(NameSnapshot *snapshot);
+
+C_DEFINE_CLEANUP(NameSnapshot *, name_snapshot_free);
 
 /* inline helpers */
 

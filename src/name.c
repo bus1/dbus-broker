@@ -260,68 +260,6 @@ void name_owner_deinit(NameOwner *owner) {
 }
 
 /**
- * name_snapshot_new() - create a snapshot of a name owner
- * @snapshotp:          output argument for snapshot
- * @owner:              owner to take snapshot of
- *
- * The names owned by a name owner are dynamic. However, sometimes we may want
- * to store the names owned at a given point in time. This allows an immutable
- * snapshot to be created of all the names the name owner is the primary owner
- * of.
- *
- * Return: 0 on success, negative error code on failure.
- */
-int name_snapshot_new(NameSnapshot **snapshotp, NameOwner *owner) {
-        NameSnapshot *snapshot;
-        NameOwnership *ownership;
-        size_t n_names = 0;
-
-        c_rbtree_for_each_entry(ownership, &owner->ownership_tree, owner_node) {
-                if (!name_ownership_is_primary(ownership))
-                        continue;
-
-                ++n_names;
-        }
-
-        snapshot = malloc(sizeof(*snapshot) + n_names * sizeof(snapshot->names[0]));
-        if (!snapshot)
-                return error_origin(-ENOMEM);
-        snapshot->n_names = 0;
-
-        c_rbtree_for_each_entry(ownership, &owner->ownership_tree, owner_node) {
-                if (!name_ownership_is_primary(ownership))
-                        continue;
-
-                snapshot->names[snapshot->n_names++] = name_ref(ownership->name);
-        }
-
-        assert(n_names == snapshot->n_names);
-
-        *snapshotp = snapshot;
-        return 0;
-}
-
-/**
- * name_snapshot_free() - free a name snapshot
- * @snapshot:           object to free
- *
- * This releases all the resources and frees the snapshot.
- *
- * Return: NULL.
- */
-NameSnapshot *name_snapshot_free(NameSnapshot *snapshot) {
-        if (!snapshot)
-                return NULL;
-
-        for (size_t i = 0; i < snapshot->n_names; ++i)
-                name_unref(snapshot->names[i]);
-
-        free(snapshot);
-
-        return NULL;
-}
-
-/**
  * name_registry_init() - initialize registry
  * @registry:           object to operate on
  *
@@ -473,4 +411,61 @@ int name_registry_release_name(NameRegistry *registry,
 
         name_ownership_release(ownership, change);
         return 0;
+}
+
+/**
+ * name_snapshot_new() - create a snapshot of a name owner
+ * @snapshotp:          output argument for snapshot
+ * @owner:              owner to take snapshot of
+ *
+ * The names owned by a name owner are dynamic. However, sometimes we may want
+ * to store the names owned at a given point in time. This allows an immutable
+ * snapshot to be created of all the names the name owner is the primary owner
+ * of.
+ *
+ * Return: 0 on success, negative error code on failure.
+ */
+int name_snapshot_new(NameSnapshot **snapshotp, NameOwner *owner) {
+        NameOwnership *ownership;
+        NameSnapshot *snapshot;
+        size_t n_names = 0;
+
+        c_rbtree_for_each_entry(ownership, &owner->ownership_tree, owner_node)
+                if (name_ownership_is_primary(ownership))
+                        ++n_names;
+
+        snapshot = malloc(sizeof(*snapshot) + n_names * sizeof(snapshot->names[0]));
+        if (!snapshot)
+                return error_origin(-ENOMEM);
+
+        *snapshot = (NameSnapshot)NAME_SNAPSHOT_NULL;
+
+        c_rbtree_for_each_entry(ownership, &owner->ownership_tree, owner_node)
+                if (name_ownership_is_primary(ownership))
+                        snapshot->names[snapshot->n_names++] = name_ref(ownership->name);
+
+        assert(n_names == snapshot->n_names);
+
+        *snapshotp = snapshot;
+        return 0;
+}
+
+/**
+ * name_snapshot_free() - free a name snapshot
+ * @snapshot:           object to free
+ *
+ * This releases all the resources and frees the snapshot.
+ *
+ * Return: NULL is returned.
+ */
+NameSnapshot *name_snapshot_free(NameSnapshot *snapshot) {
+        if (!snapshot)
+                return NULL;
+
+        for (size_t i = 0; i < snapshot->n_names; ++i)
+                name_unref(snapshot->names[i]);
+
+        free(snapshot);
+
+        return NULL;
 }
