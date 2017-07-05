@@ -5,3 +5,6 @@ Requires=dbus.socket
 
 [Service]
 ExecStart=@bindir@/dbus-broker-launch -v --scope user --listen inherit
+
+[Install]
+Alias=dbus.service
