@@ -64,6 +64,14 @@ int broker_new(Broker **brokerp, int controller_fd) {
         broker->signals_file = (DispatchFile)DISPATCH_FILE_NULL(broker->signals_file);
         broker->controller = (Controller)CONTROLLER_NULL(broker->controller);
 
+        /*
+         * XXX: These limits should be provided by our caller. That is, either
+         *      the controller must provide them, or they must be passed via
+         *      command-line arguments.
+         *      The latter seems like the better option, since those limits
+         *      need to be provided for bus-initialization, and we preferably
+         *      want to keep the Bus valid at all times.
+         */
         r = bus_init(&broker->bus, 16 * 1024 * 1024, 1024, 10 * 1024, 10 * 1024);
         if (r)
                 return error_fold(r);
