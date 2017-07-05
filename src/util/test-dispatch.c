@@ -32,8 +32,15 @@ static void q_assert(int s, bool has_in, bool has_out) {
  * outgoing queue runs *EMPTY*. That is, when we send data to a socket, we rely
  * on the kernel to re-notify us of EPOLLOUT whenever the other side cleared
  * its incoming queue.
+ *
+ * Additionally, we do the same test *after* we shutdown both read and write
+ * side of the connection. That is, even if both channels are down and EPOLLHUP
+ * is signalled, we still want to be notified of queues running empty.
+ *
+ * Both of these invariants is relied on by our socket implementation for
+ * accounting reasons. Hence, they better be granted by the kernel.
  */
-static void test_uds_edge(void) {
+static void test_uds_edge(unsigned int run) {
         _c_cleanup_(dispatch_context_deinit) DispatchContext c = DISPATCH_CONTEXT_NULL(c);
         DispatchFile f = DISPATCH_FILE_NULL(f);
         char b[] = { "foobar" };
@@ -91,17 +98,116 @@ static void test_uds_edge(void) {
 
         r = dispatch_context_poll(&c, 0);
         assert(!r);
-        assert((f.events & EPOLLOUT));
+        assert(c_list_is_linked(&f.ready_link) && (f.events & EPOLLOUT));
+
+        /*
+         * The first test succeeded. We now repeat this test, but before
+         * dequeuing the data, we shutdown the socket.
+         *
+         * This simulates a server queueing data on a client that now decided
+         * to disconnect. We want the server to be able to keep the connection
+         * up and running, and still be notified of events, even though it was
+         * shutdown. That is, we want to be notified of the queue running
+         * empty, either via following recv(2) calls or a teardown of the
+         * remote socket via the last close(2) call.
+         */
+
+        /* send message again and verify sockets signal data */
+
+        r = send(s[0], b, sizeof(b), MSG_DONTWAIT | MSG_NOSIGNAL);
+        assert(r == sizeof(b));
+
+        q_assert(s[0], false, true);
+        q_assert(s[1], true, false);
+
+        r = dispatch_context_poll(&c, 0);
+        assert(!r);
+        assert(c_list_is_linked(&f.ready_link) && (f.events & EPOLLOUT));
+
+        /* clear EPOLLOUT (but keep it selected), verify it is not signalled */
+
+        dispatch_file_clear(&f, EPOLLOUT);
+
+        r = dispatch_context_poll(&c, 0);
+        assert(!r);
+        assert(!c_list_is_linked(&f.ready_link) && !(f.events & EPOLLOUT));
+
+        /* trigger remote shutdown and verify queue state did not change */
+
+        r = shutdown(s[1], SHUT_RDWR);
+        assert(!r);
+
+        q_assert(s[0], false, true);
+        q_assert(s[1], true, false);
+
+        /*
+         * Verify that EPOLLHUP is set. We do *NOT* use the dispatcher for
+         * that. We want to make sure we are woken up for EPOLLOUT, not
+         * EPOLLHUP, hence we better not select EPOLLHUP in the epoll-set. This
+         * tests a fast-path the socket-layer uses to pass events to epoll
+         * without requiring a callback into ->poll(). Furthermore, epoll
+         * correctly ignores wake-ups for anything that does not provide our
+         * events.
+         * This is in no way a reliable way to just get woken up for EPOLLOUT.
+         * But it decreases false-positives, so lets do it nevertheless.
+         *
+         * Note that we fetch EPOLLOUT here, since shutdown(2) might trigger
+         * it. However, we explicitly clear is and fetch events again,
+         * verifying we're no longer woken up for it.
+         */
+
+        r = send(s[0], b, sizeof(b), MSG_DONTWAIT | MSG_NOSIGNAL);
+        assert(r < 0 && errno == EPIPE);
+
+        /* fetch EPOLLOUT which was set by shutdown(2) and clear it */
+
+        r = dispatch_context_poll(&c, 0);
+        assert(!r);
+        assert(c_list_is_linked(&f.ready_link) && (f.events & EPOLLOUT));
+
+        dispatch_file_clear(&f, EPOLLOUT);
+
+        r = dispatch_context_poll(&c, 0);
+        assert(!r);
+        assert(!(f.events & EPOLLOUT));
+
+        /* receive data and verify socket becomes pollable */
+
+        switch (run) {
+        case 0:
+                /* if @run is 0, we use recv(2) to dequeue data */
+                r = recv(s[1], b, sizeof(b), MSG_DONTWAIT);
+                assert(r == sizeof(b));
+
+                q_assert(s[0], false, false);
+                q_assert(s[1], false, false);
+                break;
+        case 1:
+                /* if @run is 1, we use close(2) to flush queues */
+                r = close(s[1]);
+                assert(!r);
+                s[1] = -1;
+
+                q_assert(s[0], false, false);
+                /* s[1] is obviously invalid here */
+                break;
+        default:
+                assert(0);
+        }
+
+        r = dispatch_context_poll(&c, 0);
+        assert(!r);
         assert(c_list_is_linked(&f.ready_link) && (f.events & EPOLLOUT));
 
         /* cleanup */
 
         dispatch_file_deinit(&f);
-        close(s[1]);
-        close(s[0]);
+        c_close(s[1]);
+        c_close(s[0]);
 }
 
 int main(int argc, char **argv) {
-        test_uds_edge();
+        test_uds_edge(0);
+        test_uds_edge(1);
         return 0;
 }
