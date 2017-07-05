@@ -1,0 +1,7 @@
+[Unit]
+Description=D-Bus User Message Bus
+Documentation=man:dbus-broker(1)
+Requires=dbus.socket
+
+[Service]
+ExecStart=@bindir@/dbus-broker-launch -v --scope user --listen inherit
