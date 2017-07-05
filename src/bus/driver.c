@@ -1626,6 +1626,10 @@ static int driver_forward_unicast(Peer *sender, const char *destination, Message
                         return DRIVER_E_EXPECTED_REPLY_EXISTS;
                 else if (r == PEER_E_QUOTA)
                         return DRIVER_E_QUOTA;
+                else if (r == PEER_E_SEND_DENIED)
+                        return DRIVER_E_SEND_DENIED;
+                else if (r == PEER_E_RECEIVE_DENIED)
+                        return DRIVER_E_RECEIVE_DENIED;
                 else
                         return error_fold(r);
         }
