@@ -509,9 +509,6 @@ static int manager_on_set_activation_environment(Manager *manager, sd_bus_messag
                 if (r < 0)
                         return error_origin(-errno);
 
-                if (main_arg_verbose)
-                        fprintf(stderr, "    %s\n", entry);
-
                 r = sd_bus_message_append(method_call, "s", entry);
                 if (r < 0)
                         return error_origin(r);
