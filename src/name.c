@@ -77,11 +77,9 @@ static int name_ownership_new(NameOwnership **ownershipp, NameOwner *owner, User
         if (!ownership)
                 return error_origin(-ENOMEM);
 
+        *ownership = (NameOwnership)NAME_OWNERSHIP_NULL(*ownership);
         ownership->owner = owner;
         ownership->name = name_ref(name);
-        ownership->owner_node = (CRBNode)C_RBNODE_INIT(ownership->owner_node);
-        ownership->name_link = (CList)C_LIST_INIT(ownership->name_link);
-        ownership->charge = (UserCharge)USER_CHARGE_INIT;
 
         r = user_charge(user, &ownership->charge, NULL, USER_SLOT_OBJECTS, 1);
         if (r)
@@ -214,12 +212,8 @@ static int name_new(Name **namep, NameRegistry *registry, const char *name_str) 
         if (!name)
                 return error_origin(-ENOMEM);
 
-        name->n_refs = C_REF_INIT;
+        *name = (Name)NAME_INIT(*name);
         name->registry = registry;
-        name->registry_node = (CRBNode)C_RBNODE_INIT(name->registry_node);
-        name->activation = NULL;
-        match_registry_init(&name->matches);
-        name->ownership_list = (CList)C_LIST_INIT(name->ownership_list);
         memcpy(name->name, name_str, n_name + 1);
 
         *namep = name;

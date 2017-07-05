@@ -48,6 +48,12 @@ struct NameOwnership {
         UserCharge charge;
 };
 
+#define NAME_OWNERSHIP_NULL(_x) {                                               \
+                .owner_node = C_RBNODE_INIT((_x).owner_node),                   \
+                .name_link = C_LIST_INIT((_x).name_link),                       \
+                .charge = USER_CHARGE_INIT,                                     \
+        }
+
 struct Name {
         _Atomic unsigned long n_refs;
         NameRegistry *registry;
@@ -59,6 +65,13 @@ struct Name {
         CList ownership_list;
         char name[];
 };
+
+#define NAME_INIT(_x) {                                                         \
+                .n_refs = C_REF_INIT,                                           \
+                .registry_node = C_RBNODE_INIT((_x).registry_node),             \
+                .matches = MATCH_REGISTRY_INIT((_x).matches),                   \
+                .ownership_list = C_LIST_INIT((_x).ownership_list),             \
+        }
 
 struct NameOwner {
         CRBTree ownership_tree;
