@@ -76,7 +76,6 @@ int broker_new(Broker **brokerp, int controller_fd) {
         if (r)
                 return error_fold(r);
 
-        broker->bus.controller = &broker->controller.connection;
         broker->bus.pid = ucred.pid;
         r = user_registry_ref_user(&broker->bus.users, &broker->bus.user, ucred.uid);
         if (r)
