@@ -78,7 +78,7 @@ exe_dbus_broker = executable(
 # target: dbus-broker-launch
 #
 
-if dep_systemd.found() and dep_glib.found()
+if dep_libsystemd.found() and dep_glib.found()
         exe_dbus_broker_launch = executable(
                 'dbus-broker-launch',
                 [
@@ -90,7 +90,7 @@ if dep_systemd.found() and dep_glib.found()
                         dep_crbtree,
                         dep_csundry,
                         dep_glib,
-                        dep_systemd,
+                        dep_libsystemd,
                         libdbus_broker_dep,
                 ],
                 install: true,
@@ -104,11 +104,11 @@ endif
 test_address = executable('test-address', ['dbus/test-address.c'], dependencies: libdbus_broker_dep)
 test('Address Handling', test_address)
 
-if dep_systemd.found()
-        test_broker = executable('test-broker', ['broker/test-broker.c'], dependencies: [ libdbus_broker_dep, dep_thread, dep_systemd ])
+if dep_libsystemd.found()
+        test_broker = executable('test-broker', ['broker/test-broker.c'], dependencies: [ libdbus_broker_dep, dep_thread, dep_libsystemd ])
         test('Instance of broker + controller', test_broker)
 
-        test_driver = executable('test-driver', ['broker/test-driver.c'], dependencies: [ libdbus_broker_dep, dep_thread, dep_systemd ])
+        test_driver = executable('test-driver', ['broker/test-driver.c'], dependencies: [ libdbus_broker_dep, dep_thread, dep_libsystemd ])
         test('Driver API', test_driver)
 endif
 
