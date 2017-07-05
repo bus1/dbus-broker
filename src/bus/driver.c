@@ -8,6 +8,7 @@
 #include <c-string.h>
 #include <stdlib.h>
 #include <sys/epoll.h>
+#include "broker/broker.h"
 #include "bus/activation.h"
 #include "bus/bus.h"
 #include "bus/driver.h"
@@ -947,61 +948,39 @@ static int driver_method_start_service_by_name(Peer *peer, CDVar *in_v, uint32_t
 }
 
 static int driver_method_update_activation_environment(Peer *peer, CDVar *in_v, uint32_t serial, CDVar *out_v) {
-        static const CDVarType type[] = {
-                C_DVAR_T_INIT(
-                        DRIVER_T_MESSAGE(
-                                C_DVAR_T_TUPLE1(
-                                        C_DVAR_T_ARRAY(
-                                                C_DVAR_T_PAIR(
-                                                        C_DVAR_T_s,
-                                                        C_DVAR_T_s
-                                                )
-                                        )
-                                )
-                        )
-                )
-        };
-        _c_cleanup_(c_dvar_deinitp) CDVar var = C_DVAR_INIT;
-        _c_cleanup_(message_unrefp) Message *message = NULL;
+        _c_cleanup_(c_freep) const char **env = NULL;
         const char *key, *value;
-        void *data;
-        size_t n_data;
+        size_t n_env = 0, z_env = 0;
+        const char **t;
         int r;
 
         if (!peer_is_privileged(peer))
                 return DRIVER_E_PEER_NOT_PRIVILEGED;
 
-        c_dvar_begin_write(&var, type, 1);
-        c_dvar_write(&var, "((yyyyuu[(y<o>)(y<s>)(y<s>)(y<g>)])([",
-                     c_dvar_is_big_endian(&var) ? 'B' : 'l', DBUS_MESSAGE_TYPE_SIGNAL, DBUS_HEADER_FLAG_NO_REPLY_EXPECTED, 1, 0, (uint32_t)-1,
-                     DBUS_MESSAGE_FIELD_PATH, c_dvar_type_o, "/org/bus1/DBus/Broker",
-                     DBUS_MESSAGE_FIELD_INTERFACE, c_dvar_type_s, "org.bus1.DBus.Broker",
-                     DBUS_MESSAGE_FIELD_MEMBER, c_dvar_type_s, "SetActivationEnvironment",
-                     DBUS_MESSAGE_FIELD_SIGNATURE, c_dvar_type_g, "a{ss}");
-
         c_dvar_read(in_v, "([");
         while (c_dvar_more(in_v)) {
                 c_dvar_read(in_v, "{ss}", &key, &value);
-                c_dvar_write(&var, "{ss}", key, value);
+
+                if (n_env >= z_env) {
+                        z_env = (z_env * 2) ?: 128;
+                        t = realloc(env, z_env * sizeof(*env));
+                        if (!t)
+                                return error_origin(-ENOMEM);
+
+                        env = t;
+                }
+
+                env[n_env * 2] = key;
+                env[n_env * 2 + 1] = value;
+                ++n_env;
         }
         c_dvar_read(in_v, "])");
-        c_dvar_write(&var, "]))");
 
         r = driver_end_read(in_v);
         if (r)
                 return error_trace(r);
 
-        r = c_dvar_end_write(&var, &data, &n_data);
-        if (r)
-                return error_origin(r);
-
-        r = message_new_outgoing(&message, data, n_data);
-        if (r)
-                return error_fold(r);
-
-        /* XXX: accounting */
-        /* this is excluded from monitoring as it is on our private connection */
-        r = connection_queue(peer->bus->controller, NULL, 0, message);
+        r = broker_update_environment(BROKER(peer->bus), env, n_env);
         if (r)
                 return error_fold(r);
 

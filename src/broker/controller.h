@@ -104,6 +104,7 @@ ControllerListener *controller_find_listener(Controller *controller, const char 
 
 int controller_dbus_dispatch(Controller *controller, Message *message);
 int controller_dbus_send_activation(Controller *controller, const char *path);
+int controller_dbus_send_environment(Controller *controller, const char * const *env, size_t n_env);
 
 C_DEFINE_CLEANUP(Controller *, controller_deinit);
 

@@ -159,3 +159,7 @@ int broker_run(Broker *broker) {
 
         return r;
 }
+
+int broker_update_environment(Broker *broker, const char * const *env, size_t n_env) {
+        return controller_dbus_send_environment(&broker->controller, env, n_env);
+}

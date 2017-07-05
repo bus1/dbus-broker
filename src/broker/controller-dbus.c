@@ -525,3 +525,55 @@ int controller_dbus_send_activation(Controller *controller, const char *path) {
 
         return 0;
 }
+
+/**
+ * controller_dbus_send_environment() - XXX
+ */
+int controller_dbus_send_environment(Controller *controller, const char * const *env, size_t n_env) {
+        static const CDVarType type[] = {
+                C_DVAR_T_INIT(
+                        CONTROLLER_T_MESSAGE(
+                                C_DVAR_T_TUPLE1(
+                                        C_DVAR_T_ARRAY(
+                                                C_DVAR_T_PAIR(
+                                                        C_DVAR_T_s,
+                                                        C_DVAR_T_s
+                                                )
+                                        )
+                                )
+                        )
+                )
+        };
+        _c_cleanup_(c_dvar_deinitp) CDVar var = C_DVAR_INIT;
+        _c_cleanup_(message_unrefp) Message *message = NULL;
+        size_t i, n_data;
+        void *data;
+        int r;
+
+        c_dvar_begin_write(&var, type, 1);
+        c_dvar_write(&var, "((yyyyuu[(y<o>)(y<s>)(y<s>)(y<g>)])([",
+                     c_dvar_is_big_endian(&var) ? 'B' : 'l', DBUS_MESSAGE_TYPE_SIGNAL, DBUS_HEADER_FLAG_NO_REPLY_EXPECTED, 1, 0, (uint32_t)-1,
+                     DBUS_MESSAGE_FIELD_PATH, c_dvar_type_o, "/org/bus1/DBus/Broker",
+                     DBUS_MESSAGE_FIELD_INTERFACE, c_dvar_type_s, "org.bus1.DBus.Broker",
+                     DBUS_MESSAGE_FIELD_MEMBER, c_dvar_type_s, "SetActivationEnvironment",
+                     DBUS_MESSAGE_FIELD_SIGNATURE, c_dvar_type_g, "a{ss}");
+
+        for (i = 0; i < n_env; ++i)
+                c_dvar_write(&var, "{ss}", env[i * 2], env[i * 2 + 1]);
+
+        c_dvar_write(&var, "]))");
+
+        r = c_dvar_end_write(&var, &data, &n_data);
+        if (r)
+                return error_origin(r);
+
+        r = message_new_outgoing(&message, data, n_data);
+        if (r)
+                return error_fold(r);
+
+        r = connection_queue(&controller->connection, NULL, 0, message);
+        if (r)
+                return error_fold(r);
+
+        return 0;
+}

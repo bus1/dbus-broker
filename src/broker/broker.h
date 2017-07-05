@@ -22,9 +22,29 @@ struct Broker {
         Controller controller;
 };
 
+/* broker */
+
 int broker_new(Broker **brokerp, int controller_fd);
 Broker *broker_free(Broker *broker);
 
 int broker_run(Broker *broker);
+int broker_update_environment(Broker *broker, const char * const *env, size_t n_env);
 
 C_DEFINE_CLEANUP(Broker *, broker_free);
+
+/* inline helpers */
+
+static inline Broker *BROKER(Bus *bus) {
+        /*
+         * This function up-casts a Bus to its parent class Broker. In our code
+         * base we pretend a Bus is an abstract class with several virtual
+         * methods. However, we only do this to clearly separate our code
+         * bases. We never intended this to be modular. Hence, instead of
+         * providing real vtables with userdata pointers, we instead allow
+         * explicit up-casts to the parent type.
+         *
+         * This function performs the up-cast, relying on the fact that all our
+         * Bus objects are always owned by a Broker object.
+         */
+        return c_container_of(bus, Broker, bus);
+}
