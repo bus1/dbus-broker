@@ -5,8 +5,8 @@
 #include <c-macro.h>
 #include <stdlib.h>
 #include <sys/types.h>
+#include "broker/broker.h"
 #include "broker/controller.h"
-#include "broker/manager.h"
 #include "bus/activation.h"
 #include "bus/bus.h"
 #include "dbus/connection.h"
@@ -144,17 +144,17 @@ static int controller_dispatch_connection(DispatchFile *file, uint32_t events) {
 /**
  * controller_init() - XXX
  */
-int controller_init(Controller *c, Manager *manager, int controller_fd) {
+int controller_init(Controller *c, Broker *broker, int controller_fd) {
         _c_cleanup_(controller_deinitp) Controller *controller = c;
         int r;
 
         *controller = (Controller)CONTROLLER_NULL(*controller);
-        controller->manager = manager;
+        controller->broker = broker;
 
         r = connection_init_server(&controller->connection,
-                                   &manager->dispatcher,
+                                   &broker->dispatcher,
                                    controller_dispatch_connection,
-                                   manager->bus.user,
+                                   broker->bus.user,
                                    "0123456789abcdef",
                                    controller_fd);
         if (r)
@@ -178,7 +178,7 @@ void controller_deinit(Controller *controller) {
                 controller_listener_free(listener);
 
         connection_deinit(&controller->connection);
-        controller->manager = NULL;
+        controller->broker = NULL;
 }
 
 /**
@@ -194,11 +194,11 @@ int controller_add_name(Controller *controller,
         _c_cleanup_(user_unrefp) User *user_entry = NULL;
         int r;
 
-        r = name_registry_ref_name(&controller->manager->bus.names, &name_entry, name_str);
+        r = name_registry_ref_name(&controller->broker->bus.names, &name_entry, name_str);
         if (r)
                 return error_fold(r);
 
-        r = user_registry_ref_user(&controller->manager->bus.users, &user_entry, uid);
+        r = user_registry_ref_user(&controller->broker->bus.users, &user_entry, uid);
         if (r)
                 return error_fold(r);
 
@@ -231,8 +231,8 @@ int controller_add_listener(Controller *controller,
                 return error_trace(r);
 
         r = listener_init_with_fd(&listener->listener,
-                                  &controller->manager->bus,
-                                  &controller->manager->dispatcher,
+                                  &controller->broker->bus,
+                                  &controller->broker->dispatcher,
                                   listener_fd,
                                   policy_path);
         if (r)

@@ -1,7 +1,7 @@
 #pragma once
 
 /*
- * Bus Manager
+ * Broker
  */
 
 #include <c-macro.h>
@@ -10,9 +10,9 @@
 #include "bus/bus.h"
 #include "util/dispatch.h"
 
-typedef struct Manager Manager;
+typedef struct Broker Broker;
 
-struct Manager {
+struct Broker {
         Bus bus;
         DispatchContext dispatcher;
 
@@ -22,9 +22,9 @@ struct Manager {
         Controller controller;
 };
 
-int manager_new(Manager **managerp, int controller_fd);
-Manager *manager_free(Manager *manager);
+int broker_new(Broker **brokerp, int controller_fd);
+Broker *broker_free(Broker *broker);
 
-int manager_run(Manager *manager);
+int broker_run(Broker *broker);
 
-C_DEFINE_CLEANUP(Manager *, manager_free);
+C_DEFINE_CLEANUP(Broker *, broker_free);

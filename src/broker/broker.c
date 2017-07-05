@@ -1,5 +1,5 @@
 /*
- * Bus Manager
+ * Broker
  */
 
 #include <c-list.h>
@@ -10,9 +10,9 @@
 #include <sys/signalfd.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+#include "broker/broker.h"
 #include "broker/controller.h"
 #include "broker/main.h"
-#include "broker/manager.h"
 #include "bus/bus.h"
 #include "dbus/connection.h"
 #include "dbus/message.h"
@@ -20,14 +20,14 @@
 #include "util/error.h"
 #include "util/user.h"
 
-static int manager_dispatch_signals(DispatchFile *file, uint32_t events) {
-        Manager *manager = c_container_of(file, Manager, signals_file);
+static int broker_dispatch_signals(DispatchFile *file, uint32_t events) {
+        Broker *broker = c_container_of(file, Broker, signals_file);
         struct signalfd_siginfo si;
         ssize_t l;
 
         assert(events == EPOLLIN);
 
-        l = read(manager->signals_fd, &si, sizeof(si));
+        l = read(broker->signals_fd, &si, sizeof(si));
         if (l < 0)
                 return error_origin(-errno);
 
@@ -43,8 +43,8 @@ static int manager_dispatch_signals(DispatchFile *file, uint32_t events) {
         return DISPATCH_E_EXIT;
 }
 
-int manager_new(Manager **managerp, int controller_fd) {
-        _c_cleanup_(manager_freep) Manager *manager = NULL;
+int broker_new(Broker **brokerp, int controller_fd) {
+        _c_cleanup_(broker_freep) Broker *broker = NULL;
         struct ucred ucred;
         socklen_t z_ucred = sizeof(ucred);
         sigset_t sigmask;
@@ -54,27 +54,27 @@ int manager_new(Manager **managerp, int controller_fd) {
         if (r < 0)
                 return error_origin(-errno);
 
-        manager = calloc(1, sizeof(*manager));
-        if (!manager)
+        broker = calloc(1, sizeof(*broker));
+        if (!broker)
                 return error_origin(-ENOMEM);
 
-        manager->bus = (Bus)BUS_NULL(manager->bus);
-        manager->dispatcher = (DispatchContext)DISPATCH_CONTEXT_NULL(manager->dispatcher);
-        manager->signals_fd = -1;
-        manager->signals_file = (DispatchFile)DISPATCH_FILE_NULL(manager->signals_file);
-        manager->controller = (Controller)CONTROLLER_NULL(manager->controller);
+        broker->bus = (Bus)BUS_NULL(broker->bus);
+        broker->dispatcher = (DispatchContext)DISPATCH_CONTEXT_NULL(broker->dispatcher);
+        broker->signals_fd = -1;
+        broker->signals_file = (DispatchFile)DISPATCH_FILE_NULL(broker->signals_file);
+        broker->controller = (Controller)CONTROLLER_NULL(broker->controller);
 
-        r = bus_init(&manager->bus, 16 * 1024 * 1024, 1024, 10 * 1024, 10 * 1024);
+        r = bus_init(&broker->bus, 16 * 1024 * 1024, 1024, 10 * 1024, 10 * 1024);
         if (r)
                 return error_fold(r);
 
-        manager->bus.controller = &manager->controller.connection;
-        manager->bus.pid = ucred.pid;
-        r = user_registry_ref_user(&manager->bus.users, &manager->bus.user, ucred.uid);
+        broker->bus.controller = &broker->controller.connection;
+        broker->bus.pid = ucred.pid;
+        r = user_registry_ref_user(&broker->bus.users, &broker->bus.user, ucred.uid);
         if (r)
                 return error_fold(r);
 
-        r = dispatch_context_init(&manager->dispatcher);
+        r = dispatch_context_init(&broker->dispatcher);
         if (r)
                 return error_fold(r);
 
@@ -82,44 +82,44 @@ int manager_new(Manager **managerp, int controller_fd) {
         sigaddset(&sigmask, SIGTERM);
         sigaddset(&sigmask, SIGINT);
 
-        manager->signals_fd = signalfd(-1, &sigmask, SFD_CLOEXEC | SFD_NONBLOCK);
-        if (manager->signals_fd < 0)
+        broker->signals_fd = signalfd(-1, &sigmask, SFD_CLOEXEC | SFD_NONBLOCK);
+        if (broker->signals_fd < 0)
                 return error_origin(-errno);
 
-        r = dispatch_file_init(&manager->signals_file,
-                               &manager->dispatcher,
-                               manager_dispatch_signals,
-                               manager->signals_fd,
+        r = dispatch_file_init(&broker->signals_file,
+                               &broker->dispatcher,
+                               broker_dispatch_signals,
+                               broker->signals_fd,
                                EPOLLIN);
         if (r)
                 return error_fold(r);
 
-        dispatch_file_select(&manager->signals_file, EPOLLIN);
+        dispatch_file_select(&broker->signals_file, EPOLLIN);
 
-        r = controller_init(&manager->controller, manager, controller_fd);
+        r = controller_init(&broker->controller, broker, controller_fd);
         if (r)
                 return error_fold(r);
 
-        *managerp = manager;
-        manager = NULL;
+        *brokerp = broker;
+        broker = NULL;
         return 0;
 }
 
-Manager *manager_free(Manager *manager) {
-        if (!manager)
+Broker *broker_free(Broker *broker) {
+        if (!broker)
                 return NULL;
 
-        controller_deinit(&manager->controller);
-        dispatch_file_deinit(&manager->signals_file);
-        c_close(manager->signals_fd);
-        dispatch_context_deinit(&manager->dispatcher);
-        bus_deinit(&manager->bus);
-        free(manager);
+        controller_deinit(&broker->controller);
+        dispatch_file_deinit(&broker->signals_file);
+        c_close(broker->signals_fd);
+        dispatch_context_deinit(&broker->dispatcher);
+        bus_deinit(&broker->bus);
+        free(broker);
 
         return NULL;
 }
 
-int manager_run(Manager *manager) {
+int broker_run(Broker *broker) {
         sigset_t signew, sigold;
         int r;
 
@@ -129,14 +129,14 @@ int manager_run(Manager *manager) {
 
         sigprocmask(SIG_BLOCK, &signew, &sigold);
 
-        r = connection_open(&manager->controller.connection);
+        r = connection_open(&broker->controller.connection);
         if (r == CONNECTION_E_EOF)
                 return MAIN_EXIT;
         else if (r)
                 return error_fold(r);
 
         do {
-                r = dispatch_context_dispatch(&manager->dispatcher);
+                r = dispatch_context_dispatch(&broker->dispatcher);
                 if (r == DISPATCH_E_EXIT)
                         r = MAIN_EXIT;
                 else if (r == DISPATCH_E_FAILURE)
@@ -145,7 +145,7 @@ int manager_run(Manager *manager) {
                         r = error_fold(r);
         } while (!r);
 
-        peer_registry_flush(&manager->bus.peers);
+        peer_registry_flush(&broker->bus.peers);
 
         sigprocmask(SIG_SETMASK, &sigold, NULL);
 

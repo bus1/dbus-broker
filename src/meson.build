@@ -61,10 +61,10 @@ libdbus_broker_dep = declare_dependency(
 exe_dbus_broker = executable(
         'dbus-broker',
         [
+                'broker/broker.c',
                 'broker/controller.c',
                 'broker/controller-dbus.c',
                 'broker/main.c',
-                'broker/manager.c',
         ],
         dependencies: [
                 dep_clist,

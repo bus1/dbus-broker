@@ -8,8 +8,8 @@
 #include <stdlib.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+#include "broker/broker.h"
 #include "broker/main.h"
-#include "broker/manager.h"
 #include "util/error.h"
 
 int main_arg_controller = 3;
@@ -113,12 +113,12 @@ static int parse_argv(int argc, char *argv[]) {
 }
 
 static int run(void) {
-        _c_cleanup_(manager_freep) Manager *manager = NULL;
+        _c_cleanup_(broker_freep) Broker *broker = NULL;
         int r;
 
-        r = manager_new(&manager, main_arg_controller);
+        r = broker_new(&broker, main_arg_controller);
         if (!r)
-                r = manager_run(manager);
+                r = broker_run(broker);
 
         return error_trace(r);
 }

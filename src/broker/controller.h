@@ -12,11 +12,11 @@
 #include "bus/listener.h"
 #include "dbus/connection.h"
 
+typedef struct Broker Broker;
 typedef struct Bus Bus;
 typedef struct Controller Controller;
 typedef struct ControllerName ControllerName;
 typedef struct ControllerListener ControllerListener;
-typedef struct Manager Manager;
 typedef struct Message Message;
 
 enum {
@@ -58,7 +58,7 @@ struct ControllerListener {
 };
 
 struct Controller {
-        Manager *manager;
+        Broker *broker;
         Connection connection;
         CRBTree name_tree;
         CRBTree listener_tree;
@@ -86,7 +86,7 @@ C_DEFINE_CLEANUP(ControllerListener *, controller_listener_free);
 
 /* controller */
 
-int controller_init(Controller *controller, Manager *manager, int controller_fd);
+int controller_init(Controller *controller, Broker *broker, int controller_fd);
 void controller_deinit(Controller *controller);
 
 int controller_add_name(Controller *controller,
