@@ -288,7 +288,8 @@ static int manager_on_child_exit(sd_event_source *source, const siginfo_t *si, v
         if (main_arg_verbose)
                 fprintf(stderr, "Caught SIGCHLD of broker\n");
 
-        return sd_event_exit(sd_event_source_get_event(source), 0);
+        return sd_event_exit(sd_event_source_get_event(source),
+                             (si->si_code == CLD_EXITED) ? si->si_status : EXIT_FAILURE);
 }
 
 static int manager_fork(Manager *manager, int fd_controller) {
@@ -835,6 +836,8 @@ static int manager_run(Manager *manager) {
         r = sd_event_loop(manager->event);
         if (r < 0)
                 return error_origin(r);
+        else if (r > 0)
+                return MAIN_FAILED;
 
         return 0;
 }
