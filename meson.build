@@ -36,6 +36,7 @@ endif
 subdir('src')
 
 if dep_systemd.found()
+        subdir('test/dbus')
         subdir('units/system')
         subdir('units/user')
 endif
