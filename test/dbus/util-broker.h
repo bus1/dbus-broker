@@ -20,18 +20,22 @@ struct Broker {
         struct sockaddr_un address;
         socklen_t n_address;
         int listener_fd;
+        int pipe_fds[2];
 };
 
 #define BROKER_NULL {                                                           \
                 .address.sun_family = AF_UNIX,                                  \
                 .n_address = sizeof(struct sockaddr_un),                        \
                 .listener_fd = -1,                                              \
+                .pipe_fds[0] = -1,                                              \
+                .pipe_fds[1] = -1,                                              \
         }
 
 /* misc */
 
 void util_event_new(sd_event **eventp);
 void util_fork_broker(sd_bus **busp, sd_event *event, int listener_fd);
+void util_fork_daemon(sd_event *event, int pipe_fd);
 
 /* broker */
 

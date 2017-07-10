@@ -19,6 +19,7 @@ dep_cdvar = dependency('libcdvar', version: '>=1', fallback: [ 'c-dvar', 'libcdv
 dep_clist = dependency('libclist', version: '>=1', fallback: [ 'c-list', 'libclist_dep' ])
 dep_crbtree = dependency('libcrbtree', version: '>=2', fallback: [ 'c-rbtree', 'libcrbtree_dep' ])
 dep_csundry = dependency('libcsundry', version: '>=1', fallback: [ 'c-sundry', 'libcsundry_dep' ])
+dep_dbus = dependency('dbus-1', version: '>=1.10', required: false)
 dep_glib = dependency('glib-2.0', version: '>=2.50', required: false)
 dep_libsystemd = dependency('libsystemd', version: '>=230', required: false)
 dep_math = cc.find_library('m')

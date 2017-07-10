@@ -36,3 +36,9 @@ libtest_dep = declare_dependency(
 
 test_broker = executable('test-broker', ['test-broker.c'], dependencies: [ libtest_dep, dep_libsystemd ])
 test('Broker API', test_broker)
+
+if dep_dbus.found()
+        dbus_bin = dep_dbus.get_pkgconfig_variable('bindir') + '/dbus-daemon'
+
+        test('dbus-daemon(1): Broker API', test_broker, env: [ 'DBUS_BROKER_TEST_DAEMON=' + dbus_bin ])
+endif
