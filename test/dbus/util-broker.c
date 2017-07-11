@@ -116,7 +116,7 @@ void util_fork_daemon(sd_event *event, int pipe_fd) {
                 "  <policy context=\"default\">\n"
                 "    <allow user=\"*\"/>\n"
                 "    <allow send_destination=\"*\" eavesdrop=\"true\"/>\n"
-                "    <allow eavesdrop=\"true\"/>\n"
+                "    <allow receive_sender=\"*\" eavesdrop=\"true\"/>\n"
                 "    <allow own=\"*\"/>\n"
                 "  </policy>\n"
                 "</busconfig>\n";
