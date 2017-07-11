@@ -909,6 +909,23 @@ static int socket_dispatch_write(Socket *socket) {
                 switch (errno) {
                 case EAGAIN:
                         return 0;
+                case ETOOMANYREFS:
+                        /*
+                         * XXX: Kernel might return ETOOMANYREFS if we ever hit
+                         *      the fd-passing recursion limit. There are
+                         *      pending patches to drop this, but we should
+                         *      really review our behavior, once the discussion
+                         *      settled. Until then, we simply disconnect the
+                         *      destination as a last resort.
+                         *
+                         *      Note that ETOOMANYREFS is also returned if we
+                         *      have too many FDs inflight. In this case we
+                         *      should simply exit with an error code and
+                         *      require the user to extend our resource limits.
+                         *      The quota accounting should be configured
+                         *      sufficiently, according to the resources given
+                         *      to the broker.
+                         */
                 case ECOMM:
                 case ECONNABORTED:
                 case ECONNRESET:
