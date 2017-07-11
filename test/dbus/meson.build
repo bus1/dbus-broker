@@ -26,6 +26,7 @@ libtest_dep = declare_dependency(
                 dep_csundry,
                 dep_libsystemd,
                 dep_thread,
+                libdbus_broker_dep,
         ],
         version: meson.project_version(),
 )
@@ -34,11 +35,15 @@ libtest_dep = declare_dependency(
 # target: test-*
 #
 
-test_broker = executable('test-broker', ['test-broker.c'], dependencies: [ libtest_dep, dep_libsystemd ])
+test_broker = executable('test-broker', ['test-broker.c'], dependencies: [ libtest_dep ])
 test('Broker API', test_broker)
+
+test_fdstream = executable('test-fdstream', ['test-fdstream.c'], dependencies: [ libtest_dep ])
+test('FD Stream Constraints', test_fdstream)
 
 if dep_dbus.found()
         dbus_bin = dep_dbus.get_pkgconfig_variable('bindir') + '/dbus-daemon'
 
         test('dbus-daemon(1): Broker API', test_broker, env: [ 'DBUS_BROKER_TEST_DAEMON=' + dbus_bin ])
+        test('dbus-daemon(1): FD Stream Constraints', test_fdstream, env: [ 'DBUS_BROKER_TEST_DAEMON=' + dbus_bin ])
 endif

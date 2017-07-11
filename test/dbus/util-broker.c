@@ -328,6 +328,20 @@ void util_broker_terminate(Broker *broker) {
         assert(broker->pipe_fds[0] < 0);
 }
 
+void util_broker_connect_fd(Broker *broker, int *fdp) {
+        _c_cleanup_(c_closep) int fd = -1;
+        int r;
+
+        fd = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
+        assert(fd >= 0);
+
+        r = connect(fd, (struct sockaddr *)&broker->address, broker->n_address);
+        assert(r >= 0);
+
+        *fdp = fd;
+        fd = -1;
+}
+
 void util_broker_connect(Broker *broker, sd_bus **busp) {
         _c_cleanup_(sd_bus_unrefp) sd_bus *bus = NULL;
         _c_cleanup_(c_closep) int fd = -1;

@@ -44,6 +44,7 @@ Broker *util_broker_free(Broker *broker);
 void util_broker_spawn(Broker *broker);
 void util_broker_terminate(Broker *broker);
 
+void util_broker_connect_fd(Broker *broker, int *fdp);
 void util_broker_connect(Broker *broker, sd_bus **busp);
 
 C_DEFINE_CLEANUP(Broker *, util_broker_free);
