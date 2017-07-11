@@ -5,6 +5,7 @@ Requires=dbus.socket
 
 [Service]
 OOMScoreAdjust=-900
+LimitNOFILE=16384
 ExecStart=@bindir@/dbus-broker-launch -v --scope system --listen inherit
 
 [Install]
