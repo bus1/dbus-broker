@@ -107,9 +107,6 @@ test('Address Handling', test_address)
 if dep_libsystemd.found()
         test_perf = executable('test-perf', ['broker/test-broker.c'], dependencies: [ libdbus_broker_dep, dep_thread, dep_libsystemd ])
         test('Broker Performance', test_perf)
-
-        test_driver = executable('test-driver', ['broker/test-driver.c'], dependencies: [ libdbus_broker_dep, dep_thread, dep_libsystemd ])
-        test('Driver API', test_driver)
 endif
 
 test_dispatch = executable('test-dispatch', ['util/test-dispatch.c'], dependencies: libdbus_broker_dep)
