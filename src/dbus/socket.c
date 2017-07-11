@@ -544,8 +544,6 @@ int socket_queue_line(Socket *socket, User *user, const char *line_in, size_t n)
         size_t *pos;
         int r;
 
-        assert(!socket->lines_done);
-
         if (_c_unlikely_(socket->hup_out || socket->shutdown))
                 return SOCKET_E_SHUTDOWN;
 
@@ -585,8 +583,6 @@ int socket_queue_line(Socket *socket, User *user, const char *line_in, size_t n)
 int socket_queue(Socket *socket, User *user, Message *message) {
         _c_cleanup_(socket_buffer_freep) SocketBuffer *buffer = NULL;
         int r;
-
-        socket_lines_done(socket);
 
         if (_c_unlikely_(socket->hup_out || socket->shutdown))
                 return SOCKET_E_SHUTDOWN;
