@@ -206,6 +206,7 @@ static int connection_policy_entry_new(ConnectionPolicyEntry **entryp, CRBTree *
         entry->policy = policy;
         entry->decision.deny = deny;
         entry->decision.priority = priority;
+        entry->uid = uid;
         c_rbtree_add(policy, parent, slot, &entry->rb);
 
         if (entryp)
