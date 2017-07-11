@@ -322,7 +322,7 @@ static int driver_send_error(Peer *receiver, uint32_t serial, const char *error,
                         )
                 )
         };
-        _c_cleanup_(c_dvar_deinitp) CDVar var = C_DVAR_INIT;
+        _c_cleanup_(c_dvar_deinit) CDVar var = C_DVAR_INIT;
         _c_cleanup_(message_unrefp) Message *message = NULL;
         void *data;
         size_t n_data;
@@ -409,7 +409,7 @@ static int driver_notify_name_acquired(Peer *peer, const char *name) {
                         )
                 )
         };
-        _c_cleanup_(c_dvar_deinitp) CDVar var = C_DVAR_INIT;
+        _c_cleanup_(c_dvar_deinit) CDVar var = C_DVAR_INIT;
         _c_cleanup_(message_unrefp) Message *message = NULL;
         void *data;
         size_t n_data;
@@ -454,7 +454,7 @@ static int driver_notify_name_lost(Peer *peer, const char *name) {
                         )
                 )
         };
-        _c_cleanup_(c_dvar_deinitp) CDVar var = C_DVAR_INIT;
+        _c_cleanup_(c_dvar_deinit) CDVar var = C_DVAR_INIT;
         _c_cleanup_(message_unrefp) Message *message = NULL;
         void *data;
         size_t n_data;
@@ -505,7 +505,7 @@ static int driver_notify_name_owner_changed(Bus *bus, const char *name, const ch
                         )
                 )
         };
-        _c_cleanup_(c_dvar_deinitp) CDVar var = C_DVAR_INIT;
+        _c_cleanup_(c_dvar_deinit) CDVar var = C_DVAR_INIT;
         _c_cleanup_(message_unrefp) Message *message = NULL;
         void *data;
         size_t n_data;
@@ -577,7 +577,7 @@ static int driver_name_activated(Activation *activation, Peer *receiver) {
 
                 sender = peer_registry_find_peer(&receiver->bus->peers, request->sender_id);
                 if (sender) {
-                        _c_cleanup_(c_dvar_deinitp) CDVar var = C_DVAR_INIT;
+                        _c_cleanup_(c_dvar_deinit) CDVar var = C_DVAR_INIT;
 
                         c_dvar_begin_write(&var, driver_type_out_u, 1);
                         c_dvar_write(&var, "(");
@@ -1445,7 +1445,7 @@ error:
 }
 
 static int driver_handle_method(const DriverMethod *method, Peer *peer, const char *path, uint32_t serial, const char *signature_in, Message *message_in) {
-        _c_cleanup_(c_dvar_deinitp) CDVar var_in = C_DVAR_INIT, var_out = C_DVAR_INIT;
+        _c_cleanup_(c_dvar_deinit) CDVar var_in = C_DVAR_INIT, var_out = C_DVAR_INIT;
         int r;
 
         /*

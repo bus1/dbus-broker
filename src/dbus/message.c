@@ -158,7 +158,7 @@ static int message_parse_header(Message *message, MessageMetadata *metadata) {
                         )
                 ), /* (yyyyuua(yv)) */
         };
-        _c_cleanup_(c_dvar_deinitp) CDVar v = C_DVAR_INIT;
+        _c_cleanup_(c_dvar_deinit) CDVar v = C_DVAR_INIT;
         unsigned int mask;
         uint8_t field;
         int r;
@@ -341,7 +341,7 @@ static int message_parse_header(Message *message, MessageMetadata *metadata) {
 }
 
 static int message_parse_body(Message *message, MessageMetadata *metadata) {
-        _c_cleanup_(c_dvar_deinitp) CDVar v = C_DVAR_INIT;
+        _c_cleanup_(c_dvar_deinit) CDVar v = C_DVAR_INIT;
         const char *signature = metadata->fields.signature;
         size_t i, n_signature, n_types;
         CDVarType *t, *types;

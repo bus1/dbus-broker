@@ -132,7 +132,7 @@ static void controller_write_reply_header(CDVar *var, uint32_t serial, const CDV
 }
 
 static int controller_send_error(Connection *connection, uint32_t serial, const char *error) {
-        _c_cleanup_(c_dvar_deinitp) CDVar var = C_DVAR_INIT;
+        _c_cleanup_(c_dvar_deinit) CDVar var = C_DVAR_INIT;
         _c_cleanup_(message_unrefp) Message *message = NULL;
         void *data;
         size_t n_data;
@@ -308,7 +308,7 @@ static int controller_method_name_reset(Controller *controller, const char *path
 }
 
 static int controller_handle_method(const ControllerMethod *method, Controller *controller, const char *path, uint32_t serial, const char *signature_in, Message *message_in) {
-        _c_cleanup_(c_dvar_deinitp) CDVar var_in = C_DVAR_INIT, var_out = C_DVAR_INIT;
+        _c_cleanup_(c_dvar_deinit) CDVar var_in = C_DVAR_INIT, var_out = C_DVAR_INIT;
         _c_cleanup_(message_unrefp) Message *message_out = NULL;
         void *data;
         size_t n_data;
@@ -491,7 +491,7 @@ int controller_dbus_send_activation(Controller *controller, const char *path) {
                         )
                 )
         };
-        _c_cleanup_(c_dvar_deinitp) CDVar var = C_DVAR_INIT;
+        _c_cleanup_(c_dvar_deinit) CDVar var = C_DVAR_INIT;
         _c_cleanup_(message_unrefp) Message *message = NULL;
         size_t n_data;
         void *data;
@@ -537,7 +537,7 @@ int controller_dbus_send_environment(Controller *controller, const char * const 
                         )
                 )
         };
-        _c_cleanup_(c_dvar_deinitp) CDVar var = C_DVAR_INIT;
+        _c_cleanup_(c_dvar_deinit) CDVar var = C_DVAR_INIT;
         _c_cleanup_(message_unrefp) Message *message = NULL;
         size_t i, n_data;
         void *data;
