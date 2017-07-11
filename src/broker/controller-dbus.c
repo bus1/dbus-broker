@@ -132,20 +132,13 @@ static void controller_write_reply_header(CDVar *var, uint32_t serial, const CDV
 }
 
 static int controller_send_error(Connection *connection, uint32_t serial, const char *error) {
-        static const CDVarType type[] = {
-                C_DVAR_T_INIT(
-                        CONTROLLER_T_MESSAGE(
-                                C_DVAR_T_TUPLE0
-                        )
-                )
-        };
         _c_cleanup_(c_dvar_deinitp) CDVar var = C_DVAR_INIT;
         _c_cleanup_(message_unrefp) Message *message = NULL;
         void *data;
         size_t n_data;
         int r;
 
-        c_dvar_begin_write(&var, type, 1);
+        c_dvar_begin_write(&var, controller_type_out_unit, 1);
         c_dvar_write(&var, "((yyyyuu[(y<u>)(y<s>)])())",
                      c_dvar_is_big_endian(&var) ? 'B' : 'l', DBUS_MESSAGE_TYPE_ERROR, DBUS_HEADER_FLAG_NO_REPLY_EXPECTED, 1, 0, (uint32_t)-1,
                      DBUS_MESSAGE_FIELD_REPLY_SERIAL, c_dvar_type_u, serial,
