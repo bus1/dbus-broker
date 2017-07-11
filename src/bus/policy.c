@@ -769,7 +769,7 @@ int peer_policy_check_own(PeerPolicy *policy, const char *name) {
 
         ownership_policy_check_allowed(&policy->uid_policy->ownership_policy, name, &decision);
 
-        for (size_t i = 0; policy->n_gid_policies; ++i)
+        for (size_t i = 0; i < policy->n_gid_policies; ++i)
                 ownership_policy_check_allowed(&policy->gid_policies[i]->ownership_policy, name, &decision);
 
         return decision.deny ? POLICY_E_ACCESS_DENIED : 0;
@@ -780,7 +780,7 @@ int peer_policy_check_send(PeerPolicy *policy, NameSet *subject, const char *int
 
         transmission_policy_check_allowed(&policy->uid_policy->send_policy, subject, interface, method, path, type, &decision);
 
-        for (size_t i = 0; policy->n_gid_policies; ++i)
+        for (size_t i = 0; i < policy->n_gid_policies; ++i)
                 transmission_policy_check_allowed(&policy->gid_policies[i]->send_policy, subject, interface, method, path, type, &decision);
 
         return decision.deny ? POLICY_E_ACCESS_DENIED : 0;
@@ -791,7 +791,7 @@ int peer_policy_check_receive(PeerPolicy *policy, NameSet *subject, const char *
 
         transmission_policy_check_allowed(&policy->uid_policy->receive_policy, subject, interface, method, path, type, &decision);
 
-        for (size_t i = 0; policy->n_gid_policies; ++i)
+        for (size_t i = 0; i < policy->n_gid_policies; ++i)
                 transmission_policy_check_allowed(&policy->gid_policies[i]->receive_policy, subject, interface, method, path, type, &decision);
 
         return decision.deny ? POLICY_E_ACCESS_DENIED : 0;
