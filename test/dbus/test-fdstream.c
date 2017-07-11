@@ -78,7 +78,7 @@ static void test_fd_stream_send(Connection *c, unsigned int unix_fds, unsigned i
                 assert(!r);
         }
 
-        r = connection_queue(c, NULL, test_fd_stream_seq, m);
+        r = connection_queue(c, NULL, m);
         assert(!r);
 }
 
@@ -126,7 +126,7 @@ static void test_fd_stream_hello(Connection *c) {
         r = message_new_outgoing(&m, data, n_data);
         assert(!r);
 
-        r = connection_queue(c, NULL, 1, m);
+        r = connection_queue(c, NULL, m);
         assert(!r);
 }
 

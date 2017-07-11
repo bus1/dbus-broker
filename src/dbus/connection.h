@@ -30,8 +30,6 @@ struct Connection {
 
         bool server : 1;
         bool authenticated : 1;
-
-        uint64_t transaction_id;
 };
 
 #define CONNECTION_NULL(_x) {                                           \
@@ -60,7 +58,7 @@ void connection_close(Connection *connection);
 int connection_dispatch(Connection *connection, uint32_t events);
 
 int connection_dequeue(Connection *connection, Message **messagep);
-int connection_queue(Connection *connection, User *user, uint64_t transaction_id, Message *message);
+int connection_queue(Connection *connection, User *user, Message *message);
 
 C_DEFINE_CLEANUP(Connection *, connection_deinit);
 

@@ -294,7 +294,7 @@ static int driver_send_unicast(Peer *receiver, MatchFilter *filter, Message *mes
         int r;
 
         /* XXX: handle quota */
-        r = connection_queue(&receiver->connection, NULL, 0, message);
+        r = connection_queue(&receiver->connection, NULL, message);
         if (r)
                 return error_fold(r);
 
@@ -1644,7 +1644,12 @@ static int driver_monitor_to_matches(MatchRegistry *matches, MatchFilter *filter
         for (rule = match_rule_next_monitor_match(matches, NULL, filter); rule; rule = match_rule_next_monitor_match(matches, rule, filter)) {
                 Peer *receiver = c_container_of(rule->owner, Peer, owned_matches);
 
-                r = connection_queue(&receiver->connection, NULL, transaction_id, message);
+                if (transaction_id <= receiver->transaction_id)
+                        continue;
+
+                receiver->transaction_id = c_max(transaction_id, receiver->transaction_id);
+
+                r = connection_queue(&receiver->connection, NULL, message);
                 if (r) {
                         if (r == CONNECTION_E_QUOTA)
                                 connection_shutdown(&receiver->connection);

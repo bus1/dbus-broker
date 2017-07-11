@@ -243,18 +243,8 @@ int connection_dequeue(Connection *connection, Message **messagep) {
 /**
  * connection_queue() - XXX
  */
-int connection_queue(Connection *connection, User *user, uint64_t transaction_id, Message *message) {
+int connection_queue(Connection *connection, User *user, Message *message) {
         int r;
-
-        if (transaction_id) {
-                if (transaction_id == connection->transaction_id) {
-                        /* this connection already received this message */
-                        return 0;
-                } else {
-                        assert(connection->transaction_id < transaction_id);
-                        connection->transaction_id = transaction_id;
-                }
-        }
 
         r = socket_queue(&connection->socket, user, message);
         if (r == SOCKET_E_QUOTA)

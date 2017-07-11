@@ -71,6 +71,8 @@ struct Peer {
         MatchOwner owned_matches;
         ReplyRegistry replies_outgoing;
         ReplyOwner owned_replies;
+
+        uint64_t transaction_id;
 };
 
 struct PeerRegistry {

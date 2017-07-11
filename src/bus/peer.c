@@ -668,7 +668,7 @@ int peer_queue_call(PeerPolicy *sender_policy, NameSet *sender_names, MatchRegis
                 return error_fold(r);
         }
 
-        r = connection_queue(&receiver->connection, sender_user, 0, message);
+        r = connection_queue(&receiver->connection, sender_user, message);
         if (r) {
                 if (CONNECTION_E_QUOTA)
                         return PEER_E_QUOTA;
@@ -702,7 +702,7 @@ int peer_queue_reply(Peer *sender, const char *destination, uint32_t reply_seria
 
         receiver = c_container_of(slot->owner, Peer, owned_replies);
 
-        r = connection_queue(&receiver->connection, NULL, 0, message);
+        r = connection_queue(&receiver->connection, NULL, message);
         if (r) {
                 if (r == CONNECTION_E_QUOTA)
                         connection_shutdown(&receiver->connection);
@@ -730,6 +730,10 @@ static int peer_broadcast_to_matches(PeerPolicy *sender_policy, NameSet *sender_
                 /* exclude the destination from broadcasts */
                 if (filter->destination == receiver->id)
                         continue;
+                if (transaction_id <= receiver->transaction_id)
+                        continue;
+
+                receiver->transaction_id = c_max(transaction_id, receiver->transaction_id);
 
                 if (sender_policy) {
                         r = peer_policy_check_send(sender_policy, &receiver_names,
@@ -753,7 +757,7 @@ static int peer_broadcast_to_matches(PeerPolicy *sender_policy, NameSet *sender_
                         return error_fold(r);
                 }
 
-                r = connection_queue(&receiver->connection, NULL, transaction_id, message);
+                r = connection_queue(&receiver->connection, NULL, message);
                 if (r) {
                         if (r == CONNECTION_E_QUOTA)
                                 connection_shutdown(&receiver->connection);

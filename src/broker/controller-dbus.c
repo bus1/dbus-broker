@@ -152,7 +152,7 @@ static int controller_send_error(Connection *connection, uint32_t serial, const 
         if (r)
                 return error_fold(r);
 
-        r = connection_queue(connection, NULL, 0, message);
+        r = connection_queue(connection, NULL, message);
         if (r) {
                 if (r == CONNECTION_E_QUOTA)
                         connection_close(connection);
@@ -357,7 +357,7 @@ static int controller_handle_method(const ControllerMethod *method, Controller *
         if (r)
                 return error_fold(r);
 
-        r = connection_queue(&controller->connection, NULL, 0, message_out);
+        r = connection_queue(&controller->connection, NULL, message_out);
         if (r) {
                 if (r == CONNECTION_E_QUOTA)
                         connection_close(&controller->connection);
@@ -512,7 +512,7 @@ int controller_dbus_send_activation(Controller *controller, const char *path) {
         if (r)
                 return error_fold(r);
 
-        r = connection_queue(&controller->connection, NULL, 0, message);
+        r = connection_queue(&controller->connection, NULL, message);
         if (r)
                 return error_fold(r);
 
@@ -564,7 +564,7 @@ int controller_dbus_send_environment(Controller *controller, const char * const 
         if (r)
                 return error_fold(r);
 
-        r = connection_queue(&controller->connection, NULL, 0, message);
+        r = connection_queue(&controller->connection, NULL, message);
         if (r)
                 return error_fold(r);
 
