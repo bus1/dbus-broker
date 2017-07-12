@@ -463,15 +463,14 @@ int socket_dequeue(Socket *socket, Message **messagep) {
                 }
 
                 r = user_charge(socket->user, &socket->in.charges[0], NULL, USER_SLOT_BYTES, sizeof(*msg) + msg->n_data);
-                if (r == USER_E_QUOTA) {
-                        /*
-                         * Too many/large outstanding messages accross all
-                         * a user's peers is considered a protocol
-                         * violation too and causes an immediate shutdown.
-                         */
-                        socket_close(socket);
-                        return SOCKET_E_EOF;
-                } else if (r) {
+                if (r) {
+                        msg = message_unref(msg);
+
+                        if (r == USER_E_QUOTA) {
+                                socket_close(socket);
+                                return SOCKET_E_EOF;
+                        }
+
                         return error_fold(r);
                 }
 
