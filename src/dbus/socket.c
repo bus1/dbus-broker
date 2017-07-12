@@ -672,6 +672,23 @@ static int socket_recvmsg(Socket *socket, void *buffer, size_t max, size_t *from
                 }
         }
 
+        if (msg.msg_flags & MSG_CTRUNC) {
+                /*
+                 * This flag means the control-buffer was too small to retrieve
+                 * all data. If this can be triggered remotely, it means a peer
+                 * can cause us to miss FDs. Hence, we really must protect
+                 * against this.
+                 * We do provide suitably sized buffers to be prepared for any
+                 * possible scenario. So if this happens, something is fishy
+                 * and we better report it.
+                 * Note that this is also reported by the kernel if we exceeded
+                 * our NOFILE limit. Since this implies resource
+                 * misconfiguration as well, we treat it the same way.
+                 */
+                r = error_origin(-ENOTRECOVERABLE);
+                goto error;
+        }
+
         if (_c_unlikely_(n_fds)) {
                 /*
                  * So we received FDs with this hunk. If we already got FDs for
