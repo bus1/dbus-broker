@@ -726,6 +726,7 @@ static int socket_recvmsg(Socket *socket, void *buffer, size_t max, size_t *from
 
                 r = fdlist_new_consume_fds(fdsp, fds, n_fds);
                 if (r) {
+                        user_charge_deinit(&socket->in.charges[1]);
                         r = error_fold(r);
                         goto error;
                 }
