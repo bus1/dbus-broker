@@ -758,6 +758,9 @@ static int socket_dispatch_read(Socket *socket) {
         void *p;
         int r;
 
+        if (socket->hup_in)
+                return SOCKET_E_LOST_INTEREST;
+
         /*
          * Always shift the input buffer. In case of the line-parser this
          * should never happen in normal operation: the only way to leave
@@ -907,6 +910,9 @@ static int socket_dispatch_write(Socket *socket) {
         struct msghdr *msg;
         int i, n_msgs;
 
+        if (socket->hup_out)
+                return SOCKET_E_LOST_INTEREST;
+
         n_msgs = 0;
         c_list_for_each_entry(buffer, &socket->out.queue, link) {
                 msg = &msgs[n_msgs].msg_hdr;
@@ -1013,12 +1019,10 @@ int socket_dispatch(Socket *socket, uint32_t event) {
 
         switch (event) {
         case EPOLLIN:
-                if (!socket->hup_in)
-                        r = socket_dispatch_read(socket);
+                r = socket_dispatch_read(socket);
                 break;
         case EPOLLOUT:
-                if (!socket->hup_out)
-                        r = socket_dispatch_write(socket);
+                r = socket_dispatch_write(socket);
                 break;
         case EPOLLHUP:
                 socket_hangup_output(socket);
