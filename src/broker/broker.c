@@ -72,7 +72,7 @@ int broker_new(Broker **brokerp, int controller_fd) {
          *      need to be provided for bus-initialization, and we preferably
          *      want to keep the Bus valid at all times.
          */
-        r = bus_init(&broker->bus, 16 * 1024 * 1024, 1024, 10 * 1024, 10 * 1024);
+        r = bus_init(&broker->bus, 16 * 1024 * 1024, 64, 10 * 1024, 10 * 1024);
         if (r)
                 return error_fold(r);
 
