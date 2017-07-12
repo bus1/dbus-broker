@@ -721,6 +721,7 @@ static int socket_recvmsg(Socket *socket, void *buffer, size_t max, size_t *from
                         r = SOCKET_E_LOST_INTEREST;
                         goto error;
                 } else if (r) {
+                        r = error_fold(r);
                         goto error;
                 }
 
