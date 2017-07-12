@@ -187,8 +187,10 @@ static void socket_discard_input(Socket *socket) {
         socket->in.data_start = socket->in.data_end;
         socket->in.cursor = socket->in.data_end;
         socket->in.fds = fdlist_free(socket->in.fds);
-        user_charge_deinit(&socket->in.charges[1]);
-        user_charge_deinit(&socket->in.charges[0]);
+
+        user_charge_deinit(&socket->in.charge_msg_fds);
+        user_charge_deinit(&socket->in.charge_msg_data);
+        user_charge_deinit(&socket->in.charge_buf_fds);
 }
 
 static void socket_discard_output(Socket *socket) {
@@ -217,8 +219,6 @@ void socket_init(Socket *socket, User *user, int fd) {
         socket->fd = fd;
         socket->in.data_size = sizeof(socket->input_buffer);
         socket->in.data = socket->input_buffer;
-        user_charge_init(&socket->in.charges[0]);
-        user_charge_init(&socket->in.charges[1]);
 }
 
 /**
@@ -240,11 +240,10 @@ void socket_deinit(Socket *socket) {
         assert(!socket->in.fds);
         assert(!socket->in.pending_message);
 
-        if (socket->in.data != socket->input_buffer)
+        if (socket->in.data != socket->input_buffer) {
                 socket->in.data = c_free(socket->in.data);
-
-        user_charge_deinit(&socket->in.charges[1]);
-        user_charge_deinit(&socket->in.charges[0]);
+                user_charge_deinit(&socket->in.charge_buf_data);
+        }
 
         socket->fd = -1;
         socket->user = user_unref(socket->user);
@@ -371,7 +370,7 @@ int socket_dequeue_line(Socket *socket, const char **linep, size_t *np) {
                  */
                 if (_c_unlikely_(socket->in.cursor + 1 == socket->in.data_end && socket->in.fds)) {
                         socket->in.fds = fdlist_free(socket->in.fds);
-                        user_charge_deinit(&socket->in.charges[1]);
+                        user_charge_deinit(&socket->in.charge_buf_fds);
                 }
 
                 /*
@@ -462,7 +461,11 @@ int socket_dequeue(Socket *socket, Message **messagep) {
                         return error_fold(r);
                 }
 
-                r = user_charge(socket->user, &socket->in.charges[0], NULL, USER_SLOT_BYTES, sizeof(*msg) + msg->n_data);
+                r = user_charge(socket->user,
+                                &socket->in.charge_msg_data,
+                                NULL,
+                                USER_SLOT_BYTES,
+                                sizeof(*msg) + msg->n_data);
                 if (r) {
                         msg = message_unref(msg);
 
@@ -503,13 +506,18 @@ int socket_dequeue(Socket *socket, Message **messagep) {
 
                 msg->fds = socket->in.fds;
                 socket->in.fds = NULL;
+
+                memcpy(&socket->in.charge_msg_fds,
+                       &socket->in.charge_buf_fds,
+                       sizeof(socket->in.charge_buf_fds));
+                socket->in.charge_buf_fds = (UserCharge)USER_CHARGE_INIT;
         }
 
         if (msg->n_copied >= msg->n_data) {
                 *messagep = msg;
                 socket->in.pending_message = NULL;
-                user_charge_deinit(&socket->in.charges[0]);
-                user_charge_deinit(&socket->in.charges[1]);
+                user_charge_deinit(&socket->in.charge_msg_data);
+                user_charge_deinit(&socket->in.charge_msg_fds);
                 return 0;
         }
 
@@ -709,7 +717,11 @@ static int socket_recvmsg(Socket *socket, void *buffer, size_t max, size_t *from
                         goto error;
                 }
 
-                r = user_charge(socket->user, &socket->in.charges[1], NULL, USER_SLOT_FDS, n_fds);
+                r = user_charge(socket->user,
+                                &socket->in.charge_buf_fds,
+                                NULL,
+                                USER_SLOT_FDS,
+                                n_fds);
                 if (r == USER_E_QUOTA) {
                         /*
                          * Too many/large outstanding messages accross all
@@ -726,7 +738,7 @@ static int socket_recvmsg(Socket *socket, void *buffer, size_t max, size_t *from
 
                 r = fdlist_new_consume_fds(fdsp, fds, n_fds);
                 if (r) {
-                        user_charge_deinit(&socket->in.charges[1]);
+                        user_charge_deinit(&socket->in.charge_buf_fds);
                         r = error_fold(r);
                         goto error;
                 }
@@ -802,24 +814,27 @@ static int socket_dispatch_read(Socket *socket) {
                         return SOCKET_E_LOST_INTEREST;
                 }
 
-                r = user_charge(socket->user, &socket->in.charges[0], NULL, USER_SLOT_BYTES, SOCKET_LINE_MAX);
-                if (r == USER_E_QUOTA) {
-                        /*
-                         * Too many/large outstanding messages or long lines
-                         * accross all a user's peers is considered a protocol
-                         * violation and causes an immediate shutdown.
-                         */
-                        socket_close(socket);
-                        return SOCKET_E_LOST_INTEREST;
-                } else if (r) {
-                        return error_fold(r);
-                }
-
                 assert(socket->in.data == socket->input_buffer);
 
                 p = malloc(SOCKET_LINE_MAX);
                 if (!p)
                         return error_origin(-ENOMEM);
+
+                r = user_charge(socket->user,
+                                &socket->in.charge_buf_data,
+                                NULL,
+                                USER_SLOT_BYTES,
+                                SOCKET_LINE_MAX);
+                if (r) {
+                        free(p);
+
+                        if (r == USER_E_QUOTA) {
+                                socket_close(socket);
+                                return SOCKET_E_LOST_INTEREST;
+                        }
+
+                        return error_fold(r);
+                }
 
                 memcpy(p,
                        socket->in.data + socket->in.data_start,
@@ -839,7 +854,7 @@ static int socket_dispatch_read(Socket *socket) {
                         free(socket->in.data);
                         socket->in.data = socket->input_buffer;
                         socket->in.data_size = sizeof(socket->input_buffer);
-                        user_charge_deinit(&socket->in.charges[0]);
+                        user_charge_deinit(&socket->in.charge_buf_data);
                 }
         }
 

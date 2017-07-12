@@ -46,13 +46,16 @@ struct Socket {
         bool hup_out : 1;
 
         struct SocketIn {
+                UserCharge charge_buf_data;
+                UserCharge charge_buf_fds;
+                UserCharge charge_msg_data;
+                UserCharge charge_msg_fds;
+
                 char *data;
                 size_t data_size;
                 size_t data_start;
                 size_t data_end;
                 size_t cursor;
-
-                UserCharge charges[2];
 
                 FDList *fds;
                 Message *pending_message;
@@ -68,6 +71,10 @@ struct Socket {
 
 #define SOCKET_NULL(_x) {                                               \
                 .fd = -1,                                               \
+                .in.charge_buf_data = USER_CHARGE_INIT,                 \
+                .in.charge_buf_fds = USER_CHARGE_INIT,                  \
+                .in.charge_msg_data = USER_CHARGE_INIT,                 \
+                .in.charge_msg_fds = USER_CHARGE_INIT,                  \
                 .out.queue = C_LIST_INIT((_x).out.queue),               \
         }
 
