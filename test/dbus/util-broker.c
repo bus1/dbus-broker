@@ -200,21 +200,19 @@ static void *util_broker_thread(void *userdata) {
         Broker *broker = userdata;
         int r;
 
+        assert(broker->pipe_fds[0] >= 0);
+        assert(broker->pipe_fds[1] >= 0);
+
         util_event_new(&event);
 
         if (broker->listener_fd >= 0) {
-                assert(broker->pipe_fds[0] < 0);
-                assert(broker->pipe_fds[1] < 0);
-
                 util_fork_broker(&bus, event, broker->listener_fd);
         } else {
                 assert(broker->listener_fd < 0);
-                assert(broker->pipe_fds[0] >= 0);
-                assert(broker->pipe_fds[1] >= 0);
-
                 util_fork_daemon(event, broker->pipe_fds[1]);
-                broker->pipe_fds[1] = c_close(broker->pipe_fds[1]);
         }
+
+        broker->pipe_fds[1] = c_close(broker->pipe_fds[1]);
 
         r = sd_event_loop(event);
         assert(r >= 0);
@@ -257,15 +255,23 @@ void util_broker_spawn(Broker *broker) {
         sigaddset(&signew, SIGUSR1);
         pthread_sigmask(SIG_BLOCK, &signew, &sigold);
 
+        /*
+         * Create a pipe object that we inherit into the forked daemon. In case
+         * of dbus-daemon(1) it is actually used to retrieve data from it. In
+         * case of dbus-broker, we use it to block until our child called
+         * exec() (as a synchronization primitive).
+         */
+        r = pipe2(broker->pipe_fds, O_CLOEXEC | O_DIRECT);
+        assert(r >= 0);
+
         if (getenv("DBUS_BROKER_TEST_DAEMON")) {
                 /*
-                 * Create a pipe to pass to a forked dbus-daemon(1). It will
+                 * Our pipe is passed to a forked dbus-daemon(1). It will
                  * write its picked address to the pipe, which we then remember
                  * in the broker object.
+                 * We use this both as synchronization primitive, and as a way
+                 * to retrieve the unix-address from dbus-daemon(1).
                  */
-
-                r = pipe2(broker->pipe_fds, O_CLOEXEC | O_DIRECT);
-                assert(r >= 0);
 
                 r = pthread_create(&broker->thread, NULL, util_broker_thread, broker);
                 assert(r >= 0);
@@ -306,6 +312,10 @@ void util_broker_spawn(Broker *broker) {
 
                 r = pthread_create(&broker->thread, NULL, util_broker_thread, broker);
                 assert(r >= 0);
+
+                /* block until we get EOF, so we know the broker was exec'ed */
+                r = read(broker->pipe_fds[0], buffer, sizeof(buffer) - 1);
+                assert(!r);
         }
 
         pthread_sigmask(SIG_SETMASK, &sigold, NULL);
