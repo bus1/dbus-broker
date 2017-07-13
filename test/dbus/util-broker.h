@@ -21,6 +21,7 @@ struct Broker {
         socklen_t n_address;
         int listener_fd;
         int pipe_fds[2];
+        pid_t pid;
 };
 
 #define BROKER_NULL {                                                           \
@@ -34,8 +35,8 @@ struct Broker {
 /* misc */
 
 void util_event_new(sd_event **eventp);
-void util_fork_broker(sd_bus **busp, sd_event *event, int listener_fd);
-void util_fork_daemon(sd_event *event, int pipe_fd);
+void util_fork_broker(sd_bus **busp, sd_event *event, int listener_fd, pid_t *pidp);
+void util_fork_daemon(sd_event *event, int pipe_fd, pid_t *pidp);
 
 /* broker */
 

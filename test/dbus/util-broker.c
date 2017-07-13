@@ -39,7 +39,7 @@ static int util_event_sigchld(sd_event_source *source, const siginfo_t *si, void
                              (si->si_code == CLD_EXITED) ? si->si_status : EXIT_FAILURE);
 }
 
-void util_fork_broker(sd_bus **busp, sd_event *event, int listener_fd) {
+void util_fork_broker(sd_bus **busp, sd_event *event, int listener_fd, pid_t *pidp) {
         _c_cleanup_(sd_bus_unrefp) sd_bus *bus = NULL;
         _c_cleanup_(c_freep) char *fdstr = NULL;
         int r, pair[2];
@@ -47,6 +47,10 @@ void util_fork_broker(sd_bus **busp, sd_event *event, int listener_fd) {
 
         r = socketpair(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0, pair);
         assert(r >= 0);
+
+        /* the broker reports the controller as its pid */
+        if (pidp)
+                *pidp = getpid();
 
         pid = fork();
         assert(pid >= 0);
@@ -105,7 +109,7 @@ void util_fork_broker(sd_bus **busp, sd_event *event, int listener_fd) {
         bus = NULL;
 }
 
-void util_fork_daemon(sd_event *event, int pipe_fd) {
+void util_fork_daemon(sd_event *event, int pipe_fd, pid_t *pidp) {
         static const char *config =
                 "<!DOCTYPE busconfig PUBLIC "
                 "\"-//freedesktop//DTD D-Bus Bus Configuration 1.0//EN\" "
@@ -164,6 +168,10 @@ void util_fork_daemon(sd_event *event, int pipe_fd) {
                 abort();
         }
 
+        /* remember the daemon's pid */
+        if (pidp)
+                *pidp = pid;
+
         /* monitor the daemon process */
         r = sd_event_add_child(event, NULL, pid, WEXITED, util_event_sigchld, NULL);
         assert(r >= 0);
@@ -206,10 +214,10 @@ static void *util_broker_thread(void *userdata) {
         util_event_new(&event);
 
         if (broker->listener_fd >= 0) {
-                util_fork_broker(&bus, event, broker->listener_fd);
+                util_fork_broker(&bus, event, broker->listener_fd, &broker->pid);
         } else {
                 assert(broker->listener_fd < 0);
-                util_fork_daemon(event, broker->pipe_fds[1]);
+                util_fork_daemon(event, broker->pipe_fds[1], &broker->pid);
         }
 
         broker->pipe_fds[1] = c_close(broker->pipe_fds[1]);
