@@ -1197,6 +1197,94 @@ static void test_get_adt_audit_session_data(void) {
         util_broker_terminate(broker);
 }
 
+static void test_get_id(void) {
+        _c_cleanup_(util_broker_freep) Broker *broker = NULL;
+        int r;
+
+        util_broker_new(&broker);
+        util_broker_spawn(broker);
+
+        /* get the bus id and verify that it is on the right format */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *reply = NULL;
+                const char *id;
+
+                util_broker_connect(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "GetId", NULL, &reply,
+                                       "");
+                assert(r >= 0);
+
+                r = sd_bus_message_read(reply, "s", &id);
+                assert(r >= 0);
+                assert(strlen(id) == 32);
+
+                for (size_t i = 0; i < strlen(id); ++i)
+                        assert((id[i] >= '0' && id[i] <= '9') ||
+                               (id[i] >= 'a' && id[i] <= 'f'));
+        }
+
+        util_broker_terminate(broker);
+}
+
+static void test_introspect(void) {
+        _c_cleanup_(util_broker_freep) Broker *broker = NULL;
+        int r;
+
+        util_broker_new(&broker);
+        util_broker_spawn(broker);
+
+        /* get introspection data, and verify that it is a non-empty string */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *reply = NULL;
+                const char *introspection;
+
+                util_broker_connect(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus.Introspectable",
+                                       "Introspect", NULL, &reply,
+                                       "");
+                assert(r >= 0);
+
+                r = sd_bus_message_read(reply, "s", &introspection);
+                assert(r >= 0);
+                assert(strlen(introspection) > 0);
+        }
+
+        util_broker_terminate(broker);
+}
+
+static void test_become_monitor(void) {
+        _c_cleanup_(util_broker_freep) Broker *broker = NULL;
+        int r;
+
+        util_broker_new(&broker);
+        util_broker_spawn(broker);
+
+        /* become monitor */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+
+                util_broker_connect(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus.Monitoring",
+                                       "BecomeMonitor", NULL, NULL,
+                                       "asu", 0, 0);
+                assert(r >= 0);
+
+                /* calling any method after having become monitor forcibly disconnects the peer */
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "Hello", NULL, NULL,
+                                       "");
+                assert(r == -ECONNRESET);
+        }
+
+        util_broker_terminate(broker);
+}
+
 int main(int argc, char **argv) {
         test_hello();
         test_request_name();
@@ -1209,6 +1297,9 @@ int main(int argc, char **argv) {
         test_get_connection_unix_user();
         test_get_connection_unix_process_id();
         test_get_adt_audit_session_data();
+        test_get_id();
+        test_introspect();
+        test_become_monitor();
 
         return 0;
 }
@@ -1236,11 +1327,6 @@ static void test_driver_api(struct sockaddr_un *address, socklen_t addrlen) {
         assert(r >= 0);
 
         r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
-                               "GetId", NULL, NULL,
-                               "");
-        assert(r >= 0);
-
-        r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                "StartServiceByName", NULL, NULL,
                                "su", "com.example.baz", 0);
         assert(r < 0);
@@ -1249,21 +1335,5 @@ static void test_driver_api(struct sockaddr_un *address, socklen_t addrlen) {
                                "UpdateActivationEnvironment", NULL, NULL,
                                "a{ss}", 0);
         assert(r >= 0);
-
-        r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus.Introspectable",
-                               "Introspect", NULL, NULL,
-                               "");
-        assert(r >= 0);
-
-        r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus.Monitoring",
-                               "BecomeMonitor", NULL, NULL,
-                               "asu", 0, 0);
-        assert(r >= 0);
-
-        /* calling any method after having become monitor forcibly disconnects the peer */
-        r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
-                               "Hello", NULL, NULL,
-                               "");
-        assert(r < 0);
 }
 #endif
