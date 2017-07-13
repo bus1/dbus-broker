@@ -1128,6 +1128,25 @@ static int driver_method_get_connection_credentials(Peer *peer, CDVar *in_v, uin
 }
 
 static int driver_method_get_adt_audit_session_data(Peer *peer, CDVar *in_v, uint32_t serial, CDVar *out_v) {
+        Peer *connection;
+        const char *name;
+        int r;
+
+        c_dvar_read(in_v, "(s)", &name);
+
+        r = driver_end_read(in_v);
+        if (r)
+                return error_trace(r);
+
+        if (strcmp(name, "org.freedesktop.DBus")) {
+                connection = bus_find_peer_by_name(peer->bus, NULL, name);
+                if (!connection)
+                        return DRIVER_E_PEER_NOT_FOUND;
+        }
+
+        /*
+         * ADT Audit Session Data is not supported on Linux
+         */
         return DRIVER_E_ADT_NOT_SUPPORTED;
 }
 
