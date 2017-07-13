@@ -1048,7 +1048,6 @@ static void test_get_connection_unix_process_id(void) {
                 assert(r >= 0);
                 r = sd_bus_message_read(reply, "u", &pid);
                 assert(r >= 0);
-                fprintf(stderr, "pid: %u, broker-pid: %u\n", pid, broker->pid);
                 assert(pid == broker->pid);
         }
 
@@ -1104,6 +1103,100 @@ static void test_get_connection_unix_process_id(void) {
         util_broker_terminate(broker);
 }
 
+static void test_get_adt_audit_session_data(void) {
+        _c_cleanup_(util_broker_freep) Broker *broker = NULL;
+        int r;
+
+        util_broker_new(&broker);
+        util_broker_spawn(broker);
+
+        /* get adt audit session data of well-known name */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
+
+                util_broker_connect(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "RequestName", NULL, NULL,
+                                       "su", "com.example.foo", 0);
+                assert(r >= 0);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "GetAdtAuditSessionData", &error, NULL,
+                                       "s", "com.example.foo");
+                assert(r < 0);
+                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AdtAuditDataUnknown"));
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "ReleaseName", NULL, NULL,
+                                       "s", "com.example.foo");
+                assert(r >= 0);
+        }
+
+        /* get adt audit session data of driver */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
+
+                util_broker_connect(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "GetAdtAuditSessionData", &error, NULL,
+                                       "s", "org.freedesktop.DBus");
+                assert(r < 0);
+                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AdtAuditDataUnknown"));
+        }
+
+        /* get adt audit session data of unique name */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
+                const char *unique_name;
+
+                util_broker_connect(broker, &bus);
+
+                r = sd_bus_get_unique_name(bus, &unique_name);
+                assert(r >= 0);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "GetAdtAuditSessionData", &error, NULL,
+                                       "s", unique_name);
+                assert(r < 0);
+                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AdtAuditDataUnknown"));
+        }
+
+        /* get adt audit session data of name that does not exist */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
+
+                util_broker_connect(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "GetAdtAuditSessionData", &error, NULL,
+                                       "s", "com.example.foo");
+                assert(r < 0);
+                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.NameHasNoOwner"));
+        }
+
+        /* get adt audit session data of invalid name */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
+
+                util_broker_connect(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "GetAdtAuditSessionData", &error, NULL,
+                                       "s", "org");
+                assert(r < 0);
+                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.NameHasNoOwner"));
+        }
+
+        util_broker_terminate(broker);
+}
+
 int main(int argc, char **argv) {
         test_hello();
         test_request_name();
@@ -1115,28 +1208,13 @@ int main(int argc, char **argv) {
         test_list_queued_owners();
         test_get_connection_unix_user();
         test_get_connection_unix_process_id();
+        test_get_adt_audit_session_data();
 
         return 0;
 }
 
 #if 0
 static void test_driver_api(struct sockaddr_un *address, socklen_t addrlen) {
-        _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
-        int r;
-
-
-        bus = connect_bus(address, addrlen);
-
-        r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
-                               "RequestName", NULL, NULL,
-                               "su", "com.example.baz", 0);
-        assert(r >= 0);
-
-        r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
-                               "GetAdtAuditSessionData", NULL, NULL,
-                               "s", "com.example.baz");
-        assert(r < 0);
-
         r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                "GetConnectionCredentials", NULL, NULL,
                                "s", "com.example.baz");
@@ -1166,11 +1244,6 @@ static void test_driver_api(struct sockaddr_un *address, socklen_t addrlen) {
                                "StartServiceByName", NULL, NULL,
                                "su", "com.example.baz", 0);
         assert(r < 0);
-
-        r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
-                               "ReleaseName", NULL, NULL,
-                               "s", "com.example.baz");
-        assert(r >= 0);
 
         r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                "UpdateActivationEnvironment", NULL, NULL,
