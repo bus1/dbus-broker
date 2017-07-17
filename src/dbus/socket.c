@@ -732,21 +732,31 @@ static int socket_dispatch_write(Socket *socket) {
                         return 0;
                 case ETOOMANYREFS:
                         /*
-                         * XXX: Kernel might return ETOOMANYREFS if we ever hit
-                         *      the fd-passing recursion limit. There are
-                         *      pending patches to drop this, but we should
-                         *      really review our behavior, once the discussion
-                         *      settled. Until then, we simply disconnect the
-                         *      destination as a last resort.
+                         * The kernel used to return ETOOMANYREFS if we exceed
+                         * the fd-passing recursion limit. This was dropped in
+                         * commit:
                          *
-                         *      Note that ETOOMANYREFS is also returned if we
-                         *      have too many FDs inflight. In this case we
-                         *      should simply exit with an error code and
-                         *      require the user to extend our resource limits.
-                         *      The quota accounting should be configured
-                         *      sufficiently, according to the resources given
-                         *      to the broker.
+                         *     commit 27eac47b00789522ba00501b0838026e1ecb6f05
+                         *     Author: David Herrmann <dh.herrmann@gmail.com>
+                         *     Commit: David S. Miller <davem@davemloft.net>
+                         *     Date:   Mon Jul 17 11:35:54 2017 +0200
+                         *
+                         *         net/unix: drop obsolete fd-recursion limits
+                         *
+                         * Since then the kernel no longer limits the recursion
+                         * depth, thus we will not trigger ETOOMANYREFS. You
+                         * are highly recommended to run >=linux-4.14,
+                         * otherwise clients can exploit this by modifying
+                         * file-descriptors while inflight.
+                         *
+                         * Note that the kernel also returns ETOOMANYREFS if we
+                         * exceeded our per-user limit of maximum inflight
+                         * file-descriptors. Since we employ quota-accounting,
+                         * ETOOMANYREFS should never occur, unless you
+                         * misconfigured your broker. Hence, we treat this as
+                         * fatal error.
                          */
+                        break;
                 case ECOMM:
                 case ECONNABORTED:
                 case ECONNRESET:
