@@ -19,6 +19,7 @@
 #include <sys/types.h>
 #include <sys/un.h>
 #include "dbus/message.h"
+#include "dbus/queue.h"
 #include "dbus/socket.h"
 #include "util/error.h"
 #include "util/fdlist.h"
@@ -183,14 +184,8 @@ static bool socket_buffer_consume(SocketBuffer *buffer, size_t n) {
 }
 
 static void socket_discard_input(Socket *socket) {
-        socket->in.pending_message = message_unref(socket->in.pending_message);
-        socket->in.data_start = socket->in.data_end;
-        socket->in.cursor = socket->in.data_end;
-        socket->in.fds = fdlist_free(socket->in.fds);
-
-        user_charge_deinit(&socket->in.charge_msg_fds);
-        user_charge_deinit(&socket->in.charge_msg_data);
-        user_charge_deinit(&socket->in.charge_buf_fds);
+        iqueue_flush(&socket->in.queue);
+        socket->in.message = message_unref(socket->in.message);
 }
 
 static void socket_discard_output(Socket *socket) {
@@ -217,8 +212,7 @@ void socket_init(Socket *socket, User *user, int fd) {
         *socket = (Socket)SOCKET_NULL(*socket);
         socket->user = user_ref(user);
         socket->fd = fd;
-        socket->in.data_size = sizeof(socket->input_buffer);
-        socket->in.data = socket->input_buffer;
+        iqueue_init(&socket->in.queue, user);
 }
 
 /**
@@ -236,44 +230,20 @@ void socket_deinit(Socket *socket) {
         socket_discard_input(socket);
         socket_discard_output(socket);
 
+
         assert(c_list_is_empty(&socket->out.queue));
-        assert(!socket->in.fds);
-        assert(!socket->in.pending_message);
+        assert(!socket->in.message);
 
-        if (socket->in.data != socket->input_buffer) {
-                socket->in.data = c_free(socket->in.data);
-                user_charge_deinit(&socket->in.charge_buf_data);
-        }
-
+        iqueue_deinit(&socket->in.queue);
         socket->fd = -1;
         socket->user = user_unref(socket->user);
 }
 
-static void socket_lines_done(Socket *socket) {
-        /*
-         * Whenever the first call to socket_queue() or socket_dequeue() is
-         * made, we shut down the line parser and prepare the message parser.
-         * Note that the caller must not have partial data in the line-parser
-         * at this time. That is, when calling socket_dequeue_line(), you must
-         * continue using the line parser until it returns a full line. Only
-         * after it returned a full line, you can switch to the message parser.
-         * This is usually given, since the only trigger to switch a parser can
-         * be inline data. Anything else would be very weird.
-         */
-        if (_c_unlikely_(!socket->lines_done)) {
-                assert(socket->in.cursor == socket->in.data_start);
-                socket->lines_done = true;
-        }
-}
-
 static void socket_might_reset(Socket *socket) {
-        Message *msg = socket->in.pending_message;
-
         if (_c_unlikely_(!socket->reset &&
                          socket->hup_in &&
                          socket->hup_out &&
-                         socket->in.cursor >= socket->in.data_end &&
-                         (!msg || msg->n_copied < msg->n_data)))
+                         iqueue_is_eof(&socket->in.queue)))
                 socket->reset = true;
 }
 
@@ -347,63 +317,23 @@ static void socket_shutdown_now(Socket *socket) {
  *         On fatal errors, a negative error code is returned.
  */
 int socket_dequeue_line(Socket *socket, const char **linep, size_t *np) {
-        char *line;
-        size_t n;
+        int r;
 
-        assert(!socket->lines_done);
+        r = iqueue_pop_line(&socket->in.queue, linep, np);
+        if (r) {
+                if (r == IQUEUE_E_PENDING) {
+                        socket_might_reset(socket);
+                        if (_c_unlikely_(socket->hup_in))
+                                return SOCKET_E_EOF;
 
-        /*
-         * Advance our cursor byte by byte and look for an end-of-line. We
-         * remember the parser position, so no byte is ever parsed twice.
-         */
-        for ( ; socket->in.cursor < socket->in.data_end; ++socket->in.cursor) {
-                /*
-                 * If we are at the end of the socket buffer, we must consume
-                 * any possible FD array that we recveived alongside it.
-                 * The kernel always breaks _after_ skbs with FDs, but not
-                 * before them. Hence, FDs are attached to the LAST byte of our
-                 * socket buffer, rather than the first.
-                 *
-                 * During line-handling, we silently ignore any received FDs,
-                 * and the DBus spec clearly states that no extension shall
-                 * pass FDs during authentication.
-                 */
-                if (_c_unlikely_(socket->in.cursor + 1 == socket->in.data_end && socket->in.fds)) {
-                        socket->in.fds = fdlist_free(socket->in.fds);
-                        user_charge_deinit(&socket->in.charge_buf_fds);
-                }
-
-                /*
-                 * If we find an \r\n, advance the start indicator and return
-                 * a pointer to the caller so they can parse the line.
-                 * We do NOT copy the line. We leave it in the buffer untouched
-                 * and return a direct pointer into the buffer. The pointer is
-                 * only valid until the next call into this Socket object.
-                 */
-                if (socket->in.cursor > 0 &&
-                    socket->in.data[socket->in.cursor] == '\n' &&
-                    socket->in.data[socket->in.cursor - 1] == '\r') {
-                        /* remember start and length without \r\n */
-                        line = socket->in.data + socket->in.data_start;
-                        n = socket->in.cursor - socket->in.data_start - 1;
-
-                        /* forward iterator */
-                        socket->in.data_start = ++socket->in.cursor;
-
-                        /* replace \r by safety NUL and return to caller */
-                        line[n] = 0;
-                        *linep = (const char *)line;
-                        *np = n;
+                        *linep = NULL;
+                        *np = 0;
                         return 0;
                 }
+
+                return error_fold(r);
         }
 
-        socket_might_reset(socket);
-        if (_c_unlikely_(socket->hup_in))
-                return SOCKET_E_EOF;
-
-        *linep = NULL;
-        *np = 0;
         return 0;
 }
 
@@ -429,99 +359,65 @@ int socket_dequeue_line(Socket *socket, const char **linep, size_t *np) {
  *         On fatal errors, a negative error code is returned.
  */
 int socket_dequeue(Socket *socket, Message **messagep) {
-        MessageHeader header;
-        Message *msg;
-        size_t n, n_data;
+        Message *message;
         int r;
 
-        socket_lines_done(socket);
+        if (!iqueue_get_target(&socket->in.queue)) {
+                r = iqueue_set_target(&socket->in.queue,
+                                      &socket->in.header,
+                                      sizeof(socket->in.header));
+                if (r)
+                        return (r == IQUEUE_E_QUOTA) ? SOCKET_E_QUOTA : error_fold(r);
+        }
 
-        msg = socket->in.pending_message;
-        n_data = socket->in.data_end - socket->in.data_start;
-
-        if (!msg) {
-                n = sizeof(MessageHeader);
-                if (_c_unlikely_(n_data < n)) {
-                        socket->in.cursor = socket->in.data_end;
-                        goto out_nodata;
-                }
-
-                memcpy(&header, socket->in.data + socket->in.data_start, n);
-
-                r = message_new_incoming(&msg, header);
-                if (r == MESSAGE_E_CORRUPT_HEADER ||
-                    r == MESSAGE_E_TOO_LARGE) {
-                        /*
-                         * Corrupt message headers are considered a protocol
-                         * violation and cause an immediate shutdown.
-                         */
+        if (!socket->in.message) {
+                r = iqueue_pop_data(&socket->in.queue, NULL);
+                if (r == IQUEUE_E_PENDING) {
+                        goto nodata;
+                } else if (r == IQUEUE_E_VIOLATION) {
                         socket_close(socket);
                         return SOCKET_E_EOF;
                 } else if (r) {
                         return error_fold(r);
                 }
 
-                r = user_charge(socket->user,
-                                &socket->in.charge_msg_data,
-                                NULL,
-                                USER_SLOT_BYTES,
-                                sizeof(*msg) + msg->n_data);
-                if (r) {
-                        msg = message_unref(msg);
-
-                        if (r == USER_E_QUOTA) {
-                                socket_close(socket);
-                                return SOCKET_E_EOF;
-                        }
-
+                r = message_new_incoming(&message, socket->in.header);
+                if (r == MESSAGE_E_CORRUPT_HEADER ||
+                    r == MESSAGE_E_TOO_LARGE) {
+                        socket_close(socket);
+                        return SOCKET_E_EOF;
+                } else if (r) {
                         return error_fold(r);
                 }
 
-                n_data -= n;
-                socket->in.data_start += n;
-                socket->in.cursor = socket->in.data_start;
-                socket->in.pending_message = msg;
-        }
-
-        if (n_data > 0) {
-                n = c_min(n_data, msg->n_data - msg->n_copied);
-                memcpy(msg->data + msg->n_copied, socket->in.data + socket->in.data_start, n);
-
-                n_data -= n;
-                socket->in.data_start += n;
-                socket->in.cursor += n;
-                msg->n_copied += n;
-        }
-
-        if (_c_unlikely_(!n_data && socket->in.fds)) {
-                if (msg->fds) {
-                        /*
-                         * FDs must be transmitted in a single set, anything
-                         * else is a protocol violation and will cause an
-                         * immediate shutdown.
-                         */
-                        socket_close(socket);
-                        return SOCKET_E_EOF;
+                r = iqueue_set_target(&socket->in.queue,
+                                      message->data + sizeof(socket->in.header),
+                                      message->n_data - sizeof(socket->in.header));
+                if (r) {
+                        message_unref(message);
+                        return (r == IQUEUE_E_QUOTA) ? SOCKET_E_QUOTA : error_fold(r);
                 }
 
-                msg->fds = socket->in.fds;
-                socket->in.fds = NULL;
-
-                memcpy(&socket->in.charge_msg_fds,
-                       &socket->in.charge_buf_fds,
-                       sizeof(socket->in.charge_buf_fds));
-                socket->in.charge_buf_fds = (UserCharge)USER_CHARGE_INIT;
+                socket->in.message = message;
         }
 
-        if (msg->n_copied >= msg->n_data) {
-                *messagep = msg;
-                socket->in.pending_message = NULL;
-                user_charge_deinit(&socket->in.charge_msg_data);
-                user_charge_deinit(&socket->in.charge_msg_fds);
-                return 0;
+        assert(socket->in.message);
+
+        r = iqueue_pop_data(&socket->in.queue, &socket->in.message->fds);
+        if (r == IQUEUE_E_PENDING) {
+                goto nodata;
+        } else if (r == IQUEUE_E_VIOLATION) {
+                socket_close(socket);
+                return SOCKET_E_EOF;
+        } else if (r) {
+                return error_fold(r);
         }
 
-out_nodata:
+        *messagep = socket->in.message;
+        socket->in.message = NULL;
+        return 0;
+
+nodata:
         socket_might_reset(socket);
         if (_c_unlikely_(socket->hup_in))
                 return SOCKET_E_EOF;
@@ -603,7 +499,13 @@ int socket_queue(Socket *socket, User *user, Message *message) {
         return 0;
 }
 
-static int socket_recvmsg(Socket *socket, void *buffer, size_t max, size_t *from, size_t to, FDList **fdsp) {
+static int socket_recvmsg(Socket *socket,
+                          void *buffer,
+                          size_t max,
+                          size_t *from,
+                          size_t to,
+                          FDList **fdsp,
+                          UserCharge *charge_fds) {
         union {
                 struct cmsghdr cmsg;
                 char buffer[CMSG_SPACE(sizeof(int) * SOCKET_FD_MAX)];
@@ -718,7 +620,7 @@ static int socket_recvmsg(Socket *socket, void *buffer, size_t max, size_t *from
                 }
 
                 r = user_charge(socket->user,
-                                &socket->in.charge_buf_fds,
+                                charge_fds,
                                 NULL,
                                 USER_SLOT_FDS,
                                 n_fds);
@@ -738,7 +640,7 @@ static int socket_recvmsg(Socket *socket, void *buffer, size_t max, size_t *from
 
                 r = fdlist_new_consume_fds(fdsp, fds, n_fds);
                 if (r) {
-                        user_charge_deinit(&socket->in.charge_buf_fds);
+                        user_charge_deinit(charge_fds);
                         r = error_fold(r);
                         goto error;
                 }
@@ -754,154 +656,38 @@ error:
 }
 
 static int socket_dispatch_read(Socket *socket) {
-        Message *msg = socket->in.pending_message;
-        void *p;
+        UserCharge *charge_fds;
+        size_t *from, to;
+        FDList **fds;
+        void *buffer;
         int r;
 
         if (socket->hup_in)
                 return SOCKET_E_LOST_INTEREST;
 
-        /*
-         * Always shift the input buffer. In case of the line-parser this
-         * should never happen in normal operation: the only way to leave
-         * behind a partial line is by filling the whole buffer, in that case
-         * at most SOCKET_DATA_RECV_MAX bytes need to be moved. And for the
-         * message-parser, there can be at most one message header left
-         * behind (16 bytes).
-         */
-        memmove(socket->in.data,
-                socket->in.data + socket->in.data_start,
-                socket->in.data_end - socket->in.data_start);
-        socket->in.cursor -= socket->in.data_start;
-        socket->in.data_end -= socket->in.data_start;
-        socket->in.data_start = 0;
-
-        /*
-         * Never ever read data if we did not finish parsing our input buffer!
-         *
-         * This is crucial! The kernel provides auxiliary data that is attached
-         * to specific SKBs, and as such part of the stream. We must never
-         * merge them across D-Bus message boundaries (see the FD handling on
-         * recvmsg(2) for details).
-         *
-         * As a consequence of this, we know that either our input buffer is
-         * empty, or we have no partial message pending. This stems from our
-         * parser to always copy any outstanding bytes from the input buffer
-         * into a pending message, and returning the message when done. So
-         * either we fully parsed a message and returned it (thus @msg is NULL)
-         * or our last dequeue-call emptied the input buffer by copying into
-         * the pending message.
-         */
-        if (socket->in.cursor < socket->in.data_end || (msg && msg->n_copied >= msg->n_data))
+        r = iqueue_get_cursor(&socket->in.queue,
+                              &buffer,
+                              &from,
+                              &to,
+                              &fds,
+                              &charge_fds);
+        if (r == IQUEUE_E_PENDING) {
                 return 0;
-
-        assert(!msg || !socket->in.cursor);
-
-        /*
-         * In case our input buffer is full, we need to resize it. This can
-         * only happen for the line-reader, since messages leave at most 16
-         * bytes behind (size of a single header).
-         * The line-reader, however, parses the entire line into the input
-         * buffer. Hence, in case the normal buffer size is exceeded, we
-         * re-allocate to the maximum once.
-         *
-         * Once we finished reading lines *AND* we processed all the data in
-         * the input buffer, we can safely de-allocate the buffer and fall back
-         * to the input buffer again.
-         */
-        if (_c_unlikely_(socket->in.data_size <= socket->in.data_end)) {
-                assert(!socket->lines_done);
-
-                if (socket->in.data_size >= SOCKET_LINE_MAX) {
-                        socket_close(socket);
-                        return SOCKET_E_LOST_INTEREST;
-                }
-
-                assert(socket->in.data == socket->input_buffer);
-
-                p = malloc(SOCKET_LINE_MAX);
-                if (!p)
-                        return error_origin(-ENOMEM);
-
-                r = user_charge(socket->user,
-                                &socket->in.charge_buf_data,
-                                NULL,
-                                USER_SLOT_BYTES,
-                                SOCKET_LINE_MAX);
-                if (r) {
-                        free(p);
-
-                        if (r == USER_E_QUOTA) {
-                                socket_close(socket);
-                                return SOCKET_E_LOST_INTEREST;
-                        }
-
-                        return error_fold(r);
-                }
-
-                memcpy(p,
-                       socket->in.data + socket->in.data_start,
-                       socket->in.data_end - socket->in.data_start);
-
-                socket->in.data = p;
-                socket->in.data_size = SOCKET_LINE_MAX;
-                socket->in.data_end -= socket->in.data_start;
-                socket->in.cursor -= socket->in.data_start;
-                socket->in.data_start = 0;
-        } else if (_c_unlikely_(socket->in.data != socket->input_buffer)) {
-                if (socket->lines_done) {
-                        assert(!socket->in.data_start);
-                        assert(socket->in.data_end <= sizeof(socket->input_buffer));
-
-                        memcpy(socket->input_buffer, socket->in.data, socket->in.data_end);
-                        free(socket->in.data);
-                        socket->in.data = socket->input_buffer;
-                        socket->in.data_size = sizeof(socket->input_buffer);
-                        user_charge_deinit(&socket->in.charge_buf_data);
-                }
+        } else if (r == IQUEUE_E_QUOTA ||
+                   r == IQUEUE_E_VIOLATION) {
+                socket_close(socket);
+                return SOCKET_E_LOST_INTEREST;
+        } else if (r) {
+                return error_fold(r);
         }
 
-        /*
-         * If there is a pending message, we try to read directly into it,
-         * skipping the separate socket input buffer. However, we only do this
-         * if the hunk of data to fetch is bigger than (or equal to) our input
-         * buffer. This avoids fetching small amounts of data from the kernel,
-         * while we could fetch big hunks of consecutive small messages.
-         *
-         * In other words: If a message is considerably big, we will read it
-         *                 directly into its message object (single copy). In
-         *                 all other cases, we first read from the kernel into
-         *                 our input buffer (possibly fetching many messages at
-         *                 once), and then copy over the actual data into the
-         *                 message objects (double copy).
-         *                 This is a trade-off between double-copy and reducing
-         *                 the number of calls to recvmsg(2).
-         */
-        if (msg && msg->n_data - msg->n_copied >= socket->in.data_size - socket->in.data_end)
-                return socket_recvmsg(socket,
-                                      msg->data,
-                                      msg->n_data,
-                                      &msg->n_copied,
-                                      msg->n_data,
-                                      &msg->fds);
-
-        /*
-         * Read more data into the input buffer, and store the file-descriptors
-         * in the buffer as well.
-         *
-         * Note that the kernel always breaks recvmsg() calls after an SKB with
-         * file-descriptor payload. Hence, this could be improvded with
-         * recvmmsg() so we get multiple messages at all cost. However, FD
-         * passing is no fast-path and should never be, so there is little
-         * reason to resort to recvmmsg() (which would be non-trivial, anyway,
-         * since we would need multiple input buffers).
-         */
         return socket_recvmsg(socket,
-                              socket->in.data,
-                              SOCKET_DATA_RECV_MAX,
-                              &socket->in.data_end,
-                              socket->in.data_size,
-                              &socket->in.fds);
+                              buffer,
+                              IQUEUE_RECV_MAX,
+                              from,
+                              to,
+                              fds,
+                              charge_fds);
 }
 
 static int socket_dispatch_write(Socket *socket) {

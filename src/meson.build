@@ -18,6 +18,7 @@ libdbus_broker_private = static_library(
                 'dbus/connection.c',
                 'dbus/message.c',
                 'dbus/protocol.c',
+                'dbus/queue.c',
                 'dbus/sasl.c',
                 'dbus/socket.c',
                 'launch/policy-parser.c', # XXX: drop once pre-parsed
@@ -129,6 +130,9 @@ test('Name Registry', test_name)
 
 test_policy_parser = executable('test-policy-parser', ['launch/test-policy-parser.c', 'launch/policy-parser.c'], dependencies: libdbus_broker_dep)
 test('Policy Database Parser', test_policy_parser)
+
+test_queue = executable('test-queue', ['dbus/test-queue.c'], dependencies: libdbus_broker_dep)
+test('D-Bus I/O Queues', test_queue)
 
 test_reply = executable('test-reply', ['bus/test-reply.c'], dependencies: libdbus_broker_dep)
 test('Reply Tracking', test_reply)

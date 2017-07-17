@@ -8,6 +8,7 @@
 #include <c-macro.h>
 #include <stdlib.h>
 #include "dbus/message.h"
+#include "dbus/queue.h"
 #include "util/user.h"
 
 typedef struct FDList FDList;
@@ -15,10 +16,8 @@ typedef struct Socket Socket;
 typedef struct SocketBuffer SocketBuffer;
 
 #define SOCKET_LINE_PREALLOC (64UL) /* fits the longest sane SASL exchange */
-#define SOCKET_LINE_MAX (16UL * 1024UL) /* taken from dbus-daemon(1) */
 #define SOCKET_FD_MAX (253UL) /* taken from kernel SCM_MAX_FD */
 #define SOCKET_MMSG_MAX (16) /* randomly picked, no tuning done so far */
-#define SOCKET_DATA_RECV_MAX (2UL * 1024UL) /* based on measured message sized */
 
 enum {
         _SOCKET_E_SUCCESS,
@@ -39,42 +38,25 @@ struct Socket {
         User *user;
         int fd;
 
-        bool lines_done : 1;
         bool shutdown : 1;
         bool reset : 1;
         bool hup_in : 1;
         bool hup_out : 1;
 
-        struct SocketIn {
-                UserCharge charge_buf_data;
-                UserCharge charge_buf_fds;
-                UserCharge charge_msg_data;
-                UserCharge charge_msg_fds;
-
-                char *data;
-                size_t data_size;
-                size_t data_start;
-                size_t data_end;
-                size_t cursor;
-
-                FDList *fds;
-                Message *pending_message;
+        struct {
+                IQueue queue;
+                MessageHeader header;
+                Message *message;
         } in;
 
         struct SocketOut {
                 CList queue;
         } out;
-
-        /* keep last to improve member-locality */
-        char input_buffer[SOCKET_DATA_RECV_MAX];
 };
 
 #define SOCKET_NULL(_x) {                                               \
                 .fd = -1,                                               \
-                .in.charge_buf_data = USER_CHARGE_INIT,                 \
-                .in.charge_buf_fds = USER_CHARGE_INIT,                  \
-                .in.charge_msg_data = USER_CHARGE_INIT,                 \
-                .in.charge_msg_fds = USER_CHARGE_INIT,                  \
+                .in.queue = IQUEUE_NULL((_x).in.queue),                 \
                 .out.queue = C_LIST_INIT((_x).out.queue),               \
         }
 
