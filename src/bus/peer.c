@@ -168,6 +168,32 @@ static int peer_get_peergroups(int fd, uid_t uid, gid_t gid, gid_t **gidsp, size
         int r, n_gids = 64;
         void *tmp;
 
+        /*
+         * For compatibility to dbus-daemon(1), we need to know the auxiliary
+         * groups a peer is in. Otherwise, we would be unable to apply group
+         * policies. We use the SO_PEERGROUPS socket option to retrieve this
+         * data alongside the uid+gid we got via SO_PEERCREDS.
+         * SO_PEERGROUPS support was added in:
+         *
+         *     commit 28b5ba2aa0f55d80adb2624564ed2b170c19519e
+         *     Author: David Herrmann <dh.herrmann@gmail.com>
+         *     Commit: David S. Miller <davem@davemloft.net>
+         *     Date:   Wed Jun 21 10:47:15 2017 +0200
+         *
+         *         net: introduce SO_PEERGROUPS getsockopt
+         *
+         * You are highly recommended to run >=linux-4.13. Otherwise,
+         * SO_PEERGROUPS will not be available, and we have to use the NSS
+         * fallback. This requires calling into NSS modules via
+         * getgrouplist(3p) and as such might trigger other IPC (or even call
+         * back into D-Bus). To avoid any recursion issues, you are really
+         * strongly recommended to use SO_PEERGROUPS!
+         *
+         * XXX: Rather than warning about this, we should really make this
+         *      mandatory once linux-4.13 is released. Lets defer the decision
+         *      until then, but right now I see little reason to keep the
+         *      fallback.
+         */
         #ifdef SO_PEERGROUPS
         {
                 socklen_t socklen = n_gids * sizeof(*gids);
