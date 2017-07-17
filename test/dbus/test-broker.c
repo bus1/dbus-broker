@@ -58,7 +58,7 @@ static void test_self_ping(void) {
         util_broker_spawn(broker);
 
         {
-                _c_cleanup_(sd_bus_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
                 const char *unique = NULL;
 
                 util_broker_connect(broker, &bus);
