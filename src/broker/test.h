@@ -19,7 +19,7 @@
 static inline void *test_run_controller(void *userdata) {
         int listener_fd = (intptr_t)userdata, r;
         _c_cleanup_(sd_event_unrefp) sd_event *event = NULL;
-        _c_cleanup_(sd_bus_unrefp) sd_bus *bus = NULL;
+        _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
         int pair[2];
         pid_t pid;
         sigset_t signew, sigold;

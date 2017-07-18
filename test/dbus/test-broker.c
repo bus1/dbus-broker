@@ -32,7 +32,7 @@ static void test_connect(void) {
         util_broker_spawn(broker);
 
         {
-                _c_cleanup_(sd_bus_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
                 const char *unique = NULL;
 
                 util_broker_connect(broker, &bus);
@@ -94,7 +94,7 @@ static int test_ping_pong_fn(sd_bus_message *m, void *userdata, sd_bus_error *er
 static void test_ping_pong(void) {
         _c_cleanup_(util_broker_freep) Broker *broker = NULL;
         _c_cleanup_(sd_event_unrefp) sd_event *event = NULL;
-        _c_cleanup_(sd_bus_unrefp) sd_bus *server = NULL, *client = NULL;
+        _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *server = NULL, *client = NULL;
         int r;
 
         /*

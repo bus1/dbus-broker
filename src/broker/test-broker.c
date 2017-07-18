@@ -80,7 +80,7 @@ static void *test_run_server(void *userdata) {
 }
 
 static void test_setup(struct sockaddr_un *address, socklen_t addrlen) {
-        _c_cleanup_(sd_bus_unrefp) sd_bus *bus1 = NULL, *bus2 = NULL;
+        _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus1 = NULL, *bus2 = NULL;
         _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *message1 = NULL, *message2 = NULL;
         const char *unique_name1, *unique_name2;
         sd_id128_t bus_id1, bus_id2;

@@ -57,6 +57,27 @@ static const char *     main_arg_servicedir = NULL;
 static const char *     main_arg_policypath = NULL;
 static bool             main_arg_verbose = false;
 
+static sd_bus *bus_close_unref(sd_bus *bus) {
+        /*
+         * It is not sufficient to simply call sd_bus_unref(), as messages
+         * in the bus' queues may pin the bus itself. Also,
+         * sd_bus_flush_close_unref() is not always appropriate as it would
+         * block in poll waiting for messages to be flushed to the socket.
+         *
+         * In some cases all we really want to do is close the socket and
+         * release all the memory, ignoring whether or not it has been
+         * flushed to the kernel (typically in error paths).
+         */
+        if (!bus)
+                return NULL;
+
+        sd_bus_close(bus);
+
+        return sd_bus_unref(bus);
+}
+
+C_DEFINE_CLEANUP(sd_bus *, bus_close_unref);
+
 static int service_compare(CRBTree *t, void *k, CRBNode *n) {
         Service *service = c_container_of(n, Service, rb);
 
@@ -135,8 +156,8 @@ static Manager *manager_free(Manager *manager) {
                 service_free(service);
 
         c_close(manager->fd_listen);
-        sd_bus_unref(manager->bus_regular);
-        sd_bus_unref(manager->bus_controller);
+        bus_close_unref(manager->bus_regular);
+        bus_close_unref(manager->bus_controller);
         sd_event_unref(manager->event);
         free(manager);
 
@@ -738,7 +759,7 @@ static int manager_add_listener(Manager *manager) {
 }
 
 static int manager_connect(Manager *manager) {
-        _c_cleanup_(sd_bus_unrefp) sd_bus *b = NULL;
+        _c_cleanup_(bus_close_unrefp) sd_bus *b = NULL;
         _c_cleanup_(c_closep) int s = -1;
         struct sockaddr_un addr;
         socklen_t n_addr = sizeof(addr);

@@ -40,7 +40,7 @@ static int util_event_sigchld(sd_event_source *source, const siginfo_t *si, void
 }
 
 void util_fork_broker(sd_bus **busp, sd_event *event, int listener_fd, pid_t *pidp) {
-        _c_cleanup_(sd_bus_unrefp) sd_bus *bus = NULL;
+        _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
         _c_cleanup_(c_freep) char *fdstr = NULL;
         int r, pair[2];
         pid_t pid;
@@ -204,7 +204,7 @@ Broker *util_broker_free(Broker *broker) {
 
 static void *util_broker_thread(void *userdata) {
         _c_cleanup_(sd_event_unrefp) sd_event *event = NULL;
-        _c_cleanup_(sd_bus_unrefp) sd_bus *bus = NULL;
+        _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
         Broker *broker = userdata;
         int r;
 
@@ -361,7 +361,7 @@ void util_broker_connect_fd(Broker *broker, int *fdp) {
 }
 
 void util_broker_connect_raw(Broker *broker, sd_bus **busp) {
-        _c_cleanup_(sd_bus_unrefp) sd_bus *bus = NULL;
+        _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
         _c_cleanup_(c_closep) int fd = -1;
         int r;
 
@@ -387,7 +387,7 @@ void util_broker_connect_raw(Broker *broker, sd_bus **busp) {
 }
 
 void util_broker_connect(Broker *broker, sd_bus **busp) {
-        _c_cleanup_(sd_bus_unrefp) sd_bus *bus = NULL;
+        _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
         _c_cleanup_(c_closep) int fd = -1;
         int r;
 
