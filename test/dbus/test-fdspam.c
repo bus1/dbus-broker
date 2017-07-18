@@ -265,11 +265,16 @@ static void test_fd_spam(void) {
                 assert(sender);
         }
 
-        /* create destinations and spam them */
+        /* create destinations as uid 3 and spam them */
         {
                 for (i = 0; i < C_ARRAY_SIZE(fds); ++i) {
                         _c_cleanup_(dispatch_context_deinit) DispatchContext d2 = DISPATCH_CONTEXT_NULL(d2);
                         _c_cleanup_(connection_deinit) Connection dst = CONNECTION_NULL(dst);
+
+                        r = setresuid(0, 0, 0);
+                        assert(!r);
+                        r = setresuid(3, 3, 0);
+                        assert(!r);
 
                         /* connect client */
                         {
