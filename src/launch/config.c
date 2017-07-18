@@ -370,6 +370,19 @@ static void config_parser_begin_fn(void *userdata, const XML_Char *name, const X
                 if (r)
                         goto failed;
 
+        } else if (!strcmp(name, "syslog")) {
+
+                if (state->current->type != CONFIG_NODE_BUSCONFIG)
+                        goto failed;
+
+                r = config_node_new(&node, state->current, CONFIG_NODE_SYSLOG);
+                if (r)
+                        goto failed;
+
+                r = config_parser_attrs_default(state, node, attrs);
+                if (r)
+                        goto failed;
+
         } else if (!strcmp(name, "keep_umask")) {
 
                 if (state->current->type != CONFIG_NODE_BUSCONFIG)
@@ -415,6 +428,32 @@ static void config_parser_begin_fn(void *userdata, const XML_Char *name, const X
                         goto failed;
 
                 r = config_node_new(&node, state->current, CONFIG_NODE_INCLUDEDIR);
+                if (r)
+                        goto failed;
+
+                r = config_parser_attrs_default(state, node, attrs);
+                if (r)
+                        goto failed;
+
+        } else if (!strcmp(name, "standard_session_servicedirs")) {
+
+                if (state->current->type != CONFIG_NODE_BUSCONFIG)
+                        goto failed;
+
+                r = config_node_new(&node, state->current, CONFIG_NODE_STANDARD_SESSION_SERVICEDIRS);
+                if (r)
+                        goto failed;
+
+                r = config_parser_attrs_default(state, node, attrs);
+                if (r)
+                        goto failed;
+
+        } else if (!strcmp(name, "standard_system_servicedirs")) {
+
+                if (state->current->type != CONFIG_NODE_BUSCONFIG)
+                        goto failed;
+
+                r = config_node_new(&node, state->current, CONFIG_NODE_STANDARD_SYSTEM_SERVICEDIRS);
                 if (r)
                         goto failed;
 
@@ -690,7 +729,10 @@ static void config_parser_end_fn(void *userdata, const XML_Char *name) {
 
         case CONFIG_NODE_BUSCONFIG:
         case CONFIG_NODE_FORK:
+        case CONFIG_NODE_SYSLOG:
         case CONFIG_NODE_KEEP_UMASK:
+        case CONFIG_NODE_STANDARD_SESSION_SERVICEDIRS:
+        case CONFIG_NODE_STANDARD_SYSTEM_SERVICEDIRS:
         case CONFIG_NODE_POLICY:
         case CONFIG_NODE_SELINUX:
         case CONFIG_NODE_APPARMOR:
