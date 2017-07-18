@@ -52,6 +52,12 @@ enum {
         _CONFIG_NODE_N,
 };
 
+enum {
+        CONFIG_APPARMOR_ENABLED,
+        CONFIG_APPARMOR_DISABLED,
+        CONFIG_APPARMOR_REQUIRED,
+};
+
 struct ConfigPath {
         unsigned long n_refs;
         ConfigPath *parent;
@@ -85,6 +91,49 @@ struct ConfigNode {
                         bool if_selinux_enabled : 1;
                         bool selinux_root_relative : 1;
                 } include;
+
+                struct {
+                        char *user;
+                        char *group;
+                        bool mandatory : 1;
+                        bool at_console : 1;
+                } policy;
+
+                struct {
+                        char *name;
+                } limit;
+
+                struct {
+                        unsigned int mode;
+                } apparmor;
+
+                struct {
+                        char *send_interface;
+                        char *send_member;
+                        char *send_error;
+                        char *send_destination;
+                        char *send_path;
+                        char *send_type;
+                        char *recv_interface;
+                        char *recv_member;
+                        char *recv_error;
+                        char *recv_sender;
+                        char *recv_path;
+                        char *recv_type;
+                        char *own;
+                        char *own_prefix;
+                        char *user;
+                        char *group;
+                        bool send_requested_reply : 1;
+                        bool recv_requested_reply : 1;
+                        bool eavesdrop : 1;
+                        bool log : 1;
+                } allow_deny;
+
+                struct {
+                        char *own;
+                        char *context;
+                } associate;
         };
 };
 

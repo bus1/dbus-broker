@@ -135,6 +135,36 @@ ConfigNode *config_node_free(ConfigNode *node) {
         case CONFIG_NODE_INCLUDE:
                 config_path_unref(node->include.file);
                 break;
+        case CONFIG_NODE_POLICY:
+                free(node->policy.user);
+                free(node->policy.group);
+                break;
+        case CONFIG_NODE_LIMIT:
+                free(node->limit.name);
+                break;
+        case CONFIG_NODE_ALLOW:
+        case CONFIG_NODE_DENY:
+                free(node->allow_deny.send_interface);
+                free(node->allow_deny.send_member);
+                free(node->allow_deny.send_error);
+                free(node->allow_deny.send_destination);
+                free(node->allow_deny.send_path);
+                free(node->allow_deny.send_type);
+                free(node->allow_deny.recv_interface);
+                free(node->allow_deny.recv_member);
+                free(node->allow_deny.recv_error);
+                free(node->allow_deny.recv_sender);
+                free(node->allow_deny.recv_path);
+                free(node->allow_deny.recv_type);
+                free(node->allow_deny.own);
+                free(node->allow_deny.own_prefix);
+                free(node->allow_deny.user);
+                free(node->allow_deny.group);
+                break;
+        case CONFIG_NODE_ASSOCIATE:
+                free(node->associate.own);
+                free(node->associate.context);
+                break;
         }
 
         free(node->cdata);
@@ -224,64 +254,287 @@ static int config_parser_attrs_include(ConfigState *state, ConfigNode *node, con
 }
 
 static int config_parser_attrs_policy(ConfigState *state, ConfigNode *node, const XML_Char **attrs) {
-        /*
-         * XXX: Attributes to support:
-         *       * context (default|mandatory) #IMPLIED
-         *       * user CDATA #IMPLIED
-         *       * group CDATA #IMPLIED
-         *       * at_console (yes|no) #IMPLIED
-         */
+        const char *k, *v;
+        char *t;
+
+        while (*attrs) {
+                k = *(attrs++);
+                v = *(attrs++);
+
+                if (!strcmp(k, "user")) {
+                        t = strdup(v);
+                        if (!t)
+                                return error_origin(-ENOMEM);
+
+                        free(node->policy.user);
+                        node->policy.user = t;
+                } else if (!strcmp(k, "group")) {
+                        t = strdup(v);
+                        if (!t)
+                                return error_origin(-ENOMEM);
+
+                        free(node->policy.group);
+                        node->policy.group = t;
+                } else if (!strcmp(k, "context")) {
+                        if (!strcmp(v, "mandatory"))
+                                node->policy.mandatory = true;
+                        else if (!strcmp(v, "default"))
+                                node->policy.mandatory = false;
+                        else
+                                CONFIG_ERR(state, "Invalid value", ": %s=\"%s\"", k, v);
+                } else if (!strcmp(k, "at_console")) {
+                        if (!strcmp(v, "true"))
+                                node->policy.at_console = true;
+                        else if (!strcmp(v, "false"))
+                                node->policy.at_console = false;
+                        else
+                                CONFIG_ERR(state, "Invalid value", ": %s=\"%s\"", k, v);
+                } else {
+                        CONFIG_ERR(state, "Unknown attribute", ": %s=\"%s\"", k, v);
+                }
+        }
+
         return 0;
 }
 
 static int config_parser_attrs_limit(ConfigState *state, ConfigNode *node, const XML_Char **attrs) {
-        /*
-         * XXX: Attributes to support:
-         *       * name CDATA #REQUIRED
-         */
+        const char *k, *v;
+        char *t;
+
+        while (*attrs) {
+                k = *(attrs++);
+                v = *(attrs++);
+
+                if (!strcmp(k, "name")) {
+                        t = strdup(v);
+                        if (!t)
+                                return error_origin(-ENOMEM);
+
+                        free(node->limit.name);
+                        node->limit.name = t;
+                } else {
+                        CONFIG_ERR(state, "Unknown attribute", ": %s=\"%s\"", k, v);
+                }
+        }
+
+        if (!node->limit.name)
+                CONFIG_ERR(state, "Required attribute 'name' missing", "");
+
         return 0;
 }
 
 static int config_parser_attrs_apparmor(ConfigState *state, ConfigNode *node, const XML_Char **attrs) {
-        /*
-         * XXX: Attributes to support:
-         *       * mode (required|enabled|disabled) "enabled"
-         */
+        const char *k, *v;
+
+        while (*attrs) {
+                k = *(attrs++);
+                v = *(attrs++);
+
+                if (!strcmp(k, "mode")) {
+                        if (!strcmp(v, "enabled"))
+                                node->apparmor.mode = CONFIG_APPARMOR_ENABLED;
+                        else if (!strcmp(v, "disabled"))
+                                node->apparmor.mode = CONFIG_APPARMOR_DISABLED;
+                        else if (!strcmp(v, "required"))
+                                node->apparmor.mode = CONFIG_APPARMOR_REQUIRED;
+                        else
+                                CONFIG_ERR(state, "Invalid value", ": %s=\"%s\"", k, v);
+                } else {
+                        CONFIG_ERR(state, "Unknown attribute", ": %s=\"%s\"", k, v);
+                }
+        }
+
         return 0;
 }
 
-static int config_parser_attrs_allow(ConfigState *state, ConfigNode *node, const XML_Char **attrs) {
-        /*
-         * XXX: Attributes to support:
-         *       * user CDATA #IMPLIED
-         *       * send CDATA #IMPLIED
-         *       * receive CDATA #IMPLIED
-         *       * own CDATA #IMPLIED
-         *       * send_to CDATA #IMPLIED
-         *       * receive_from CDATA #IMPLIED
-         */
-        return 0;
-}
+static int config_parser_attrs_allow_deny(ConfigState *state, ConfigNode *node, const XML_Char **attrs) {
+        const char *k, *v;
+        char *t;
 
-static int config_parser_attrs_deny(ConfigState *state, ConfigNode *node, const XML_Char **attrs) {
-        /*
-         * XXX: Attributes to support:
-         *       * user CDATA #IMPLIED
-         *       * send CDATA #IMPLIED
-         *       * receive CDATA #IMPLIED
-         *       * own CDATA #IMPLIED
-         *       * send_to CDATA #IMPLIED
-         *       * receive_from CDATA #IMPLIED
-         */
+        while (*attrs) {
+                k = *(attrs++);
+                v = *(attrs++);
+
+                if (!strcmp(k, "send_interface")) {
+                        t = strdup(v);
+                        if (!t)
+                                return error_origin(-ENOMEM);
+
+                        free(node->allow_deny.send_interface);
+                        node->allow_deny.send_interface = t;
+                } else if (!strcmp(k, "send_member")) {
+                        t = strdup(v);
+                        if (!t)
+                                return error_origin(-ENOMEM);
+
+                        free(node->allow_deny.send_member);
+                        node->allow_deny.send_member = t;
+                } else if (!strcmp(k, "send_error")) {
+                        t = strdup(v);
+                        if (!t)
+                                return error_origin(-ENOMEM);
+
+                        free(node->allow_deny.send_error);
+                        node->allow_deny.send_error = t;
+                } else if (!strcmp(k, "send_destination")) {
+                        t = strdup(v);
+                        if (!t)
+                                return error_origin(-ENOMEM);
+
+                        free(node->allow_deny.send_destination);
+                        node->allow_deny.send_destination = t;
+                } else if (!strcmp(k, "send_path")) {
+                        t = strdup(v);
+                        if (!t)
+                                return error_origin(-ENOMEM);
+
+                        free(node->allow_deny.send_path);
+                        node->allow_deny.send_path = t;
+                } else if (!strcmp(k, "send_type")) {
+                        t = strdup(v);
+                        if (!t)
+                                return error_origin(-ENOMEM);
+
+                        free(node->allow_deny.send_type);
+                        node->allow_deny.send_type = t;
+                } else if (!strcmp(k, "receive_interface")) {
+                        t = strdup(v);
+                        if (!t)
+                                return error_origin(-ENOMEM);
+
+                        free(node->allow_deny.recv_interface);
+                        node->allow_deny.recv_interface = t;
+                } else if (!strcmp(k, "receive_member")) {
+                        t = strdup(v);
+                        if (!t)
+                                return error_origin(-ENOMEM);
+
+                        free(node->allow_deny.recv_member);
+                        node->allow_deny.recv_member = t;
+                } else if (!strcmp(k, "receive_error")) {
+                        t = strdup(v);
+                        if (!t)
+                                return error_origin(-ENOMEM);
+
+                        free(node->allow_deny.recv_error);
+                        node->allow_deny.recv_error = t;
+                } else if (!strcmp(k, "receive_sender")) {
+                        t = strdup(v);
+                        if (!t)
+                                return error_origin(-ENOMEM);
+
+                        free(node->allow_deny.recv_sender);
+                        node->allow_deny.recv_sender = t;
+                } else if (!strcmp(k, "receive_path")) {
+                        t = strdup(v);
+                        if (!t)
+                                return error_origin(-ENOMEM);
+
+                        free(node->allow_deny.recv_path);
+                        node->allow_deny.recv_path = t;
+                } else if (!strcmp(k, "receive_type")) {
+                        t = strdup(v);
+                        if (!t)
+                                return error_origin(-ENOMEM);
+
+                        free(node->allow_deny.recv_type);
+                        node->allow_deny.recv_type = t;
+                } else if (!strcmp(k, "own")) {
+                        t = strdup(v);
+                        if (!t)
+                                return error_origin(-ENOMEM);
+
+                        free(node->allow_deny.own);
+                        node->allow_deny.own = t;
+                } else if (!strcmp(k, "own_prefix")) {
+                        t = strdup(v);
+                        if (!t)
+                                return error_origin(-ENOMEM);
+
+                        free(node->allow_deny.own_prefix);
+                        node->allow_deny.own_prefix = t;
+                } else if (!strcmp(k, "user")) {
+                        t = strdup(v);
+                        if (!t)
+                                return error_origin(-ENOMEM);
+
+                        free(node->allow_deny.user);
+                        node->allow_deny.user = t;
+                } else if (!strcmp(k, "group")) {
+                        t = strdup(v);
+                        if (!t)
+                                return error_origin(-ENOMEM);
+
+                        free(node->allow_deny.group);
+                        node->allow_deny.group = t;
+                } else if (!strcmp(k, "send_requested_reply")) {
+                        if (!strcmp(v, "true"))
+                                node->allow_deny.send_requested_reply = true;
+                        else if (!strcmp(v, "false"))
+                                node->allow_deny.send_requested_reply = false;
+                        else
+                                CONFIG_ERR(state, "Invalid value", ": %s=\"%s\"", k, v);
+                } else if (!strcmp(k, "receive_requested_reply")) {
+                        if (!strcmp(v, "true"))
+                                node->allow_deny.recv_requested_reply = true;
+                        else if (!strcmp(v, "false"))
+                                node->allow_deny.recv_requested_reply = false;
+                        else
+                                CONFIG_ERR(state, "Invalid value", ": %s=\"%s\"", k, v);
+                } else if (!strcmp(k, "eavesdrop")) {
+                        if (!strcmp(v, "true"))
+                                node->allow_deny.eavesdrop = true;
+                        else if (!strcmp(v, "false"))
+                                node->allow_deny.eavesdrop = false;
+                        else
+                                CONFIG_ERR(state, "Invalid value", ": %s=\"%s\"", k, v);
+                } else if (!strcmp(k, "log")) {
+                        if (!strcmp(v, "true"))
+                                node->allow_deny.log = true;
+                        else if (!strcmp(v, "false"))
+                                node->allow_deny.log = false;
+                        else
+                                CONFIG_ERR(state, "Invalid value", ": %s=\"%s\"", k, v);
+                } else {
+                        CONFIG_ERR(state, "Unknown attribute", ": %s=\"%s\"", k, v);
+                }
+        }
+
         return 0;
 }
 
 static int config_parser_attrs_associate(ConfigState *state, ConfigNode *node, const XML_Char **attrs) {
-        /*
-         * XXX: Attributes to support:
-         *       * own CDATA #REQUIRED
-         *       * context CDATA #REQUIRED
-         */
+        const char *k, *v;
+        char *t;
+
+        while (*attrs) {
+                k = *(attrs++);
+                v = *(attrs++);
+
+                if (!strcmp(k, "own")) {
+                        t = strdup(v);
+                        if (!t)
+                                return error_origin(-ENOMEM);
+
+                        free(node->associate.own);
+                        node->associate.own = t;
+                } else if (!strcmp(k, "context")) {
+                        t = strdup(v);
+                        if (!t)
+                                return error_origin(-ENOMEM);
+
+                        free(node->associate.context);
+                        node->associate.context = t;
+                } else {
+                        CONFIG_ERR(state, "Unknown attribute", ": %s=\"%s\"", k, v);
+                }
+        }
+
+        if (!node->associate.own)
+                CONFIG_ERR(state, "Required attribute 'own' missing", "");
+        if (!node->associate.context)
+                CONFIG_ERR(state, "Required attribute 'context' missing", "");
+
         return 0;
 }
 
@@ -574,7 +827,7 @@ static void config_parser_begin_fn(void *userdata, const XML_Char *name, const X
                 if (r)
                         goto failed;
 
-                r = config_parser_attrs_allow(state, node, attrs);
+                r = config_parser_attrs_allow_deny(state, node, attrs);
                 if (r)
                         goto failed;
 
@@ -587,7 +840,7 @@ static void config_parser_begin_fn(void *userdata, const XML_Char *name, const X
                 if (r)
                         goto failed;
 
-                r = config_parser_attrs_deny(state, node, attrs);
+                r = config_parser_attrs_allow_deny(state, node, attrs);
                 if (r)
                         goto failed;
 
