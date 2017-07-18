@@ -858,6 +858,7 @@ static void config_parser_begin_fn(void *userdata, const XML_Char *name, const X
                         goto failed;
 
         } else {
+                CONFIG_ERR(state, "Unknown element", ": %s", name);
                 goto failed;
         }
 
