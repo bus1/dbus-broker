@@ -250,6 +250,7 @@ static void socket_might_reset(Socket *socket) {
         if (_c_unlikely_(!socket->reset &&
                          socket->hup_in &&
                          socket->hup_out &&
+                         c_list_is_empty(&socket->out.pending) &&
                          iqueue_is_eof(&socket->in.queue)))
                 socket->reset = true;
 }
@@ -713,6 +714,8 @@ static int socket_dispatch_write(Socket *socket) {
 
                 c_list_for_each_entry_safe(buffer, safe, &socket->out.pending, link)
                         socket_buffer_free(buffer);
+
+                socket_might_reset(socket);
         }
 
         if (socket->hup_out)
