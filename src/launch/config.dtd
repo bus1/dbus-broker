@@ -1,0 +1,109 @@
+<!--
+  -- This DTD is for documentational purposes only! It defines the allowed
+  -- syntax for dbus-daemon(1) XML configuration files. It is not used for
+  -- validation purposes so far, but only provided for documentation.
+  -->
+<!ELEMENT busconfig (user |
+                     type |
+                     fork |
+                     syslog |
+                     keep_umask |
+                     listen |
+                     pidfile |
+                     includedir |
+                     standard_session_servicedirs |
+                     standard_system_servicedirs |
+                     servicedir |
+                     servicehelper |
+                     auth |
+                     include |
+                     policy |
+                     limit |
+                     selinux |
+                     apparmor)*>
+
+<!ELEMENT user (#PCDATA)>
+<!ELEMENT type (#PCDATA)>
+<!ELEMENT fork EMPTY>
+<!ELEMENT syslog EMPTY>
+<!ELEMENT keep_umask EMPTY>
+<!ELEMENT listen (#PCDATA)>
+<!ELEMENT pidfile (#PCDATA)>
+<!ELEMENT includedir (#PCDATA)>
+<!ELEMENT standard_session_servicedirs EMPTY>
+<!ELEMENT standard_system_servicedirs EMPTY>
+<!ELEMENT servicedir (#PCDATA)>
+<!ELEMENT servicehelper (#PCDATA)>
+<!ELEMENT auth (#PCDATA)>
+
+<!ELEMENT include (#PCDATA)>
+<!ATTLIST include
+          ignore_missing (yes|no) "no"
+          if_selinux_enabled (yes|no) "no"
+          selinux_root_relative (yes|no) "no">
+
+<!ELEMENT policy (allow|deny)*>
+<!ATTLIST policy
+          context (default|mandatory) #IMPLIED
+          user CDATA #IMPLIED
+          group CDATA #IMPLIED
+          at_console (true|false) #IMPLIED>
+
+<!ELEMENT allow EMPTY>
+<!ATTLIST allow
+          send_interface CDATA #IMPLIED
+          send_member CDATA #IMPLIED
+          send_error CDATA #IMPLIED
+          send_destination CDATA #IMPLIED
+          send_path CDATA #IMPLIED
+          send_type CDATA #IMPLIED
+          send_requested_reply (true|false) #IMPLIED
+          receive_interface CDATA #IMPLIED
+          receive_member CDATA #IMPLIED
+          receive_error CDATA #IMPLIED
+          receive_sender CDATA #IMPLIED
+          receive_path CDATA #IMPLIED
+          receive_type CDATA #IMPLIED
+          receive_requested_reply (true|false) #IMPLIED
+          eavesdrop (true|false) #IMPLIED
+          own CDATA #IMPLIED
+          own_prefix CDATA #IMPLIED
+          user CDATA #IMPLIED
+          group CDATA #IMPLIED
+          log (true|false) #IMPLIED>
+
+<!ELEMENT deny EMPTY>
+<!ATTLIST deny
+          send_interface CDATA #IMPLIED
+          send_member CDATA #IMPLIED
+          send_error CDATA #IMPLIED
+          send_destination CDATA #IMPLIED
+          send_path CDATA #IMPLIED
+          send_type CDATA #IMPLIED
+          send_requested_reply (true|false) #IMPLIED
+          receive_interface CDATA #IMPLIED
+          receive_member CDATA #IMPLIED
+          receive_error CDATA #IMPLIED
+          receive_sender CDATA #IMPLIED
+          receive_path CDATA #IMPLIED
+          receive_type CDATA #IMPLIED
+          receive_requested_reply (true|false) #IMPLIED
+          eavesdrop (true|false) #IMPLIED
+          own CDATA #IMPLIED
+          own_prefix CDATA #IMPLIED
+          user CDATA #IMPLIED
+          group CDATA #IMPLIED
+          log (true|false) #IMPLIED>
+
+<!ELEMENT limit (#PCDATA)>
+<!ATTLIST limit name CDATA #REQUIRED>
+
+<!ELEMENT selinux (associate)*>
+<!ELEMENT associate EMPTY>
+<!ATTLIST associate
+          own CDATA #REQUIRED
+          context CDATA #REQUIRED>
+
+<!ELEMENT apparmor EMPTY>
+<!ATTLIST apparmor
+          mode (required|enabled|disabled) "enabled">
