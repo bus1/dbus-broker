@@ -838,7 +838,9 @@ static int socket_dispatch_write(Socket *socket) {
         if (c_list_is_empty(&socket->out.queue)) {
                 if (_c_unlikely_(socket->shutdown))
                         socket_shutdown_now(socket);
-                return SOCKET_E_LOST_INTEREST;
+
+                if (_c_likely_(c_list_is_empty(&socket->out.pending)))
+                        return SOCKET_E_LOST_INTEREST;
         }
 
         return 0;
