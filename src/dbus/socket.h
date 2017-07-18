@@ -51,6 +51,7 @@ struct Socket {
 
         struct SocketOut {
                 CList queue;
+                CList pending;
         } out;
 };
 
@@ -58,6 +59,7 @@ struct Socket {
                 .fd = -1,                                               \
                 .in.queue = IQUEUE_NULL((_x).in.queue),                 \
                 .out.queue = C_LIST_INIT((_x).out.queue),               \
+                .out.pending = C_LIST_INIT((_x).out.pending),           \
         }
 
 void socket_init(Socket *socket, User *user, int fd);

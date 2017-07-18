@@ -13,8 +13,10 @@
 
 #include <c-list.h>
 #include <c-macro.h>
+#include <linux/sockios.h>
 #include <stdlib.h>
 #include <sys/epoll.h>
+#include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <sys/un.h>
@@ -227,10 +229,15 @@ void socket_init(Socket *socket, User *user, int fd) {
  * the caller!
  */
 void socket_deinit(Socket *socket) {
+        SocketBuffer *buffer;
+
         socket_discard_input(socket);
         socket_discard_output(socket);
 
+        while ((buffer = c_list_first_entry(&socket->out.pending, SocketBuffer, link)))
+                socket_buffer_free(buffer);
 
+        assert(c_list_is_empty(&socket->out.pending));
         assert(c_list_is_empty(&socket->out.queue));
         assert(!socket->in.message);
 
@@ -694,7 +701,19 @@ static int socket_dispatch_write(Socket *socket) {
         SocketBuffer *buffer, *safe;
         struct mmsghdr msgs[SOCKET_MMSG_MAX];
         struct msghdr *msg;
-        int i, n_msgs;
+        int r, i, v, n_msgs;
+
+        if (!c_list_is_empty(&socket->out.pending)) {
+                r = ioctl(socket->fd, SIOCOUTQ, &v);
+                if (r < 0)
+                        return error_origin(-errno);
+
+                if (v > 0) /* treat like EAGAIN */
+                        return 0;
+
+                c_list_for_each_entry_safe(buffer, safe, &socket->out.pending, link)
+                        socket_buffer_free(buffer);
+        }
 
         if (socket->hup_out)
                 return SOCKET_E_LOST_INTEREST;
@@ -719,6 +738,27 @@ static int socket_dispatch_write(Socket *socket) {
                 msg->msg_flags = 0;
 
                 if (++n_msgs >= (ssize_t)C_ARRAY_SIZE(msgs))
+                        break;
+
+                /*
+                 * Right now, the only information the kernel gives us about
+                 * outgoing queues is whether there is data queued or not. That
+                 * is, a boolean state. There is some other data, but we cannot
+                 * reliable deduce any useful state from it.
+                 *
+                 * Hence, we only ever queue at most 1 message with FDs on it.
+                 * This way, we can reliably get notified about FDs being
+                 * queued and dequeued.
+                 *
+                 * We could, technically, avoid this and just spam out
+                 * messages. However, we better be notified as early as
+                 * possible about dequeued FDs, so our accounting actually
+                 * represents the real client-controlled state. If we were
+                 * notified late (because we continued queueing), then a client
+                 * might have dequeued the FDs at fault, but we still consider
+                 * them queued and thus might exceed its quota.
+                 */
+                if (buffer->message && fdlist_count(buffer->message->fds))
                         break;
         }
 
@@ -782,8 +822,14 @@ static int socket_dispatch_write(Socket *socket) {
                 if (i >= n_msgs)
                         break;
 
-                if (socket_buffer_consume(buffer, msgs[i].msg_len))
-                        socket_buffer_free(buffer);
+                if (socket_buffer_consume(buffer, msgs[i].msg_len)) {
+                        if (buffer->message && buffer->message->fds) {
+                                c_list_unlink(&buffer->link);
+                                c_list_link_tail(&socket->out.pending, &buffer->link);
+                        } else {
+                                socket_buffer_free(buffer);
+                        }
+                }
 
                 ++i;
         }
