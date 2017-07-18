@@ -83,6 +83,7 @@ if dep_libsystemd.found() and dep_glib.found()
         exe_dbus_broker_launch = executable(
                 'dbus-broker-launch',
                 [
+                        'launch/config.c',
                         'launch/main.c',
                         'launch/policy-parser.c',
                         'bus/policy.c',
@@ -104,6 +105,9 @@ endif
 
 test_address = executable('test-address', ['dbus/test-address.c'], dependencies: libdbus_broker_dep)
 test('Address Handling', test_address)
+
+test_config = executable('test-config', ['launch/test-config.c', 'launch/config.c'], dependencies: libdbus_broker_dep)
+test('Configuration Parser', test_config)
 
 if dep_libsystemd.found()
         test_perf = executable('test-perf', ['broker/test-broker.c'], dependencies: [ libdbus_broker_dep, dep_thread, dep_libsystemd ])
