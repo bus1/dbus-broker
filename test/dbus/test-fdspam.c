@@ -152,7 +152,7 @@ static int test_dispatch_fn(DispatchFile *file, uint32_t events) {
                                         return DISPATCH_E_EXIT;
                         } else if (m->metadata.header.type == DBUS_MESSAGE_TYPE_ERROR) {
                                 assert(!strcmp(m->metadata.fields.error_name,
-                                               "org.freedesktop.DBus.Error.NameHasNoOwner"));
+                                               "org.freedesktop.DBus.Error.LimitsExceeded"));
                         } else {
                                 assert(m->metadata.header.type == DBUS_MESSAGE_TYPE_SIGNAL);
                         }
