@@ -132,5 +132,6 @@ void policy_deinit(Policy *policy);
 
 int policy_import(Policy *policy, ConfigRoot *root);
 void policy_optimize(Policy *policy);
+int policy_export(Policy *policy, sd_bus_message *m);
 
 C_DEFINE_CLEANUP(Policy *, policy_deinit);

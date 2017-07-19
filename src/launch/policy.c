@@ -5,6 +5,7 @@
 #include <c-list.h>
 #include <c-macro.h>
 #include <stdlib.h>
+#include <systemd/sd-bus.h>
 #include "launch/config.h"
 #include "launch/policy.h"
 #include "util/error.h"
@@ -571,4 +572,316 @@ void policy_optimize(Policy *policy) {
          *      which of those are worth it, and then implement them.
          */
         policy_optimize_connect(policy);
+}
+
+static int policy_export_connect_default(Policy *policy, sd_bus_message *m) {
+        PolicyRecord *top;
+        int r;
+
+        top = c_list_first_entry(&policy->connect_default, PolicyRecord, link);
+        /* list must be empty or singular */
+        assert(top == c_list_last_entry(&policy->connect_default, PolicyRecord, link));
+
+        r = sd_bus_message_append(m, "b", top ? top->verdict : false);
+        if (r < 0)
+                return error_origin(r);
+
+        return 0;
+}
+
+static int policy_export_connect_uidgid(PolicyMap *map, sd_bus_message *m) {
+        PolicyMapNode *i_node;
+        PolicyRecord *top;
+        int r;
+
+        r = sd_bus_message_open_container(m, 'a', "(ub)");
+        if (r < 0)
+                return error_origin(r);
+
+        c_list_for_each_entry(i_node, &map->node_list, map_link) {
+                top = c_list_first_entry(&i_node->record_list, PolicyRecord, link);
+                /* list must be empty or singular */
+                assert(top == c_list_last_entry(&i_node->record_list, PolicyRecord, link));
+
+                if (top) {
+                        r = sd_bus_message_append(m, "(ub)", i_node->uidgid, top ? top->verdict : false);
+                        if (r < 0)
+                                return error_origin(r);
+                }
+        }
+
+        r = sd_bus_message_close_container(m);
+        if (r < 0)
+                return error_origin(r);
+
+        return 0;
+}
+
+static int policy_export_own_default(Policy *policy, sd_bus_message *m) {
+        PolicyRecord *i_record;
+        int r;
+
+        r = sd_bus_message_open_container(m, 'a', "(btbs)");
+        if (r < 0)
+                return error_origin(r);
+
+        c_list_for_each_entry(i_record, &policy->own_default, link) {
+                r = sd_bus_message_append(m,
+                                          "(btbs)",
+                                          i_record->verdict,
+                                          i_record->priority,
+                                          i_record->own.prefix,
+                                          i_record->own.name);
+                if (r < 0)
+                        return error_origin(r);
+        }
+
+        r = sd_bus_message_close_container(m);
+        if (r < 0)
+                return error_origin(r);
+
+        return 0;
+}
+
+static int policy_export_own_uidgid(PolicyMap *map, sd_bus_message *m) {
+        PolicyRecord *i_record;
+        PolicyMapNode *i_node;
+        int r;
+
+        r = sd_bus_message_open_container(m, 'a', "(ua(btbs))");
+        if (r < 0)
+                return error_origin(r);
+
+        c_list_for_each_entry(i_node, &map->node_list, map_link) {
+                r = sd_bus_message_open_container(m, 'r', "ua(btbs)");
+                if (r < 0)
+                        return error_origin(r);
+
+                r = sd_bus_message_append(m, "u", i_node->uidgid);
+                if (r < 0)
+                        return error_origin(r);
+
+                r = sd_bus_message_open_container(m, 'a', "(btbs)");
+                if (r < 0)
+                        return error_origin(r);
+
+                c_list_for_each_entry(i_record, &i_node->record_list, link) {
+                        r = sd_bus_message_append(m,
+                                                  "(btbs)",
+                                                  i_record->verdict,
+                                                  i_record->priority,
+                                                  i_record->own.prefix,
+                                                  i_record->own.name);
+                        if (r < 0)
+                                return error_origin(r);
+                }
+
+                r = sd_bus_message_close_container(m);
+                if (r < 0)
+                        return error_origin(r);
+
+                r = sd_bus_message_close_container(m);
+                if (r < 0)
+                        return error_origin(r);
+        }
+
+        r = sd_bus_message_close_container(m);
+        if (r < 0)
+                return error_origin(r);
+
+        return 0;
+}
+
+static int policy_export_xmit_default(CList *list, sd_bus_message *m) {
+        PolicyRecord *i_record;
+        int r;
+
+        r = sd_bus_message_open_container(m, 'a', "(btsssssb)");
+        if (r < 0)
+                return error_origin(r);
+
+        c_list_for_each_entry(i_record, list, link) {
+                r = sd_bus_message_append(m,
+                                          "(btsssssb)",
+                                          i_record->verdict,
+                                          i_record->priority,
+                                          i_record->xmit.name,
+                                          i_record->xmit.path,
+                                          i_record->xmit.interface,
+                                          i_record->xmit.member,
+                                          i_record->xmit.type,
+                                          i_record->xmit.eavesdrop);
+                if (r < 0)
+                        return error_origin(r);
+        }
+
+        r = sd_bus_message_close_container(m);
+        if (r < 0)
+                return error_origin(r);
+
+        return 0;
+}
+
+static int policy_export_xmit_uidgid(PolicyMap *map, sd_bus_message *m) {
+        PolicyRecord *i_record;
+        PolicyMapNode *i_node;
+        int r;
+
+        r = sd_bus_message_open_container(m, 'a', "(ua(btsssssb))");
+        if (r < 0)
+                return error_origin(r);
+
+        c_list_for_each_entry(i_node, &map->node_list, map_link) {
+                r = sd_bus_message_open_container(m, 'r', "ua(btsssssb)");
+                if (r < 0)
+                        return error_origin(r);
+
+                r = sd_bus_message_append(m, "u", i_node->uidgid);
+                if (r < 0)
+                        return error_origin(r);
+
+                r = sd_bus_message_open_container(m, 'a', "(btsssssb)");
+                if (r < 0)
+                        return error_origin(r);
+
+                c_list_for_each_entry(i_record, &i_node->record_list, link) {
+                        r = sd_bus_message_append(m,
+                                                  "(btsssssb)",
+                                                  i_record->verdict,
+                                                  i_record->priority,
+                                                  i_record->xmit.name,
+                                                  i_record->xmit.path,
+                                                  i_record->xmit.interface,
+                                                  i_record->xmit.member,
+                                                  i_record->xmit.type,
+                                                  i_record->xmit.eavesdrop);
+                        if (r < 0)
+                                return error_origin(r);
+                }
+
+                r = sd_bus_message_close_container(m);
+                if (r < 0)
+                        return error_origin(r);
+
+                r = sd_bus_message_close_container(m);
+                if (r < 0)
+                        return error_origin(r);
+        }
+
+        r = sd_bus_message_close_container(m);
+        if (r < 0)
+                return error_origin(r);
+
+        return 0;
+}
+
+#define POLICY_T "("                                                            \
+                        "b"                                                     \
+                        "a(ub)"                                                 \
+                        "a(ub)"                                                 \
+                ")("                                                            \
+                        "a(btbs)"                                               \
+                        "a(ua(btbs))"                                           \
+                        "a(ua(btbs))"                                           \
+                ")("                                                            \
+                        "a(btsssssb)"                                           \
+                        "a(ua(btsssssb))"                                       \
+                        "a(ua(btsssssb))"                                       \
+                ")("                                                            \
+                        "a(btsssssb)"                                           \
+                        "a(ua(btsssssb))"                                       \
+                        "a(ua(btsssssb))"                                       \
+                ")"
+
+/**
+ * policy_export() - XXX
+ */
+int policy_export(Policy *policy, sd_bus_message *m) {
+        int r;
+
+        r = sd_bus_message_open_container(m, 'v', "(" POLICY_T ")");
+        if (r < 0)
+                return error_origin(r);
+
+        r = sd_bus_message_open_container(m, 'r', POLICY_T);
+        if (r < 0)
+                return error_origin(r);
+
+        r = sd_bus_message_open_container(m, 'r',
+                                                "b"
+                                                "a(ub)"
+                                                "a(ub)");
+        if (r < 0)
+                return error_origin(r);
+
+        r = policy_export_connect_default(policy, m);
+        r = r ?: policy_export_connect_uidgid(&policy->connect_uid, m);
+        r = r ?: policy_export_connect_uidgid(&policy->connect_gid, m);
+        if (r)
+                return error_trace(r);
+
+        r = sd_bus_message_close_container(m);
+        if (r < 0)
+                return error_origin(r);
+
+        r = sd_bus_message_open_container(m, 'r',
+                                                "a(btbs)"
+                                                "a(ua(btbs))"
+                                                "a(ua(btbs))");
+        if (r < 0)
+                return error_origin(r);
+
+        r = policy_export_own_default(policy, m);
+        r = r ?: policy_export_own_uidgid(&policy->own_uid, m);
+        r = r ?: policy_export_own_uidgid(&policy->own_gid, m);
+        if (r)
+                return error_trace(r);
+
+        r = sd_bus_message_close_container(m);
+        if (r < 0)
+                return error_origin(r);
+
+        r = sd_bus_message_open_container(m, 'r',
+                                                "a(btsssssb)"
+                                                "a(ua(btsssssb))"
+                                                "a(ua(btsssssb))");
+        if (r < 0)
+                return error_origin(r);
+
+        r = policy_export_xmit_default(&policy->send_default, m);
+        r = r ?: policy_export_xmit_uidgid(&policy->send_uid, m);
+        r = r ?: policy_export_xmit_uidgid(&policy->send_gid, m);
+        if (r)
+                return error_trace(r);
+
+        r = sd_bus_message_close_container(m);
+        if (r < 0)
+                return error_origin(r);
+
+        r = sd_bus_message_open_container(m, 'r',
+                                                "a(btsssssb)"
+                                                "a(ua(btsssssb))"
+                                                "a(ua(btsssssb))");
+        if (r < 0)
+                return error_origin(r);
+
+        r = policy_export_xmit_default(&policy->recv_default, m);
+        r = r ?: policy_export_xmit_uidgid(&policy->recv_uid, m);
+        r = r ?: policy_export_xmit_uidgid(&policy->recv_gid, m);
+        if (r)
+                return error_trace(r);
+
+        r = sd_bus_message_close_container(m);
+        if (r < 0)
+                return error_origin(r);
+
+        r = sd_bus_message_close_container(m);
+        if (r < 0)
+                return error_origin(r);
+
+        r = sd_bus_message_close_container(m);
+        if (r < 0)
+                return error_origin(r);
+
+        return 0;
 }
