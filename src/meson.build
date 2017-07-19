@@ -85,6 +85,7 @@ if dep_libsystemd.found() and dep_glib.found()
                 [
                         'launch/config.c',
                         'launch/main.c',
+                        'launch/policy.c',
                 ],
                 dependencies: [
                         dep_crbtree,

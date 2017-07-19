@@ -18,6 +18,7 @@
 #include <systemd/sd-daemon.h>
 #include <systemd/sd-event.h>
 #include "launch/config.h"
+#include "launch/policy.h"
 #include "util/error.h"
 
 typedef struct Manager Manager;
@@ -722,6 +723,7 @@ static int manager_add_listener(Manager *manager) {
         _c_cleanup_(config_parser_deinit) ConfigParser parser = CONFIG_PARSER_NULL(parser);
         _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *m = NULL;
         _c_cleanup_(config_root_freep) ConfigRoot *root = NULL;
+        _c_cleanup_(policy_deinit) Policy policy = POLICY_INIT(policy);
         const char *policypath;
         int r;
 
@@ -737,6 +739,10 @@ static int manager_add_listener(Manager *manager) {
         config_parser_init(&parser);
 
         r = config_parser_read(&parser, &root, policypath);
+        if (r)
+                return error_fold(r);
+
+        r = policy_import(&policy, root);
         if (r)
                 return error_fold(r);
 
