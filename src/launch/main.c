@@ -17,8 +17,7 @@
 #include <systemd/sd-bus.h>
 #include <systemd/sd-daemon.h>
 #include <systemd/sd-event.h>
-#include "bus/policy.h"
-#include "launch/policy-parser.h"
+#include "launch/config.h"
 #include "util/error.h"
 
 typedef struct Manager Manager;
@@ -720,7 +719,9 @@ static int manager_load_services(Manager *manager) {
 }
 
 static int manager_add_listener(Manager *manager) {
-        _c_cleanup_(policy_parser_registry_deinit) PolicyParserRegistry registry = POLICY_PARSER_REGISTRY_NULL(registry);
+        _c_cleanup_(config_parser_deinit) ConfigParser parser = CONFIG_PARSER_NULL(parser);
+        _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *m = NULL;
+        _c_cleanup_(config_root_freep) ConfigRoot *root = NULL;
         const char *policypath;
         int r;
 
@@ -733,25 +734,29 @@ static int manager_add_listener(Manager *manager) {
         else
                 return error_origin(-ENOTRECOVERABLE);
 
-        r = policy_parser_registry_init(&registry);
+        config_parser_init(&parser);
+
+        r = config_parser_read(&parser, &root, policypath);
         if (r)
                 return error_fold(r);
 
-        r = policy_parser_registry_append_file(&registry, policypath, NULL);
-        if (r)
-                return error_fold(r);
+        r = sd_bus_message_new_method_call(manager->bus_controller,
+                                           &m,
+                                           NULL,
+                                           "/org/bus1/DBus/Broker",
+                                           "org.bus1.DBus.Broker",
+                                           "AddListener");
+        if (r < 0)
+                return error_origin(r);
 
-        r = sd_bus_call_method(manager->bus_controller,
-                               NULL,
-                               "/org/bus1/DBus/Broker",
-                               "org.bus1.DBus.Broker",
-                               "AddListener",
-                               NULL,
-                               NULL,
-                               "ohs",
-                               "/org/bus1/DBus/Listener/0",
-                               manager->fd_listen,
-                               policypath);
+        r = sd_bus_message_append(m, "ohs",
+                                  "/org/bus1/DBus/Listener/0",
+                                  manager->fd_listen,
+                                  policypath);
+        if (r < 0)
+                return error_origin(r);
+
+        r = sd_bus_call(manager->bus_controller, m, 0, NULL, NULL);
         if (r < 0)
                 return error_origin(r);
 
