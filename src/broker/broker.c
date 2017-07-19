@@ -43,7 +43,7 @@ static int broker_dispatch_signals(DispatchFile *file, uint32_t events) {
         return DISPATCH_E_EXIT;
 }
 
-int broker_new(Broker **brokerp, int controller_fd) {
+int broker_new(Broker **brokerp, int controller_fd, uint64_t max_bytes, uint64_t max_fds, uint64_t max_matches, uint64_t max_objects) {
         _c_cleanup_(broker_freep) Broker *broker = NULL;
         struct ucred ucred;
         socklen_t z_ucred = sizeof(ucred);
@@ -64,15 +64,7 @@ int broker_new(Broker **brokerp, int controller_fd) {
         broker->signals_file = (DispatchFile)DISPATCH_FILE_NULL(broker->signals_file);
         broker->controller = (Controller)CONTROLLER_NULL(broker->controller);
 
-        /*
-         * XXX: These limits should be provided by our caller. That is, either
-         *      the controller must provide them, or they must be passed via
-         *      command-line arguments.
-         *      The latter seems like the better option, since those limits
-         *      need to be provided for bus-initialization, and we preferably
-         *      want to keep the Bus valid at all times.
-         */
-        r = bus_init(&broker->bus, 16 * 1024 * 1024, 64, 10 * 1024, 10 * 1024);
+        r = bus_init(&broker->bus, max_bytes, max_fds, max_matches, max_objects);
         if (r)
                 return error_fold(r);
 

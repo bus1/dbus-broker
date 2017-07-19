@@ -19,8 +19,8 @@ typedef struct UserRegistry UserRegistry;
 enum {
         USER_SLOT_BYTES,
         USER_SLOT_FDS,
-        USER_SLOT_OBJECTS,
         USER_SLOT_MATCHES,
+        USER_SLOT_OBJECTS,
         _USER_SLOT_N,
 };
 

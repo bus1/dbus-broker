@@ -17,9 +17,9 @@
 int bus_init(Bus *bus,
              unsigned int max_bytes,
              unsigned int max_fds,
-             unsigned int max_names,
-             unsigned int max_matches) {
-        unsigned int maxima[] = { max_bytes, max_fds, max_names, max_matches };
+             unsigned int max_matches,
+             unsigned int max_objects) {
+        unsigned int maxima[] = { max_bytes, max_fds, max_matches, max_objects };
         void *random;
         int r;
 

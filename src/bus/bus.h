@@ -53,8 +53,8 @@ struct Bus {
 int bus_init(Bus *bus,
              unsigned int max_bytes,
              unsigned int max_fds,
-             unsigned int max_names,
-             unsigned int max_matches);
+             unsigned int max_matches,
+             unsigned int max_objects);
 void bus_deinit(Bus *bus);
 
 Peer *bus_find_peer_by_name(Bus *bus, Name **namep, const char *name);

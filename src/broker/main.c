@@ -13,15 +13,23 @@
 #include "util/error.h"
 
 int main_arg_controller = 3;
+uint64_t main_arg_max_bytes = 16 * 1024 * 1024;
+uint64_t main_arg_max_fds = 64;
+uint64_t main_arg_max_matches = 10 * 1024;
+uint64_t main_arg_max_objects = 10 * 1024;
 bool main_arg_verbose = false;
 
 static void help(void) {
         printf("%s [GLOBALS...] ...\n\n"
                "Linux D-Bus Message Broker\n\n"
-               "  -h --help             Show this help\n"
-               "     --version          Show package version\n"
-               "  -v --verbose          Print progress to terminal\n"
-               "     --controller FD    Change controller file-descriptor\n"
+               "  -h --help                     Show this help\n"
+               "     --version                  Show package version\n"
+               "  -v --verbose                  Print progress to terminal\n"
+               "     --controller FD            Change controller file-descriptor\n"
+               "     --max-bytes BYTES          The maximum number of bytes each user may own in the broker\n"
+               "     --max-fds FDS              The maximum number of file descriptors each user may own in the broker\n"
+               "     --max-matches MATCHES      The maximum number of match rules each user may own in the broker\n"
+               "     --max-objects OBJECTS      The maximum total number of names, peers, pending replies, etc each user may own in the broker\n"
                , program_invocation_short_name);
 }
 
@@ -29,12 +37,20 @@ static int parse_argv(int argc, char *argv[]) {
         enum {
                 ARG_VERSION = 0x100,
                 ARG_CONTROLLER,
+                ARG_MAX_BYTES,
+                ARG_MAX_FDS,
+                ARG_MAX_MATCHES,
+                ARG_MAX_OBJECTS,
         };
         static const struct option options[] = {
                 { "help",               no_argument,            NULL,   'h'                     },
                 { "version",            no_argument,            NULL,   ARG_VERSION             },
                 { "verbose",            no_argument,            NULL,   'v'                     },
                 { "controller",         required_argument,      NULL,   ARG_CONTROLLER          },
+                { "max-bytes",          required_argument,      NULL,   ARG_MAX_BYTES           },
+                { "max-fds",            required_argument,      NULL,   ARG_MAX_FDS             },
+                { "max-matches",        required_argument,      NULL,   ARG_MAX_MATCHES         },
+                { "max-objects",        required_argument,      NULL,   ARG_MAX_OBJECTS         },
                 {}
         };
         int r, c;
@@ -65,6 +81,66 @@ static int parse_argv(int argc, char *argv[]) {
                         }
 
                         main_arg_controller = vul;
+                        break;
+                }
+
+                case ARG_MAX_BYTES: {
+                        unsigned long long vul;
+                        char *end;
+
+                        errno = 0;
+                        vul = strtoull(optarg, &end, 10);
+                        if (errno != 0 || *end || optarg == end) {
+                                fprintf(stderr, "%s: invalid max number of bytes -- '%s'\n", program_invocation_name, optarg);
+                                return MAIN_FAILED;
+                        }
+
+                        main_arg_max_bytes = vul;
+                        break;
+                }
+
+                case ARG_MAX_FDS: {
+                        unsigned long long vul;
+                        char *end;
+
+                        errno = 0;
+                        vul = strtoull(optarg, &end, 10);
+                        if (errno != 0 || *end || optarg == end) {
+                                fprintf(stderr, "%s: invalid max number of fds -- '%s'\n", program_invocation_name, optarg);
+                                return MAIN_FAILED;
+                        }
+
+                        main_arg_max_fds = vul;
+                        break;
+                }
+
+                case ARG_MAX_MATCHES: {
+                        unsigned long long vul;
+                        char *end;
+
+                        errno = 0;
+                        vul = strtoull(optarg, &end, 10);
+                        if (errno != 0 || *end || optarg == end) {
+                                fprintf(stderr, "%s: invalid max number of matches -- '%s'\n", program_invocation_name, optarg);
+                                return MAIN_FAILED;
+                        }
+
+                        main_arg_max_matches = vul;
+                        break;
+                }
+
+                case ARG_MAX_OBJECTS: {
+                        unsigned long long vul;
+                        char *end;
+
+                        errno = 0;
+                        vul = strtoull(optarg, &end, 10);
+                        if (errno != 0 || *end || optarg == end) {
+                                fprintf(stderr, "%s: invalid max number of objects -- '%s'\n", program_invocation_name, optarg);
+                                return MAIN_FAILED;
+                        }
+
+                        main_arg_max_objects = vul;
                         break;
                 }
 
@@ -116,7 +192,7 @@ static int run(void) {
         _c_cleanup_(broker_freep) Broker *broker = NULL;
         int r;
 
-        r = broker_new(&broker, main_arg_controller);
+        r = broker_new(&broker, main_arg_controller, main_arg_max_bytes, main_arg_max_fds, main_arg_max_matches, main_arg_max_objects);
         if (!r)
                 r = broker_run(broker);
 
