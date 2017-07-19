@@ -75,6 +75,10 @@ struct ConfigNode {
         ConfigNode *parent;
         size_t n_children;
 
+        ConfigPath *path;
+        const char *file;
+        unsigned long lineno;
+
         char *cdata;
         size_t n_cdata;
 
@@ -140,6 +144,7 @@ struct ConfigNode {
 #define CONFIG_NODE_NULL(_x) {                                                  \
                 .root_link = C_LIST_INIT((_x).root_link),                       \
                 .include_link = C_LIST_INIT((_x).include_link),                 \
+                .file = "<unknown>",                                            \
                 .type = CONFIG_NODE_NONE,                                       \
         }
 

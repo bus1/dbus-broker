@@ -168,8 +168,9 @@ ConfigNode *config_node_free(ConfigNode *node) {
         }
 
         free(node->cdata);
-        assert(!node->n_children);
+        config_path_unref(node->path);
 
+        assert(!node->n_children);
         if (node->parent)
                 --node->parent->n_children;
 
@@ -869,6 +870,11 @@ static void config_parser_begin_fn(void *userdata, const XML_Char *name, const X
         state->current = node;
         state->last = node;
         ++state->n_depth;
+
+        node->path = config_path_ref(state->file);
+        node->file = node->path->path;
+        node->lineno = XML_GetCurrentLineNumber(c_container_of(state, ConfigParser, state)->xml);
+
         node = NULL;
         return;
 
