@@ -52,12 +52,13 @@ struct ControllerMethod {
                 _body                                   \
         )
 
-static const CDVarType controller_type_in_ohs[] = {
+static const CDVarType controller_type_in_ohsv[] = {
         C_DVAR_T_INIT(
-                C_DVAR_T_TUPLE3(
+                C_DVAR_T_TUPLE4(
                         C_DVAR_T_o,
                         C_DVAR_T_h,
-                        C_DVAR_T_s
+                        C_DVAR_T_s,
+                        C_DVAR_T_v
                 )
         )
 };
@@ -210,7 +211,9 @@ static int controller_method_add_listener(Controller *controller, const char *_p
         uint32_t fd_index;
         socklen_t n;
 
-        c_dvar_read(in_v, "(ohs)", &path, &fd_index, &policy_path);
+        c_dvar_read(in_v, "(ohs", &path, &fd_index, &policy_path);
+        c_dvar_skip(in_v, "*");
+        c_dvar_read(in_v, ")");
 
         r = controller_end_read(in_v);
         if (r)
@@ -370,8 +373,8 @@ static int controller_handle_method(const ControllerMethod *method, Controller *
 
 static int controller_dispatch_controller(Controller *controller, uint32_t serial, const char *method, const char *path, const char *signature, Message *message) {
         static const ControllerMethod methods[] = {
-                { "AddName",            controller_method_add_name,     controller_type_in_osu, controller_type_out_unit },
-                { "AddListener",        controller_method_add_listener, controller_type_in_ohs,  controller_type_out_unit },
+                { "AddName",            controller_method_add_name,     controller_type_in_osu,         controller_type_out_unit },
+                { "AddListener",        controller_method_add_listener, controller_type_in_ohsv,        controller_type_out_unit },
         };
 
         for (size_t i = 0; i < C_ARRAY_SIZE(methods); i++) {

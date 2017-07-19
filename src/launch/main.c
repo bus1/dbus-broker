@@ -762,6 +762,10 @@ static int manager_add_listener(Manager *manager) {
         if (r < 0)
                 return error_origin(r);
 
+        r = policy_export(&policy, m);
+        if (r)
+                return error_fold(r);
+
         r = sd_bus_call(manager->bus_controller, m, 0, NULL, NULL);
         if (r < 0)
                 return error_origin(r);

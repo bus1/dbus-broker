@@ -99,10 +99,11 @@ void util_fork_broker(sd_bus **busp, sd_event *event, int listener_fd, pid_t *pi
                                "AddListener",
                                NULL,
                                NULL,
-                               "ohs",
+                               "ohsv",
                                "/org/bus1/DBus/Listener/0",
                                listener_fd,
-                               NULL);
+                               NULL,
+                               "s", "<dummy>");
         assert(r >= 0);
 
         *busp = bus;
