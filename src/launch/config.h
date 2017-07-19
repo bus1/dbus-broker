@@ -137,11 +137,13 @@ struct ConfigNode {
                         char *recv_type;
                         char *own;
                         char *own_prefix;
-                        char *user;
-                        char *group;
+                        uint32_t uid;
+                        uint32_t gid;
                         bool send_requested_reply : 1;
                         bool recv_requested_reply : 1;
                         bool eavesdrop : 1;
+                        bool user : 1;
+                        bool group : 1;
                         bool log : 1;
                 } allow_deny;
 

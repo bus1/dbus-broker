@@ -156,8 +156,6 @@ ConfigNode *config_node_free(ConfigNode *node) {
                 free(node->allow_deny.recv_type);
                 free(node->allow_deny.own);
                 free(node->allow_deny.own_prefix);
-                free(node->allow_deny.user);
-                free(node->allow_deny.group);
                 break;
         case CONFIG_NODE_ASSOCIATE:
                 free(node->associate.own);
@@ -475,19 +473,37 @@ static int config_parser_attrs_allow_deny(ConfigState *state, ConfigNode *node, 
                         free(node->allow_deny.own_prefix);
                         node->allow_deny.own_prefix = t;
                 } else if (!strcmp(k, "user")) {
-                        t = strdup(v);
-                        if (!t)
-                                return error_origin(-ENOMEM);
+                        struct passwd *pw;
 
-                        free(node->allow_deny.user);
-                        node->allow_deny.user = t;
+                        if (!strcmp(v, "*")) {
+                                node->allow_deny.uid = -1;
+                                node->allow_deny.user = true;
+                        } else {
+                                pw = getpwnam(v);
+                                if (!pw) {
+                                        CONFIG_ERR(state, "Invalid user-name", ": %s=\"%s\"", k, v);
+                                        continue;
+                                }
+
+                                node->allow_deny.uid = pw->pw_uid;
+                                node->allow_deny.user = true;
+                        }
                 } else if (!strcmp(k, "group")) {
-                        t = strdup(v);
-                        if (!t)
-                                return error_origin(-ENOMEM);
+                        struct group *gr;
 
-                        free(node->allow_deny.group);
-                        node->allow_deny.group = t;
+                        if (!strcmp(v, "*")) {
+                                node->allow_deny.gid = -1;
+                                node->allow_deny.group = true;
+                        } else {
+                                gr = getgrnam(v);
+                                if (!gr) {
+                                        CONFIG_ERR(state, "Invalid group-name", ": %s=\"%s\"", k, v);
+                                        continue;
+                                }
+
+                                node->allow_deny.gid = gr->gr_gid;
+                                node->allow_deny.group = true;
+                        }
                 } else if (!strcmp(k, "send_requested_reply")) {
                         if (!strcmp(v, "true"))
                                 node->allow_deny.send_requested_reply = true;
