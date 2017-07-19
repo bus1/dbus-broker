@@ -109,11 +109,6 @@ test('Address Handling', test_address)
 test_config = executable('test-config', ['launch/test-config.c', 'launch/config.c'], dependencies: libdbus_broker_dep)
 test('Configuration Parser', test_config)
 
-if dep_libsystemd.found()
-        test_perf = executable('test-perf', ['broker/test-broker.c'], dependencies: [ libdbus_broker_dep, dep_thread, dep_libsystemd ])
-        test('Broker Performance', test_perf)
-endif
-
 test_dispatch = executable('test-dispatch', ['util/test-dispatch.c'], dependencies: libdbus_broker_dep)
 test('Event Dispatcher', test_dispatch)
 
