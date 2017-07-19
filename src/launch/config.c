@@ -5,6 +5,8 @@
 #include <c-list.h>
 #include <c-macro.h>
 #include <expat.h>
+#include <grp.h>
+#include <pwd.h>
 #include <stdlib.h>
 #include "launch/config.h"
 #include "util/error.h"
@@ -135,10 +137,6 @@ ConfigNode *config_node_free(ConfigNode *node) {
         case CONFIG_NODE_INCLUDE:
                 config_path_unref(node->include.file);
                 break;
-        case CONFIG_NODE_POLICY:
-                free(node->policy.user);
-                free(node->policy.group);
-                break;
         case CONFIG_NODE_LIMIT:
                 free(node->limit.name);
                 break;
@@ -256,44 +254,66 @@ static int config_parser_attrs_include(ConfigState *state, ConfigNode *node, con
 
 static int config_parser_attrs_policy(ConfigState *state, ConfigNode *node, const XML_Char **attrs) {
         const char *k, *v;
-        char *t;
 
         while (*attrs) {
                 k = *(attrs++);
                 v = *(attrs++);
 
                 if (!strcmp(k, "user")) {
-                        t = strdup(v);
-                        if (!t)
-                                return error_origin(-ENOMEM);
+                        struct passwd *pw;
 
-                        free(node->policy.user);
-                        node->policy.user = t;
+                        if (node->policy.context)
+                                CONFIG_ERR(state, "Conflicting attributes", "");
+
+                        pw = getpwnam(v);
+                        if (!pw) {
+                                CONFIG_ERR(state, "Invalid user-name", ": %s=\"%s\"", k, v);
+                                continue;
+                        }
+
+                        node->policy.context = CONFIG_POLICY_USER;
+                        node->policy.id = pw->pw_uid;
                 } else if (!strcmp(k, "group")) {
-                        t = strdup(v);
-                        if (!t)
-                                return error_origin(-ENOMEM);
+                        struct group *gr;
 
-                        free(node->policy.group);
-                        node->policy.group = t;
+                        if (node->policy.context)
+                                CONFIG_ERR(state, "Conflicting attributes", "");
+
+                        gr = getgrnam(v);
+                        if (!gr) {
+                                CONFIG_ERR(state, "Invalid group-name", ": %s=\"%s\"", k, v);
+                                continue;
+                        }
+
+                        node->policy.context = CONFIG_POLICY_GROUP;
+                        node->policy.id = gr->gr_gid;
                 } else if (!strcmp(k, "context")) {
+                        if (node->policy.context)
+                                CONFIG_ERR(state, "Conflicting attributes", "");
+
                         if (!strcmp(v, "mandatory"))
-                                node->policy.mandatory = true;
+                                node->policy.context = CONFIG_POLICY_MANDATORY;
                         else if (!strcmp(v, "default"))
-                                node->policy.mandatory = false;
+                                node->policy.context = CONFIG_POLICY_DEFAULT;
                         else
                                 CONFIG_ERR(state, "Invalid value", ": %s=\"%s\"", k, v);
                 } else if (!strcmp(k, "at_console")) {
+                        if (node->policy.context)
+                                CONFIG_ERR(state, "Conflicting attributes", "");
+
                         if (!strcmp(v, "true"))
-                                node->policy.at_console = true;
+                                node->policy.context = CONFIG_POLICY_AT_CONSOLE;
                         else if (!strcmp(v, "false"))
-                                node->policy.at_console = false;
+                                node->policy.context = CONFIG_POLICY_NO_CONSOLE;
                         else
                                 CONFIG_ERR(state, "Invalid value", ": %s=\"%s\"", k, v);
                 } else {
                         CONFIG_ERR(state, "Unknown attribute", ": %s=\"%s\"", k, v);
                 }
         }
+
+        if (!node->policy.context)
+                CONFIG_ERR(state, "Missing attribute", "");
 
         return 0;
 }

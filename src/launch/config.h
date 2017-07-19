@@ -53,6 +53,19 @@ enum {
 };
 
 enum {
+        CONFIG_POLICY_NONE,
+
+        CONFIG_POLICY_DEFAULT,
+        CONFIG_POLICY_GROUP,
+        CONFIG_POLICY_USER,
+        CONFIG_POLICY_AT_CONSOLE,
+        CONFIG_POLICY_NO_CONSOLE,
+        CONFIG_POLICY_MANDATORY,
+
+        _CONFIG_POLICY_N,
+};
+
+enum {
         CONFIG_APPARMOR_ENABLED,
         CONFIG_APPARMOR_DISABLED,
         CONFIG_APPARMOR_REQUIRED,
@@ -97,10 +110,8 @@ struct ConfigNode {
                 } include;
 
                 struct {
-                        char *user;
-                        char *group;
-                        bool mandatory : 1;
-                        bool at_console : 1;
+                        unsigned int context;
+                        uint32_t id;
                 } policy;
 
                 struct {
