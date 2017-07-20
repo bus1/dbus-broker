@@ -19,6 +19,7 @@
 #include "dbus/protocol.h"
 #include "dbus/socket.h"
 #include "util/error.h"
+#include "util/selinux.h"
 
 typedef struct DriverMethod DriverMethod;
 typedef int (*DriverMethodFn) (Peer *peer, CDVar *var_in, uint32_t serial, CDVar *var_out);
@@ -1155,12 +1156,6 @@ static int driver_method_get_connection_selinux_security_context(Peer *peer, CDV
         const char *name;
         int r;
 
-        /*
-         * XXX: Unlike "LinuxSecurityLabel" in GetConnectionCredentials(), this
-         *      call is specific to SELinux. Hence, we better only return the
-         *      label if we are running on SELinux.
-         */
-
         c_dvar_read(in_v, "(s)", &name);
 
         r = driver_end_read(in_v);
@@ -1172,6 +1167,14 @@ static int driver_method_get_connection_selinux_security_context(Peer *peer, CDV
                 return DRIVER_E_PEER_NOT_FOUND;
 
         if (!connection->seclabel)
+                return DRIVER_E_SELINUX_NOT_SUPPORTED;
+
+        /*
+         * Unlike "LinuxSecurityLabel" in GetConnectionCredentials(), this
+         * call is specific to SELinux. Hence, we better only return the
+         * label if we are running on SELinux.
+         */
+        if (!selinux_is_enabled())
                 return DRIVER_E_SELINUX_NOT_SUPPORTED;
 
         /*

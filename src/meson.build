@@ -27,6 +27,16 @@ libdbus_broker_sources = [
         'util/user.c',
 ]
 
+if dep_libselinux.found()
+        libdbus_broker_sources += [
+                'util/selinux.c'
+        ]
+else
+        libdbus_broker_sources += [
+                'util/selinux-fallback.c'
+        ]
+endif
+
 libdbus_broker_private = static_library(
         'dbus-broker-private',
         libdbus_broker_sources,
@@ -40,6 +50,7 @@ libdbus_broker_private = static_library(
                 dep_crbtree,
                 dep_csundry,
                 dep_expat,
+                dep_libselinux,
         ],
         pic: true,
 )
