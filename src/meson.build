@@ -2,32 +2,34 @@
 # target: libdbus-broker.so
 #
 
+libdbus_broker_sources = [
+        'bus/activation.c',
+        'bus/bus.c',
+        'bus/driver.c',
+        'bus/listener.c',
+        'bus/match.c',
+        'bus/name.c',
+        'bus/peer.c',
+        'bus/policy.c',
+        'bus/reply.c',
+        'dbus/address.c',
+        'dbus/connection.c',
+        'dbus/message.c',
+        'dbus/protocol.c',
+        'dbus/queue.c',
+        'dbus/sasl.c',
+        'dbus/socket.c',
+        'launch/policy-parser.c', # XXX: drop once pre-parsed
+        'util/error.c',
+        'util/dispatch.c',
+        'util/fdlist.c',
+        'util/metrics.c',
+        'util/user.c',
+]
+
 libdbus_broker_private = static_library(
         'dbus-broker-private',
-        [
-                'bus/activation.c',
-                'bus/bus.c',
-                'bus/driver.c',
-                'bus/listener.c',
-                'bus/match.c',
-                'bus/name.c',
-                'bus/peer.c',
-                'bus/policy.c',
-                'bus/reply.c',
-                'dbus/address.c',
-                'dbus/connection.c',
-                'dbus/message.c',
-                'dbus/protocol.c',
-                'dbus/queue.c',
-                'dbus/sasl.c',
-                'dbus/socket.c',
-                'launch/policy-parser.c', # XXX: drop once pre-parsed
-                'util/error.c',
-                'util/dispatch.c',
-                'util/fdlist.c',
-                'util/metrics.c',
-                'util/user.c',
-        ],
+        libdbus_broker_sources,
         c_args: [
                 '-fvisibility=hidden',
                 '-fno-common',
