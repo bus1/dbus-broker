@@ -27,9 +27,20 @@ libdbus_broker_sources = [
         'util/user.c',
 ]
 
+libdbus_broker_dependencies = [
+        dep_cdvar,
+        dep_clist,
+        dep_crbtree,
+        dep_csundry,
+        dep_expat,
+]
+
 if dep_libselinux.found()
         libdbus_broker_sources += [
                 'util/selinux.c'
+        ]
+        libdbus_broker_dependencies += [
+                dep_libselinux,
         ]
 else
         libdbus_broker_sources += [
@@ -44,14 +55,7 @@ libdbus_broker_private = static_library(
                 '-fvisibility=hidden',
                 '-fno-common',
         ],
-        dependencies: [
-                dep_cdvar,
-                dep_clist,
-                dep_crbtree,
-                dep_csundry,
-                dep_expat,
-                dep_libselinux,
-        ],
+        dependencies: libdbus_broker_dependencies,
         pic: true,
 )
 
