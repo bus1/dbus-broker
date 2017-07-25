@@ -193,6 +193,38 @@ static int policy_import_link(Policy *policy,
         return 0;
 }
 
+static int policy_import_connect_self(Policy *policy) {
+        _c_cleanup_(policy_record_freep) PolicyRecord *record = NULL;
+        int r;
+
+        /*
+         * The default policy for the controller is ALLOW, as opposed
+         * to the default policy for any other UID which is DENY. The
+         * broker does not implement this logic, so simply add an
+         * explicit rule to stay compatible with the reference
+         * implementation.
+         */
+
+        r = policy_record_new_connect(&record);
+        if (r)
+                return error_trace(r);
+
+        record->verdict = true;
+        record->priority = 0;
+
+        r = policy_import_link(
+                        policy,
+                        record,
+                        &policy->connect_uid,
+                        &policy->connect_default,
+                        getuid());
+        if (r)
+                return error_trace(r);
+
+        record = NULL;
+        return 0;
+}
+
 static int policy_import_connect(Policy *policy, ConfigNode *cnode) {
         _c_cleanup_(policy_record_freep) PolicyRecord *record = NULL;
         int r;
@@ -447,6 +479,10 @@ static int policy_import_recv(Policy *policy, ConfigNode *cnode) {
 int policy_import(Policy *policy, ConfigRoot *root) {
         ConfigNode *i_cnode;
         int r;
+
+        r = policy_import_connect_self(policy);
+        if (r)
+                return error_trace(r);
 
         c_list_for_each_entry(i_cnode, &root->node_list, root_link) {
                 if (i_cnode->type != CONFIG_NODE_ALLOW &&
