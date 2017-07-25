@@ -604,7 +604,7 @@ static int policy_export_connect_uidgid(PolicyMap *map, sd_bus_message *m) {
                 assert(top == c_list_last_entry(&i_node->record_list, PolicyRecord, link));
 
                 if (top) {
-                        r = sd_bus_message_append(m, "(ub)", i_node->uidgid, top ? top->verdict : false);
+                        r = sd_bus_message_append(m, "(ub)", i_node->uidgid, top->verdict);
                         if (r < 0)
                                 return error_origin(r);
                 }
