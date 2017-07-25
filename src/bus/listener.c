@@ -80,7 +80,7 @@ static int listener_instantiate_policy_registry(PolicyRegistry *registry, const 
         if (r)
                 return error_fold(r);
 
-        r = connection_policy_instantiate(&registry->connection_policy, &parser.registry.connection_policy);
+        r = policy_connect_instantiate(&registry->policy_connect, &parser.registry.policy_connect);
         if (r)
                 return error_fold(r);
 

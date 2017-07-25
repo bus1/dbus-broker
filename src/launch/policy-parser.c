@@ -160,7 +160,7 @@ error:
 }
 
 static int policy_parser_handler_entry(PolicyParser *parser, const XML_Char **attributes, bool deny) {
-        TransmissionPolicy *transmission_policy = NULL;
+        PolicyXmit *policy_xmit = NULL;
         bool send = false, receive = false;
         const char *name = NULL, *interface = NULL, *member = NULL, *error = NULL, *path = NULL;
         int type = 0, r;
@@ -170,26 +170,26 @@ static int policy_parser_handler_entry(PolicyParser *parser, const XML_Char **at
 
                 if (!strcmp(key, "own")) {
                         if (!strcmp(value, "*")) {
-                                r = ownership_policy_set_wildcard(&parser->policy->ownership_policy, deny,
+                                r = policy_own_set_wildcard(&parser->policy->policy_own, deny,
                                                                   parser->priority_base + parser->priority ++);
                                 if (r)
                                         return error_trace(r);
                         } else {
-                                r = ownership_policy_add_name(&parser->policy->ownership_policy, value, deny,
+                                r = policy_own_add_name(&parser->policy->policy_own, value, deny,
                                                               parser->priority_base + parser->priority ++);
                                 if (r)
                                         return error_trace(r);
                         }
                         continue;
                 } else if (!strcmp(key, "own_prefix")) {
-                        r = ownership_policy_add_prefix(&parser->policy->ownership_policy, value, deny,
+                        r = policy_own_add_prefix(&parser->policy->policy_own, value, deny,
                                                         parser->priority_base + parser->priority ++);
                         if (r)
                                 return error_trace(r);
                         continue;
                 } else if (!strcmp(key, "user")) {
                         if (!strcmp(value, "*")) {
-                                r = connection_policy_set_wildcard(&parser->registry->registry.connection_policy, deny,
+                                r = policy_connect_set_wildcard(&parser->registry->registry.policy_connect, deny,
                                                                    parser->priority_base + parser->priority ++);
                                 if (r)
                                         return error_trace(r);
@@ -200,7 +200,7 @@ static int policy_parser_handler_entry(PolicyParser *parser, const XML_Char **at
                                 if (!passwd)
                                         return error_origin(-errno);
 
-                                r = connection_policy_add_uid(&parser->registry->registry.connection_policy, passwd->pw_uid, deny,
+                                r = policy_connect_add_uid(&parser->registry->registry.policy_connect, passwd->pw_uid, deny,
                                                               parser->priority_base + parser->priority ++);
                                 if (r)
                                         return error_trace(r);
@@ -208,7 +208,7 @@ static int policy_parser_handler_entry(PolicyParser *parser, const XML_Char **at
                         continue;
                 } else if (!strcmp(key, "group")) {
                         if (!strcmp(value, "*")) {
-                                r = connection_policy_set_wildcard(&parser->registry->registry.connection_policy, deny,
+                                r = policy_connect_set_wildcard(&parser->registry->registry.policy_connect, deny,
                                                                    parser->priority_base + parser->priority ++);
                                 if (r)
                                         return error_trace(r);
@@ -219,7 +219,7 @@ static int policy_parser_handler_entry(PolicyParser *parser, const XML_Char **at
                                 if (!group)
                                         return error_origin(-errno);
 
-                                r = connection_policy_add_gid(&parser->registry->registry.connection_policy, group->gr_gid, deny,
+                                r = policy_connect_add_gid(&parser->registry->registry.policy_connect, group->gr_gid, deny,
                                                               parser->priority_base + parser->priority ++);
                                 if (r)
                                         return error_trace(r);
@@ -230,7 +230,7 @@ static int policy_parser_handler_entry(PolicyParser *parser, const XML_Char **at
                                 goto error;
 
                         send = true;
-                        transmission_policy = &parser->policy->send_policy;
+                        policy_xmit = &parser->policy->policy_send;
 
                         key += strlen("send_");
                 } else if (!strncmp(key, "receive_", strlen("receive_"))) {
@@ -238,7 +238,7 @@ static int policy_parser_handler_entry(PolicyParser *parser, const XML_Char **at
                                 goto error;
 
                         receive = true;
-                        transmission_policy = &parser->policy->receive_policy;
+                        policy_xmit = &parser->policy->policy_receive;
 
                         key += strlen("receive_");
                 } else {
@@ -292,8 +292,8 @@ static int policy_parser_handler_entry(PolicyParser *parser, const XML_Char **at
                 }
         }
 
-        if (transmission_policy) {
-                r = transmission_policy_add_entry(transmission_policy, name, interface, member, path, type, deny,
+        if (policy_xmit) {
+                r = policy_xmit_add_entry(policy_xmit, name, interface, member, path, type, deny,
                                                   parser->priority_base + parser->priority ++);
                 if (r)
                         return error_trace(r);

@@ -15,19 +15,19 @@ enum {
         POLICY_E_ACCESS_DENIED,
 };
 
-typedef struct ConnectionPolicy ConnectionPolicy;
-typedef struct ConnectionPolicyEntry ConnectionPolicyEntry;
 typedef struct NameSet NameSet;
-typedef struct OwnershipPolicy OwnershipPolicy;
-typedef struct OwnershipPolicyEntry OwnershipPolicyEntry;
 typedef struct Policy Policy;
+typedef struct PolicyConnect PolicyConnect;
+typedef struct PolicyConnectEntry PolicyConnectEntry;
 typedef struct PolicyDecision PolicyDecision;
+typedef struct PolicyOwn PolicyOwn;
+typedef struct PolicyOwnEntry PolicyOwnEntry;
 typedef struct PolicyParser PolicyParser;
 typedef struct PolicyRegistry PolicyRegistry;
+typedef struct PolicyXmit PolicyXmit;
+typedef struct PolicyXmitByName PolicyXmitByName;
+typedef struct PolicyXmitEntry PolicyXmitEntry;
 typedef struct PeerPolicy PeerPolicy;
-typedef struct TransmissionPolicy TransmissionPolicy;
-typedef struct TransmissionPolicyByName TransmissionPolicyByName;
-typedef struct TransmissionPolicyEntry TransmissionPolicyEntry;
 
 struct PolicyDecision {
         bool deny;
@@ -36,62 +36,62 @@ struct PolicyDecision {
 
 #define POLICY_DECISION_INIT {}
 
-struct OwnershipPolicy {
+struct PolicyOwn {
         CRBTree names;
         CRBTree prefixes;
         PolicyDecision wildcard;
 };
 
-#define OWNERSHIP_POLICY_INIT {                         \
+#define POLICY_OWN_INIT {                               \
                 .names = C_RBTREE_INIT,                 \
                 .prefixes = C_RBTREE_INIT,              \
                 .wildcard = POLICY_DECISION_INIT,       \
         }
 
-struct OwnershipPolicyEntry {
+struct PolicyOwnEntry {
         CRBTree *policy;
         PolicyDecision decision;
         CRBNode rb;
         const char name[];
 };
 
-struct ConnectionPolicy {
+struct PolicyConnect {
         CRBTree uid_tree;
         CRBTree gid_tree;
         PolicyDecision wildcard;
 };
 
-#define CONNECTION_POLICY_INIT {                        \
+#define POLICY_CONNECT_INIT {                           \
                 .uid_tree = C_RBTREE_INIT,              \
                 .gid_tree = C_RBTREE_INIT,              \
                 .wildcard = POLICY_DECISION_INIT,       \
         }
 
-struct ConnectionPolicyEntry {
+struct PolicyConnectEntry {
         CRBTree *policy;
         PolicyDecision decision;
         CRBNode rb;
         uid_t uid;
 };
 
-struct TransmissionPolicy {
+struct PolicyXmit {
         CRBTree policy_by_name_tree;
         CList wildcard_entry_list;
 };
 
-#define TRANSMISSION_POLICY_INIT(_x) {                                          \
+#define POLICY_XMIT_INIT(_x) {                                                  \
                 .policy_by_name_tree = C_RBTREE_INIT,                           \
                 .wildcard_entry_list = C_LIST_INIT((_x).wildcard_entry_list),   \
         }
 
-struct TransmissionPolicyByName {
+struct PolicyXmitByName {
         CList entry_list;
         CRBTree *policy;
         CRBNode policy_node;
         const char name[];
 };
 
-struct TransmissionPolicyEntry {
+struct PolicyXmitEntry {
         int type;
         const char *interface;
         const char *member;
@@ -102,20 +102,20 @@ struct TransmissionPolicyEntry {
 
 struct Policy {
         _Atomic unsigned long n_refs;
-        OwnershipPolicy ownership_policy;
-        TransmissionPolicy send_policy;
-        TransmissionPolicy receive_policy;
+        PolicyOwn policy_own;
+        PolicyXmit policy_send;
+        PolicyXmit policy_receive;
         CRBNode registry_node;
         uid_t uid;
 };
 
-#define POLICY_INIT(_x) {                                                               \
-                .n_refs = C_REF_INIT,                                                   \
-                .ownership_policy = OWNERSHIP_POLICY_INIT,                              \
-                .send_policy = TRANSMISSION_POLICY_INIT((_x).send_policy),              \
-                .receive_policy = TRANSMISSION_POLICY_INIT((_x).receive_policy),        \
-                .registry_node = C_RBNODE_INIT((_x).registry_node),                     \
-                .uid = -1,                                                              \
+#define POLICY_INIT(_x) {                                                       \
+                .n_refs = C_REF_INIT,                                           \
+                .policy_own = POLICY_OWN_INIT,                                  \
+                .policy_send = POLICY_XMIT_INIT((_x).policy_send),              \
+                .policy_receive = POLICY_XMIT_INIT((_x).policy_receive),        \
+                .registry_node = C_RBNODE_INIT((_x).registry_node),             \
+                .uid = -1,                                                      \
         }
 
 struct PeerPolicy {
@@ -127,48 +127,48 @@ struct PeerPolicy {
 #define PEER_POLICY_INIT {}
 
 struct PolicyRegistry {
-        ConnectionPolicy connection_policy;
+        PolicyConnect policy_connect;
         Policy *wildcard_uid_policy;
         CRBTree uid_policy_tree;
         CRBTree gid_policy_tree;
 };
 
 #define POLICY_REGISTRY_NULL(_x) {                                              \
-                .connection_policy = CONNECTION_POLICY_INIT,                    \
+                .policy_connect = POLICY_CONNECT_INIT,                    \
                 .uid_policy_tree = C_RBTREE_INIT,                               \
                 .gid_policy_tree = C_RBTREE_INIT,                               \
         }
 
 bool policy_decision_is_default(PolicyDecision *decision);
 
-void ownership_policy_init(OwnershipPolicy *policy);
-void ownership_policy_deinit(OwnershipPolicy *policy);
+void policy_own_init(PolicyOwn *policy);
+void policy_own_deinit(PolicyOwn *policy);
 
-bool ownership_policy_is_empty(OwnershipPolicy *policy);
+bool policy_own_is_empty(PolicyOwn *policy);
 
-int ownership_policy_set_wildcard(OwnershipPolicy *policy, bool deny, uint64_t priority);
-int ownership_policy_add_prefix(OwnershipPolicy *policy, const char *prefix, bool deny, uint64_t priority);
-int ownership_policy_add_name(OwnershipPolicy *policy, const char *name, bool deny, uint64_t priority);
+int policy_own_set_wildcard(PolicyOwn *policy, bool deny, uint64_t priority);
+int policy_own_add_prefix(PolicyOwn *policy, const char *prefix, bool deny, uint64_t priority);
+int policy_own_add_name(PolicyOwn *policy, const char *name, bool deny, uint64_t priority);
 
-void connection_policy_init(ConnectionPolicy *policy);
-void connection_policy_deinit(ConnectionPolicy *policy);
+void policy_connect_init(PolicyConnect *policy);
+void policy_connect_deinit(PolicyConnect *policy);
 
-bool connection_policy_is_empty(ConnectionPolicy *policy);
+bool policy_connect_is_empty(PolicyConnect *policy);
 
-int connection_policy_set_wildcard(ConnectionPolicy *policy, bool deny, uint64_t priority);
-int connection_policy_add_uid(ConnectionPolicy *policy, uid_t uid, bool deny, uint64_t priority);
-int connection_policy_add_gid(ConnectionPolicy *policy, gid_t gid, bool deny, uint64_t priority);
+int policy_connect_set_wildcard(PolicyConnect *policy, bool deny, uint64_t priority);
+int policy_connect_add_uid(PolicyConnect *policy, uid_t uid, bool deny, uint64_t priority);
+int policy_connect_add_gid(PolicyConnect *policy, gid_t gid, bool deny, uint64_t priority);
 
-int connection_policy_instantiate(ConnectionPolicy *target, ConnectionPolicy *source);
+int policy_connect_instantiate(PolicyConnect *target, PolicyConnect *source);
 
-void transmission_policy_init(TransmissionPolicy *policy);
-void transmission_policy_deinit(TransmissionPolicy *policy);
+void policy_xmit_init(PolicyXmit *policy);
+void policy_xmit_deinit(PolicyXmit *policy);
 
-bool transmission_policy_is_empty(TransmissionPolicy *policy);
+bool policy_xmit_is_empty(PolicyXmit *policy);
 
-int transmission_policy_add_entry(TransmissionPolicy *policy,
-                                  const char *name, const char *interface, const char *method, const char *path, int type,
-                                  bool deny, uint64_t priority);
+int policy_xmit_add_entry(PolicyXmit *policy,
+                          const char *name, const char *interface, const char *method, const char *path, int type,
+                          bool deny, uint64_t priority);
 
 void policy_init(Policy *policy);
 void policy_deinit(Policy *policy);
