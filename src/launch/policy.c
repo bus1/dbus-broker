@@ -594,7 +594,7 @@ static int policy_export_connect_uidgid(PolicyMap *map, sd_bus_message *m) {
         PolicyRecord *top;
         int r;
 
-        r = sd_bus_message_open_container(m, 'a', "(ub)");
+        r = sd_bus_message_open_container(m, 'a', "(ubt)");
         if (r < 0)
                 return error_origin(r);
 
@@ -604,7 +604,7 @@ static int policy_export_connect_uidgid(PolicyMap *map, sd_bus_message *m) {
                 assert(top == c_list_last_entry(&i_node->record_list, PolicyRecord, link));
 
                 if (top) {
-                        r = sd_bus_message_append(m, "(ub)", i_node->uidgid, top->verdict);
+                        r = sd_bus_message_append(m, "(ubt)", i_node->uidgid, top->verdict, top->priority);
                         if (r < 0)
                                 return error_origin(r);
                 }
@@ -777,8 +777,8 @@ static int policy_export_xmit_uidgid(PolicyMap *map, sd_bus_message *m) {
 
 #define POLICY_T "("                                                            \
                         "b"                                                     \
-                        "a(ub)"                                                 \
-                        "a(ub)"                                                 \
+                        "a(ubt)"                                                \
+                        "a(ubt)"                                                \
                 ")("                                                            \
                         "a(btbs)"                                               \
                         "a(ua(btbs))"                                           \
@@ -809,8 +809,8 @@ int policy_export(Policy *policy, sd_bus_message *m) {
 
         r = sd_bus_message_open_container(m, 'r',
                                                 "b"
-                                                "a(ub)"
-                                                "a(ub)");
+                                                "a(ubt)"
+                                                "a(ubt)");
         if (r < 0)
                 return error_origin(r);
 
