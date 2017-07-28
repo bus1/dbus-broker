@@ -212,19 +212,13 @@ static int controller_method_add_listener(Controller *controller, const char *_p
         socklen_t n;
 
         c_dvar_read(in_v, "(ohs", &path, &fd_index, &policy_path);
-        c_dvar_skip(in_v, "*");
-        c_dvar_read(in_v, ")");
-
-        r = controller_end_read(in_v);
-        if (r)
-                return error_trace(r);
 
         if (strncmp(path, "/org/bus1/DBus/Listener/", strlen("/org/bus1/DBus/Listener/")) != 0)
                 return CONTROLLER_E_UNEXPECTED_PATH;
 
         listener_fd = fdlist_get(fds, fd_index);
         if (listener_fd < 0)
-                return CONTROLLER_E_LISTENER_INVALID;
+                return CONTROLLER_E_LISTENER_INVALID_FD;
 
         n = sizeof(v1);
         r = getsockopt(listener_fd, SOL_SOCKET, SO_DOMAIN, &v1, &n);
@@ -232,11 +226,18 @@ static int controller_method_add_listener(Controller *controller, const char *_p
         r = r ?: getsockopt(listener_fd, SOL_SOCKET, SO_TYPE, &v2, &n);
 
         if (r < 0)
-                return (errno == EBADF || errno == ENOTSOCK) ? CONTROLLER_E_LISTENER_INVALID : error_origin(-errno);
+                return (errno == EBADF || errno == ENOTSOCK) ? CONTROLLER_E_LISTENER_INVALID_FD : error_origin(-errno);
         if (v1 != AF_UNIX || v2 != SOCK_STREAM)
-                return CONTROLLER_E_LISTENER_INVALID;
+                return CONTROLLER_E_LISTENER_INVALID_FD;
 
         r = controller_add_listener(controller, &listener, path, listener_fd, policy_path);
+        if (r)
+                return error_trace(r);
+
+        c_dvar_skip(in_v, "*");
+        c_dvar_read(in_v, ")");
+
+        r = controller_end_read(in_v);
         if (r)
                 return error_trace(r);
 
@@ -280,7 +281,7 @@ static int controller_method_name_release(Controller *controller, const char *pa
 
         name = controller_find_name(controller, path);
         if (!name)
-                return CONTROLLER_E_ACTIVATION_NOT_FOUND;
+                return CONTROLLER_E_NAME_NOT_FOUND;
 
         controller_name_free(name);
 
@@ -301,7 +302,7 @@ static int controller_method_name_reset(Controller *controller, const char *path
 
         name = controller_find_name(controller, path);
         if (!name)
-                return CONTROLLER_E_ACTIVATION_NOT_FOUND;
+                return CONTROLLER_E_NAME_NOT_FOUND;
 
         controller_name_reset(name);
 
@@ -445,11 +446,11 @@ int controller_dbus_dispatch(Controller *controller, Message *message) {
         int r;
 
         if (message->header->type != DBUS_MESSAGE_TYPE_METHOD_CALL)
-                return CONTROLLER_E_DISCONNECT;
+                return CONTROLLER_E_PROTOCOL_VIOLATION;
 
         r = message_parse_metadata(message);
         if (r > 0)
-                return CONTROLLER_E_DISCONNECT;
+                return CONTROLLER_E_PROTOCOL_VIOLATION;
         else if (r < 0)
                 return error_fold(r);
 
@@ -462,9 +463,9 @@ int controller_dbus_dispatch(Controller *controller, Message *message) {
                                        message);
         switch (r) {
         case CONTROLLER_E_INVALID_MESSAGE:
-                return CONTROLLER_E_DISCONNECT;
-        case CONTROLLER_E_UNEXPECTED_PATH:
+                return CONTROLLER_E_PROTOCOL_VIOLATION;
         case CONTROLLER_E_UNEXPECTED_MESSAGE_TYPE:
+        case CONTROLLER_E_UNEXPECTED_PATH:
                 r = controller_send_error(connection, message->metadata.header.serial, "org.freedesktop.DBus.Error.AccessDenied");
                 break;
         case CONTROLLER_E_UNEXPECTED_INTERFACE:
@@ -475,6 +476,30 @@ int controller_dbus_dispatch(Controller *controller, Message *message) {
                 break;
         case CONTROLLER_E_UNEXPECTED_SIGNATURE:
                 r = controller_send_error(connection, message->metadata.header.serial, "org.freedesktop.DBus.Error.InvalidArgs");
+                break;
+        case CONTROLLER_E_LISTENER_EXISTS:
+                r = controller_send_error(connection, message->metadata.header.serial, "org.bus1.DBus.Listener.Exists");
+                break;
+        case CONTROLLER_E_LISTENER_INVALID_FD:
+                r = controller_send_error(connection, message->metadata.header.serial, "org.bus1.DBus.Listener.InvalidFD");
+                break;
+        case CONTROLLER_E_LISTENER_INVALID_POLICY:
+                r = controller_send_error(connection, message->metadata.header.serial, "org.bus1.DBus.Listener.InvalidPolicy");
+                break;
+        case CONTROLLER_E_NAME_EXISTS:
+                r = controller_send_error(connection, message->metadata.header.serial, "org.bus1.DBus.Name.Exists");
+                break;
+        case CONTROLLER_E_NAME_IS_ACTIVATABLE:
+                r = controller_send_error(connection, message->metadata.header.serial, "org.bus1.DBus.Name.IsActivatable");
+                break;
+        case CONTROLLER_E_NAME_INVALID:
+                r = controller_send_error(connection, message->metadata.header.serial, "org.bus1.DBus.Name.Invalid");
+                break;
+        case CONTROLLER_E_LISTENER_NOT_FOUND:
+                r = controller_send_error(connection, message->metadata.header.serial, "org.bus1.DBus.Listener.NotFound");
+                break;
+        case CONTROLLER_E_NAME_NOT_FOUND:
+                r = controller_send_error(connection, message->metadata.header.serial, "org.bus1.DBus.Name.NotFound");
                 break;
         default:
                 break;

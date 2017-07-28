@@ -125,7 +125,12 @@ static int controller_dispatch_connection(DispatchFile *file, uint32_t events) {
                 _c_cleanup_(message_unrefp) Message *m = NULL;
 
                 r = connection_dequeue(&controller->connection, &m);
-                if (!r) {
+                if (r) {
+                        if (r == CONNECTION_E_EOF)
+                                r = CONTROLLER_E_EOF;
+                        else
+                                return error_fold(r);
+                } else {
                         if (!m)
                                 break;
 
@@ -133,8 +138,11 @@ static int controller_dispatch_connection(DispatchFile *file, uint32_t events) {
                 }
         } while (!r);
 
-        if (r == CONNECTION_E_EOF) {
+        if (r == CONTROLLER_E_EOF) {
                 connection_shutdown(&controller->connection);
+                return connection_is_running(&controller->connection) ? 0 : DISPATCH_E_EXIT;
+        } else if (r == CONTROLLER_E_PROTOCOL_VIOLATION) {
+                connection_close(&controller->connection);
                 return connection_is_running(&controller->connection) ? 0 : DISPATCH_E_EXIT;
         }
 
