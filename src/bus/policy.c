@@ -151,7 +151,10 @@ static int policy_own_add_entry(CRBTree *policy, const char *name, bool deny, ui
 }
 
 int policy_own_add_prefix(PolicyOwn *policy, const char *prefix, bool deny, uint64_t priority) {
-        return error_trace(policy_own_add_entry(&policy->prefixes, prefix, deny, priority));
+        if (!strcmp(prefix, ""))
+                return error_trace(policy_own_set_wildcard(policy, deny, priority));
+        else
+                return error_trace(policy_own_add_entry(&policy->prefixes, prefix, deny, priority));
 }
 
 int policy_own_add_name(PolicyOwn *policy, const char *name, bool deny, uint64_t priority) {
