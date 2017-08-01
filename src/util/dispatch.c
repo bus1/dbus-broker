@@ -57,6 +57,7 @@
  * @fn:                 callback function
  * @fd:                 file descriptor
  * @mask:               EPOLL* event mask
+ * @events:             initial EPOLL* event mask before calling into the kernel
  *
  * This initializes a new dispatch-file and registers it with the given
  * dispatch-context. The file-descriptor @fd is added to the epoll-set of @ctx
@@ -79,10 +80,12 @@ int dispatch_file_init(DispatchFile *file,
                        DispatchContext *ctx,
                        DispatchFn fn,
                        int fd,
-                       uint32_t mask) {
+                       uint32_t mask,
+                       uint32_t events) {
         int r;
 
         assert(!(mask & EPOLLET));
+        assert(!(events & ~mask));
 
         r = epoll_ctl(ctx->epoll_fd,
                       EPOLL_CTL_ADD,
@@ -100,7 +103,7 @@ int dispatch_file_init(DispatchFile *file,
         file->fd = fd;
         file->user_mask = 0;
         file->kernel_mask = mask;
-        file->events = 0;
+        file->events = events;
 
         ++file->context->n_files;
 

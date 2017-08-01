@@ -89,7 +89,8 @@ int broker_new(Broker **brokerp, int controller_fd, uint64_t max_bytes, uint64_t
                                &broker->dispatcher,
                                broker_dispatch_signals,
                                broker->signals_fd,
-                               EPOLLIN);
+                               EPOLLIN,
+                               0);
         if (r)
                 return error_fold(r);
 

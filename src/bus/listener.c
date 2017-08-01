@@ -166,6 +166,7 @@ int listener_init_with_fd(Listener *l, Bus *bus, DispatchContext *dispatcher, in
                                dispatcher,
                                listener_dispatch,
                                socket_fd,
+                               EPOLLIN,
                                EPOLLIN);
         if (r)
                 return error_fold(r);

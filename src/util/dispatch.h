@@ -42,7 +42,8 @@ int dispatch_file_init(DispatchFile *file,
                        DispatchContext *ctx,
                        DispatchFn fn,
                        int fd,
-                       uint32_t mask);
+                       uint32_t mask,
+                       uint32_t events);
 void dispatch_file_deinit(DispatchFile *file);
 
 void dispatch_file_select(DispatchFile *file, uint32_t mask);

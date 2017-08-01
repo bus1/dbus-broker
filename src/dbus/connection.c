@@ -28,7 +28,8 @@ static int connection_init(Connection *c,
                                dispatch_ctx,
                                dispatch_fn,
                                fd,
-                               EPOLLHUP | EPOLLIN | EPOLLOUT);
+                               EPOLLHUP | EPOLLIN | EPOLLOUT,
+                               EPOLLIN | EPOLLOUT);
         if (r)
                 return error_fold(r);
 
