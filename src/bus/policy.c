@@ -2,11 +2,9 @@
  * D-Bus Policy
  */
 
+#include <c-list.h>
 #include <c-macro.h>
 #include <c-rbtree.h>
-#include <expat.h>
-#include <grp.h>
-#include <pwd.h>
 #include <stdlib.h>
 #include "bus/name.h"
 #include "bus/policy.h"

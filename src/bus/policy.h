@@ -5,6 +5,7 @@
  */
 
 #include <c-list.h>
+#include <c-macro.h>
 #include <c-rbtree.h>
 #include <c-ref.h>
 #include <stdlib.h>
