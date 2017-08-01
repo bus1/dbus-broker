@@ -212,6 +212,12 @@ static int controller_method_add_listener(Controller *controller, const char *_p
         socklen_t n;
 
         c_dvar_read(in_v, "(ohs", &path, &fd_index, &policy_path);
+        c_dvar_skip(in_v, "*");
+        c_dvar_read(in_v, ")");
+
+        r = controller_end_read(in_v);
+        if (r)
+                return error_trace(r);
 
         if (strncmp(path, "/org/bus1/DBus/Listener/", strlen("/org/bus1/DBus/Listener/")) != 0)
                 return CONTROLLER_E_UNEXPECTED_PATH;
@@ -231,13 +237,6 @@ static int controller_method_add_listener(Controller *controller, const char *_p
                 return CONTROLLER_E_LISTENER_INVALID_FD;
 
         r = controller_add_listener(controller, &listener, path, listener_fd, policy_path);
-        if (r)
-                return error_trace(r);
-
-        c_dvar_skip(in_v, "*");
-        c_dvar_read(in_v, ")");
-
-        r = controller_end_read(in_v);
         if (r)
                 return error_trace(r);
 
