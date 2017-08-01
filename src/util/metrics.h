@@ -28,6 +28,9 @@ struct Metrics {
 void metrics_init(Metrics *metrics);
 void metrics_deinit(Metrics *metrics);
 
+uint64_t metrics_get_time(void);
+void metrics_sample_add(Metrics *metrics, uint64_t timestamp);
+
 void metrics_sample_start(Metrics *metrics);
 void metrics_sample_end(Metrics *metrics);
 

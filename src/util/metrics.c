@@ -30,7 +30,14 @@ void metrics_deinit(Metrics *metrics) {
         metrics_init(metrics);
 }
 
-static uint64_t metrics_get_time(void) {
+/**
+ * metrics_get_time() - get the current thread CPU time
+ *
+ * Read the current thread CPU time to be used to record samples.
+ *
+ * Return: the timestamp in nano seconds.
+ */
+uint64_t metrics_get_time(void) {
         struct timespec ts;
         int r;
 
@@ -38,6 +45,33 @@ static uint64_t metrics_get_time(void) {
         assert(r >= 0);
 
         return ts.tv_sec * UINT64_C(1000000000) + ts.tv_nsec;
+}
+
+/**
+ * metrics_sample_add() - add one sample
+ * @metrics:            object to operate on
+ * @timestamp:          time the sample was started
+ *
+ * Update the internal state with a new sample, started at @timestamp
+ * and ending at the time the function is called.
+ */
+void metrics_sample_add(Metrics *metrics, uint64_t timestamp) {
+        uint64_t sample, average_old;
+
+        sample = metrics_get_time() - timestamp;
+
+        metrics->count ++;
+        metrics->sum += sample;
+
+        average_old = metrics->average;
+        metrics->average = metrics->sum / metrics->count;
+        metrics->sum_of_squares += (sample - average_old) * (sample - metrics->average);
+
+        if (metrics->minimum > sample)
+                metrics->minimum = sample;
+
+        if (metrics->maximum < sample)
+                metrics->maximum = sample;
 }
 
 /**
@@ -59,24 +93,9 @@ void metrics_sample_start(Metrics *metrics) {
  * End a currently running sample, and update the internal state.
  */
 void metrics_sample_end(Metrics *metrics) {
-        uint64_t sample, average_old;
-
         assert(metrics->timestamp);
 
-        sample = metrics_get_time() - metrics->timestamp;
-
-        metrics->count ++;
-        metrics->sum += sample;
-
-        average_old = metrics->average;
-        metrics->average = metrics->sum / metrics->count;
-        metrics->sum_of_squares += (sample - average_old) * (sample - metrics->average);
-
-        if (metrics->minimum > sample)
-                metrics->minimum = sample;
-
-        if (metrics->maximum < sample)
-                metrics->maximum = sample;
+        metrics_sample_add(metrics, metrics->timestamp);
 
         metrics->timestamp = 0;
 }
