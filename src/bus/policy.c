@@ -17,7 +17,6 @@ bool policy_decision_is_default(PolicyDecision *decision) {
         return !decision->priority && !decision->deny;
 }
 
-/* ownership policy */
 static int policy_own_entry_new(PolicyOwnEntry **entryp, CRBTree *policy,
                                       const char *name, bool deny, uint64_t priority,
                                       CRBNode *parent, CRBNode **slot) {
@@ -197,7 +196,6 @@ static void policy_own_check_allowed(PolicyOwn *policy, const char *name, Policy
         }
 }
 
-/* connection policy */
 static int policy_connect_entry_new(PolicyConnectEntry **entryp, CRBTree *policy,
                                        uid_t uid, bool deny, uint64_t priority,
                                        CRBNode *parent, CRBNode **slot) {
@@ -349,7 +347,6 @@ int policy_connect_instantiate(PolicyConnect *target, PolicyConnect *source) {
         return 0;
 }
 
-/* transmission policy */
 static int policy_xmit_entry_new(PolicyXmitEntry **entryp, CList *policy,
                                          const char *interface, const char *member, const char *path, int type,
                                          bool deny, uint64_t priority) {
@@ -624,7 +621,6 @@ static void policy_xmit_check_allowed(PolicyXmit *policy, NameSet *subject,
         }
 }
 
-/* policy */
 void policy_init(Policy *policy) {
         *policy = (Policy)POLICY_INIT(*policy);
 }
@@ -703,7 +699,6 @@ static int policy_compare(CRBTree *tree, void *k, CRBNode *rb) {
                 return 0;
 }
 
-/* peer policy */
 int peer_policy_instantiate(PeerPolicy *policy, PolicyRegistry *registry, uid_t uid, gid_t *gids, size_t n_gids) {
         Policy *source;
         int r;
@@ -800,7 +795,6 @@ int peer_policy_check_receive(PeerPolicy *policy, NameSet *subject, const char *
         return decision.deny ? POLICY_E_ACCESS_DENIED : 0;
 }
 
-/* policy registry */
 int policy_registry_init(PolicyRegistry *registry) {
         int r;
 
