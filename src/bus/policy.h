@@ -10,13 +10,8 @@
 #include <c-ref.h>
 #include <stdlib.h>
 
-enum {
-        _POLICY_E_SUCCESS,
-
-        POLICY_E_ACCESS_DENIED,
-};
-
 typedef struct NameSet NameSet;
+typedef struct PeerPolicy PeerPolicy;
 typedef struct Policy Policy;
 typedef struct PolicyConnect PolicyConnect;
 typedef struct PolicyConnectEntry PolicyConnectEntry;
@@ -28,7 +23,12 @@ typedef struct PolicyRegistry PolicyRegistry;
 typedef struct PolicyXmit PolicyXmit;
 typedef struct PolicyXmitByName PolicyXmitByName;
 typedef struct PolicyXmitEntry PolicyXmitEntry;
-typedef struct PeerPolicy PeerPolicy;
+
+enum {
+        _POLICY_E_SUCCESS,
+
+        POLICY_E_ACCESS_DENIED,
+};
 
 struct PolicyDecision {
         bool deny;
@@ -43,10 +43,10 @@ struct PolicyOwn {
         PolicyDecision wildcard;
 };
 
-#define POLICY_OWN_INIT {                               \
-                .names = C_RBTREE_INIT,                 \
-                .prefixes = C_RBTREE_INIT,              \
-                .wildcard = POLICY_DECISION_INIT,       \
+#define POLICY_OWN_INIT {                                                       \
+                .names = C_RBTREE_INIT,                                         \
+                .prefixes = C_RBTREE_INIT,                                      \
+                .wildcard = POLICY_DECISION_INIT,                               \
         }
 
 struct PolicyOwnEntry {
@@ -56,16 +56,21 @@ struct PolicyOwnEntry {
         const char name[];
 };
 
+#define POLICY_OWN_ENTRY_NULL(_x) {                                             \
+                .decision = POLICY_DECISION_INIT,                               \
+                .rb = C_RBNODE_INIT((_x).rb),                                   \
+        }
+
 struct PolicyConnect {
         CRBTree uid_tree;
         CRBTree gid_tree;
         PolicyDecision wildcard;
 };
 
-#define POLICY_CONNECT_INIT {                           \
-                .uid_tree = C_RBTREE_INIT,              \
-                .gid_tree = C_RBTREE_INIT,              \
-                .wildcard = POLICY_DECISION_INIT,       \
+#define POLICY_CONNECT_INIT {                                                   \
+                .uid_tree = C_RBTREE_INIT,                                      \
+                .gid_tree = C_RBTREE_INIT,                                      \
+                .wildcard = POLICY_DECISION_INIT,                               \
         }
 
 struct PolicyConnectEntry {
@@ -74,6 +79,11 @@ struct PolicyConnectEntry {
         CRBNode rb;
         uid_t uid;
 };
+
+#define POLICY_CONNECT_ENTRY_NULL(_x) {                                         \
+                .decision = POLICY_DECISION_INIT,                               \
+                .rb = C_RBNODE_INIT((_x).rb),                                   \
+        }
 
 struct PolicyXmit {
         CRBTree policy_by_name_tree;
@@ -92,6 +102,11 @@ struct PolicyXmitByName {
         const char name[];
 };
 
+#define POLICY_XMIT_BY_NAME_NULL(_x) {                                          \
+                .entry_list = C_LIST_INIT((_x).entry_list),                     \
+                .policy_node = C_RBNODE_INIT((_x).policy_node),                 \
+        }
+
 struct PolicyXmitEntry {
         int type;
         const char *interface;
@@ -100,6 +115,11 @@ struct PolicyXmitEntry {
         PolicyDecision decision;
         CList policy_link;
 };
+
+#define POLICY_XMIT_ENTRY_NULL(_x) {                                            \
+                .decision = POLICY_DECISION_INIT,                               \
+                .policy_link = C_LIST_INIT((_x).policy_link),                   \
+        }
 
 struct Policy {
         _Atomic unsigned long n_refs;
@@ -135,12 +155,16 @@ struct PolicyRegistry {
 };
 
 #define POLICY_REGISTRY_NULL(_x) {                                              \
-                .policy_connect = POLICY_CONNECT_INIT,                    \
+                .policy_connect = POLICY_CONNECT_INIT,                          \
                 .uid_policy_tree = C_RBTREE_INIT,                               \
                 .gid_policy_tree = C_RBTREE_INIT,                               \
         }
 
+/* policy decisions */
+
 bool policy_decision_is_default(PolicyDecision *decision);
+
+/* policy own-contextx */
 
 void policy_own_init(PolicyOwn *policy);
 void policy_own_deinit(PolicyOwn *policy);
@@ -150,6 +174,8 @@ bool policy_own_is_empty(PolicyOwn *policy);
 int policy_own_set_wildcard(PolicyOwn *policy, bool deny, uint64_t priority);
 int policy_own_add_prefix(PolicyOwn *policy, const char *prefix, bool deny, uint64_t priority);
 int policy_own_add_name(PolicyOwn *policy, const char *name, bool deny, uint64_t priority);
+
+/* policy connect-contexts */
 
 void policy_connect_init(PolicyConnect *policy);
 void policy_connect_deinit(PolicyConnect *policy);
@@ -162,6 +188,8 @@ int policy_connect_add_gid(PolicyConnect *policy, gid_t gid, bool deny, uint64_t
 
 int policy_connect_instantiate(PolicyConnect *target, PolicyConnect *source);
 
+/* policy xmit-contexts */
+
 void policy_xmit_init(PolicyXmit *policy);
 void policy_xmit_deinit(PolicyXmit *policy);
 
@@ -171,6 +199,8 @@ int policy_xmit_add_entry(PolicyXmit *policy,
                           const char *name, const char *interface, const char *method, const char *path, int type,
                           bool deny, uint64_t priority);
 
+/* policy sets */
+
 void policy_init(Policy *policy);
 void policy_deinit(Policy *policy);
 
@@ -179,6 +209,8 @@ int policy_instantiate(Policy *target, Policy *source);
 
 void policy_free(_Atomic unsigned long *n_refs, void *userdata);
 
+/* peer policy sets */
+
 int peer_policy_instantiate(PeerPolicy *policy, PolicyRegistry *registry, uid_t uid, gid_t *gids, size_t n_gids);
 int peer_policy_copy(PeerPolicy *target, PeerPolicy *source);
 void peer_policy_deinit(PeerPolicy *policy);
@@ -186,6 +218,8 @@ void peer_policy_deinit(PeerPolicy *policy);
 int peer_policy_check_own(PeerPolicy *policy, const char *name);
 int peer_policy_check_send(PeerPolicy *policy, NameSet *subject, const char *interface, const char *method, const char *path, int type);
 int peer_policy_check_receive(PeerPolicy *policy, NameSet *subject, const char *interface, const char *method, const char *path, int type);
+
+/* registries */
 
 int policy_registry_init(PolicyRegistry *registry);
 void policy_registry_deinit(PolicyRegistry *registry);
