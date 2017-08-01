@@ -59,8 +59,9 @@ static int listener_dispatch(DispatchFile *file, uint32_t events) {
         if (r)
                 return error_fold(r);
 
+        r = peer_dispatch(&peer->connection.socket_file, EPOLLIN | EPOLLOUT);
         peer = NULL;
-        return 0;
+        return error_fold(r);
 }
 
 static int listener_instantiate_policy_registry(PolicyRegistry *registry, const char *policypath) {

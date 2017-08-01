@@ -85,6 +85,7 @@ struct PeerRegistry {
 int peer_new_with_fd(Peer **peerp, Bus *bus, PolicyRegistry *policy, const char guid[], DispatchContext *dispatcher, int fd);
 Peer *peer_free(Peer *peer);
 
+int peer_dispatch(DispatchFile *file, uint32_t mask);
 int peer_spawn(Peer *peer);
 
 void peer_register(Peer *peer);

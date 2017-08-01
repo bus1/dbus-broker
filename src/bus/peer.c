@@ -58,7 +58,7 @@ static int peer_dispatch_connection(Peer *peer, uint32_t events) {
         return 0;
 }
 
-static int peer_dispatch(DispatchFile *file, uint32_t mask) {
+int peer_dispatch(DispatchFile *file, uint32_t mask) {
         Peer *peer = c_container_of(file, Peer, connection.socket_file);
         static const uint32_t interest[] = { EPOLLIN | EPOLLHUP, EPOLLOUT };
         size_t i;
