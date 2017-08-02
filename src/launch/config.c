@@ -527,9 +527,9 @@ static int config_parser_attrs_allow_deny(ConfigState *state, ConfigNode *node, 
                                 CONFIG_ERR(state, "Invalid value", ": %s=\"%s\"", k, v);
                 } else if (!strcmp(k, "eavesdrop")) {
                         if (!strcmp(v, "true"))
-                                node->allow_deny.eavesdrop = true;
+                                node->allow_deny.eavesdrop = CONFIG_TRISTATE_YES;
                         else if (!strcmp(v, "false"))
-                                node->allow_deny.eavesdrop = false;
+                                node->allow_deny.eavesdrop = CONFIG_TRISTATE_NO;
                         else
                                 CONFIG_ERR(state, "Invalid value", ": %s=\"%s\"", k, v);
                 } else if (!strcmp(k, "log")) {

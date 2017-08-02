@@ -24,6 +24,12 @@ enum {
 };
 
 enum {
+        CONFIG_TRISTATE_UNSET,
+        CONFIG_TRISTATE_YES,
+        CONFIG_TRISTATE_NO,
+};
+
+enum {
         CONFIG_NODE_NONE,
 
         CONFIG_NODE_BUSCONFIG,
@@ -141,7 +147,7 @@ struct ConfigNode {
                         uint32_t gid;
                         bool send_requested_reply : 1;
                         bool recv_requested_reply : 1;
-                        bool eavesdrop : 1;
+                        unsigned int eavesdrop : 2;
                         bool user : 1;
                         bool group : 1;
                         bool log : 1;

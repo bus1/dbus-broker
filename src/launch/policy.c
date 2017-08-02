@@ -394,7 +394,7 @@ static int policy_import_send(Policy *policy, ConfigNode *cnode) {
         record->xmit.interface = cnode->allow_deny.send_interface;
         record->xmit.member = cnode->allow_deny.send_member;
         record->xmit.type = cnode->allow_deny.send_type;
-        record->xmit.eavesdrop = cnode->allow_deny.eavesdrop;
+        record->xmit.eavesdrop = (cnode->allow_deny.eavesdrop == CONFIG_TRISTATE_YES);
 
         r = policy_import_link(
                         policy,
@@ -454,7 +454,7 @@ static int policy_import_recv(Policy *policy, ConfigNode *cnode) {
         record->xmit.interface = cnode->allow_deny.recv_interface;
         record->xmit.member = cnode->allow_deny.recv_member;
         record->xmit.type = cnode->allow_deny.recv_type;
-        record->xmit.eavesdrop = cnode->allow_deny.eavesdrop;
+        record->xmit.eavesdrop = (cnode->allow_deny.eavesdrop == CONFIG_TRISTATE_YES);
 
         r = policy_import_link(
                         policy,
@@ -529,7 +529,8 @@ int policy_import(Policy *policy, ConfigRoot *root) {
                            i_cnode->allow_deny.recv_sender ||
                            i_cnode->allow_deny.recv_path ||
                            i_cnode->allow_deny.recv_type ||
-                           i_cnode->allow_deny.recv_requested_reply) {
+                           i_cnode->allow_deny.recv_requested_reply ||
+                           i_cnode->allow_deny.eavesdrop) {
                         r = policy_import_recv(policy, i_cnode);
                         if (r)
                                 return error_trace(r);
