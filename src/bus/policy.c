@@ -849,8 +849,3 @@ int policy_registry_get_policy_by_gid(PolicyRegistry *registry, Policy **policyp
 
         return 0;
 }
-
-bool policy_registry_needs_groups(PolicyRegistry *registry) {
-        return !c_rbtree_is_empty(&registry->policy_connect.gid_tree) ||
-               !c_rbtree_is_empty(&registry->gid_policy_tree);
-}

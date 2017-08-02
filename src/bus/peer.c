@@ -301,11 +301,9 @@ int peer_new_with_fd(Peer **peerp,
         if (r < 0)
                 return error_trace(r);
 
-        if (policy_registry_needs_groups(policy)) {
-                r = peer_get_peergroups(fd, ucred.uid, ucred.gid, &gids, &n_gids);
-                if (r)
-                        return error_trace(r);
-        }
+        r = peer_get_peergroups(fd, ucred.uid, ucred.gid, &gids, &n_gids);
+        if (r)
+                return error_trace(r);
 
         peer = calloc(1, sizeof(*peer));
         if (!peer)
