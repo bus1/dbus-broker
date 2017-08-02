@@ -699,7 +699,7 @@ static int policy_export_own_default(Policy *policy, sd_bus_message *m) {
         return 0;
 }
 
-static int policy_export_own_uidgid(PolicyMap *map, sd_bus_message *m) {
+static int policy_export_own_uid(Policy *policy, sd_bus_message *m) {
         PolicyRecord *i_record;
         PolicyMapNode *i_node;
         int r;
@@ -708,7 +708,67 @@ static int policy_export_own_uidgid(PolicyMap *map, sd_bus_message *m) {
         if (r < 0)
                 return error_origin(r);
 
-        c_list_for_each_entry(i_node, &map->node_list, map_link) {
+        c_list_for_each_entry(i_node, &policy->own_uid.node_list, map_link) {
+                r = sd_bus_message_open_container(m, 'r', "ua(btbs)");
+                if (r < 0)
+                        return error_origin(r);
+
+                r = sd_bus_message_append(m, "u", i_node->uidgid);
+                if (r < 0)
+                        return error_origin(r);
+
+                r = sd_bus_message_open_container(m, 'a', "(btbs)");
+                if (r < 0)
+                        return error_origin(r);
+
+                c_list_for_each_entry(i_record, &policy->own_default, link) {
+                        r = sd_bus_message_append(m,
+                                                  "(btbs)",
+                                                  i_record->verdict,
+                                                  i_record->priority,
+                                                  i_record->own.prefix,
+                                                  i_record->own.name);
+                        if (r < 0)
+                                return error_origin(r);
+                }
+
+                c_list_for_each_entry(i_record, &i_node->record_list, link) {
+                        r = sd_bus_message_append(m,
+                                                  "(btbs)",
+                                                  i_record->verdict,
+                                                  i_record->priority,
+                                                  i_record->own.prefix,
+                                                  i_record->own.name);
+                        if (r < 0)
+                                return error_origin(r);
+                }
+
+                r = sd_bus_message_close_container(m);
+                if (r < 0)
+                        return error_origin(r);
+
+                r = sd_bus_message_close_container(m);
+                if (r < 0)
+                        return error_origin(r);
+        }
+
+        r = sd_bus_message_close_container(m);
+        if (r < 0)
+                return error_origin(r);
+
+        return 0;
+}
+
+static int policy_export_own_gid(Policy *policy, sd_bus_message *m) {
+        PolicyRecord *i_record;
+        PolicyMapNode *i_node;
+        int r;
+
+        r = sd_bus_message_open_container(m, 'a', "(ua(btbs))");
+        if (r < 0)
+                return error_origin(r);
+
+        c_list_for_each_entry(i_node, &policy->own_gid.node_list, map_link) {
                 r = sd_bus_message_open_container(m, 'r', "ua(btbs)");
                 if (r < 0)
                         return error_origin(r);
@@ -778,7 +838,75 @@ static int policy_export_xmit_default(CList *list, sd_bus_message *m) {
         return 0;
 }
 
-static int policy_export_xmit_uidgid(PolicyMap *map, sd_bus_message *m) {
+static int policy_export_xmit_uid(PolicyMap *map, CList *list, sd_bus_message *m) {
+        PolicyRecord *i_record;
+        PolicyMapNode *i_node;
+        int r;
+
+        r = sd_bus_message_open_container(m, 'a', "(ua(btssssub))");
+        if (r < 0)
+                return error_origin(r);
+
+        c_list_for_each_entry(i_node, &map->node_list, map_link) {
+                r = sd_bus_message_open_container(m, 'r', "ua(btssssub)");
+                if (r < 0)
+                        return error_origin(r);
+
+                r = sd_bus_message_append(m, "u", i_node->uidgid);
+                if (r < 0)
+                        return error_origin(r);
+
+                r = sd_bus_message_open_container(m, 'a', "(btssssub)");
+                if (r < 0)
+                        return error_origin(r);
+
+                c_list_for_each_entry(i_record, list, link) {
+                        r = sd_bus_message_append(m,
+                                                  "(btssssub)",
+                                                  i_record->verdict,
+                                                  i_record->priority,
+                                                  i_record->xmit.name,
+                                                  i_record->xmit.path,
+                                                  i_record->xmit.interface,
+                                                  i_record->xmit.member,
+                                                  i_record->xmit.type,
+                                                  i_record->xmit.eavesdrop);
+                        if (r < 0)
+                                return error_origin(r);
+                }
+
+                c_list_for_each_entry(i_record, &i_node->record_list, link) {
+                        r = sd_bus_message_append(m,
+                                                  "(btssssub)",
+                                                  i_record->verdict,
+                                                  i_record->priority,
+                                                  i_record->xmit.name,
+                                                  i_record->xmit.path,
+                                                  i_record->xmit.interface,
+                                                  i_record->xmit.member,
+                                                  i_record->xmit.type,
+                                                  i_record->xmit.eavesdrop);
+                        if (r < 0)
+                                return error_origin(r);
+                }
+
+                r = sd_bus_message_close_container(m);
+                if (r < 0)
+                        return error_origin(r);
+
+                r = sd_bus_message_close_container(m);
+                if (r < 0)
+                        return error_origin(r);
+        }
+
+        r = sd_bus_message_close_container(m);
+        if (r < 0)
+                return error_origin(r);
+
+        return 0;
+}
+
+static int policy_export_xmit_gid(PolicyMap *map, sd_bus_message *m) {
         PolicyRecord *i_record;
         PolicyMapNode *i_node;
         int r;
@@ -888,8 +1016,8 @@ int policy_export(Policy *policy, sd_bus_message *m) {
                 return error_origin(r);
 
         r = policy_export_own_default(policy, m);
-        r = r ?: policy_export_own_uidgid(&policy->own_uid, m);
-        r = r ?: policy_export_own_uidgid(&policy->own_gid, m);
+        r = r ?: policy_export_own_uid(policy, m);
+        r = r ?: policy_export_own_gid(policy, m);
         if (r)
                 return error_trace(r);
 
@@ -905,8 +1033,8 @@ int policy_export(Policy *policy, sd_bus_message *m) {
                 return error_origin(r);
 
         r = policy_export_xmit_default(&policy->send_default, m);
-        r = r ?: policy_export_xmit_uidgid(&policy->send_uid, m);
-        r = r ?: policy_export_xmit_uidgid(&policy->send_gid, m);
+        r = r ?: policy_export_xmit_uid(&policy->send_uid, &policy->send_default, m);
+        r = r ?: policy_export_xmit_gid(&policy->send_gid, m);
         if (r)
                 return error_trace(r);
 
@@ -922,8 +1050,8 @@ int policy_export(Policy *policy, sd_bus_message *m) {
                 return error_origin(r);
 
         r = policy_export_xmit_default(&policy->recv_default, m);
-        r = r ?: policy_export_xmit_uidgid(&policy->recv_uid, m);
-        r = r ?: policy_export_xmit_uidgid(&policy->recv_gid, m);
+        r = r ?: policy_export_xmit_uid(&policy->recv_uid, &policy->recv_default, m);
+        r = r ?: policy_export_xmit_gid(&policy->recv_gid, m);
         if (r)
                 return error_trace(r);
 
