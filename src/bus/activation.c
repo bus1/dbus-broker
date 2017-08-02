@@ -139,6 +139,10 @@ int activation_queue_message(Activation *activation, User *user, NameOwner *name
         if (r)
                 return error_fold(r);
 
+        /* XXX: We need all owned names for policy, but all owned name as primary owner for matches
+         *      currently we only get primary owned names in snapshots. Once we no longer need
+         *      eavesdropping this conflict no longer exists and we can start collecting all names.
+         */
         r = name_snapshot_new(&message->senders_names, names);
         if (r)
                 return error_fold(r);
