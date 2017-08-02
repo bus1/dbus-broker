@@ -113,11 +113,11 @@ static int controller_listener_new(ControllerListener **listenerp, Controller *c
         return 0;
 }
 
-static int controller_dispatch_connection(DispatchFile *file, uint32_t events) {
+static int controller_dispatch_connection(DispatchFile *file) {
         Controller *controller = c_container_of(file, Controller, connection.socket_file);
         int r;
 
-        r = connection_dispatch(&controller->connection, events);
+        r = connection_dispatch(&controller->connection, dispatch_file_events(file));
         if (r)
                 return error_fold(r);
 

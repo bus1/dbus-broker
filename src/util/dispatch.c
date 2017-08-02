@@ -341,7 +341,7 @@ int dispatch_context_dispatch(DispatchContext *ctx) {
                 c_list_unlink(&file->ready_link);
                 c_list_link_tail(&ctx->ready_list, &file->ready_link);
 
-                r = file->fn(file, file->events & file->user_mask);
+                r = file->fn(file);
                 if (error_trace(r)) {
                         c_list_splice(&ctx->ready_list, &todo);
                         break;

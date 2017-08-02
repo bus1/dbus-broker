@@ -15,13 +15,13 @@
 #include "util/dispatch.h"
 #include "util/error.h"
 
-static int listener_dispatch(DispatchFile *file, uint32_t events) {
+static int listener_dispatch(DispatchFile *file) {
         Listener *listener = c_container_of(file, Listener, socket_file);
         _c_cleanup_(peer_freep) Peer *peer = NULL;
         _c_cleanup_(c_closep) int fd = -1;
         int r;
 
-        if (!(events & EPOLLIN))
+        if (!(dispatch_file_events(file) & EPOLLIN))
                 return 0;
 
         fd = accept4(listener->socket_fd, NULL, NULL, SOCK_CLOEXEC | SOCK_NONBLOCK);
@@ -59,7 +59,7 @@ static int listener_dispatch(DispatchFile *file, uint32_t events) {
         if (r)
                 return error_fold(r);
 
-        r = peer_dispatch(&peer->connection.socket_file, EPOLLIN | EPOLLOUT);
+        r = peer_dispatch(&peer->connection.socket_file);
         peer = NULL;
         return error_fold(r);
 }

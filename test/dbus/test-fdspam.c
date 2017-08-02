@@ -125,11 +125,11 @@ static Message *test_message(size_t n_fds, const char *dst) {
         return m;
 }
 
-static int test_dispatch_fn(DispatchFile *file, uint32_t events) {
+static int test_dispatch_fn(DispatchFile *file) {
         Connection *c = c_container_of(file, Connection, socket_file);
         int r;
 
-        r = connection_dispatch(c, events);
+        r = connection_dispatch(c, dispatch_file_events(file));
         assert(!r);
 
         do {

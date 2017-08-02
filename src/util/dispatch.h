@@ -18,7 +18,7 @@ enum {
 
 typedef struct DispatchContext DispatchContext;
 typedef struct DispatchFile DispatchFile;
-typedef int (*DispatchFn) (DispatchFile *file, uint32_t events);
+typedef int (*DispatchFn) (DispatchFile *file);
 
 /* files */
 

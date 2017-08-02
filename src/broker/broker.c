@@ -20,12 +20,12 @@
 #include "util/error.h"
 #include "util/user.h"
 
-static int broker_dispatch_signals(DispatchFile *file, uint32_t events) {
+static int broker_dispatch_signals(DispatchFile *file) {
         Broker *broker = c_container_of(file, Broker, signals_file);
         struct signalfd_siginfo si;
         ssize_t l;
 
-        assert(events == EPOLLIN);
+        assert(dispatch_file_events(file) == EPOLLIN);
 
         l = read(broker->signals_fd, &si, sizeof(si));
         if (l < 0)

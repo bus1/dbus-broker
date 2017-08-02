@@ -130,11 +130,11 @@ static void test_fd_stream_hello(Connection *c) {
         assert(!r);
 }
 
-static int test_fd_stream_fn(DispatchFile *file, uint32_t events) {
+static int test_fd_stream_fn(DispatchFile *file) {
         Connection *c = c_container_of(file, Connection, socket_file);
         int r;
 
-        r = connection_dispatch(c, events);
+        r = connection_dispatch(c, dispatch_file_events(file));
         assert(!r);
 
         do {

@@ -29,6 +29,9 @@
 static int peer_dispatch_connection(Peer *peer, uint32_t events) {
         int r;
 
+        if (!events)
+                return 0;
+
         r = connection_dispatch(&peer->connection, events);
         if (r)
                 return error_fold(r);
@@ -58,20 +61,20 @@ static int peer_dispatch_connection(Peer *peer, uint32_t events) {
         return 0;
 }
 
-int peer_dispatch(DispatchFile *file, uint32_t mask) {
+int peer_dispatch(DispatchFile *file) {
         Peer *peer = c_container_of(file, Peer, connection.socket_file);
         static const uint32_t interest[] = { EPOLLIN | EPOLLHUP, EPOLLOUT };
         size_t i;
         int r;
 
         /*
-         * Usually, we would just call peer_dispatch_connection(peer, mask)
-         * here. However, a very common scenario is to dispatch D-Bus driver
-         * calls. Those calls fetch an incoming message from a peer, handle it
-         * and then immediately queue a reply. In those cases we want EPOLLOUT
-         * to be handled late.
-         * Hence, rather than dispatching the connection in one go, we rather
-         * split it into two:
+         * Usually, we would just call
+         * peer_dispatch_connection(peer, dispatch_file_events(file)) here.
+         * However, a very common scenario is to dispatch D-Bus driver calls.
+         * Those calls fetch an incoming message from a peer, handle it and
+         * then immediately queue a reply. In those cases we want EPOLLOUT
+         * to be handled late. Hence, rather than dispatching the connection
+         * in one go, we rather split it into two:
          *
          *     peer_dispatch_connection(peer, EPOLLIN | EPOLLHUP);
          *     peer_dispatch_connection(peer, EPOLLOUT);
@@ -86,7 +89,7 @@ int peer_dispatch(DispatchFile *file, uint32_t mask) {
          * handler, and as such the only function that performs forward
          * progress on the socket.
          *
-         * Furthermore, note that we must ignore @mask but rather query
+         * Furthermore, note that we must not cache the events but rather query
          * dispatch_file_events(), since the connection handler might select or
          * deselect events we want to handle.
          *
@@ -94,11 +97,9 @@ int peer_dispatch(DispatchFile *file, uint32_t mask) {
          * There is no requirement to provide them in-order.
          */
         for (i = 0; i < C_ARRAY_SIZE(interest); ++i) {
-                if (dispatch_file_events(file) & interest[i]) {
-                        r = peer_dispatch_connection(peer, mask & interest[i]);
-                        if (r)
-                                break;
-                }
+                r = peer_dispatch_connection(peer, dispatch_file_events(file) & interest[i]);
+                if (r)
+                        break;
         }
 
         if (r) {
