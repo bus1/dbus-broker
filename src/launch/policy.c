@@ -6,6 +6,7 @@
 #include <c-macro.h>
 #include <stdlib.h>
 #include <systemd/sd-bus.h>
+#include "dbus/protocol.h"
 #include "launch/config.h"
 #include "launch/policy.h"
 #include "util/error.h"
@@ -380,12 +381,17 @@ static int policy_import_send(Policy *policy, ConfigNode *cnode) {
                 return 0;
         }
 
-        if (cnode->allow_deny.send_error ||
-            cnode->allow_deny.send_requested_reply) {
+        if (cnode->allow_deny.send_type == DBUS_MESSAGE_TYPE_METHOD_RETURN ||
+            cnode->allow_deny.send_type == DBUS_MESSAGE_TYPE_ERROR) {
                 fprintf(stderr, "Reply/Error policy in %s +%lu: Explicit policies on replies and errors are deprecated and ignored\n",
                         cnode->file, cnode->lineno);
                 return 0;
         }
+
+        if (cnode->allow_deny.send_error ||
+            cnode->allow_deny.send_requested_reply)
+                fprintf(stderr, "Expected-reply/Error policy match in %s +%lu: Those attributes are deprecated and ignored\n",
+                        cnode->file, cnode->lineno);
 
         r = policy_record_new_xmit(&record);
         if (r)
@@ -442,12 +448,17 @@ static int policy_import_recv(Policy *policy, ConfigNode *cnode) {
                 return 0;
         }
 
-        if (cnode->allow_deny.recv_error ||
-            cnode->allow_deny.recv_requested_reply) {
+        if (cnode->allow_deny.recv_type == DBUS_MESSAGE_TYPE_METHOD_RETURN ||
+            cnode->allow_deny.recv_type == DBUS_MESSAGE_TYPE_ERROR) {
                 fprintf(stderr, "Reply/Error policy in %s +%lu: Explicit policies on replies and errors are deprecated and ignored\n",
                         cnode->file, cnode->lineno);
                 return 0;
         }
+
+        if (cnode->allow_deny.recv_error ||
+            cnode->allow_deny.recv_requested_reply)
+                fprintf(stderr, "Expected-reply/Error policy match in %s +%lu: Those attributes are deprecated and ignored\n",
+                        cnode->file, cnode->lineno);
 
         r = policy_record_new_xmit(&record);
         if (r)
