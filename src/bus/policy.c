@@ -2,6 +2,7 @@
  * D-Bus Policy
  */
 
+#include <c-dvar.h>
 #include <c-list.h>
 #include <c-macro.h>
 #include <c-rbtree.h>
@@ -11,841 +12,971 @@
 #include "dbus/protocol.h"
 #include "util/error.h"
 
-bool policy_decision_is_default(PolicyDecision *decision) {
-        return !decision->priority && !decision->deny;
-}
-
-static int policy_own_entry_new(PolicyOwnEntry **entryp, CRBTree *policy,
-                                      const char *name, bool deny, uint64_t priority,
-                                      CRBNode *parent, CRBNode **slot) {
-        PolicyOwnEntry *entry;
-        size_t n_name = strlen(name) + 1;
-
-        entry = malloc(sizeof(*entry) + n_name);
-        if (!entry)
-                return error_origin(-ENOMEM);
-        entry->policy = policy;
-        entry->decision.deny = deny;
-        entry->decision.priority = priority;
-        c_rbtree_add(policy, parent, slot, &entry->rb);
-        memcpy((char*)entry->name, name, n_name);
-
-        if (entryp)
-                *entryp = entry;
-        return 0;
-}
-
-static PolicyOwnEntry *policy_own_entry_free(PolicyOwnEntry *entry) {
-        if (!entry)
+static PolicyXmit *policy_xmit_free(PolicyXmit *xmit) {
+        if (!xmit)
                 return NULL;
 
-        c_rbtree_remove_init(entry->policy, &entry->rb);
-
-        free(entry);
+        c_list_unlink_init(&xmit->batch_link);
+        free(xmit);
 
         return NULL;
 }
 
-void policy_own_init(PolicyOwn *policy) {
-        *policy = (PolicyOwn)POLICY_OWN_INIT;
+C_DEFINE_CLEANUP(PolicyXmit *, policy_xmit_free);
+
+static int policy_xmit_new(PolicyXmit **xmitp,
+                           unsigned int type,
+                           const char *path,
+                           const char *interface,
+                           const char *member) {
+        _c_cleanup_(policy_xmit_freep) PolicyXmit *xmit = NULL;
+        size_t n_path, n_interface, n_member;
+        void *p;
+
+        n_path = (path && *path) ? strlen(path) + 1 : 0;
+        n_interface = (interface && *interface) ? strlen(interface) + 1 : 0;
+        n_member = (member && *member) ? strlen(member) + 1 : 0;
+
+        xmit = calloc(1, sizeof(*xmit) + n_path + n_interface + n_member);
+        if (!xmit)
+                return error_origin(-ENOMEM);
+
+        *xmit = (PolicyXmit)POLICY_XMIT_NULL(*xmit);
+        xmit->type = type;
+
+        p = xmit + 1;
+        if (n_path) {
+                xmit->path = p;
+                p = stpcpy(p, path) + 1;
+        }
+        if (n_interface) {
+                xmit->interface = p;
+                p = stpcpy(p, interface) + 1;
+        }
+        if (n_member) {
+                xmit->member = p;
+                p = stpcpy(p, member) + 1;
+        }
+
+        *xmitp = xmit;
+        xmit = NULL;
+        return 0;
 }
 
-void policy_own_deinit(PolicyOwn *policy) {
-        PolicyOwnEntry *entry, *safe;
+static int policy_batch_name_compare(CRBTree *t, void *k, CRBNode *n) {
+        PolicyBatchName *name = c_container_of(n, PolicyBatchName, batch_node);
 
-        c_rbtree_for_each_entry_unlink(entry, safe, &policy->names, rb)
-                policy_own_entry_free(entry);
-
-        c_rbtree_for_each_entry_unlink(entry, safe, &policy->prefixes, rb)
-                policy_own_entry_free(entry);
-
-        policy_own_init(policy);
+        return strcmp(k, name->name);
 }
 
-bool policy_own_is_empty(PolicyOwn *policy) {
-        return c_rbtree_is_empty(&policy->names) &&
-               c_rbtree_is_empty(&policy->prefixes) &&
-               policy_decision_is_default(&policy->wildcard);
+static PolicyBatchName *policy_batch_name_free(PolicyBatchName *name) {
+        PolicyXmit *xmit;
+
+        if (!name)
+                return NULL;
+
+        while ((xmit = c_list_first_entry(&name->recv_unindexed, PolicyXmit, batch_link)))
+                policy_xmit_free(xmit);
+        while ((xmit = c_list_first_entry(&name->send_unindexed, PolicyXmit, batch_link)))
+                policy_xmit_free(xmit);
+
+        c_rbtree_remove_init(&name->batch->name_tree, &name->batch_node);
+        free(name);
+
+        return NULL;
 }
 
-static int policy_own_instantiate(PolicyOwn *target, PolicyOwn *source) {
-        PolicyOwnEntry *entry;
+C_DEFINE_CLEANUP(PolicyBatchName *, policy_batch_name_free);
+
+static int policy_batch_name_new(PolicyBatchName **namep, PolicyBatch *batch, const char *name_str) {
+        _c_cleanup_(policy_batch_name_freep) PolicyBatchName *name = NULL;
+
+        name = calloc(1, sizeof(*name) + strlen(name_str) + 1);
+        if (!name)
+                return error_origin(-ENOMEM);
+
+        *name = (PolicyBatchName)POLICY_BATCH_NAME_NULL(*name);
+        name->batch = batch;
+        strcpy(name->name, name_str);
+
+        *namep = name;
+        name = NULL;
+        return 0;
+}
+
+/**
+ * policy_batch_new() - XXX
+ */
+int policy_batch_new(PolicyBatch **batchp) {
+        _c_cleanup_(policy_batch_unrefp) PolicyBatch *batch = NULL;
+
+        batch = calloc(1, sizeof(*batch));
+        if (!batch)
+                return error_origin(-ENOMEM);
+
+        *batch = (PolicyBatch)POLICY_BATCH_NULL(*batch);
+
+        *batchp = batch;
+        batch = NULL;
+        return 0;
+}
+
+/* internal callback for policy_batch_unref() */
+void policy_batch_free(_Atomic unsigned long *n_refs, void *userdata) {
+        PolicyBatch *batch = c_container_of(n_refs, PolicyBatch, n_refs);
+        PolicyBatchName *name, *t_name;
+
+        c_rbtree_for_each_entry_unlink(name, t_name, &batch->name_tree, batch_node)
+                policy_batch_name_free(name);
+
+        free(batch);
+}
+
+static PolicyBatchName *policy_batch_find_name(PolicyBatch *batch, const char *name_str) {
+        return c_rbtree_find_entry(&batch->name_tree,
+                                   policy_batch_name_compare,
+                                   name_str,
+                                   PolicyBatchName,
+                                   batch_node);
+}
+
+static int policy_batch_at_name(PolicyBatch *batch, PolicyBatchName **namep, const char *name_str) {
+        CRBNode *parent, **slot;
+        PolicyBatchName *name;
         int r;
 
-        r = policy_own_set_wildcard(target, source->wildcard.deny, source->wildcard.priority);
+        slot = c_rbtree_find_slot(&batch->name_tree, policy_batch_name_compare, name_str, &parent);
+        if (slot) {
+                r = policy_batch_name_new(&name, batch, name_str);
+                if (r)
+                        return error_trace(r);
+
+                c_rbtree_add(&name->batch->name_tree, parent, slot, &name->batch_node);
+        } else {
+                name = c_container_of(parent, PolicyBatchName, batch_node);
+        }
+
+        *namep = name;
+        return 0;
+}
+
+static int policy_batch_add_own(PolicyBatch *batch,
+                                const char *name_str,
+                                PolicyVerdict verdict) {
+        PolicyBatchName *name;
+        int r;
+
+        r = policy_batch_at_name(batch, &name, name_str);
         if (r)
                 return error_trace(r);
 
-        c_rbtree_for_each_entry(entry, &source->names, rb) {
-                r = policy_own_add_name(target, entry->name, entry->decision.deny, entry->decision.priority);
-                if (r)
-                        return error_trace(r);
-        }
-
-        c_rbtree_for_each_entry(entry, &source->prefixes, rb) {
-                r = policy_own_add_prefix(target, entry->name, entry->decision.deny, entry->decision.priority);
-                if (r)
-                        return error_trace(r);
-        }
+        /*
+         * If the priority is lower than the current verdict, there is no point
+         * in remembering it, since it will always be superceded.
+         */
+        if (verdict.priority >= name->own_verdict.priority)
+                name->own_verdict = verdict;
 
         return 0;
 }
 
-int policy_own_set_wildcard(PolicyOwn *policy, bool deny, uint64_t priority) {
-        if (policy->wildcard.priority > priority)
-                return 0;
-
-        policy->wildcard.deny = deny;
-        policy->wildcard.priority = priority;
-
-        return 0;
-}
-
-struct stringn {
-        const char *string;
-        size_t n_string;
-};
-
-static int policy_own_entry_compare(CRBTree *tree, void *k, CRBNode *rb) {
-        const char *string = ((struct stringn *)k)->string;
-        size_t n_string = ((struct stringn *)k)->n_string;
-        PolicyOwnEntry *entry = c_container_of(rb, PolicyOwnEntry, rb);
+static int policy_batch_add_own_prefix(PolicyBatch *batch,
+                                       const char *name_str,
+                                       PolicyVerdict verdict) {
+        PolicyBatchName *name;
         int r;
 
-        r = strncmp(string, entry->name, n_string);
+        r = policy_batch_at_name(batch, &name, name_str);
         if (r)
-                return r;
+                return error_trace(r);
 
-        if (entry->name[n_string])
-                return -1;
+        /*
+         * If the priority is lower than the current verdict, there is no point
+         * in remembering it, since it will always be superceded.
+         */
+        if (verdict.priority >= name->own_prefix_verdict.priority)
+                name->own_prefix_verdict = verdict;
 
         return 0;
 }
 
-static int policy_own_add_entry(CRBTree *policy, const char *name, bool deny, uint64_t priority) {
-        CRBNode *parent, **slot;
-        struct stringn stringn = {
-                .string = name,
-                .n_string = strlen(name),
-        };
+static int policy_batch_add_send(PolicyBatch *batch,
+                                 const char *name_str,
+                                 PolicyVerdict verdict,
+                                 unsigned int type,
+                                 const char *path,
+                                 const char *interface,
+                                 const char *member) {
+        _c_cleanup_(policy_xmit_freep) PolicyXmit *xmit = NULL;
+        PolicyBatchName *name;
         int r;
 
-        slot = c_rbtree_find_slot(policy, policy_own_entry_compare, &stringn, &parent);
-        if (!slot) {
-                PolicyOwnEntry *entry = c_container_of(parent, PolicyOwnEntry, rb);
+        r = policy_xmit_new(&xmit, type, path, interface, member);
+        if (r)
+                return error_trace(r);
 
-                if (entry->decision.priority < priority) {
-                        entry->decision.deny = deny;
-                        entry->decision.priority = priority;
-                }
-        } else {
-                r = policy_own_entry_new(NULL, policy, name, deny, priority, parent, slot);
-                if (r)
-                        return error_trace(r);
-        }
+        xmit->verdict = verdict;
 
+        r = policy_batch_at_name(batch, &name, name_str ?: "");
+        if (r)
+                return error_trace(r);
+
+        c_list_link_tail(&name->send_unindexed, &xmit->batch_link);
+        xmit = NULL;
         return 0;
 }
 
-int policy_own_add_prefix(PolicyOwn *policy, const char *prefix, bool deny, uint64_t priority) {
-        if (!strcmp(prefix, ""))
-                return error_trace(policy_own_set_wildcard(policy, deny, priority));
-        else
-                return error_trace(policy_own_add_entry(&policy->prefixes, prefix, deny, priority));
-}
+static int policy_batch_add_recv(PolicyBatch *batch,
+                                 const char *name_str,
+                                 PolicyVerdict verdict,
+                                 unsigned int type,
+                                 const char *path,
+                                 const char *interface,
+                                 const char *member) {
+        _c_cleanup_(policy_xmit_freep) PolicyXmit *xmit = NULL;
+        PolicyBatchName *name;
+        int r;
 
-int policy_own_add_name(PolicyOwn *policy, const char *name, bool deny, uint64_t priority) {
-        return error_trace(policy_own_add_entry(&policy->names, name, deny, priority));
-}
+        r = policy_xmit_new(&xmit, type, path, interface, member);
+        if (r)
+                return error_trace(r);
 
-static void policy_own_update_decision(CRBTree *policy, struct stringn *stringn, PolicyDecision *decision) {
-        PolicyOwnEntry *entry;
+        xmit->verdict = verdict;
 
-        entry = c_rbtree_find_entry(policy, policy_own_entry_compare, stringn, PolicyOwnEntry, rb);
-        if (!entry)
-                return;
+        r = policy_batch_at_name(batch, &name, name_str ?: "");
+        if (r)
+                return error_trace(r);
 
-        if (entry->decision.priority < decision->priority)
-                return;
-
-        *decision = entry->decision;
-        return;
-}
-
-static void policy_own_check_allowed(PolicyOwn *policy, const char *name, PolicyDecision *decision) {
-        struct stringn stringn = {
-                .string = name,
-                .n_string = strlen(name),
-        };
-
-        if (decision->priority < policy->wildcard.priority)
-                *decision = policy->wildcard;
-
-        policy_own_update_decision(&policy->names, &stringn, decision);
-
-        if (!c_rbtree_is_empty(&policy->prefixes)) {
-                const char *dot = name;
-
-                do {
-                        dot = strchrnul(dot + 1, '.');
-                        stringn.n_string = dot - name;
-                        policy_own_update_decision(&policy->prefixes, &stringn, decision);
-                } while (*dot);
-        }
-}
-
-static int policy_connect_entry_new(PolicyConnectEntry **entryp, CRBTree *policy,
-                                       uid_t uid, bool deny, uint64_t priority,
-                                       CRBNode *parent, CRBNode **slot) {
-        PolicyConnectEntry *entry;
-
-        entry = calloc(1, sizeof(*entry));
-        if (!entry)
-                return error_origin(-ENOMEM);
-        entry->policy = policy;
-        entry->decision.deny = deny;
-        entry->decision.priority = priority;
-        entry->uid = uid;
-        c_rbtree_add(policy, parent, slot, &entry->rb);
-
-        if (entryp)
-                *entryp = entry;
+        c_list_link_tail(&name->recv_unindexed, &xmit->batch_link);
+        xmit = NULL;
         return 0;
 }
 
-static PolicyConnectEntry *policy_connect_entry_free(PolicyConnectEntry *entry) {
-        if (!entry)
-                return NULL;
+static int policy_registry_node_compare(CRBTree *t, void *k, CRBNode *n) {
+        PolicyRegistryNode *node = c_container_of(n, PolicyRegistryNode, registry_node);
+        uint32_t uidgid = (uint32_t)(unsigned long)k;
 
-        c_rbtree_remove_init(entry->policy, &entry->rb);
-
-        free(entry);
-
-        return NULL;
-}
-
-void policy_connect_init(PolicyConnect *policy) {
-        *policy = (PolicyConnect)POLICY_CONNECT_INIT;
-}
-
-void policy_connect_deinit(PolicyConnect *policy) {
-        PolicyConnectEntry *entry, *safe;
-
-        c_rbtree_for_each_entry_unlink(entry, safe, &policy->uid_tree, rb)
-                policy_connect_entry_free(entry);
-
-        c_rbtree_for_each_entry_unlink(entry, safe, &policy->gid_tree, rb)
-                policy_connect_entry_free(entry);
-
-        policy_connect_init(policy);
-}
-
-bool policy_connect_is_empty(PolicyConnect *policy) {
-        return c_rbtree_is_empty(&policy->uid_tree) &&
-               c_rbtree_is_empty(&policy->gid_tree) &&
-               policy_decision_is_default(&policy->wildcard);
-}
-
-int policy_connect_set_wildcard(PolicyConnect *policy, bool deny, uint64_t priority) {
-        if (policy->wildcard.priority > priority)
-                return 0;
-
-        policy->wildcard.deny = deny;
-        policy->wildcard.priority = priority;
-
-        return 0;
-}
-
-static int policy_connect_entry_compare(CRBTree *tree, void *k, CRBNode *rb) {
-        uid_t uid = *(uid_t *)k;
-        PolicyConnectEntry *entry = c_container_of(rb, PolicyConnectEntry, rb);
-
-        if (uid < entry->uid)
+        if (uidgid < node->uidgid)
                 return -1;
-        else if (uid > entry->uid)
+        else if (uidgid > node->uidgid)
                 return 1;
         else
                 return 0;
 }
 
-static int policy_connect_add_entry(CRBTree *policy, uid_t uid, bool deny, uint64_t priority) {
-        CRBNode *parent, **slot;
+static PolicyRegistryNode *policy_registry_node_free(PolicyRegistryNode *node) {
+        if (!node)
+                return NULL;
+
+        c_rbtree_remove_init(node->registry_tree, &node->registry_node);
+        policy_batch_unref(node->batch);
+        free(node);
+
+        return NULL;
+}
+
+C_DEFINE_CLEANUP(PolicyRegistryNode *, policy_registry_node_free);
+
+static int policy_registry_node_new(PolicyRegistryNode **nodep, CRBTree *tree, uint32_t uidgid) {
+        _c_cleanup_(policy_registry_node_freep) PolicyRegistryNode *node = NULL;
         int r;
 
-        slot = c_rbtree_find_slot(policy, policy_connect_entry_compare, &uid, &parent);
-        if (!slot) {
-                PolicyConnectEntry *entry = c_container_of(parent, PolicyConnectEntry, rb);
+        node = calloc(1, sizeof(*node));
+        if (!node)
+                return error_origin(-ENOMEM);
 
-                if (entry->decision.priority < priority) {
-                        entry->decision.deny = deny;
-                        entry->decision.priority = priority;
+        *node = (PolicyRegistryNode)POLICY_REGISTRY_NODE_NULL(*node);
+        node->uidgid = uidgid;
+        node->registry_tree = tree;
+
+        r = policy_batch_new(&node->batch);
+        if (r)
+                return error_trace(r);
+
+        *nodep = node;
+        node = NULL;
+        return 0;
+}
+
+/**
+ * policy_registry_new() - XXX
+ */
+int policy_registry_new(PolicyRegistry **registryp) {
+        _c_cleanup_(policy_registry_freep) PolicyRegistry *registry = NULL;
+        int r;
+
+        registry = calloc(1, sizeof(*registry));
+        if (!registry)
+                return error_origin(-ENOMEM);
+
+        *registry = (PolicyRegistry)POLICY_REGISTRY_NULL;
+
+        r = policy_batch_new(&registry->default_batch);
+        if (r)
+                return error_trace(r);
+
+        *registryp = registry;
+        registry = NULL;
+        return 0;
+}
+
+/**
+ * policy_registry_free() - XXX
+ */
+PolicyRegistry *policy_registry_free(PolicyRegistry *registry) {
+        PolicyRegistryNode *node, *t_node;
+
+        if (!registry)
+                return NULL;
+
+        c_rbtree_for_each_entry_unlink(node, t_node, &registry->gid_tree, registry_node)
+                policy_registry_node_free(node);
+        c_rbtree_for_each_entry_unlink(node, t_node, &registry->uid_tree, registry_node)
+                policy_registry_node_free(node);
+
+        policy_batch_unref(registry->default_batch);
+        free(registry);
+
+        return NULL;
+}
+
+static PolicyRegistryNode *policy_registry_find_uid(PolicyRegistry *registry, uint32_t uidgid) {
+        return c_rbtree_find_entry(&registry->uid_tree,
+                                   policy_registry_node_compare,
+                                   (void *)(unsigned long)uidgid,
+                                   PolicyRegistryNode,
+                                   registry_node);
+}
+
+static PolicyRegistryNode *policy_registry_find_gid(PolicyRegistry *registry, uint32_t uidgid) {
+        return c_rbtree_find_entry(&registry->gid_tree,
+                                   policy_registry_node_compare,
+                                   (void *)(unsigned long)uidgid,
+                                   PolicyRegistryNode,
+                                   registry_node);
+}
+
+static int policy_registry_at_uidgid(CRBTree *tree, PolicyRegistryNode **nodep, uint32_t uidgid) {
+        CRBNode *parent, **slot;
+        PolicyRegistryNode *node;
+        int r;
+
+        slot = c_rbtree_find_slot(tree,
+                                  policy_registry_node_compare,
+                                  (void *)(unsigned long)uidgid,
+                                  &parent);
+        if (slot) {
+                r = policy_registry_node_new(&node, tree, uidgid);
+                if (r)
+                        return error_trace(r);
+
+                c_rbtree_add(tree, parent, slot, &node->registry_node);
+        } else {
+                node = c_container_of(parent, PolicyRegistryNode, registry_node);
+        }
+
+        *nodep = node;
+        return 0;
+}
+
+static int policy_registry_at_uid(PolicyRegistry *registry, PolicyRegistryNode **nodep, uint32_t uid) {
+        return policy_registry_at_uidgid(&registry->uid_tree, nodep, uid);
+}
+
+static int policy_registry_at_gid(PolicyRegistry *registry, PolicyRegistryNode **nodep, uint32_t gid) {
+        return policy_registry_at_uidgid(&registry->gid_tree, nodep, gid);
+}
+
+static int policy_registry_import_connect(PolicyRegistry *registry, CDVar *v) {
+        PolicyRegistryNode *node;
+        PolicyVerdict verdict;
+        uint32_t uidgid;
+        bool allow;
+        int r;
+
+        c_dvar_read(v, "(");
+
+        /* import default verdict */
+        c_dvar_read(v, "b", &allow);
+        registry->default_batch->connect_verdict.verdict = allow;
+        registry->default_batch->connect_verdict.priority = 1; /* XXX: caller should provide priority */
+
+        /* import per-uid verdicts */
+        c_dvar_read(v, "[");
+        while (c_dvar_more(v)) {
+                c_dvar_read(v, "(ubt)", &uidgid, &verdict.verdict, &verdict.priority);
+
+                r = policy_registry_at_uid(registry, &node, uidgid);
+                if (r)
+                        return error_trace(r);
+
+                node->batch->connect_verdict = verdict;
+        }
+        c_dvar_read(v, "]");
+
+        /* import per-gid verdicts */
+        c_dvar_read(v, "[");
+        while (c_dvar_more(v)) {
+                c_dvar_read(v, "(ubt)", &uidgid, &verdict.verdict, &verdict.priority);
+
+                r = policy_registry_at_gid(registry, &node, uidgid);
+                if (r)
+                        return error_trace(r);
+
+                node->batch->connect_verdict = verdict;
+        }
+        c_dvar_read(v, "]");
+
+        c_dvar_read(v, ")");
+
+        return 0;
+}
+
+static int policy_registry_import_own(PolicyRegistry *registry, CDVar *v) {
+        PolicyRegistryNode *node;
+        PolicyVerdict verdict;
+        const char *name_str;
+        uint32_t uidgid;
+        bool prefix;
+        int r;
+
+        c_dvar_read(v, "(");
+
+        /* import default verdict */
+        c_dvar_read(v, "[");
+        while (c_dvar_more(v)) {
+                c_dvar_read(v, "(btbs)",
+                            &verdict.verdict,
+                            &verdict.priority,
+                            &prefix,
+                            &name_str);
+
+                if (prefix)
+                        r = policy_batch_add_own_prefix(registry->default_batch, name_str, verdict);
+                else
+                        r = policy_batch_add_own(registry->default_batch, name_str, verdict);
+        }
+        c_dvar_read(v, "]");
+
+        /* import per-uid verdicts */
+        c_dvar_read(v, "[");
+        while (c_dvar_more(v)) {
+                c_dvar_read(v, "(u[", &uidgid);
+
+                r = policy_registry_at_uid(registry, &node, uidgid);
+                if (r)
+                        return error_trace(r);
+
+                while (c_dvar_more(v)) {
+                        c_dvar_read(v, "(btbs)",
+                                    &verdict.verdict,
+                                    &verdict.priority,
+                                    &prefix,
+                                    &name_str);
+
+                        if (prefix)
+                                r = policy_batch_add_own_prefix(node->batch, name_str, verdict);
+                        else
+                                r = policy_batch_add_own(node->batch, name_str, verdict);
                 }
-        } else {
-                r = policy_connect_entry_new(NULL, policy, uid, deny, priority, parent, slot);
+
+                c_dvar_read(v, "])");
+        }
+        c_dvar_read(v, "]");
+
+        /* import per-uid verdicts */
+        c_dvar_read(v, "[");
+        while (c_dvar_more(v)) {
+                c_dvar_read(v, "(u[", &uidgid);
+
+                r = policy_registry_at_gid(registry, &node, uidgid);
                 if (r)
                         return error_trace(r);
+
+                while (c_dvar_more(v)) {
+                        c_dvar_read(v, "(btbs)",
+                                    &verdict.verdict,
+                                    &verdict.priority,
+                                    &prefix,
+                                    &name_str);
+
+                        if (prefix)
+                                r = policy_batch_add_own_prefix(node->batch, name_str, verdict);
+                        else
+                                r = policy_batch_add_own(node->batch, name_str, verdict);
+                }
+
+                c_dvar_read(v, "])");
         }
+        c_dvar_read(v, "]");
+
+        c_dvar_read(v, ")");
 
         return 0;
 }
 
-int policy_connect_add_uid(PolicyConnect *policy, uid_t uid, bool deny, uint64_t priority) {
-        return error_trace(policy_connect_add_entry(&policy->uid_tree, uid, deny, priority));
-}
-
-int policy_connect_add_gid(PolicyConnect *policy, gid_t gid, bool deny, uint64_t priority) {
-        return error_trace(policy_connect_add_entry(&policy->gid_tree, (uid_t)gid, deny, priority));
-}
-
-static void policy_connect_update_decision(CRBTree *policy, uid_t uid, PolicyDecision *decision) {
-        PolicyConnectEntry *entry;
-
-        entry = c_rbtree_find_entry(policy, policy_connect_entry_compare, &uid, PolicyConnectEntry, rb);
-        if (!entry)
-                return;
-
-        if (entry->decision.priority < decision->priority)
-                return;
-
-        *decision = entry->decision;
-        return;
-}
-
-static int policy_connect_check_allowed(PolicyConnect *policy, uid_t uid, gid_t *gids, size_t n_gids) {
-        PolicyDecision decision = policy->wildcard;
-
-        policy_connect_update_decision(&policy->uid_tree, uid, &decision);
-
-        for (size_t i = 0; i < n_gids; i++)
-                policy_connect_update_decision(&policy->gid_tree, (uid_t)gids[i], &decision);
-
-        return decision.deny ? POLICY_E_ACCESS_DENIED : 0;
-}
-
-int policy_connect_instantiate(PolicyConnect *target, PolicyConnect *source) {
-        PolicyConnectEntry *entry;
+static int policy_registry_import_xmit(PolicyRegistry *registry, CDVar *v, bool is_send) {
+        const char *name_str, *interface, *member, *path;
+        PolicyRegistryNode *node;
+        PolicyVerdict verdict;
+        uint32_t uidgid, type;
         int r;
 
-        r = policy_connect_set_wildcard(target, source->wildcard.deny, source->wildcard.priority);
-        if (r)
-                return error_trace(r);
+        c_dvar_read(v, "(");
 
-        c_rbtree_for_each_entry(entry, &source->uid_tree, rb) {
-                r = policy_connect_add_uid(target, entry->uid, entry->decision.deny, entry->decision.priority);
+        /* import default verdict */
+        c_dvar_read(v, "[");
+        while (c_dvar_more(v)) {
+                c_dvar_read(v, "(btssssub)",
+                            &verdict.verdict,
+                            &verdict.priority,
+                            &name_str,
+                            &interface,
+                            &member,
+                            &path,
+                            &type,
+                            NULL);
+
+                if (is_send)
+                        r = policy_batch_add_send(registry->default_batch,
+                                                  name_str,
+                                                  verdict,
+                                                  type,
+                                                  path,
+                                                  interface,
+                                                  member);
+                else
+                        r = policy_batch_add_recv(registry->default_batch,
+                                                  name_str,
+                                                  verdict,
+                                                  type,
+                                                  path,
+                                                  interface,
+                                                  member);
                 if (r)
                         return error_trace(r);
         }
+        c_dvar_read(v, "]");
 
-        c_rbtree_for_each_entry(entry, &source->gid_tree, rb) {
-                r = policy_connect_add_gid(target, entry->uid, entry->decision.deny, entry->decision.priority);
+        /* import per-uid verdicts */
+        c_dvar_read(v, "[");
+        while (c_dvar_more(v)) {
+                c_dvar_read(v, "(u[", &uidgid);
+
+                r = policy_registry_at_uid(registry, &node, uidgid);
                 if (r)
                         return error_trace(r);
-        }
 
-        return 0;
-}
+                while (c_dvar_more(v)) {
+                        c_dvar_read(v, "(btssssub)",
+                                    &verdict.verdict,
+                                    &verdict.priority,
+                                    &name_str,
+                                    &interface,
+                                    &member,
+                                    &path,
+                                    &type,
+                                    NULL);
 
-static int policy_xmit_entry_new(PolicyXmitEntry **entryp, CList *policy,
-                                         const char *interface, const char *member, const char *path, int type,
-                                         bool deny, uint64_t priority) {
-        PolicyXmitEntry *entry;
-        char *buffer;
-        size_t n_interface = interface ? strlen(interface) + 1 : 0,
-               n_member = member ? strlen(member) + 1 : 0,
-               n_path = path ? strlen(path) + 1 : 0;
-
-        entry = malloc(sizeof(*entry) + n_interface + n_member + n_path);
-        if (!entry)
-                return error_origin(-ENOMEM);
-        buffer = (char*)(entry + 1);
-
-        if (interface) {
-                entry->interface = buffer;
-                buffer = stpcpy(buffer, interface) + 1;
-        } else {
-                entry->interface = NULL;
-        }
-
-        if (member) {
-                entry->member = buffer;
-                buffer = stpcpy(buffer, member) + 1;
-        } else {
-                entry->member = NULL;
-        }
-
-        if (path) {
-                entry->path = buffer;
-                buffer = stpcpy(buffer, path) + 1;
-        } else {
-                entry->path = NULL;
-        }
-
-        entry->type = type;
-
-        entry->decision.deny = deny;
-        entry->decision.priority = priority;
-
-        c_list_link_tail(policy, &entry->policy_link);
-
-        if (entryp)
-                *entryp = entry;
-
-        return 0;
-}
-
-static PolicyXmitEntry *policy_xmit_entry_free(PolicyXmitEntry *entry) {
-        if (!entry)
-                return NULL;
-
-        c_list_unlink_init(&entry->policy_link);
-
-        free(entry);
-
-        return NULL;
-}
-
-static int policy_xmit_by_name_new(PolicyXmitByName **by_namep, CRBTree *policy,
-                                           const char *name,
-                                           CRBNode *parent, CRBNode **slot) {
-        PolicyXmitByName *by_name;
-        size_t n_name = strlen(name) + 1;
-
-        by_name = malloc(sizeof(*by_name) + n_name);
-        if (!by_name)
-                return error_origin(-ENOMEM);
-        memcpy((char*)by_name->name, name, n_name);
-        by_name->policy = policy;
-        by_name->entry_list = (CList)C_LIST_INIT(by_name->entry_list);
-        c_rbtree_add(policy, parent, slot, &by_name->policy_node);
-
-        if (by_namep)
-                *by_namep = by_name;
-
-        return 0;
-}
-
-static PolicyXmitByName *policy_xmit_by_name_free(PolicyXmitByName *by_name) {
-        if (!by_name)
-                return NULL;
-
-        while (!c_list_is_empty(&by_name->entry_list))
-                policy_xmit_entry_free(c_list_first_entry(&by_name->entry_list, PolicyXmitEntry, policy_link));
-
-        c_rbtree_remove_init(by_name->policy, &by_name->policy_node);
-
-        free(by_name);
-
-        return NULL;
-}
-
-void policy_xmit_init(PolicyXmit *policy) {
-        *policy = (PolicyXmit)POLICY_XMIT_INIT(*policy);
-}
-
-void policy_xmit_deinit(PolicyXmit *policy) {
-        PolicyXmitByName *by_name, *safe;
-
-        c_rbtree_for_each_entry_unlink(by_name, safe, &policy->policy_by_name_tree, policy_node)
-                policy_xmit_by_name_free(by_name);
-
-        while (!c_list_is_empty(&policy->wildcard_entry_list))
-                policy_xmit_entry_free(c_list_first_entry(&policy->wildcard_entry_list, PolicyXmitEntry, policy_link));
-
-        policy_xmit_init(policy);
-}
-
-bool policy_xmit_is_empty(PolicyXmit *policy) {
-        return c_rbtree_is_empty(&policy->policy_by_name_tree) &&
-               c_list_is_empty(&policy->wildcard_entry_list);
-}
-
-static int policy_xmit_by_name_instantiate(PolicyXmit *target, const char *name, CList *source) {
-        PolicyXmitEntry *entry;
-        int r;
-
-        c_list_for_each_entry(entry, source, policy_link) {
-                r = policy_xmit_add_entry(target,
-                                                  name, entry->interface, entry->member, entry->path, entry->type,
-                                                  entry->decision.deny, entry->decision.priority);
-                if (r)
-                        return error_trace(r);
-        }
-
-        return 0;
-}
-
-static int policy_xmit_instantiate(PolicyXmit *target, PolicyXmit *source) {
-        PolicyXmitByName *policy;
-        int r;
-
-        r = policy_xmit_by_name_instantiate(target, NULL, &source->wildcard_entry_list);
-        if (r)
-                return error_trace(r);
-
-        c_rbtree_for_each_entry(policy, &source->policy_by_name_tree, policy_node) {
-                r = policy_xmit_by_name_instantiate(target, policy->name, &policy->entry_list);
-                if (r)
-                        return error_trace(r);
-        }
-
-        return 0;
-}
-
-static int policy_xmit_by_name_compare(CRBTree *tree, void *k, CRBNode *rb) {
-        const char *name = k;
-        PolicyXmitByName *by_name = c_container_of(rb, PolicyXmitByName, policy_node);
-
-        return strcmp(name, by_name->name);
-}
-
-int policy_xmit_add_entry(PolicyXmit *policy,
-                                  const char *name, const char *interface, const char *member, const char *path, int type,
-                                  bool deny, uint64_t priority) {
-        CRBNode *parent, **slot;
-        CList *policy_list;
-        int r;
-
-        if (type == DBUS_MESSAGE_TYPE_METHOD_RETURN ||
-            type == DBUS_MESSAGE_TYPE_ERROR)
-                /* replies are not subject to policy, this differs from the dbus daemon */
-                return 0;
-
-        if (name) {
-                PolicyXmitByName *by_name;
-
-                slot = c_rbtree_find_slot(&policy->policy_by_name_tree, policy_xmit_by_name_compare, name, &parent);
-                if (!slot) {
-                        by_name = c_container_of(parent, PolicyXmitByName, policy_node);
-                } else {
-                        r = policy_xmit_by_name_new(&by_name, &policy->policy_by_name_tree, name, parent, slot);
+                        if (is_send)
+                                r = policy_batch_add_send(node->batch,
+                                                          name_str,
+                                                          verdict,
+                                                          type,
+                                                          path,
+                                                          interface,
+                                                          member);
+                        else
+                                r = policy_batch_add_recv(node->batch,
+                                                          name_str,
+                                                          verdict,
+                                                          type,
+                                                          path,
+                                                          interface,
+                                                          member);
                         if (r)
                                 return error_trace(r);
                 }
-
-                policy_list = &by_name->entry_list;
-        } else {
-                policy_list = &policy->wildcard_entry_list;
+                c_dvar_read(v, "])");
         }
+        c_dvar_read(v, "]");
 
-        r = policy_xmit_entry_new(NULL, policy_list, interface, member, path, type, deny, priority);
-        if (r)
-                return error_trace(r);
+        /* import per-gid verdicts */
+        c_dvar_read(v, "[");
+        while (c_dvar_more(v)) {
+                c_dvar_read(v, "(u[", &uidgid);
+
+                r = policy_registry_at_gid(registry, &node, uidgid);
+                if (r)
+                        return error_trace(r);
+
+                while (c_dvar_more(v)) {
+                        c_dvar_read(v, "(btssssub)",
+                                    &verdict.verdict,
+                                    &verdict.priority,
+                                    &name_str,
+                                    &interface,
+                                    &member,
+                                    &path,
+                                    &type,
+                                    NULL);
+
+                        if (is_send)
+                                r = policy_batch_add_send(node->batch,
+                                                          name_str,
+                                                          verdict,
+                                                          type,
+                                                          path,
+                                                          interface,
+                                                          member);
+                        else
+                                r = policy_batch_add_recv(node->batch,
+                                                          name_str,
+                                                          verdict,
+                                                          type,
+                                                          path,
+                                                          interface,
+                                                          member);
+                        if (r)
+                                return error_trace(r);
+                }
+                c_dvar_read(v, "])");
+        }
+        c_dvar_read(v, "]");
+
+        c_dvar_read(v, ")");
 
         return 0;
 }
 
-static void policy_xmit_update_decision(CList *policy,
-                                                const char *interface, const char *member, const char *path, int type,
-                                                PolicyDecision *decision) {
-        PolicyXmitEntry *entry;
+/**
+ * policy_registry_import() - XXX
+ */
+int policy_registry_import(PolicyRegistry *registry, CDVar *v) {
+        int r = 0;
 
-        c_list_for_each_entry(entry, policy, policy_link) {
-                if (entry->decision.priority < decision->priority)
-                        continue;
+        c_dvar_read(v, "<(", NULL);
+        r = r ?: policy_registry_import_connect(registry, v);
+        r = r ?: policy_registry_import_own(registry, v);
+        r = r ?: policy_registry_import_xmit(registry, v, true);
+        r = r ?: policy_registry_import_xmit(registry, v, false);
+        if (r)
+                return error_trace(r);
+        c_dvar_read(v, ")>");
 
-                if (entry->interface)
-                        if (!interface || strcmp(entry->interface, interface))
-                                continue;
+        r = c_dvar_get_poison(v);
+        if (r)
+                return POLICY_E_INVALID;
 
-                if (entry->member)
-                        if (!member || strcmp(entry->member, member))
-                                continue;
-
-                if (entry->path)
-                        if (!path || strcmp(entry->path, path))
-                                continue;
-
-                if (entry->type)
-                        if (entry->type != type)
-                                continue;
-
-                *decision = entry->decision;
-        }
+        return 0;
 }
 
-static void policy_xmit_update_decision_by_name(CRBTree *policy, const char *name,
-                                                        const char *interface, const char *member, const char *path, int type,
-                                                        PolicyDecision *decision) {
-        PolicyXmitByName *by_name;
+/**
+ * policy_snapshot_new() - XXX
+ */
+int policy_snapshot_new(PolicySnapshot **snapshotp,
+                        PolicyRegistry *registry,
+                        uint32_t uid,
+                        const uint32_t *gids,
+                        size_t n_gids) {
+        _c_cleanup_(policy_snapshot_freep) PolicySnapshot *snapshot = NULL;
+        PolicyRegistryNode *node;
 
-        by_name = c_rbtree_find_entry(policy, policy_xmit_by_name_compare, name, PolicyXmitByName, policy_node);
-        if (!by_name)
-                return;
-
-        policy_xmit_update_decision(&by_name->entry_list, interface, member, path, type, decision);
-}
-
-static void policy_xmit_check_allowed(PolicyXmit *policy, NameSet *subject,
-                                              const char *interface, const char *member, const char *path, int type,
-                                              PolicyDecision *decision) {
-        policy_xmit_update_decision(&policy->wildcard_entry_list, interface, member, path, type, decision);
-
-        if (!c_rbtree_is_empty(&policy->policy_by_name_tree)) {
-                if (subject) {
-                        NameOwner *owner;
-                        NameOwnership *ownership;
-                        NameSnapshot *snapshot;
-
-                        switch (subject->type) {
-                        case NAME_SET_TYPE_OWNER:
-                                owner = subject->owner;
-
-                                c_rbtree_for_each_entry(ownership, &owner->ownership_tree, owner_node) {
-                                        if (!name_ownership_is_primary(ownership))
-                                                continue;
-
-                                        policy_xmit_update_decision_by_name(&policy->policy_by_name_tree, ownership->name->name,
-                                                                                    interface, member, path, type,
-                                                                                    decision);
-                                }
-                                break;
-                        case NAME_SET_TYPE_SNAPSHOT:
-                                snapshot = subject->snapshot;
-
-                                for (size_t i = 0; i < snapshot->n_names; ++i)
-                                        policy_xmit_update_decision_by_name(&policy->policy_by_name_tree, snapshot->names[i]->name,
-                                                                                    interface, member, path, type,
-                                                                                    decision);
-                                break;
-                        default:
-                                assert(0);
-                        }
-                } else {
-                        /* the subject is the driver */
-                        policy_xmit_update_decision_by_name(&policy->policy_by_name_tree, "org.freedesktop.DBus",
-                                                                    interface, member, path, type,
-                                                                    decision);
-                }
-        }
-}
-
-void policy_init(Policy *policy) {
-        *policy = (Policy)POLICY_INIT(*policy);
-}
-
-void policy_deinit(Policy *policy) {
-        assert(policy->uid == (uid_t)-1);
-
-        policy_xmit_deinit(&policy->policy_receive);
-        policy_xmit_deinit(&policy->policy_send);
-        policy_own_deinit(&policy->policy_own);
-}
-
-bool policy_is_empty(Policy *policy) {
-        return policy_own_is_empty(&policy->policy_own) &&
-               policy_xmit_is_empty(&policy->policy_send) &&
-               policy_xmit_is_empty(&policy->policy_receive);
-}
-
-static int policy_new(Policy **policyp, CRBTree *registry, uid_t uid, CRBNode *parent, CRBNode **slot) {
-        Policy *policy;
-
-        policy = calloc(1, sizeof(*policy));
-        if (!policy)
+        snapshot = calloc(1, sizeof(*snapshot) + (n_gids + 1) * sizeof(*snapshot->batches));
+        if (!snapshot)
                 return error_origin(-ENOMEM);
 
-        policy_init(policy);
+        *snapshot = (PolicySnapshot)POLICY_SNAPSHOT_NULL;
 
-        policy->uid = uid;
-
-        if (registry)
-                c_rbtree_add(registry, parent, slot, &policy->registry_node);
-
-        if (policyp)
-                *policyp = policy;
-        return 0;
-}
-
-void policy_free(_Atomic unsigned long *n_refs, void *userdata) {
-        Policy *policy = c_container_of(n_refs, Policy, n_refs);
-
-        assert(!c_rbnode_is_linked(&policy->registry_node));
-        policy->uid = (uid_t) -1;
-
-        policy_deinit(policy);
-
-        free(policy);
-}
-
-int policy_instantiate(Policy *target, Policy *source) {
-        int r;
-
-        r = policy_own_instantiate(&target->policy_own, &source->policy_own);
-        if (r)
-                return error_trace(r);
-
-        r = policy_xmit_instantiate(&target->policy_send, &source->policy_send);
-        if (r)
-                return error_trace(r);
-
-        r = policy_xmit_instantiate(&target->policy_receive, &source->policy_receive);
-        if (r)
-                return error_trace(r);
-
-        return 0;
-}
-
-static int policy_compare(CRBTree *tree, void *k, CRBNode *rb) {
-        uid_t uid = *(uid_t*)k;
-        Policy *policy = c_container_of(rb, Policy, registry_node);
-
-        if (uid < policy->uid)
-                return -1;
-        else if (uid > policy->uid)
-                return 1;
+        node = policy_registry_find_uid(registry, uid);
+        if (node)
+                snapshot->batches[0] = policy_batch_ref(node->batch);
         else
-                return 0;
+                snapshot->batches[0] = policy_batch_ref(registry->default_batch);
+
+        ++snapshot->n_batches;
+
+        while (n_gids-- > 0) {
+                node = policy_registry_find_gid(registry, gids[n_gids]);
+                if (node)
+                        snapshot->batches[snapshot->n_batches++] = policy_batch_ref(node->batch);
+        }
+
+        *snapshotp = snapshot;
+        snapshot = NULL;
+        return 0;
 }
 
-int peer_policy_instantiate(PeerPolicy *policy, PolicyRegistry *registry, uid_t uid, gid_t *gids, size_t n_gids) {
-        Policy *source;
-        int r;
+/**
+ * policy_snapshot_free() - XXX
+ */
+PolicySnapshot *policy_snapshot_free(PolicySnapshot *snapshot) {
+        if (!snapshot)
+                return NULL;
 
-        assert(!policy->uid_policy);
-        assert(!policy->gid_policies);
-        assert(!policy->n_gid_policies);
+        while (snapshot->n_batches-- > 0)
+                policy_batch_unref(snapshot->batches[snapshot->n_batches]);
+        free(snapshot);
 
-        r = policy_connect_check_allowed(&registry->policy_connect, uid, gids, n_gids);
-        if (r)
-                return error_trace(r);
+        return NULL;
+}
 
-        source = c_rbtree_find_entry(&registry->uid_policy_tree, policy_compare, &uid, Policy, registry_node);
-        if (!source)
-                source = registry->wildcard_uid_policy;
-        policy->uid_policy = policy_ref(source);
+/**
+ * policy_snapshot_dup() - XXX
+ */
+int policy_snapshot_dup(PolicySnapshot *snapshot, PolicySnapshot **newp) {
+        _c_cleanup_(policy_snapshot_freep) PolicySnapshot *new = NULL;
+        size_t i;
 
-        if (n_gids) {
-                policy->gid_policies = malloc(n_gids * sizeof(*policy->gid_policies));
-                if (!policy->gid_policies)
-                        return error_origin(-ENOMEM);
+        new = calloc(1, sizeof(*new) + snapshot->n_batches * sizeof(*new->batches));
+        if (!new)
+                return error_origin(-ENOMEM);
 
-                for (size_t i = 0; i < n_gids; ++i) {
-                        source = c_rbtree_find_entry(&registry->gid_policy_tree, policy_compare, gids + i, Policy, registry_node);
-                        if (source)
-                                policy->gid_policies[policy->n_gid_policies++] = policy_ref(source);
+        *new = (PolicySnapshot)POLICY_SNAPSHOT_NULL;
+
+        for (i = 0; i < snapshot->n_batches; ++i)
+                new->batches[new->n_batches++] = policy_batch_ref(snapshot->batches[i]);
+
+        *newp = new;
+        new = NULL;
+        return 0;
+}
+
+/**
+ * policy_snapshot_check_connect() - XXX
+ */
+int policy_snapshot_check_connect(PolicySnapshot *snapshot) {
+        PolicyVerdict verdict = POLICY_VERDICT_INIT;
+        size_t i;
+
+        for (i = 0; i < snapshot->n_batches; ++i)
+                if (verdict.priority < snapshot->batches[i]->connect_verdict.priority)
+                        verdict = snapshot->batches[i]->connect_verdict;
+
+        /* XXX: return verdict.verdict ? 0 : POLICY_E_ACCESS_DENIED; */
+        return 0;
+}
+
+/**
+ * policy_snapshot_check_own() - XXX
+ */
+int policy_snapshot_check_own(PolicySnapshot *snapshot, const char *name_str) {
+        PolicyVerdict verdict = POLICY_VERDICT_INIT;
+        PolicyBatchName *name;
+        const char *end;
+        CRBNode *rb;
+        size_t i;
+        int v;
+
+        for (i = 0; i < snapshot->n_batches; ++i) {
+                /*
+                 * Iterate all prefixes of @name_str, including the empty
+                 * prefix and the full string.
+                 */
+                for (end = name_str;
+                     ;
+                     end = strchrnul(end + 1, '.')) {
+                        rb = snapshot->batches[i]->name_tree.root;
+                        while (rb) {
+                                name = c_container_of(rb, PolicyBatchName, batch_node);
+                                v = strncmp(name_str, name->name, end - name_str);
+                                if (v < 0)
+                                        rb = rb->left;
+                                else if (v > 0)
+                                        rb = rb->right;
+                                else if (name->name[end - name_str])
+                                        rb = rb->left;
+                                else
+                                        break;
+                        }
+
+                        if (rb) {
+                                if (verdict.priority < name->own_verdict.priority)
+                                        verdict = name->own_verdict;
+                                if (verdict.priority < name->own_prefix_verdict.priority)
+                                        verdict = name->own_prefix_verdict;
+                        }
+
+                        if (!*end)
+                                break;
                 }
         }
 
+        /* XXX: return verdict.verdict ? 0 : POLICY_E_ACCESS_DENIED; */
         return 0;
 }
 
-int peer_policy_copy(PeerPolicy *target, PeerPolicy *source) {
-        assert(!target->uid_policy);
-        assert(!target->gid_policies);
-        assert(!target->n_gid_policies);
+static void policy_snapshot_check_xmit_name(PolicyBatch *batch,
+                                            bool is_send,
+                                            PolicyVerdict *verdict,
+                                            const char *name_str,
+                                            const char *interface,
+                                            const char *member,
+                                            const char *path,
+                                            unsigned int type) {
+        PolicyBatchName *name;
+        PolicyXmit *xmit;
+        CList *list;
 
-        target->uid_policy = policy_ref(source->uid_policy);
+        name = policy_batch_find_name(batch, name_str);
+        if (!name)
+                return;
 
-        if (source->n_gid_policies) {
-                target->gid_policies = malloc(source->n_gid_policies * sizeof(*target->gid_policies));
-                if (!target->gid_policies)
-                        return error_origin(-ENOMEM);
+        list = is_send ? &name->send_unindexed : &name->recv_unindexed;
 
-                for (size_t i = 0; i < source->n_gid_policies; ++i)
-                        target->gid_policies[i] = policy_ref(source->gid_policies[i]);
+        c_list_for_each_entry(xmit, list, batch_link) {
+                if (verdict->priority >= xmit->verdict.priority)
+                        continue;
 
-                target->n_gid_policies = source->n_gid_policies;
+                if (xmit->type)
+                        if (type != xmit->type)
+                                continue;
+
+                if (xmit->path)
+                        if (!path || strcmp(path, xmit->path))
+                                continue;
+
+                if (xmit->interface)
+                        if (!interface || strcmp(interface, xmit->interface))
+                                continue;
+
+                if (xmit->member)
+                        if (!member || strcmp(member, xmit->member))
+                                continue;
+
+                *verdict = xmit->verdict;
         }
-
-        return 0;
 }
 
-void peer_policy_deinit(PeerPolicy *policy) {
-        policy->uid_policy = policy_unref(policy->uid_policy);
-        for (size_t i = 0; i < policy->n_gid_policies; ++i)
-                policy_unref(policy->gid_policies[i]);
+static void policy_snapshot_check_xmit(PolicyBatch *batch,
+                                       bool is_send,
+                                       PolicyVerdict *verdict,
+                                       NameSet *nameset,
+                                       const char *interface,
+                                       const char *method,
+                                       const char *path,
+                                       unsigned int type) {
+        NameOwnership *ownership;
+        size_t i;
 
-        /* the gid policy array may be overallocated, so make sure to free even if it is empty */
-        policy->gid_policies = c_free(policy->gid_policies);
-        policy->n_gid_policies = 0;
-}
+        /*
+         * The empty name is a catch-all entry. Always check it for every
+         * policy decision.
+         *
+         * XXX: Maybe we should cache the pointer to the catch-all entry, since
+         *      doing the lookup on all messages seems rather expensive just
+         *      for the sake of simplicity.
+         */
+        policy_snapshot_check_xmit_name(batch,
+                                        is_send,
+                                        verdict,
+                                        "",
+                                        interface,
+                                        method,
+                                        path,
+                                        type);
 
-int peer_policy_check_own(PeerPolicy *policy, const char *name) {
-        PolicyDecision decision = {};
-
-        policy_own_check_allowed(&policy->uid_policy->policy_own, name, &decision);
-
-        for (size_t i = 0; i < policy->n_gid_policies; ++i)
-                policy_own_check_allowed(&policy->gid_policies[i]->policy_own, name, &decision);
-
-        return decision.deny ? POLICY_E_ACCESS_DENIED : 0;
-}
-
-int peer_policy_check_send(PeerPolicy *policy, NameSet *subject, const char *interface, const char *method, const char *path, int type) {
-        PolicyDecision decision = {};
-
-        policy_xmit_check_allowed(&policy->uid_policy->policy_send, subject, interface, method, path, type, &decision);
-
-        for (size_t i = 0; i < policy->n_gid_policies; ++i)
-                policy_xmit_check_allowed(&policy->gid_policies[i]->policy_send, subject, interface, method, path, type, &decision);
-
-        return decision.deny ? POLICY_E_ACCESS_DENIED : 0;
-}
-
-int peer_policy_check_receive(PeerPolicy *policy, NameSet *subject, const char *interface, const char *method, const char *path, int type) {
-        PolicyDecision decision = {};
-
-        policy_xmit_check_allowed(&policy->uid_policy->policy_receive, subject, interface, method, path, type, &decision);
-
-        for (size_t i = 0; i < policy->n_gid_policies; ++i)
-                policy_xmit_check_allowed(&policy->gid_policies[i]->policy_receive, subject, interface, method, path, type, &decision);
-
-        return decision.deny ? POLICY_E_ACCESS_DENIED : 0;
-}
-
-int policy_registry_init(PolicyRegistry *registry) {
-        int r;
-
-        *registry = (PolicyRegistry)POLICY_REGISTRY_NULL(*registry);
-
-        r = policy_new(&registry->wildcard_uid_policy, NULL, (uid_t)-1, NULL, NULL);
-        if (r)
-                return error_trace(r);
-
-        return 0;
-}
-
-void policy_registry_deinit(PolicyRegistry *registry) {
-        Policy *policy, *safe;
-
-        c_rbtree_for_each_entry_unlink(policy, safe, &registry->gid_policy_tree, registry_node)
-                policy_unref(policy);
-        c_rbtree_for_each_entry_unlink(policy, safe, &registry->uid_policy_tree, registry_node)
-                policy_unref(policy);
-        policy_unref(registry->wildcard_uid_policy);
-        policy_connect_deinit(&registry->policy_connect);
-}
-
-int policy_registry_get_policy_by_uid(PolicyRegistry *registry, Policy **policyp, uid_t uid) {
-        CRBNode *parent, **slot;
-        int r;
-
-        slot = c_rbtree_find_slot(&registry->uid_policy_tree, policy_compare, &uid, &parent);
-        if (!slot) {
-                *policyp = c_container_of(parent, Policy, registry_node);
-                return 0;
+        if (!nameset) {
+                /*
+                 * If no names are passed, this messages deals with the driver.
+                 * Hence, hard-code its name, since the driver owns it
+                 * unconditionally, and just that name.
+                 */
+                policy_snapshot_check_xmit_name(batch,
+                                                is_send,
+                                                verdict,
+                                                "org.freedesktop.DBus",
+                                                interface,
+                                                method,
+                                                path,
+                                                type);
+        } else if (nameset->type == NAME_SET_TYPE_OWNER) {
+                /*
+                 * A set of owned names is given. In this case, we iterate all
+                 * of them and match against each. Note that this matches even
+                 * on non-primary name owners.
+                 */
+                c_rbtree_for_each_entry(ownership,
+                                        &nameset->owner->ownership_tree,
+                                        owner_node)
+                        policy_snapshot_check_xmit_name(batch,
+                                                        is_send,
+                                                        verdict,
+                                                        ownership->name->name,
+                                                        interface,
+                                                        method,
+                                                        path,
+                                                        type);
+        } else if (nameset->type == NAME_SET_TYPE_SNAPSHOT) {
+                /*
+                 * An ownership-snapshot is given. Again, we simply iterate the
+                 * names and match each. Note that the snapshot must contain
+                 * queued names as well, since the policy matches on it.
+                 *
+                 * XXX: Make sure snapshots contain queued names.
+                 */
+                for (i = 0; i < nameset->snapshot->n_names; ++i)
+                        policy_snapshot_check_xmit_name(batch,
+                                                        is_send,
+                                                        verdict,
+                                                        nameset->snapshot->names[i]->name,
+                                                        interface,
+                                                        method,
+                                                        path,
+                                                        type);
         } else {
-                r = policy_new(policyp, &registry->uid_policy_tree, uid, parent, slot);
-                if (r)
-                        return error_trace(r);
+                assert(0);
         }
+}
 
+/**
+ * policy_snapshot_check_send() - XXX
+ */
+int policy_snapshot_check_send(PolicySnapshot *snapshot,
+                               NameSet *subject,
+                               const char *interface,
+                               const char *method,
+                               const char *path,
+                               unsigned int type) {
+        PolicyVerdict verdict = POLICY_VERDICT_INIT;
+        size_t i;
+
+        for (i = 0; i < snapshot->n_batches; ++i)
+                policy_snapshot_check_xmit(snapshot->batches[i],
+                                           true,
+                                           &verdict,
+                                           subject,
+                                           interface,
+                                           method,
+                                           path,
+                                           type);
+
+        /* XXX: return verdict.verdict ? 0 : POLICY_E_ACCESS_DENIED; */
         return 0;
 }
 
-int policy_registry_get_policy_by_gid(PolicyRegistry *registry, Policy **policyp, gid_t gid) {
-        CRBNode *parent, **slot;
-        int r;
+/**
+ * policy_snapshot_check_receive() - XXX
+ */
+int policy_snapshot_check_receive(PolicySnapshot *snapshot,
+                                  NameSet *subject,
+                                  const char *interface,
+                                  const char *method,
+                                  const char *path,
+                                  unsigned int type) {
+        PolicyVerdict verdict = POLICY_VERDICT_INIT;
+        size_t i;
 
-        slot = c_rbtree_find_slot(&registry->gid_policy_tree, policy_compare, &gid, &parent);
-        if (!slot) {
-                *policyp = c_container_of(parent, Policy, registry_node);
-                return 0;
-        } else {
-                r = policy_new(policyp, &registry->gid_policy_tree, (uid_t)gid, parent, slot);
-                if (r)
-                        return error_trace(r);
-        }
+        for (i = 0; i < snapshot->n_batches; ++i)
+                policy_snapshot_check_xmit(snapshot->batches[i],
+                                           false,
+                                           &verdict,
+                                           subject,
+                                           interface,
+                                           method,
+                                           path,
+                                           type);
 
+        /* XXX: return verdict.verdict ? 0 : POLICY_E_ACCESS_DENIED; */
         return 0;
 }

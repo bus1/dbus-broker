@@ -65,7 +65,7 @@ struct Peer {
         bool registered : 1;
         bool monitor : 1;
 
-        PeerPolicy policy;
+        PolicySnapshot *policy;
         NameOwner owned_names;
         MatchRegistry matches;
         MatchOwner owned_matches;
@@ -102,9 +102,9 @@ int peer_remove_match(Peer *peer, const char *rule_string);
 int peer_become_monitor(Peer *peer, MatchOwner *owner);
 void peer_flush_matches(Peer *peer);
 
-int peer_queue_call(PeerPolicy *sender_policy, NameSet *sender_names, MatchRegistry *sender_matches, ReplyOwner *sender_replies, User *sender_user, uint64_t sender_id, Peer *receiver, Message *message);
+int peer_queue_call(PolicySnapshot *sender_policy, NameSet *sender_names, MatchRegistry *sender_matches, ReplyOwner *sender_replies, User *sender_user, uint64_t sender_id, Peer *receiver, Message *message);
 int peer_queue_reply(Peer *sender, const char *destination, uint32_t reply_serial, Message *message);
-int peer_broadcast(PeerPolicy *sender_policy, NameSet *sender_names, MatchRegistry *sender_matches, uint64_t sender_id, Peer *destination, Bus *bus, MatchFilter *filter, Message *message);
+int peer_broadcast(PolicySnapshot *sender_policy, NameSet *sender_names, MatchRegistry *sender_matches, uint64_t sender_id, Peer *destination, Bus *bus, MatchFilter *filter, Message *message);
 
 void peer_registry_init(PeerRegistry *registry);
 void peer_registry_deinit(PeerRegistry *registry);

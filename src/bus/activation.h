@@ -38,7 +38,7 @@ struct ActivationMessage {
         UserCharge charges[2];
         CList link;
         Message *message;
-        PeerPolicy senders_policy;
+        PolicySnapshot *senders_policy;
         NameSnapshot *senders_names;
 };
 
@@ -68,7 +68,11 @@ ActivationMessage *activation_message_free(ActivationMessage *message);
 int activation_init(Activation *activation, Name *name, User *user);
 void activation_deinit(Activation *activation);
 
-int activation_queue_message(Activation *activation, User *user, NameOwner *names, PeerPolicy *policy, Message *m);
+int activation_queue_message(Activation *activation,
+                             User *user,
+                             NameOwner *names,
+                             PolicySnapshot *policy,
+                             Message *m);
 int activation_queue_request(Activation *activation, User *user, uint64_t sender_id, uint32_t serial);
 
 int activation_flush(Activation *activation);

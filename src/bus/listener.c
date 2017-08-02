@@ -11,7 +11,6 @@
 #include "bus/listener.h"
 #include "bus/peer.h"
 #include "bus/policy.h"
-#include "launch/policy-parser.h" /* XXX: drop once we get the policy pre-parsed */
 #include "util/dispatch.h"
 #include "util/error.h"
 
@@ -44,7 +43,7 @@ static int listener_dispatch(DispatchFile *file) {
                 }
         }
 
-        r = peer_new_with_fd(&peer, listener->bus, &listener->policy, listener->guid, file->context, fd);
+        r = peer_new_with_fd(&peer, listener->bus, listener->policy, listener->guid, file->context, fd);
         if (r == PEER_E_QUOTA || r == PEER_E_CONNECTION_REFUSED)
                 /*
                  * The user has too many open connections, or a policy disallows it to
@@ -64,82 +63,14 @@ static int listener_dispatch(DispatchFile *file) {
         return error_fold(r);
 }
 
-static int listener_instantiate_policy_registry(PolicyRegistry *registry, const char *policypath) {
-        _c_cleanup_(policy_parser_registry_deinit) PolicyParserRegistry parser = POLICY_PARSER_REGISTRY_NULL(parser);
-        Policy *source;
-        int r;
-
-        r = policy_parser_registry_init(&parser);
-        if (r)
-                return error_fold(r);
-
-        r = policy_parser_registry_append_file(&parser, policypath, NULL);
-        if (r)
-                return error_fold(r);
-
-        r = policy_registry_init(registry);
-        if (r)
-                return error_fold(r);
-
-        r = policy_connect_instantiate(&registry->policy_connect, &parser.registry.policy_connect);
-        if (r)
-                return error_fold(r);
-
-        r = policy_instantiate(registry->wildcard_uid_policy, &parser.default_policy);
-        if (r)
-                return error_fold(r);
-
-        r = policy_instantiate(registry->wildcard_uid_policy, &parser.console_policy);
-        if (r)
-                return error_fold(r);
-
-        r = policy_instantiate(registry->wildcard_uid_policy, &parser.mandatory_policy);
-        if (r)
-                return error_fold(r);
-
-        c_rbtree_for_each_entry(source, &parser.registry.uid_policy_tree, registry_node) {
-                Policy *target;
-
-                r = policy_registry_get_policy_by_uid(registry, &target, source->uid);
-                if (r)
-                        return error_fold(r);
-
-                r = policy_instantiate(target, &parser.default_policy);
-                if (r)
-                        return error_fold(r);
-
-                r = policy_instantiate(target, source);
-                if (r)
-                        return error_fold(r);
-
-                r = policy_instantiate(target, &parser.console_policy);
-                if (r)
-                        return error_fold(r);
-
-                r = policy_instantiate(target, &parser.mandatory_policy);
-                if (r)
-                        return error_fold(r);
-        }
-
-        c_rbtree_for_each_entry(source, &parser.registry.gid_policy_tree, registry_node) {
-                Policy *target;
-
-                r = policy_registry_get_policy_by_gid(registry, &target, (gid_t)source->uid);
-                if (r)
-                        return error_fold(r);
-
-                r = policy_instantiate(target, source);
-                if (r)
-                        return error_fold(r);
-        }
-
-        return 0;
-}
-
 /**
  * listener_init_with_fd() - XXX
  */
-int listener_init_with_fd(Listener *l, Bus *bus, DispatchContext *dispatcher, int socket_fd, const char *policypath) {
+int listener_init_with_fd(Listener *l,
+                          Bus *bus,
+                          DispatchContext *dispatcher,
+                          int socket_fd,
+                          PolicyRegistry *policy) {
         _c_cleanup_(listener_deinitp) Listener *listener = l;
         int r;
 
@@ -159,10 +90,6 @@ int listener_init_with_fd(Listener *l, Bus *bus, DispatchContext *dispatcher, in
                         listener->guid[i] ^= (bus->listener_ids >> (8 * i)) & 0xff;
         }
 
-        r = listener_instantiate_policy_registry(&listener->policy, policypath);
-        if (r)
-                return error_trace(r);
-
         r = dispatch_file_init(&listener->socket_file,
                                dispatcher,
                                listener_dispatch,
@@ -175,6 +102,7 @@ int listener_init_with_fd(Listener *l, Bus *bus, DispatchContext *dispatcher, in
         dispatch_file_select(&listener->socket_file, EPOLLIN);
 
         listener->socket_fd = socket_fd;
+        listener->policy = policy;
         listener = NULL;
         return 0;
 }
@@ -185,7 +113,7 @@ int listener_init_with_fd(Listener *l, Bus *bus, DispatchContext *dispatcher, in
 void listener_deinit(Listener *listener) {
         assert(c_list_is_empty(&listener->peer_list));
 
-        policy_registry_deinit(&listener->policy);
+        policy_registry_free(listener->policy);
         dispatch_file_deinit(&listener->socket_file);
         listener->socket_fd = c_close(listener->socket_fd);
         listener->bus = NULL;

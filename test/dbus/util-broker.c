@@ -48,13 +48,13 @@ static int util_event_sigchld(sd_event_source *source, const siginfo_t *si, void
                         "a(ua(btbs))"                                           \
                         "a(ua(btbs))"                                           \
                 ")("                                                            \
-                        "a(btsssssb)"                                           \
-                        "a(ua(btsssssb))"                                       \
-                        "a(ua(btsssssb))"                                       \
+                        "a(btssssub)"                                           \
+                        "a(ua(btssssub))"                                       \
+                        "a(ua(btssssub))"                                       \
                 ")("                                                            \
-                        "a(btsssssb)"                                           \
-                        "a(ua(btsssssb))"                                       \
-                        "a(ua(btsssssb))"                                       \
+                        "a(btssssub)"                                           \
+                        "a(ua(btssssub))"                                       \
+                        "a(ua(btssssub))"                                       \
                 ")"
 
 void util_fork_broker(sd_bus **busp, sd_event *event, int listener_fd, pid_t *pidp) {
@@ -163,7 +163,7 @@ void util_fork_broker(sd_bus **busp, sd_event *event, int listener_fd, pid_t *pi
                                 r = sd_bus_message_open_container(message, 'a', "(btbs)");
                                 assert(r >= 0);
 
-                                        r = sd_bus_message_append(message, "(btbs)", true, 0, true, "");
+                                        r = sd_bus_message_append(message, "(btbs)", true, 1, true, "");
                                         assert(r >= 0);
 
                                 r = sd_bus_message_close_container(message);
@@ -184,27 +184,27 @@ void util_fork_broker(sd_bus **busp, sd_event *event, int listener_fd, pid_t *pi
                         r = sd_bus_message_close_container(message);
                         assert(r >= 0);
 
-                        r = sd_bus_message_open_container(message, 'r', "a(btsssssb)"
-                                                                        "a(ua(btsssssb))"
-                                                                        "a(ua(btsssssb))");
+                        r = sd_bus_message_open_container(message, 'r', "a(btssssub)"
+                                                                        "a(ua(btssssub))"
+                                                                        "a(ua(btssssub))");
                         assert(r >= 0);
 
-                                r = sd_bus_message_open_container(message, 'a', "(btsssssb)");
+                                r = sd_bus_message_open_container(message, 'a', "(btssssub)");
                                 assert(r >= 0);
 
-                                        r = sd_bus_message_append(message, "(btsssssb)", true, 0, "", "", "", "", "", true);
+                                        r = sd_bus_message_append(message, "(btssssub)", true, 1, "", "", "", "", 0, true);
                                         assert(r >= 0);
 
                                 r = sd_bus_message_close_container(message);
                                 assert(r >= 0);
 
-                                r = sd_bus_message_open_container(message, 'a', "(ua(btsssssb))");
+                                r = sd_bus_message_open_container(message, 'a', "(ua(btssssub))");
                                 assert(r >= 0);
 
                                 r = sd_bus_message_close_container(message);
                                 assert(r >= 0);
 
-                                r = sd_bus_message_open_container(message, 'a', "(ua(btsssssb))");
+                                r = sd_bus_message_open_container(message, 'a', "(ua(btssssub))");
                                 assert(r >= 0);
 
                                 r = sd_bus_message_close_container(message);
@@ -214,27 +214,27 @@ void util_fork_broker(sd_bus **busp, sd_event *event, int listener_fd, pid_t *pi
                         assert(r >= 0);
 
 
-                        r = sd_bus_message_open_container(message, 'r', "a(btsssssb)"
-                                                                        "a(ua(btsssssb))"
-                                                                        "a(ua(btsssssb))");
+                        r = sd_bus_message_open_container(message, 'r', "a(btssssub)"
+                                                                        "a(ua(btssssub))"
+                                                                        "a(ua(btssssub))");
                         assert(r >= 0);
 
-                                r = sd_bus_message_open_container(message, 'a', "(btsssssb)");
+                                r = sd_bus_message_open_container(message, 'a', "(btssssub)");
                                 assert(r >= 0);
 
-                                        r = sd_bus_message_append(message, "(btsssssb)", true, 0, "", "", "", "", "", true);
+                                        r = sd_bus_message_append(message, "(btssssub)", true, 1, "", "", "", "", 0, true);
                                         assert(r >= 0);
 
                                 r = sd_bus_message_close_container(message);
                                 assert(r >= 0);
 
-                                r = sd_bus_message_open_container(message, 'a', "(ua(btsssssb))");
+                                r = sd_bus_message_open_container(message, 'a', "(ua(btssssub))");
                                 assert(r >= 0);
 
                                 r = sd_bus_message_close_container(message);
                                 assert(r >= 0);
 
-                                r = sd_bus_message_open_container(message, 'a', "(ua(btsssssb))");
+                                r = sd_bus_message_open_container(message, 'a', "(ua(btssssub))");
                                 assert(r >= 0);
 
                                 r = sd_bus_message_close_container(message);

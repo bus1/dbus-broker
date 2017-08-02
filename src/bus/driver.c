@@ -600,7 +600,7 @@ static int driver_name_activated(Activation *activation, Peer *receiver) {
                 sender = peer_registry_find_peer(&receiver->bus->peers, message->message->sender_id);
 
                 /* XXX: deal with sender matches on the unique name */
-                r = peer_queue_call(&message->senders_policy, &sender_names, NULL, sender ? &sender->owned_replies : NULL, message->user, message->message->sender_id, receiver, message->message);
+                r = peer_queue_call(message->senders_policy, &sender_names, NULL, sender ? &sender->owned_replies : NULL, message->user, message->message->sender_id, receiver, message->message);
                 if (r) {
                         switch (r) {
                         case PEER_E_QUOTA:
@@ -1545,7 +1545,7 @@ static int driver_dispatch_interface(Peer *peer, uint32_t serial, const char *in
                 /* ignore */
                 return 0;
 
-        r = peer_policy_check_send(&peer->policy, NULL, interface, member, path, message->header->type);
+        r = policy_snapshot_check_send(peer->policy, NULL, interface, member, path, message->header->type);
         if (r) {
                 if (r == POLICY_E_ACCESS_DENIED)
                         return DRIVER_E_SEND_DENIED;
@@ -1635,14 +1635,14 @@ static int driver_forward_unicast(Peer *sender, const char *destination, Message
                 if (!name || !name->activation)
                         return DRIVER_E_DESTINATION_NOT_FOUND;
 
-                r = activation_queue_message(name->activation, sender->user, &sender->owned_names, &sender->policy, message);
+                r = activation_queue_message(name->activation, sender->user, &sender->owned_names, sender->policy, message);
                 if (r)
                         return error_fold(r);
 
                 return 0;
         }
 
-        r = peer_queue_call(&sender->policy, &sender_names, &sender->matches, &sender->owned_replies, sender->user, sender->id, receiver, message);
+        r = peer_queue_call(sender->policy, &sender_names, &sender->matches, &sender->owned_replies, sender->user, sender->id, receiver, message);
         if (r) {
                 if (r == PEER_E_EXPECTED_REPLY_EXISTS)
                         return DRIVER_E_EXPECTED_REPLY_EXISTS;
@@ -1753,7 +1753,7 @@ static int driver_dispatch_internal(Peer *peer, Message *message) {
                 if (message->metadata.header.type == DBUS_MESSAGE_TYPE_SIGNAL) {
                         NameSet sender_names = NAME_SET_INIT_FROM_OWNER(&peer->owned_names);
 
-                        r = peer_broadcast(&peer->policy, &sender_names, &peer->matches, peer->id, NULL, peer->bus, NULL, message);
+                        r = peer_broadcast(peer->policy, &sender_names, &peer->matches, peer->id, NULL, peer->bus, NULL, message);
                         if (r)
                                 return error_fold(r);
 

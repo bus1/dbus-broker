@@ -9,6 +9,7 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include "broker/controller.h"
+#include "bus/policy.h"
 #include "dbus/connection.h"
 #include "dbus/message.h"
 #include "dbus/protocol.h"
@@ -205,14 +206,23 @@ static int controller_method_add_name(Controller *controller, const char *_path,
 }
 
 static int controller_method_add_listener(Controller *controller, const char *_path, CDVar *in_v, FDList *fds, CDVar *out_v) {
+        _c_cleanup_(policy_registry_freep) PolicyRegistry *policy = NULL;
         const char *path, *policy_path;
         ControllerListener *listener;
         int r, listener_fd, v1, v2;
         uint32_t fd_index;
         socklen_t n;
 
+        r = policy_registry_new(&policy);
+        if (r)
+                return error_fold(r);
+
         c_dvar_read(in_v, "(ohs", &path, &fd_index, &policy_path);
-        c_dvar_skip(in_v, "*");
+
+        r = policy_registry_import(policy, in_v);
+        if (r)
+                return (r == POLICY_E_INVALID) ? CONTROLLER_E_LISTENER_INVALID_POLICY : error_fold(r);
+
         c_dvar_read(in_v, ")");
 
         r = controller_end_read(in_v);
@@ -236,10 +246,11 @@ static int controller_method_add_listener(Controller *controller, const char *_p
         if (v1 != AF_UNIX || v2 != SOCK_STREAM)
                 return CONTROLLER_E_LISTENER_INVALID_FD;
 
-        r = controller_add_listener(controller, &listener, path, listener_fd, policy_path);
+        r = controller_add_listener(controller, &listener, path, listener_fd, policy);
         if (r)
                 return error_trace(r);
 
+        policy = NULL;
         fdlist_steal(fds, fd_index);
 
         c_dvar_write(out_v, "()");

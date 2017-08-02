@@ -9,6 +9,7 @@
 #include "broker/controller.h"
 #include "bus/activation.h"
 #include "bus/bus.h"
+#include "bus/policy.h"
 #include "dbus/connection.h"
 #include "dbus/message.h"
 #include "util/error.h"
@@ -230,7 +231,7 @@ int controller_add_listener(Controller *controller,
                             ControllerListener **listenerp,
                             const char *path,
                             int listener_fd,
-                            const char *policy_path) {
+                            PolicyRegistry *policy) {
         _c_cleanup_(controller_listener_freep) ControllerListener *listener = NULL;
         int r;
 
@@ -242,7 +243,7 @@ int controller_add_listener(Controller *controller,
                                   &controller->broker->bus,
                                   &controller->broker->dispatcher,
                                   listener_fd,
-                                  policy_path);
+                                  policy);
         if (r)
                 return error_fold(r);
 

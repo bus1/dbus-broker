@@ -15,6 +15,7 @@
 #include "bus/match.h"
 #include "bus/name.h"
 #include "bus/peer.h"
+#include "bus/policy.h"
 #include "bus/reply.h"
 #include "dbus/address.h"
 #include "dbus/message.h"
@@ -322,7 +323,6 @@ int peer_new_with_fd(Peer **peerp,
         peer->charges[0] = (UserCharge)USER_CHARGE_INIT;
         peer->charges[1] = (UserCharge)USER_CHARGE_INIT;
         peer->charges[2] = (UserCharge)USER_CHARGE_INIT;
-        peer->policy = (PeerPolicy)PEER_POLICY_INIT;
         peer->owned_names = (NameOwner)NAME_OWNER_INIT;
         peer->matches = (MatchRegistry)MATCH_REGISTRY_INIT(peer->matches);
         peer->owned_matches = (MatchOwner)MATCH_OWNER_INIT;
@@ -339,13 +339,13 @@ int peer_new_with_fd(Peer **peerp,
                 return error_fold(r);
         }
 
-        r = peer_policy_instantiate(&peer->policy, policy, ucred.uid, gids, n_gids);
-        if (r) {
-                if (r == POLICY_E_ACCESS_DENIED)
-                        return PEER_E_CONNECTION_REFUSED;
-
+        r = policy_snapshot_new(&peer->policy, policy, ucred.uid, gids, n_gids);
+        if (r)
                 return error_fold(r);
-        }
+
+        r = policy_snapshot_check_connect(peer->policy);
+        if (r)
+                return (r == POLICY_E_ACCESS_DENIED) ? PEER_E_CONNECTION_REFUSED : error_fold(r);
 
         r = connection_init_server(&peer->connection,
                                    dispatcher,
@@ -386,7 +386,7 @@ Peer *peer_free(Peer *peer) {
         match_owner_deinit(&peer->owned_matches);
         match_registry_deinit(&peer->matches);
         name_owner_deinit(&peer->owned_names);
-        peer_policy_deinit(&peer->policy);
+        policy_snapshot_free(peer->policy);
         connection_deinit(&peer->connection);
         user_unref(peer->user);
         user_charge_deinit(&peer->charges[2]);
@@ -439,7 +439,7 @@ int peer_request_name(Peer *peer, const char *name, uint32_t flags, NameChange *
 
         /* XXX: refuse invalid names */
 
-        r = peer_policy_check_own(&peer->policy, name);
+        r = policy_snapshot_check_own(peer->policy, name);
         if (r) {
                 if (r == POLICY_E_ACCESS_DENIED)
                         return PEER_E_NAME_REFUSED;
@@ -655,7 +655,7 @@ void peer_flush_matches(Peer *peer) {
         }
 }
 
-int peer_queue_call(PeerPolicy *sender_policy, NameSet *sender_names, MatchRegistry *sender_matches, ReplyOwner *sender_replies, User *sender_user, uint64_t sender_id, Peer *receiver, Message *message) {
+int peer_queue_call(PolicySnapshot *sender_policy, NameSet *sender_names, MatchRegistry *sender_matches, ReplyOwner *sender_replies, User *sender_user, uint64_t sender_id, Peer *receiver, Message *message) {
         _c_cleanup_(reply_slot_freep) ReplySlot *slot = NULL;
         NameSet receiver_names = NAME_SET_INIT_FROM_OWNER(&receiver->owned_names);
         int r;
@@ -673,9 +673,12 @@ int peer_queue_call(PeerPolicy *sender_policy, NameSet *sender_names, MatchRegis
                         return error_fold(r);
         }
 
-        r = peer_policy_check_receive(&receiver->policy, sender_names,
-                                      message->metadata.fields.interface, message->metadata.fields.member,
-                                      message->metadata.fields.path, message->header->type);
+        r = policy_snapshot_check_receive(receiver->policy,
+                                          sender_names,
+                                          message->metadata.fields.interface,
+                                          message->metadata.fields.member,
+                                          message->metadata.fields.path,
+                                          message->header->type);
         if (r) {
                 if (r == POLICY_E_ACCESS_DENIED)
                         return PEER_E_RECEIVE_DENIED;
@@ -683,9 +686,12 @@ int peer_queue_call(PeerPolicy *sender_policy, NameSet *sender_names, MatchRegis
                 return error_fold(r);
         }
 
-        r = peer_policy_check_send(sender_policy, &receiver_names,
-                                   message->metadata.fields.interface, message->metadata.fields.member,
-                                   message->metadata.fields.path, message->header->type);
+        r = policy_snapshot_check_send(sender_policy,
+                                       &receiver_names,
+                                       message->metadata.fields.interface,
+                                       message->metadata.fields.member,
+                                       message->metadata.fields.path,
+                                       message->header->type);
         if (r) {
                 if (r == POLICY_E_ACCESS_DENIED)
                         return PEER_E_SEND_DENIED;
@@ -736,7 +742,7 @@ int peer_queue_reply(Peer *sender, const char *destination, uint32_t reply_seria
         }
 
         /* for eavesdropping */
-        r = peer_broadcast(&sender->policy, &sender_names, &sender->matches, sender->id, receiver, sender->bus, NULL, message);
+        r = peer_broadcast(sender->policy, &sender_names, &sender->matches, sender->id, receiver, sender->bus, NULL, message);
         if (r)
                 return error_trace(r);
 
@@ -744,7 +750,7 @@ int peer_queue_reply(Peer *sender, const char *destination, uint32_t reply_seria
         return 0;
 }
 
-static int peer_broadcast_to_matches(PeerPolicy *sender_policy, NameSet *sender_names, MatchRegistry *matches, MatchFilter *filter, uint64_t transaction_id, Message *message) {
+static int peer_broadcast_to_matches(PolicySnapshot *sender_policy, NameSet *sender_names, MatchRegistry *matches, MatchFilter *filter, uint64_t transaction_id, Message *message) {
         MatchRule *rule;
         int r;
 
@@ -761,9 +767,12 @@ static int peer_broadcast_to_matches(PeerPolicy *sender_policy, NameSet *sender_
                 receiver->transaction_id = c_max(transaction_id, receiver->transaction_id);
 
                 if (sender_policy) {
-                        r = peer_policy_check_send(sender_policy, &receiver_names,
-                                                   message->metadata.fields.interface, message->metadata.fields.member,
-                                                   message->metadata.fields.path, message->header->type);
+                        r = policy_snapshot_check_send(sender_policy,
+                                                       &receiver_names,
+                                                       message->metadata.fields.interface,
+                                                       message->metadata.fields.member,
+                                                       message->metadata.fields.path,
+                                                       message->header->type);
                         if (r) {
                                 if (r == POLICY_E_ACCESS_DENIED)
                                         continue;
@@ -772,9 +781,12 @@ static int peer_broadcast_to_matches(PeerPolicy *sender_policy, NameSet *sender_
                         }
                 }
 
-                r = peer_policy_check_receive(&receiver->policy, sender_names,
-                                              message->metadata.fields.interface, message->metadata.fields.member,
-                                              message->metadata.fields.path, message->header->type);
+                r = policy_snapshot_check_receive(receiver->policy,
+                                                  sender_names,
+                                                  message->metadata.fields.interface,
+                                                  message->metadata.fields.member,
+                                                  message->metadata.fields.path,
+                                                  message->header->type);
                 if (r) {
                         if (r == POLICY_E_ACCESS_DENIED)
                                 continue;
@@ -794,7 +806,7 @@ static int peer_broadcast_to_matches(PeerPolicy *sender_policy, NameSet *sender_
         return 0;
 }
 
-int peer_broadcast(PeerPolicy *sender_policy, NameSet *sender_names, MatchRegistry *sender_matches, uint64_t sender_id, Peer *destination, Bus *bus, MatchFilter *filter, Message *message) {
+int peer_broadcast(PolicySnapshot *sender_policy, NameSet *sender_names, MatchRegistry *sender_matches, uint64_t sender_id, Peer *destination, Bus *bus, MatchFilter *filter, Message *message) {
         MatchFilter fallback_filter = MATCH_FILTER_INIT;
         int r;
 

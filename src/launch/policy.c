@@ -211,7 +211,7 @@ static int policy_import_connect_self(Policy *policy) {
                 return error_trace(r);
 
         record->verdict = true;
-        record->priority = 0;
+        record->priority = ++policy->i_priority;
 
         r = policy_import_link(
                         policy,

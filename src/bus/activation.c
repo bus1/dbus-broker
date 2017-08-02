@@ -5,9 +5,10 @@
 #include <c-list.h>
 #include <c-macro.h>
 #include <stdlib.h>
-#include "activation.h"
 #include "broker/controller.h"
+#include "bus/activation.h"
 #include "bus/name.h"
+#include "bus/policy.h"
 #include "dbus/message.h"
 #include "util/error.h"
 #include "util/fdlist.h"
@@ -31,7 +32,7 @@ ActivationMessage *activation_message_free(ActivationMessage *message) {
                 return NULL;
 
         name_snapshot_free(message->senders_names);
-        peer_policy_deinit(&message->senders_policy);
+        policy_snapshot_free(message->senders_policy);
         message_unref(message->message);
         c_list_unlink_init(&message->link);
         user_charge_deinit(&message->charges[1]);
@@ -108,7 +109,11 @@ int activation_flush(Activation *activation) {
         return 0;
 }
 
-int activation_queue_message(Activation *activation, User *user, NameOwner *names, PeerPolicy *policy, Message *m) {
+int activation_queue_message(Activation *activation,
+                             User *user,
+                             NameOwner *names,
+                             PolicySnapshot *policy,
+                             Message *m) {
         _c_cleanup_(activation_message_freep) ActivationMessage *message = NULL;
         int r;
 
@@ -125,8 +130,6 @@ int activation_queue_message(Activation *activation, User *user, NameOwner *name
         message->charges[1] = (UserCharge)USER_CHARGE_INIT;
         message->link = (CList)C_LIST_INIT(message->link);
         message->message = message_ref(m);
-        message->senders_policy = (PeerPolicy)PEER_POLICY_INIT;
-        message->senders_names = NULL;
 
         r = user_charge(activation->user, &message->charges[0], user, USER_SLOT_BYTES,
                         sizeof(ActivationMessage) + sizeof(Message) + m->n_data);
@@ -135,7 +138,7 @@ int activation_queue_message(Activation *activation, User *user, NameOwner *name
         if (r)
                 return (r == USER_E_QUOTA) ? ACTIVATION_E_QUOTA : error_fold(r);
 
-        r = peer_policy_copy(&message->senders_policy, policy);
+        r = policy_snapshot_dup(policy, &message->senders_policy);
         if (r)
                 return error_fold(r);
 

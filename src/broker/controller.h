@@ -10,6 +10,7 @@
 #include <sys/types.h>
 #include "bus/activation.h"
 #include "bus/listener.h"
+#include "bus/policy.h"
 #include "dbus/connection.h"
 
 typedef struct Broker Broker;
@@ -100,7 +101,7 @@ int controller_add_listener(Controller *controller,
                             ControllerListener **listenerp,
                             const char *path,
                             int listener_fd,
-                            const char *policy_path);
+                            PolicyRegistry *policy);
 ControllerName *controller_find_name(Controller *controller, const char *path);
 ControllerListener *controller_find_listener(Controller *controller, const char *path);
 

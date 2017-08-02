@@ -19,7 +19,6 @@ libdbus_broker_sources = [
         'dbus/queue.c',
         'dbus/sasl.c',
         'dbus/socket.c',
-        'launch/policy-parser.c', # XXX: drop once pre-parsed
         'util/error.c',
         'util/dispatch.c',
         'util/fdlist.c',
@@ -142,9 +141,6 @@ test('D-Bus Message Abstraction', test_message)
 
 test_name = executable('test-name', ['bus/test-name.c'], dependencies: libdbus_broker_dep)
 test('Name Registry', test_name)
-
-test_policy_parser = executable('test-policy-parser', ['launch/test-policy-parser.c', 'launch/policy-parser.c'], dependencies: libdbus_broker_dep)
-test('Policy Database Parser', test_policy_parser)
 
 test_queue = executable('test-queue', ['dbus/test-queue.c'], dependencies: libdbus_broker_dep)
 test('D-Bus I/O Queues', test_queue)
