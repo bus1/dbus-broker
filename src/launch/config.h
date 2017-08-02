@@ -145,8 +145,8 @@ struct ConfigNode {
                         char *own_prefix;
                         uint32_t uid;
                         uint32_t gid;
-                        bool send_requested_reply : 1;
-                        bool recv_requested_reply : 1;
+                        unsigned int send_requested_reply : 2;
+                        unsigned int recv_requested_reply : 2;
                         unsigned int eavesdrop : 2;
                         bool user : 1;
                         bool group : 1;

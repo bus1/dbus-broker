@@ -513,16 +513,16 @@ static int config_parser_attrs_allow_deny(ConfigState *state, ConfigNode *node, 
                         }
                 } else if (!strcmp(k, "send_requested_reply")) {
                         if (!strcmp(v, "true"))
-                                node->allow_deny.send_requested_reply = true;
+                                node->allow_deny.send_requested_reply = CONFIG_TRISTATE_YES;
                         else if (!strcmp(v, "false"))
-                                node->allow_deny.send_requested_reply = false;
+                                node->allow_deny.send_requested_reply = CONFIG_TRISTATE_NO;
                         else
                                 CONFIG_ERR(state, "Invalid value", ": %s=\"%s\"", k, v);
                 } else if (!strcmp(k, "receive_requested_reply")) {
                         if (!strcmp(v, "true"))
-                                node->allow_deny.recv_requested_reply = true;
+                                node->allow_deny.recv_requested_reply = CONFIG_TRISTATE_YES;
                         else if (!strcmp(v, "false"))
-                                node->allow_deny.recv_requested_reply = false;
+                                node->allow_deny.recv_requested_reply = CONFIG_TRISTATE_NO;
                         else
                                 CONFIG_ERR(state, "Invalid value", ": %s=\"%s\"", k, v);
                 } else if (!strcmp(k, "eavesdrop")) {
