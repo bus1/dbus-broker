@@ -128,13 +128,13 @@ struct ConfigNode {
                         char *send_error;
                         char *send_destination;
                         char *send_path;
-                        char *send_type;
+                        unsigned int send_type;
                         char *recv_interface;
                         char *recv_member;
                         char *recv_error;
                         char *recv_sender;
                         char *recv_path;
-                        char *recv_type;
+                        unsigned int recv_type;
                         char *own;
                         char *own_prefix;
                         uint32_t uid;

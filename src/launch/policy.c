@@ -732,13 +732,13 @@ static int policy_export_xmit_default(CList *list, sd_bus_message *m) {
         PolicyRecord *i_record;
         int r;
 
-        r = sd_bus_message_open_container(m, 'a', "(btsssssb)");
+        r = sd_bus_message_open_container(m, 'a', "(btssssub)");
         if (r < 0)
                 return error_origin(r);
 
         c_list_for_each_entry(i_record, list, link) {
                 r = sd_bus_message_append(m,
-                                          "(btsssssb)",
+                                          "(btssssub)",
                                           i_record->verdict,
                                           i_record->priority,
                                           i_record->xmit.name,
@@ -763,12 +763,12 @@ static int policy_export_xmit_uidgid(PolicyMap *map, sd_bus_message *m) {
         PolicyMapNode *i_node;
         int r;
 
-        r = sd_bus_message_open_container(m, 'a', "(ua(btsssssb))");
+        r = sd_bus_message_open_container(m, 'a', "(ua(btssssub))");
         if (r < 0)
                 return error_origin(r);
 
         c_list_for_each_entry(i_node, &map->node_list, map_link) {
-                r = sd_bus_message_open_container(m, 'r', "ua(btsssssb)");
+                r = sd_bus_message_open_container(m, 'r', "ua(btssssub)");
                 if (r < 0)
                         return error_origin(r);
 
@@ -776,13 +776,13 @@ static int policy_export_xmit_uidgid(PolicyMap *map, sd_bus_message *m) {
                 if (r < 0)
                         return error_origin(r);
 
-                r = sd_bus_message_open_container(m, 'a', "(btsssssb)");
+                r = sd_bus_message_open_container(m, 'a', "(btssssub)");
                 if (r < 0)
                         return error_origin(r);
 
                 c_list_for_each_entry(i_record, &i_node->record_list, link) {
                         r = sd_bus_message_append(m,
-                                                  "(btsssssb)",
+                                                  "(btssssub)",
                                                   i_record->verdict,
                                                   i_record->priority,
                                                   i_record->xmit.name,
@@ -820,13 +820,13 @@ static int policy_export_xmit_uidgid(PolicyMap *map, sd_bus_message *m) {
                         "a(ua(btbs))"                                           \
                         "a(ua(btbs))"                                           \
                 ")("                                                            \
-                        "a(btsssssb)"                                           \
-                        "a(ua(btsssssb))"                                       \
-                        "a(ua(btsssssb))"                                       \
+                        "a(btssssub)"                                           \
+                        "a(ua(btssssub))"                                       \
+                        "a(ua(btssssub))"                                       \
                 ")("                                                            \
-                        "a(btsssssb)"                                           \
-                        "a(ua(btsssssb))"                                       \
-                        "a(ua(btsssssb))"                                       \
+                        "a(btssssub)"                                           \
+                        "a(ua(btssssub))"                                       \
+                        "a(ua(btssssub))"                                       \
                 ")"
 
 /**
@@ -878,9 +878,9 @@ int policy_export(Policy *policy, sd_bus_message *m) {
                 return error_origin(r);
 
         r = sd_bus_message_open_container(m, 'r',
-                                                "a(btsssssb)"
-                                                "a(ua(btsssssb))"
-                                                "a(ua(btsssssb))");
+                                                "a(btssssub)"
+                                                "a(ua(btssssub))"
+                                                "a(ua(btssssub))");
         if (r < 0)
                 return error_origin(r);
 
@@ -895,9 +895,9 @@ int policy_export(Policy *policy, sd_bus_message *m) {
                 return error_origin(r);
 
         r = sd_bus_message_open_container(m, 'r',
-                                                "a(btsssssb)"
-                                                "a(ua(btsssssb))"
-                                                "a(ua(btsssssb))");
+                                                "a(btssssub)"
+                                                "a(ua(btssssub))"
+                                                "a(ua(btssssub))");
         if (r < 0)
                 return error_origin(r);
 

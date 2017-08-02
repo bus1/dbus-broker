@@ -8,6 +8,7 @@
 #include <grp.h>
 #include <pwd.h>
 #include <stdlib.h>
+#include "dbus/protocol.h"
 #include "launch/config.h"
 #include "util/error.h"
 
@@ -147,13 +148,11 @@ ConfigNode *config_node_free(ConfigNode *node) {
                 free(node->allow_deny.send_error);
                 free(node->allow_deny.send_destination);
                 free(node->allow_deny.send_path);
-                free(node->allow_deny.send_type);
                 free(node->allow_deny.recv_interface);
                 free(node->allow_deny.recv_member);
                 free(node->allow_deny.recv_error);
                 free(node->allow_deny.recv_sender);
                 free(node->allow_deny.recv_path);
-                free(node->allow_deny.recv_type);
                 free(node->allow_deny.own);
                 free(node->allow_deny.own_prefix);
                 break;
@@ -410,12 +409,16 @@ static int config_parser_attrs_allow_deny(ConfigState *state, ConfigNode *node, 
                         free(node->allow_deny.send_path);
                         node->allow_deny.send_path = t;
                 } else if (!strcmp(k, "send_type")) {
-                        t = strdup(v);
-                        if (!t)
-                                return error_origin(-ENOMEM);
-
-                        free(node->allow_deny.send_type);
-                        node->allow_deny.send_type = t;
+                        if (!strcmp(v, "method_call"))
+                                node->allow_deny.send_type = DBUS_MESSAGE_TYPE_METHOD_CALL;
+                        else if (!strcmp(v, "method_return"))
+                                node->allow_deny.send_type = DBUS_MESSAGE_TYPE_METHOD_RETURN;
+                        else if (!strcmp(v, "signal"))
+                                node->allow_deny.send_type = DBUS_MESSAGE_TYPE_SIGNAL;
+                        else if (!strcmp(v, "error"))
+                                node->allow_deny.send_type = DBUS_MESSAGE_TYPE_ERROR;
+                        else
+                                CONFIG_ERR(state, "Invalid value", ": %s=\"%s\"", k, v);
                 } else if (!strcmp(k, "receive_interface")) {
                         t = strdup(v);
                         if (!t)
@@ -452,12 +455,16 @@ static int config_parser_attrs_allow_deny(ConfigState *state, ConfigNode *node, 
                         free(node->allow_deny.recv_path);
                         node->allow_deny.recv_path = t;
                 } else if (!strcmp(k, "receive_type")) {
-                        t = strdup(v);
-                        if (!t)
-                                return error_origin(-ENOMEM);
-
-                        free(node->allow_deny.recv_type);
-                        node->allow_deny.recv_type = t;
+                        if (!strcmp(v, "method_call"))
+                                node->allow_deny.recv_type = DBUS_MESSAGE_TYPE_METHOD_CALL;
+                        else if (!strcmp(v, "method_return"))
+                                node->allow_deny.recv_type = DBUS_MESSAGE_TYPE_METHOD_RETURN;
+                        else if (!strcmp(v, "signal"))
+                                node->allow_deny.recv_type = DBUS_MESSAGE_TYPE_SIGNAL;
+                        else if (!strcmp(v, "error"))
+                                node->allow_deny.recv_type = DBUS_MESSAGE_TYPE_ERROR;
+                        else
+                                CONFIG_ERR(state, "Invalid value", ": %s=\"%s\"", k, v);
                 } else if (!strcmp(k, "own")) {
                         t = strdup(v);
                         if (!t)
