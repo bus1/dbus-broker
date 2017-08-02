@@ -273,7 +273,9 @@ static int policy_import_connect(Policy *policy, ConfigNode *cnode) {
                         record,
                         cnode->allow_deny.user ?
                                 &policy->connect_uid :
-                                &policy->connect_gid,
+                                cnode->allow_deny.group ?
+                                        &policy->connect_gid :
+                                        NULL,
                         &policy->connect_default,
                         cnode->allow_deny.user ?
                                 cnode->allow_deny.uid :
@@ -341,7 +343,9 @@ static int policy_import_own(Policy *policy, ConfigNode *cnode) {
                         record,
                         cnode->parent->policy.context == CONFIG_POLICY_USER ?
                                 &policy->own_uid :
-                                &policy->own_gid,
+                                cnode->parent->policy.context == CONFIG_POLICY_GROUP ?
+                                        &policy->own_gid :
+                                        NULL,
                         &policy->own_default,
                         (cnode->parent->policy.context == CONFIG_POLICY_USER ||
                          cnode->parent->policy.context == CONFIG_POLICY_GROUP) ?
@@ -401,7 +405,9 @@ static int policy_import_send(Policy *policy, ConfigNode *cnode) {
                         record,
                         cnode->parent->policy.context == CONFIG_POLICY_USER ?
                                 &policy->send_uid :
-                                &policy->send_gid,
+                                cnode->parent->policy.context == CONFIG_POLICY_GROUP ?
+                                        &policy->send_gid :
+                                        NULL,
                         &policy->send_default,
                         (cnode->parent->policy.context == CONFIG_POLICY_USER ||
                          cnode->parent->policy.context == CONFIG_POLICY_GROUP) ?
@@ -461,7 +467,9 @@ static int policy_import_recv(Policy *policy, ConfigNode *cnode) {
                         record,
                         cnode->parent->policy.context == CONFIG_POLICY_USER ?
                                 &policy->recv_uid :
-                                &policy->recv_gid,
+                                cnode->parent->policy.context == CONFIG_POLICY_GROUP ?
+                                        &policy->recv_gid :
+                                        NULL,
                         &policy->recv_default,
                         (cnode->parent->policy.context == CONFIG_POLICY_USER ||
                          cnode->parent->policy.context == CONFIG_POLICY_GROUP) ?
