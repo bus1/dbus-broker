@@ -477,28 +477,11 @@ static MatchRule *match_rule_next_match_internal(CList *rules, MatchRule *rule, 
         return NULL;
 }
 
-static MatchRule *match_rule_next(MatchRegistry *registry, MatchRule *rule, bool unicast) {
-        if (!rule) {
-                if (unicast)
-                        return NULL;
-
-                return c_list_first_entry(&registry->rule_list, MatchRule, registry_link);
-        } else {
-                if (rule != c_list_last_entry(&registry->rule_list, MatchRule, registry_link))
-                        return c_list_entry(rule->registry_link.next, MatchRule, registry_link);
-        }
-
-        return NULL;
-}
-
 MatchRule *match_rule_next_match(MatchRegistry *registry, MatchRule *rule, MatchFilter *filter) {
-        bool unicast = filter->destination != ADDRESS_ID_INVALID;
+        if (filter->destination != ADDRESS_ID_INVALID)
+                return NULL;
 
-        for (rule = match_rule_next(registry, rule, unicast); rule; rule = match_rule_next(registry, rule, unicast))
-                if (match_keys_match_filter(&rule->keys, filter))
-                        return rule;
-
-        return NULL;
+        return match_rule_next_match_internal(&registry->rule_list, rule, filter);
 }
 
 MatchRule *match_rule_next_monitor_match(MatchRegistry *registry, MatchRule *rule, MatchFilter *filter) {
