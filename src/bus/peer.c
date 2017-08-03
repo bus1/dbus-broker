@@ -703,18 +703,12 @@ int peer_queue_call(PolicySnapshot *sender_policy, NameSet *sender_names, MatchR
                         return error_fold(r);
         }
 
-        /* for eavesdropping */
-        r = peer_broadcast(sender_policy, sender_names, sender_matches, sender_id, receiver, receiver->bus, NULL, message);
-        if (r)
-                return error_trace(r);
-
         slot = NULL;
         return 0;
 }
 
 int peer_queue_reply(Peer *sender, const char *destination, uint32_t reply_serial, Message *message) {
         _c_cleanup_(reply_slot_freep) ReplySlot *slot = NULL;
-        NameSet sender_names = NAME_SET_INIT_FROM_OWNER(&sender->owned_names);
         Peer *receiver;
         Address addr;
         int r;
@@ -736,12 +730,6 @@ int peer_queue_reply(Peer *sender, const char *destination, uint32_t reply_seria
                 else
                         return error_fold(r);
         }
-
-        /* for eavesdropping */
-        r = peer_broadcast(sender->policy, &sender_names, &sender->matches, sender->id, receiver, sender->bus, NULL, message);
-        if (r)
-                return error_trace(r);
-
 
         return 0;
 }

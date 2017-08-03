@@ -290,7 +290,7 @@ static const char *driver_error_to_string(int r) {
         return error_strings[r];
 }
 
-static int driver_send_unicast(Peer *receiver, MatchFilter *filter, Message *message) {
+static int driver_send_unicast(Peer *receiver, Message *message) {
         int r;
 
         /* XXX: handle quota */
@@ -298,21 +298,10 @@ static int driver_send_unicast(Peer *receiver, MatchFilter *filter, Message *mes
         if (r)
                 return error_fold(r);
 
-        /* for eavesdropping */
-        r = peer_broadcast(NULL, NULL, NULL, ADDRESS_ID_INVALID, receiver, receiver->bus, filter, message);
-        if (r)
-                return error_fold(r);
-
         return 0;
 }
 
 static int driver_send_error(Peer *receiver, uint32_t serial, const char *error, const char *error_message) {
-        MatchFilter filter = {
-                .type = DBUS_MESSAGE_TYPE_ERROR,
-                .destination = receiver->id,
-                .args[0] = error_message,
-                .argpaths[0] = error_message,
-        };
         static const CDVarType type[] = {
                 C_DVAR_T_INIT(
                         DRIVER_T_MESSAGE(
@@ -347,7 +336,7 @@ static int driver_send_error(Peer *receiver, uint32_t serial, const char *error,
         if (r)
                 return error_fold(r);
 
-        r = driver_send_unicast(receiver, &filter, message);
+        r = driver_send_unicast(receiver, message);
         if (r)
                 return error_trace(r);
 
@@ -355,12 +344,6 @@ static int driver_send_error(Peer *receiver, uint32_t serial, const char *error,
 }
 
 static int driver_send_reply(Peer *peer, CDVar *var, const char *arg0) {
-        MatchFilter filter = {
-                .type = DBUS_MESSAGE_TYPE_METHOD_RETURN,
-                .destination = peer->id,
-                .args[0] = arg0,
-                .argpaths[0] = arg0,
-        };
         _c_cleanup_(message_unrefp) Message *message = NULL;
         void *data;
         size_t n_data;
@@ -383,7 +366,7 @@ static int driver_send_reply(Peer *peer, CDVar *var, const char *arg0) {
         if (r)
                 return error_fold(r);
 
-        r = driver_send_unicast(peer, &filter, message);
+        r = driver_send_unicast(peer, message);
         if (r)
                 return error_trace(r);
 
@@ -391,15 +374,6 @@ static int driver_send_reply(Peer *peer, CDVar *var, const char *arg0) {
 }
 
 static int driver_notify_name_acquired(Peer *peer, const char *name) {
-        MatchFilter filter = {
-                .type = DBUS_MESSAGE_TYPE_SIGNAL,
-                .destination = peer->id,
-                .interface = "org.freedesktop.DBus",
-                .member = "NameAcquired",
-                .path = "/org/freedesktop/DBus",
-                .args[0] = name,
-                .argpaths[0] = name,
-        };
         static const CDVarType type[] = {
                 C_DVAR_T_INIT(
                         DRIVER_T_MESSAGE(
@@ -428,7 +402,7 @@ static int driver_notify_name_acquired(Peer *peer, const char *name) {
         if (r)
                 return error_fold(r);
 
-        r = driver_send_unicast(peer, &filter, message);
+        r = driver_send_unicast(peer, message);
         if (r)
                 return error_trace(r);
 
@@ -436,15 +410,6 @@ static int driver_notify_name_acquired(Peer *peer, const char *name) {
 }
 
 static int driver_notify_name_lost(Peer *peer, const char *name) {
-        MatchFilter filter = {
-                .type = DBUS_MESSAGE_TYPE_SIGNAL,
-                .destination = peer->id,
-                .interface = "org.freedesktop.DBus",
-                .member = "NameLost",
-                .path = "/org/freedesktop/DBus",
-                .args[0] = name,
-                .argpaths[0] = name,
-        };
         static const CDVarType type[] = {
                 C_DVAR_T_INIT(
                         DRIVER_T_MESSAGE(
@@ -473,7 +438,7 @@ static int driver_notify_name_lost(Peer *peer, const char *name) {
         if (r)
                 return error_fold(r);
 
-        r = driver_send_unicast(peer, &filter, message);
+        r = driver_send_unicast(peer, message);
         if (r)
                 return error_trace(r);
 
