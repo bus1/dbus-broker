@@ -65,13 +65,6 @@ static int match_keys_assign(MatchKeys *keys, const char *key, size_t n_key, con
                 if (keys->path_namespace || keys->filter.path)
                         return MATCH_E_INVALID;
                 keys->path_namespace = value;
-        } else if (match_key_equal("eavesdrop", key, n_key)) {
-                if (strcmp(value, "true") == 0)
-                        keys->eavesdrop = true;
-                else if (strcmp(value, "false") == 0)
-                        keys->eavesdrop = false;
-                else
-                        return MATCH_E_INVALID;
         } else if (match_key_equal("arg0namespace", key, n_key)) {
                 if (keys->arg0namespace || keys->filter.args[0] || keys->filter.argpaths[0])
                         return MATCH_E_INVALID;

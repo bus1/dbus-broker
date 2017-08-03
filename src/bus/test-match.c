@@ -81,15 +81,6 @@ static void test_wildcard(MatchOwner *owner) {
         assert(test_validity(owner, "\n="));
 }
 
-static void test_eavesdrop(MatchOwner *owner, const char *match, bool eavesdrop) {
-        _c_cleanup_(match_rule_user_unrefp) MatchRule *rule = NULL;
-        int r;
-
-        r = match_owner_ref_rule(owner, &rule, NULL, match);
-        assert(r == 0);
-        assert(rule->keys.eavesdrop == eavesdrop);
-}
-
 static void test_validate_keys(MatchOwner *owner) {
         assert(!test_validity(owner, "foo=bar"));
         assert(test_validity(owner, "type=signal"));
@@ -121,11 +112,6 @@ static void test_validate_keys(MatchOwner *owner) {
         assert(test_validity(owner, "arg0namespace=foo"));
         assert(!test_validity(owner, "arg1namespace=foo"));
         assert(!test_validity(owner, "arg0namespace=foo,arg0namespace=foo"));
-        test_eavesdrop(owner, "", false);
-        test_eavesdrop(owner, "eavesdrop=true", true);
-        test_eavesdrop(owner, "eavesdrop=false", false);
-        test_eavesdrop(owner, "eavesdrop=false,eavesdrop=true", true); /* allows overriding */
-        test_eavesdrop(owner, "eavesdrop=true,eavesdrop=false", false);
 }
 
 static bool test_match(const char *match_string, MatchFilter *filter) {
@@ -170,9 +156,7 @@ static void test_individual_matches(void) {
         filter.destination = 0;
         assert(!test_match("", &filter));
         assert(!test_match("destination=:1.0", &filter));
-        assert(test_match("eavesdrop=true", &filter));
-        assert(test_match("destination=:1.0,eavesdrop=true", &filter));
-        assert(!test_match("destination=:1.1,eavesdrop=true", &filter));
+        assert(!test_match("destination=:1.1", &filter));
 
         /* interface */
         filter = (MatchFilter)MATCH_FILTER_INIT;
@@ -267,7 +251,7 @@ static void test_iterator(void) {
         match_owner_init(&owner1);
         match_owner_init(&owner2);
 
-        r = match_owner_ref_rule(&owner1, &rule1, NULL, "eavesdrop=true");
+        r = match_owner_ref_rule(&owner1, &rule1, NULL, "");
         assert(!r);
 
         match_rule_link(rule1, &registry, false);
@@ -277,7 +261,7 @@ static void test_iterator(void) {
 
         match_rule_link(rule2, &registry, false);
 
-        r = match_owner_ref_rule(&owner2, &rule3, NULL, "eavesdrop=true");
+        r = match_owner_ref_rule(&owner2, &rule3, NULL, "");
         assert(!r);
 
         match_rule_link(rule3, &registry, false);
@@ -292,12 +276,6 @@ static void test_iterator(void) {
 
         rule = match_rule_next_match(&registry, rule, &filter);
         assert(rule == rule3);
-
-        rule = match_rule_next_match(&registry, rule, &filter);
-        assert(rule == rule2);
-
-        rule = match_rule_next_match(&registry, rule, &filter);
-        assert(rule == rule4);
 
         rule = match_rule_next_match(&registry, rule, &filter);
         assert(!rule);
