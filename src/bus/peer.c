@@ -560,7 +560,7 @@ static int peer_link_match(Peer *peer, MatchRule *rule, bool monitor) {
         return 0;
 }
 
-int peer_add_match(Peer *peer, const char *rule_string, bool force_eavesdrop) {
+int peer_add_match(Peer *peer, const char *rule_string) {
         _c_cleanup_(match_rule_user_unrefp) MatchRule *rule = NULL;
         int r;
 
@@ -573,9 +573,6 @@ int peer_add_match(Peer *peer, const char *rule_string, bool force_eavesdrop) {
                 else
                         return error_fold(r);
         }
-
-        if (force_eavesdrop)
-                rule->keys.eavesdrop = true;
 
         r = peer_link_match(peer, rule, false);
         if (r)

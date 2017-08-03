@@ -1202,7 +1202,7 @@ static int driver_method_add_match(Peer *peer, CDVar *in_v, uint32_t serial, CDV
         if (r)
                 return error_trace(r);
 
-        r = peer_add_match(peer, rule_string, false);
+        r = peer_add_match(peer, rule_string);
         if (r) {
                 if (r == PEER_E_QUOTA)
                         return DRIVER_E_QUOTA;
