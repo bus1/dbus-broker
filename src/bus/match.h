@@ -50,8 +50,6 @@ struct MatchKeys {
         const char *path_namespace;
         const char *arg0namespace;
 
-        bool eavesdrop : 1;
-
         char buffer[];
 };
 
@@ -88,13 +86,11 @@ struct MatchOwner {
 
 struct MatchRegistry {
         CList rule_list;
-        CList eavesdrop_list;
         CList monitor_list;
 };
 
 #define MATCH_REGISTRY_INIT(_x) {                                               \
                 .rule_list = (CList)C_LIST_INIT((_x).rule_list),                \
-                .eavesdrop_list = (CList)C_LIST_INIT((_x).eavesdrop_list),      \
                 .monitor_list = (CList)C_LIST_INIT((_x).monitor_list),          \
         }
 

@@ -348,11 +348,6 @@ static int match_rule_compare(CRBTree *tree, void *k, CRBNode *rb) {
         if (key1->filter.type < key2->filter.type)
                 return -1;
 
-        if (key1->eavesdrop > key2->eavesdrop)
-                return 1;
-        if (key1->eavesdrop < key2->eavesdrop)
-                return -1;
-
         for (size_t i = 0; i < C_ARRAY_SIZE(key1->filter.args); i ++) {
                 if ((r = c_string_compare(key1->filter.args[i], key2->filter.args[i])) ||
                     (r = c_string_compare(key1->filter.argpaths[i], key2->filter.argpaths[i])))
@@ -452,8 +447,6 @@ void match_rule_link(MatchRule *rule, MatchRegistry *registry, bool monitor) {
                 rule->registry = registry;
                 if (monitor)
                         c_list_link_tail(&registry->monitor_list, &rule->registry_link);
-                else if (rule->keys.eavesdrop)
-                        c_list_link_tail(&registry->eavesdrop_list, &rule->registry_link);
                 else
                         c_list_link_tail(&registry->rule_list, &rule->registry_link);
         }
@@ -471,18 +464,6 @@ void match_rule_unlink(MatchRule *rule) {
 
 static MatchRule *match_rule_next(MatchRegistry *registry, MatchRule *rule, bool unicast) {
         if (!rule) {
-                rule = c_list_first_entry(&registry->eavesdrop_list, MatchRule, registry_link);
-                if (rule)
-                        return rule;
-
-                if (unicast)
-                        return NULL;
-
-                return c_list_first_entry(&registry->rule_list, MatchRule, registry_link);
-        } else if (rule->keys.eavesdrop) {
-                if (rule != c_list_last_entry(&registry->eavesdrop_list, MatchRule, registry_link))
-                        return c_list_entry(rule->registry_link.next, MatchRule, registry_link);
-
                 if (unicast)
                         return NULL;
 
@@ -590,6 +571,5 @@ void match_registry_init(MatchRegistry *registry) {
  */
 void match_registry_deinit(MatchRegistry *registry) {
         assert(c_list_is_empty(&registry->rule_list));
-        assert(c_list_is_empty(&registry->eavesdrop_list));
         assert(c_list_is_empty(&registry->monitor_list));
 }
