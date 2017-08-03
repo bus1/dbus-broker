@@ -18,6 +18,7 @@ CHANGES WITH 1:
           and service files, reacts to well-defined signals, and employs
           dbus-broker for the actual message passing.
 
-        Contributions from: XX
+        Contributions from: David Herrmann, Georg Müller, Marc-Antoine Perennou,
+                            Tom Gundersen
 
-        - Berlin, 2017-XX-XX
+        - Tübingen, 2017-08-03
