@@ -258,7 +258,6 @@ static const char *driver_error_to_string(int r) {
                 [DRIVER_E_INVALID_MESSAGE]                      = "Invalid message body",
                 [DRIVER_E_PEER_NOT_REGISTERED]                  = "Hello() was not the first method called",
                 [DRIVER_E_PEER_ALREADY_REGISTERED]              = "Hello() already called",
-                [DRIVER_E_PEER_IS_MONITOR]                      = "Monitors cannot send messages",
                 [DRIVER_E_PEER_NOT_PRIVILEGED]                  = "The caller does not have the necessary privileged to call this method",
                 [DRIVER_E_UNEXPECTED_MESSAGE_TYPE]              = "Unexpected message type",
                 [DRIVER_E_UNEXPECTED_PATH]                      = "Invalid object path",
@@ -1733,9 +1732,6 @@ static int driver_dispatch_internal(Peer *peer, Message *message) {
         if (r)
                 return error_trace(r);
 
-        if (peer_is_monitor(peer))
-                return DRIVER_E_PEER_IS_MONITOR;
-
         if (_c_unlikely_(c_string_equal(message->metadata.fields.destination, "org.freedesktop.DBus"))) {
                 return error_trace(driver_dispatch_interface(peer,
                                                              message->metadata.header.serial,
@@ -1787,6 +1783,9 @@ static int driver_dispatch_internal(Peer *peer, Message *message) {
 int driver_dispatch(Peer *peer, Message *message) {
         int r;
 
+        if (peer_is_monitor(peer))
+                return DRIVER_E_PROTOCOL_VIOLATION;
+
         r = message_parse_metadata(message);
         if (r > 0)
                 return DRIVER_E_PROTOCOL_VIOLATION;
@@ -1802,7 +1801,6 @@ int driver_dispatch(Peer *peer, Message *message) {
                 if (r)
                         return error_trace(r);
                 /* fall through */
-        case DRIVER_E_PEER_IS_MONITOR:
         case DRIVER_E_INVALID_MESSAGE:
                 return DRIVER_E_PROTOCOL_VIOLATION;
         case DRIVER_E_PEER_ALREADY_REGISTERED:
