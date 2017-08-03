@@ -619,7 +619,6 @@ int peer_become_monitor(Peer *peer, MatchOwner *owned_matches) {
 
         c_rbtree_for_each_entry(rule, &peer->owned_matches.rule_tree, owner_node) {
 
-                rule->keys.eavesdrop = true;
                 rule->owner = &peer->owned_matches;
 
                 r = peer_link_match(peer, rule, true);
