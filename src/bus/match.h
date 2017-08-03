@@ -28,7 +28,6 @@ enum {
 
 struct MatchFilter {
         uint8_t type;
-        uint64_t destination;
         uint64_t sender;
         const char *interface;
         const char *member;
@@ -39,7 +38,6 @@ struct MatchFilter {
 
 #define MATCH_FILTER_INIT {                             \
                 .type = DBUS_MESSAGE_TYPE_INVALID,      \
-                .destination = ADDRESS_ID_INVALID,      \
                 .sender = ADDRESS_ID_INVALID,           \
         }
 

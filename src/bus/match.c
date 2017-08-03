@@ -19,8 +19,6 @@ static bool match_key_equal(const char *key1, const char *key2, size_t n_key2) {
 }
 
 static int match_keys_assign(MatchKeys *keys, const char *key, size_t n_key, const char *value) {
-        Address addr;
-
         if (match_key_equal("type", key, n_key)) {
                 if (keys->filter.type != DBUS_MESSAGE_TYPE_INVALID)
                         return MATCH_E_INVALID;
@@ -40,15 +38,10 @@ static int match_keys_assign(MatchKeys *keys, const char *key, size_t n_key, con
                         return MATCH_E_INVALID;
                 keys->sender = value;
         } else if (match_key_equal("destination", key, n_key)) {
+                /* XXX: consider dropping support for this, like eavesdropping */
                 if (keys->destination)
                         return MATCH_E_INVALID;
                 keys->destination = value;
-
-                address_from_string(&addr, value);
-                if (addr.type == ADDRESS_TYPE_ID)
-                        keys->filter.destination = addr.id;
-                else
-                        keys->filter.destination = ADDRESS_ID_INVALID;
         } else if (match_key_equal("interface", key, n_key)) {
                 if (keys->filter.interface)
                         return MATCH_E_INVALID;
@@ -293,9 +286,6 @@ static bool match_keys_match_filter(MatchKeys *keys, MatchFilter *filter) {
         if (keys->filter.type != DBUS_MESSAGE_TYPE_INVALID && keys->filter.type != filter->type)
                 return false;
 
-        if (keys->filter.destination != ADDRESS_ID_INVALID && keys->filter.destination != filter->destination)
-                return false;
-
         if (keys->filter.sender != ADDRESS_ID_INVALID && keys->filter.sender != filter->sender)
                 return false;
 
@@ -478,9 +468,6 @@ static MatchRule *match_rule_next_match_internal(CList *rules, MatchRule *rule, 
 }
 
 MatchRule *match_rule_next_match(MatchRegistry *registry, MatchRule *rule, MatchFilter *filter) {
-        if (filter->destination != ADDRESS_ID_INVALID)
-                return NULL;
-
         return match_rule_next_match_internal(&registry->rule_list, rule, filter);
 }
 

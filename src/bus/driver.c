@@ -448,7 +448,6 @@ static int driver_notify_name_lost(Peer *peer, const char *name) {
 static int driver_notify_name_owner_changed(Bus *bus, const char *name, const char *old_owner, const char *new_owner) {
         MatchFilter filter = {
                 .type = DBUS_MESSAGE_TYPE_SIGNAL,
-                .destination = ADDRESS_ID_INVALID,
                 .interface = "org.freedesktop.DBus",
                 .member = "NameOwnerChanged",
                 .path = "/org/freedesktop/DBus",
@@ -489,7 +488,7 @@ static int driver_notify_name_owner_changed(Bus *bus, const char *name, const ch
         if (r)
                 return error_fold(r);
 
-        r = peer_broadcast(NULL, NULL, NULL, ADDRESS_ID_INVALID, NULL, bus, &filter, message);
+        r = peer_broadcast(NULL, NULL, NULL, ADDRESS_ID_INVALID, bus, &filter, message);
         if (r)
                 return error_fold(r);
 
@@ -1714,7 +1713,7 @@ static int driver_dispatch_internal(Peer *peer, Message *message) {
                 if (message->metadata.header.type == DBUS_MESSAGE_TYPE_SIGNAL) {
                         NameSet sender_names = NAME_SET_INIT_FROM_OWNER(&peer->owned_names);
 
-                        r = peer_broadcast(peer->policy, &sender_names, &peer->matches, peer->id, NULL, peer->bus, NULL, message);
+                        r = peer_broadcast(peer->policy, &sender_names, &peer->matches, peer->id, peer->bus, NULL, message);
                         if (r)
                                 return error_fold(r);
 
