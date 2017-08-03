@@ -1,5 +1,13 @@
 dbus-broker - Linux D-Bus Message Broker
 
+ABOUT:
+        The dbus-broker project is an implementation of a message bus as
+        defined by the D-Bus specification. Its aim is to provide high
+        performance and reliability, while keeping compatibility to the D-Bus
+        reference implementation. It is exclusively written for linux systems,
+        and makes use of many modern features provided by recent linux kernel
+        releases.
+
 DETAILS:
         https://github.com/bus1/dbus-broker/wiki
 
@@ -22,6 +30,7 @@ REQUIREMENTS:
 
             Linux kernel >= 4.10
             glibc >= 2.16
+            libselinux >= 2.5           (optional)
 
         Additionally, the compatibility launcher requires:
 
