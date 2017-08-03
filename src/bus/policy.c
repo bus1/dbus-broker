@@ -387,264 +387,85 @@ static int policy_registry_at_gid(PolicyRegistry *registry, PolicyRegistryNode *
         return policy_registry_at_uidgid(&registry->gid_tree, nodep, gid);
 }
 
-static int policy_registry_import_connect(PolicyRegistry *registry, CDVar *v) {
-        PolicyRegistryNode *node;
+static int policy_registry_import_batch(PolicyRegistry *registry,
+                                        PolicyBatch *batch,
+                                        CDVar *v) {
+        const char *name_str, *interface, *member, *path;
         PolicyVerdict verdict;
-        uint32_t uidgid;
-        bool allow;
+        unsigned int type;
+        bool is_prefix;
         int r;
 
-        c_dvar_read(v, "(");
+        c_dvar_read(v, "(bt", &verdict.verdict, &verdict.priority);
+        batch->connect_verdict = verdict;
 
-        /* import default verdict */
-        c_dvar_read(v, "b", &allow);
-        registry->default_batch->connect_verdict.verdict = allow;
-        registry->default_batch->connect_verdict.priority = 1; /* XXX: caller should provide priority */
-
-        /* import per-uid verdicts */
         c_dvar_read(v, "[");
+
         while (c_dvar_more(v)) {
-                c_dvar_read(v, "(ubt)", &uidgid, &verdict.verdict, &verdict.priority);
-
-                r = policy_registry_at_uid(registry, &node, uidgid);
-                if (r)
-                        return error_trace(r);
-
-                node->batch->connect_verdict = verdict;
-        }
-        c_dvar_read(v, "]");
-
-        /* import per-gid verdicts */
-        c_dvar_read(v, "[");
-        while (c_dvar_more(v)) {
-                c_dvar_read(v, "(ubt)", &uidgid, &verdict.verdict, &verdict.priority);
-
-                r = policy_registry_at_gid(registry, &node, uidgid);
-                if (r)
-                        return error_trace(r);
-
-                node->batch->connect_verdict = verdict;
-        }
-        c_dvar_read(v, "]");
-
-        c_dvar_read(v, ")");
-
-        return 0;
-}
-
-static int policy_registry_import_own(PolicyRegistry *registry, CDVar *v) {
-        PolicyRegistryNode *node;
-        PolicyVerdict verdict;
-        const char *name_str;
-        uint32_t uidgid;
-        bool prefix;
-        int r;
-
-        c_dvar_read(v, "(");
-
-        /* import default verdict */
-        c_dvar_read(v, "[");
-        while (c_dvar_more(v)) {
-                c_dvar_read(v, "(btbs)",
+                c_dvar_read(v,
+                            "(btbs)",
                             &verdict.verdict,
                             &verdict.priority,
-                            &prefix,
+                            &is_prefix,
                             &name_str);
 
-                if (prefix)
-                        r = policy_batch_add_own_prefix(registry->default_batch, name_str, verdict);
+                if (is_prefix)
+                        r = policy_batch_add_own_prefix(batch, name_str, verdict);
                 else
-                        r = policy_batch_add_own(registry->default_batch, name_str, verdict);
-        }
-        c_dvar_read(v, "]");
-
-        /* import per-uid verdicts */
-        c_dvar_read(v, "[");
-        while (c_dvar_more(v)) {
-                c_dvar_read(v, "(u[", &uidgid);
-
-                r = policy_registry_at_uid(registry, &node, uidgid);
+                        r = policy_batch_add_own(batch, name_str, verdict);
                 if (r)
                         return error_trace(r);
-
-                while (c_dvar_more(v)) {
-                        c_dvar_read(v, "(btbs)",
-                                    &verdict.verdict,
-                                    &verdict.priority,
-                                    &prefix,
-                                    &name_str);
-
-                        if (prefix)
-                                r = policy_batch_add_own_prefix(node->batch, name_str, verdict);
-                        else
-                                r = policy_batch_add_own(node->batch, name_str, verdict);
-                }
-
-                c_dvar_read(v, "])");
         }
-        c_dvar_read(v, "]");
 
-        /* import per-uid verdicts */
-        c_dvar_read(v, "[");
-        while (c_dvar_more(v)) {
-                c_dvar_read(v, "(u[", &uidgid);
+        c_dvar_read(v, "][");
 
-                r = policy_registry_at_gid(registry, &node, uidgid);
-                if (r)
-                        return error_trace(r);
-
-                while (c_dvar_more(v)) {
-                        c_dvar_read(v, "(btbs)",
-                                    &verdict.verdict,
-                                    &verdict.priority,
-                                    &prefix,
-                                    &name_str);
-
-                        if (prefix)
-                                r = policy_batch_add_own_prefix(node->batch, name_str, verdict);
-                        else
-                                r = policy_batch_add_own(node->batch, name_str, verdict);
-                }
-
-                c_dvar_read(v, "])");
-        }
-        c_dvar_read(v, "]");
-
-        c_dvar_read(v, ")");
-
-        return 0;
-}
-
-static int policy_registry_import_xmit(PolicyRegistry *registry, CDVar *v, bool is_send) {
-        const char *name_str, *interface, *member, *path;
-        PolicyRegistryNode *node;
-        PolicyVerdict verdict;
-        uint32_t uidgid, type;
-        int r;
-
-        c_dvar_read(v, "(");
-
-        /* import default verdict */
-        c_dvar_read(v, "[");
         while (c_dvar_more(v)) {
                 c_dvar_read(v, "(btssssub)",
                             &verdict.verdict,
                             &verdict.priority,
                             &name_str,
+                            &path,
                             &interface,
                             &member,
-                            &path,
                             &type,
                             NULL);
 
-                if (is_send)
-                        r = policy_batch_add_send(registry->default_batch,
-                                                  name_str,
-                                                  verdict,
-                                                  type,
-                                                  path,
-                                                  interface,
-                                                  member);
-                else
-                        r = policy_batch_add_recv(registry->default_batch,
-                                                  name_str,
-                                                  verdict,
-                                                  type,
-                                                  path,
-                                                  interface,
-                                                  member);
+                r = policy_batch_add_send(batch,
+                                          name_str,
+                                          verdict,
+                                          type,
+                                          path,
+                                          interface,
+                                          member);
                 if (r)
                         return error_trace(r);
         }
-        c_dvar_read(v, "]");
 
-        /* import per-uid verdicts */
-        c_dvar_read(v, "[");
+        c_dvar_read(v, "][");
+
         while (c_dvar_more(v)) {
-                c_dvar_read(v, "(u[", &uidgid);
+                c_dvar_read(v, "(btssssub)",
+                            &verdict.verdict,
+                            &verdict.priority,
+                            &name_str,
+                            &path,
+                            &interface,
+                            &member,
+                            &type,
+                            NULL);
 
-                r = policy_registry_at_uid(registry, &node, uidgid);
+                r = policy_batch_add_recv(batch,
+                                          name_str,
+                                          verdict,
+                                          type,
+                                          path,
+                                          interface,
+                                          member);
                 if (r)
                         return error_trace(r);
-
-                while (c_dvar_more(v)) {
-                        c_dvar_read(v, "(btssssub)",
-                                    &verdict.verdict,
-                                    &verdict.priority,
-                                    &name_str,
-                                    &interface,
-                                    &member,
-                                    &path,
-                                    &type,
-                                    NULL);
-
-                        if (is_send)
-                                r = policy_batch_add_send(node->batch,
-                                                          name_str,
-                                                          verdict,
-                                                          type,
-                                                          path,
-                                                          interface,
-                                                          member);
-                        else
-                                r = policy_batch_add_recv(node->batch,
-                                                          name_str,
-                                                          verdict,
-                                                          type,
-                                                          path,
-                                                          interface,
-                                                          member);
-                        if (r)
-                                return error_trace(r);
-                }
-                c_dvar_read(v, "])");
         }
-        c_dvar_read(v, "]");
 
-        /* import per-gid verdicts */
-        c_dvar_read(v, "[");
-        while (c_dvar_more(v)) {
-                c_dvar_read(v, "(u[", &uidgid);
-
-                r = policy_registry_at_gid(registry, &node, uidgid);
-                if (r)
-                        return error_trace(r);
-
-                while (c_dvar_more(v)) {
-                        c_dvar_read(v, "(btssssub)",
-                                    &verdict.verdict,
-                                    &verdict.priority,
-                                    &name_str,
-                                    &interface,
-                                    &member,
-                                    &path,
-                                    &type,
-                                    NULL);
-
-                        if (is_send)
-                                r = policy_batch_add_send(node->batch,
-                                                          name_str,
-                                                          verdict,
-                                                          type,
-                                                          path,
-                                                          interface,
-                                                          member);
-                        else
-                                r = policy_batch_add_recv(node->batch,
-                                                          name_str,
-                                                          verdict,
-                                                          type,
-                                                          path,
-                                                          interface,
-                                                          member);
-                        if (r)
-                                return error_trace(r);
-                }
-                c_dvar_read(v, "])");
-        }
-        c_dvar_read(v, "]");
-
-        c_dvar_read(v, ")");
+        c_dvar_read(v, "])");
 
         return 0;
 }
@@ -653,16 +474,49 @@ static int policy_registry_import_xmit(PolicyRegistry *registry, CDVar *v, bool 
  * policy_registry_import() - XXX
  */
 int policy_registry_import(PolicyRegistry *registry, CDVar *v) {
-        int r = 0;
+        PolicyRegistryNode *node;
+        uint32_t uidgid;
+        int r;
 
         c_dvar_read(v, "<(", NULL);
-        r = r ?: policy_registry_import_connect(registry, v);
-        r = r ?: policy_registry_import_own(registry, v);
-        r = r ?: policy_registry_import_xmit(registry, v, true);
-        r = r ?: policy_registry_import_xmit(registry, v, false);
+
+        r = policy_registry_import_batch(registry, registry->default_batch, v);
         if (r)
                 return error_trace(r);
-        c_dvar_read(v, ")>");
+
+        c_dvar_read(v, "[");
+
+        while (c_dvar_more(v)) {
+                c_dvar_read(v, "(u", &uidgid);
+
+                r = policy_registry_at_uid(registry, &node, uidgid);
+                if (r)
+                        return error_trace(r);
+
+                r = policy_registry_import_batch(registry, node->batch, v);
+                if (r)
+                        return error_trace(r);
+
+                c_dvar_read(v, ")");
+        }
+
+        c_dvar_read(v, "][");
+
+        while (c_dvar_more(v)) {
+                c_dvar_read(v, "(u", &uidgid);
+
+                r = policy_registry_at_gid(registry, &node, uidgid);
+                if (r)
+                        return error_trace(r);
+
+                r = policy_registry_import_batch(registry, node->batch, v);
+                if (r)
+                        return error_trace(r);
+
+                c_dvar_read(v, ")");
+        }
+
+        c_dvar_read(v, "])>");
 
         r = c_dvar_get_poison(v);
         if (r)
@@ -753,8 +607,7 @@ int policy_snapshot_check_connect(PolicySnapshot *snapshot) {
                 if (verdict.priority < snapshot->batches[i]->connect_verdict.priority)
                         verdict = snapshot->batches[i]->connect_verdict;
 
-        /* XXX: return verdict.verdict ? 0 : POLICY_E_ACCESS_DENIED; */
-        return 0;
+        return verdict.verdict ? 0 : POLICY_E_ACCESS_DENIED;
 }
 
 /**
@@ -802,8 +655,7 @@ int policy_snapshot_check_own(PolicySnapshot *snapshot, const char *name_str) {
                 }
         }
 
-        /* XXX: return verdict.verdict ? 0 : POLICY_E_ACCESS_DENIED; */
-        return 0;
+        return verdict.verdict ? 0 : POLICY_E_ACCESS_DENIED;
 }
 
 static void policy_snapshot_check_xmit_name(PolicyBatch *batch,
@@ -951,8 +803,7 @@ int policy_snapshot_check_send(PolicySnapshot *snapshot,
                                            path,
                                            type);
 
-        /* XXX: return verdict.verdict ? 0 : POLICY_E_ACCESS_DENIED; */
-        return 0;
+        return verdict.verdict ? 0 : POLICY_E_ACCESS_DENIED;
 }
 
 /**
@@ -977,6 +828,5 @@ int policy_snapshot_check_receive(PolicySnapshot *snapshot,
                                            path,
                                            type);
 
-        /* XXX: return verdict.verdict ? 0 : POLICY_E_ACCESS_DENIED; */
-        return 0;
+        return verdict.verdict ? 0 : POLICY_E_ACCESS_DENIED;
 }

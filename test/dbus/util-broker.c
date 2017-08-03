@@ -39,23 +39,75 @@ static int util_event_sigchld(sd_event_source *source, const siginfo_t *si, void
                              (si->si_code == CLD_EXITED) ? si->si_status : EXIT_FAILURE);
 }
 
-#define POLICY_T "("                                                            \
-                        "b"                                                     \
-                        "a(ubt)"                                                \
-                        "a(ubt)"                                                \
-                ")("                                                            \
-                        "a(btbs)"                                               \
-                        "a(ua(btbs))"                                           \
-                        "a(ua(btbs))"                                           \
-                ")("                                                            \
-                        "a(btssssub)"                                           \
-                        "a(ua(btssssub))"                                       \
-                        "a(ua(btssssub))"                                       \
-                ")("                                                            \
-                        "a(btssssub)"                                           \
-                        "a(ua(btssssub))"                                       \
-                        "a(ua(btssssub))"                                       \
-                ")"
+#define POLICY_T_BATCH                                                          \
+                "bt"                                                            \
+                "a(btbs)"                                                       \
+                "a(btssssub)"                                                   \
+                "a(btssssub)"
+
+#define POLICY_T                                                                \
+                "(" POLICY_T_BATCH ")"                                          \
+                "a(u(" POLICY_T_BATCH "))"                                      \
+                "a(u(" POLICY_T_BATCH "))"
+
+static int util_append_policy(sd_bus_message *m) {
+        int r;
+
+        r = sd_bus_message_open_container(m, 'v', "(" POLICY_T ")");
+        assert(r >= 0);
+
+        r = sd_bus_message_open_container(m, 'r', POLICY_T);
+        assert(r >= 0);
+
+        /* default batch */
+        {
+                r = sd_bus_message_open_container(m, 'r', POLICY_T_BATCH);
+                assert(r >= 0);
+
+                /*
+                 * Default test policy:
+                 *  - allow all connections
+                 *  - allow everyone to own names
+                 *  - allow all sends
+                 *  - allow all recvs
+                 */
+                r = sd_bus_message_append(m,
+                                          "bt" "a(btbs)" "a(btssssub)" "a(btssssub)",
+                                          true, 1,
+                                          1, true, 1, true, "",
+                                          1, true, 1, "", "", "", "", 0, false,
+                                          1, true, 1, "", "", "", "", 0, false);
+
+                r = sd_bus_message_close_container(m);
+                assert(r >= 0);
+        }
+
+        /* per-uid batches */
+        {
+                r = sd_bus_message_open_container(m, 'a', "(u(" POLICY_T_BATCH "))");
+                assert(r >= 0);
+
+                r = sd_bus_message_close_container(m);
+                assert(r >= 0);
+        }
+
+        /* per-gid batches */
+        {
+                r = sd_bus_message_open_container(m, 'a', "(u(" POLICY_T_BATCH "))");
+                assert(r >= 0);
+
+                r = sd_bus_message_close_container(m);
+                assert(r >= 0);
+        }
+
+        r = sd_bus_message_close_container(m);
+        assert(r >= 0);
+
+        r = sd_bus_message_close_container(m);
+        assert(r >= 0);
+
+        return 0;
+}
 
 void util_fork_broker(sd_bus **busp, sd_event *event, int listener_fd, pid_t *pidp) {
         _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
@@ -126,127 +178,7 @@ void util_fork_broker(sd_bus **busp, sd_event *event, int listener_fd, pid_t *pi
                                   NULL);
         assert(r >= 0);
 
-        r = sd_bus_message_open_container(message, 'v', "(" POLICY_T ")");
-        assert(r >= 0);
-
-                r = sd_bus_message_open_container(message, 'r', POLICY_T);
-                assert(r >= 0);
-
-                        r = sd_bus_message_open_container(message, 'r', "b"
-                                                                        "a(ubt)"
-                                                                        "a(ubt)");
-                        assert(r >= 0);
-
-                                r = sd_bus_message_append(message, "b", true);
-                                assert(r >= 0);
-
-                                r = sd_bus_message_open_container(message, 'a', "(ubt)");
-                                assert(r >= 0);
-
-                                r = sd_bus_message_close_container(message);
-                                assert(r >= 0);
-
-                                r = sd_bus_message_open_container(message, 'a', "(ubt)");
-                                assert(r >= 0);
-
-                                r = sd_bus_message_close_container(message);
-                                assert(r >= 0);
-
-                        r = sd_bus_message_close_container(message);
-                        assert(r >= 0);
-
-                        r = sd_bus_message_open_container(message, 'r', "a(btbs)"
-                                                                        "a(ua(btbs))"
-                                                                        "a(ua(btbs))");
-                        assert(r >= 0);
-
-                                r = sd_bus_message_open_container(message, 'a', "(btbs)");
-                                assert(r >= 0);
-
-                                        r = sd_bus_message_append(message, "(btbs)", true, 1, true, "");
-                                        assert(r >= 0);
-
-                                r = sd_bus_message_close_container(message);
-                                assert(r >= 0);
-
-                                r = sd_bus_message_open_container(message, 'a', "(ua(btbs))");
-                                assert(r >= 0);
-
-                                r = sd_bus_message_close_container(message);
-                                assert(r >= 0);
-
-                                r = sd_bus_message_open_container(message, 'a', "(ua(btbs))");
-                                assert(r >= 0);
-
-                                r = sd_bus_message_close_container(message);
-                                assert(r >= 0);
-
-                        r = sd_bus_message_close_container(message);
-                        assert(r >= 0);
-
-                        r = sd_bus_message_open_container(message, 'r', "a(btssssub)"
-                                                                        "a(ua(btssssub))"
-                                                                        "a(ua(btssssub))");
-                        assert(r >= 0);
-
-                                r = sd_bus_message_open_container(message, 'a', "(btssssub)");
-                                assert(r >= 0);
-
-                                        r = sd_bus_message_append(message, "(btssssub)", true, 1, "", "", "", "", 0, true);
-                                        assert(r >= 0);
-
-                                r = sd_bus_message_close_container(message);
-                                assert(r >= 0);
-
-                                r = sd_bus_message_open_container(message, 'a', "(ua(btssssub))");
-                                assert(r >= 0);
-
-                                r = sd_bus_message_close_container(message);
-                                assert(r >= 0);
-
-                                r = sd_bus_message_open_container(message, 'a', "(ua(btssssub))");
-                                assert(r >= 0);
-
-                                r = sd_bus_message_close_container(message);
-                                assert(r >= 0);
-
-                        r = sd_bus_message_close_container(message);
-                        assert(r >= 0);
-
-
-                        r = sd_bus_message_open_container(message, 'r', "a(btssssub)"
-                                                                        "a(ua(btssssub))"
-                                                                        "a(ua(btssssub))");
-                        assert(r >= 0);
-
-                                r = sd_bus_message_open_container(message, 'a', "(btssssub)");
-                                assert(r >= 0);
-
-                                        r = sd_bus_message_append(message, "(btssssub)", true, 1, "", "", "", "", 0, true);
-                                        assert(r >= 0);
-
-                                r = sd_bus_message_close_container(message);
-                                assert(r >= 0);
-
-                                r = sd_bus_message_open_container(message, 'a', "(ua(btssssub))");
-                                assert(r >= 0);
-
-                                r = sd_bus_message_close_container(message);
-                                assert(r >= 0);
-
-                                r = sd_bus_message_open_container(message, 'a', "(ua(btssssub))");
-                                assert(r >= 0);
-
-                                r = sd_bus_message_close_container(message);
-                                assert(r >= 0);
-
-                        r = sd_bus_message_close_container(message);
-                        assert(r >= 0);
-
-                r = sd_bus_message_close_container(message);
-                assert(r >= 0);
-
-        r = sd_bus_message_close_container(message);
+        r = util_append_policy(message);
         assert(r >= 0);
 
         r = sd_bus_call(bus, message, -1, NULL, NULL);

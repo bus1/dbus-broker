@@ -6,16 +6,14 @@
 
 #include <c-list.h>
 #include <c-macro.h>
+#include <c-rbtree.h>
 #include <stdlib.h>
 #include <systemd/sd-bus.h>
 #include "launch/config.h"
 
 typedef struct Policy Policy;
-typedef struct PolicyMap PolicyMap;
-typedef struct PolicyMapNode PolicyMapNode;
+typedef struct PolicyNode PolicyNode;
 typedef struct PolicyRecord PolicyRecord;
-typedef struct PolicyRecordOwn PolicyRecordOwn;
-typedef struct PolicyRecordXmit PolicyRecordXmit;
 
 struct PolicyRecord {
         CList link;
@@ -24,12 +22,12 @@ struct PolicyRecord {
         uint64_t priority;
 
         union {
-                struct PolicyRecordOwn {
+                struct {
                         bool prefix;
                         const char *name;
                 } own;
 
-                struct PolicyRecordXmit {
+                struct {
                         const char *name;
                         const char *path;
                         const char *interface;
@@ -52,59 +50,45 @@ struct PolicyRecord {
                 .link = C_LIST_INIT((_x).link),                                 \
         }
 
-struct PolicyMapNode {
+struct PolicyNode {
         uint32_t uidgid;
-        CList map_link;
-        CList record_list;
+        CRBTree *policy_tree;
+        CRBNode policy_node;
+
+        CList connect_list;
+        CList own_list;
+        CList send_list;
+        CList recv_list;
 };
 
-#define POLICY_MAP_NODE_INIT(_x) {                                              \
+#define POLICY_NODE_NULL(_x) {                                                  \
                 .uidgid = (uint32_t)-1,                                         \
-                .map_link = C_LIST_INIT((_x).map_link),                         \
-                .record_list = C_LIST_INIT((_x).record_list),                   \
-        }
-
-struct PolicyMap {
-        CList node_list;
-};
-
-#define POLICY_MAP_INIT(_x) {                                                   \
-                .node_list = C_LIST_INIT((_x).node_list),                       \
+                .policy_node = C_RBNODE_INIT((_x).policy_node),                 \
+                .connect_list = C_LIST_INIT((_x).connect_list),                 \
+                .own_list = C_LIST_INIT((_x).own_list),                         \
+                .send_list = C_LIST_INIT((_x).send_list),                       \
+                .recv_list = C_LIST_INIT((_x).recv_list),                       \
         }
 
 struct Policy {
         uint64_t i_priority;
 
         CList connect_default;
-        PolicyMap connect_uid;
-        PolicyMap connect_gid;
-
         CList own_default;
-        PolicyMap own_uid;
-        PolicyMap own_gid;
-
         CList send_default;
-        PolicyMap send_uid;
-        PolicyMap send_gid;
-
         CList recv_default;
-        PolicyMap recv_uid;
-        PolicyMap recv_gid;
+
+        CRBTree uid_tree;
+        CRBTree gid_tree;
 };
 
 #define POLICY_INIT(_x) {                                                       \
                 .connect_default = C_LIST_INIT((_x).connect_default),           \
-                .connect_uid = POLICY_MAP_INIT((_x).connect_uid),               \
-                .connect_gid = POLICY_MAP_INIT((_x).connect_gid),               \
                 .own_default = C_LIST_INIT((_x).own_default),                   \
-                .own_uid = POLICY_MAP_INIT((_x).own_uid),                       \
-                .own_gid = POLICY_MAP_INIT((_x).own_gid),                       \
                 .send_default = C_LIST_INIT((_x).send_default),                 \
-                .send_uid = POLICY_MAP_INIT((_x).send_uid),                     \
-                .send_gid = POLICY_MAP_INIT((_x).send_gid),                     \
                 .recv_default = C_LIST_INIT((_x).recv_default),                 \
-                .recv_uid = POLICY_MAP_INIT((_x).recv_uid),                     \
-                .recv_gid = POLICY_MAP_INIT((_x).recv_gid),                     \
+                .uid_tree = C_RBTREE_INIT,                                      \
+                .gid_tree = C_RBTREE_INIT,                                      \
         }
 
 /* records */
@@ -115,15 +99,6 @@ int policy_record_new_xmit(PolicyRecord **recordp);
 PolicyRecord *policy_record_free(PolicyRecord *record);
 
 C_DEFINE_CLEANUP(PolicyRecord *, policy_record_free);
-
-/* maps */
-
-void policy_map_init(PolicyMap *map);
-void policy_map_deinit(PolicyMap *map);
-
-int policy_map_at(PolicyMap *map, PolicyMapNode **nodep, uint32_t uidgid);
-
-C_DEFINE_CLEANUP(PolicyMap *, policy_map_deinit);
 
 /* policy */
 

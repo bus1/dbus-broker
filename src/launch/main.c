@@ -746,6 +746,8 @@ static int manager_add_listener(Manager *manager) {
         if (r)
                 return error_fold(r);
 
+        policy_optimize(&policy);
+
         r = sd_bus_message_new_method_call(manager->bus_controller,
                                            &m,
                                            NULL,
