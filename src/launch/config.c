@@ -11,6 +11,7 @@
 #include "dbus/protocol.h"
 #include "launch/config.h"
 #include "util/error.h"
+#include "util/selinux.h"
 
 static_assert(__builtin_types_compatible_p(XML_Char, char),
               "Missing UTF-8 support in expat");
@@ -1122,8 +1123,8 @@ static int config_parser_include(ConfigParser *parser, ConfigRoot *root, ConfigN
         parser->state.current = node;
         parser->state.last = node;
 
-        /* ignore selinux files (XXX: fix when selinux is supported) */
-        if (node->include.if_selinux_enabled)
+        /* ignore selinux files if selinux is disabled */
+        if (node->include.if_selinux_enabled && !bus_selinux_is_enabled())
                 return 0;
 
         /* ignore recursive inclusions */
