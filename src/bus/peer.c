@@ -742,6 +742,9 @@ static int peer_broadcast_to_matches(PolicySnapshot *sender_policy, NameSet *sen
                 Peer *receiver = c_container_of(rule->owner, Peer, owned_matches);
                 NameSet receiver_names = NAME_SET_INIT_FROM_OWNER(&receiver->owned_names);
 
+                /* exclude the destination from broadcasts */
+                if (filter->destination == receiver->id)
+                        continue;
                 if (transaction_id <= receiver->transaction_id)
                         continue;
 
@@ -787,7 +790,7 @@ static int peer_broadcast_to_matches(PolicySnapshot *sender_policy, NameSet *sen
         return 0;
 }
 
-int peer_broadcast(PolicySnapshot *sender_policy, NameSet *sender_names, MatchRegistry *sender_matches, uint64_t sender_id, Bus *bus, MatchFilter *filter, Message *message) {
+int peer_broadcast(PolicySnapshot *sender_policy, NameSet *sender_names, MatchRegistry *sender_matches, uint64_t sender_id, Peer *destination, Bus *bus, MatchFilter *filter, Message *message) {
         MatchFilter fallback_filter = MATCH_FILTER_INIT;
         int r;
 
@@ -796,6 +799,7 @@ int peer_broadcast(PolicySnapshot *sender_policy, NameSet *sender_names, MatchRe
 
                 filter->type = message->metadata.header.type;
                 filter->sender = sender_id;
+                filter->destination = destination ? destination->id : ADDRESS_ID_INVALID;
                 filter->interface = message->metadata.fields.interface;
                 filter->member = message->metadata.fields.member,
                 filter->path = message->metadata.fields.path;

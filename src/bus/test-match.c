@@ -150,14 +150,13 @@ static void test_individual_matches(void) {
         assert(test_match("type=signal", &filter));
         assert(!test_match("type=error", &filter));
 
-        /* destination XXX: this makes no sense
+        /* destination */
         filter = (MatchFilter)MATCH_FILTER_INIT;
         assert(!test_match("destination=:1.0", &filter));
         filter.destination = 0;
         assert(!test_match("", &filter));
         assert(!test_match("destination=:1.0", &filter));
         assert(!test_match("destination=:1.1", &filter));
-        */
 
         /* interface */
         filter = (MatchFilter)MATCH_FILTER_INIT;
