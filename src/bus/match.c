@@ -468,7 +468,7 @@ static MatchRule *match_rule_next_match_internal(CList *rules, MatchRule *rule, 
         for (entry = rule ? rule->registry_link.next : rules->next;
              entry != rules;
              entry = entry->next) {
-                MatchRule *rule = c_list_entry(entry, MatchRule, registry_link);
+                rule = c_list_entry(entry, MatchRule, registry_link);
 
                 if (match_keys_match_filter(&rule->keys, filter))
                         return rule;
