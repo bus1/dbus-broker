@@ -462,6 +462,21 @@ void match_rule_unlink(MatchRule *rule) {
         }
 }
 
+static MatchRule *match_rule_next_match_internal(CList *rules, MatchRule *rule, MatchFilter *filter) {
+        CList *entry;
+
+        for (entry = rule ? rule->registry_link.next : rules->next;
+             entry != rules;
+             entry = entry->next) {
+                MatchRule *rule = c_list_entry(entry, MatchRule, registry_link);
+
+                if (match_keys_match_filter(&rule->keys, filter))
+                        return rule;
+        }
+
+        return NULL;
+}
+
 static MatchRule *match_rule_next(MatchRegistry *registry, MatchRule *rule, bool unicast) {
         if (!rule) {
                 if (unicast)
@@ -487,17 +502,7 @@ MatchRule *match_rule_next_match(MatchRegistry *registry, MatchRule *rule, Match
 }
 
 MatchRule *match_rule_next_monitor_match(MatchRegistry *registry, MatchRule *rule, MatchFilter *filter) {
-        if (rule)
-                rule = c_list_entry(rule->registry_link.next, MatchRule, registry_link);
-        else
-                rule = c_list_first_entry(&registry->monitor_list, MatchRule, registry_link);
-
-        for (; rule != c_list_last_entry(&registry->monitor_list, MatchRule, registry_link);
-               rule = c_list_entry(rule->registry_link.next, MatchRule, registry_link))
-                if (match_keys_match_filter(&rule->keys, filter))
-                        return rule;
-
-        return NULL;
+        return match_rule_next_match_internal(&registry->monitor_list, rule, filter);
 }
 
 /**
