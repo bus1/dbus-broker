@@ -4,6 +4,20 @@ CHANGES WITH 1:
 
         * Initial release of dbus-broker.
 
-        Contributions from: David Herrmann
+        * Contains dbus-broker, an independent D-Bus message broker
+          implementation, which provides near perfect compatibility to the
+          D-Bus reference implementation dbus-daemon(1).
+          The broker binary is a pure bus implementation that does not depend
+          on any external resources or environments. Rather it is controlled
+          via a private control-connection from its parent process. This allows
+          the parent to modify the broker at runtime, get notified of specific
+          events, and control its lifetime.
 
-        - Berlin, 2017-03-06
+        * The dbus-broker-launch application implements the D-Bus system and
+          session bus compatible to dbus-daemon(1). It reads the known policy
+          and service files, reacts to well-defined signals, and employs
+          dbus-broker for the actual message passing.
+
+        Contributions from: XX
+
+        - Berlin, 2017-XX-XX
