@@ -1138,7 +1138,7 @@ static int driver_method_get_connection_selinux_security_context(Peer *peer, CDV
          * call is specific to SELinux. Hence, we better only return the
          * label if we are running on SELinux.
          */
-        if (!selinux_is_enabled())
+        if (!bus_selinux_is_enabled())
                 return DRIVER_E_SELINUX_NOT_SUPPORTED;
 
         /*
