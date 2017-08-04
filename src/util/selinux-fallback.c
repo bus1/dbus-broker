@@ -10,7 +10,7 @@ bool bus_selinux_is_enabled(void) {
         return false;
 }
 
-int bus_selinux_sid_init(BusSELinuxSID *sid, const char *seclabel) {
+int bus_selinux_sid_init(BusSELinuxSID **sid, const char *seclabel) {
         return 0;
 }
 
