@@ -1,5 +1,11 @@
 /*
- * Bus SELinux Helpers
+ * Bus SELinux Fallback Helpers
+ *
+ * This fallback is used when libselinux is not available, and is meant to be
+ * functionally equivalent to util/selinux.c in case SELinux is disabled, but
+ * without requiring the library.
+ *
+ * See util/selinux.c for details.
  */
 
 #include <c-macro.h>
@@ -10,31 +16,48 @@ bool bus_selinux_is_enabled(void) {
         return false;
 }
 
-int bus_selinux_sid_init(BusSELinuxSID **sid, const char *seclabel) {
-        return 0;
-}
-
-int bus_selinux_new(BusSELinux **selinuxp, const char *seclabel) {
-        *selinuxp = NULL;
-        return 0;
-}
-
-BusSELinux *bus_selinux_free(BusSELinux *selinux) {
+const char *bus_selinux_policy_root(void) {
         return NULL;
 }
 
-int bus_selinux_add_name(BusSELinux *selinux, const char *name, const char *seclabel) {
+int bus_selinux_id_init(BusSELinuxID **id, const char *seclabel) {
+        *id = NULL;
         return 0;
 }
 
-int bus_selinux_check_own(BusSELinux *selinux,
-                          BusSELinuxSID *sid_owner,
+int bus_selinux_registry_new(BusSELinuxRegistry **registryp, BusSELinuxID *fallback_id) {
+        *registryp = NULL;
+        return 0;
+}
+
+BusSELinuxRegistry *bus_selinux_registry_ref(BusSELinuxRegistry *registry) {
+        return NULL;
+}
+
+BusSELinuxRegistry *bus_selinux_registry_unref(BusSELinuxRegistry *registry) {
+        return NULL;
+}
+
+int bus_selinux_registry_add_name(BusSELinuxRegistry *registry, const char *name, const char *context) {
+        return 0;
+}
+
+int bus_selinux_check_own(BusSELinuxRegistry *registry,
+                          BusSELinuxID *id_owner,
                           const char *name) {
         return 0;
 }
 
-int bus_selinux_check_send(BusSELinux *selinux,
-                           BusSELinuxSID *sid_sender,
-                           BusSELinuxSID *sid_receiver) {
+int bus_selinux_check_send(BusSELinuxRegistry *registry,
+                           BusSELinuxID *id_sender,
+                           BusSELinuxID *id_receiver) {
         return 0;
+}
+
+int bus_selinux_init_global(void) {
+        return 0;
+}
+
+void bus_selinux_deinit_global(void) {
+        return;
 }
