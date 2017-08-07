@@ -11,6 +11,7 @@
 #include "broker/broker.h"
 #include "broker/main.h"
 #include "util/error.h"
+#include "util/selinux.h"
 
 int main_arg_controller = 3;
 uint64_t main_arg_max_bytes = 16 * 1024 * 1024;
@@ -192,9 +193,15 @@ static int run(void) {
         _c_cleanup_(broker_freep) Broker *broker = NULL;
         int r;
 
+        r = bus_selinux_init_global();
+        if (r)
+                return error_fold(r);
+
         r = broker_new(&broker, main_arg_controller, main_arg_max_bytes, main_arg_max_fds, main_arg_max_matches, main_arg_max_objects);
         if (!r)
                 r = broker_run(broker);
+
+        bus_selinux_deinit_global();
 
         return error_trace(r);
 }
