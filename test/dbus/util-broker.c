@@ -48,7 +48,8 @@ static int util_event_sigchld(sd_event_source *source, const siginfo_t *si, void
 #define POLICY_T                                                                \
                 "(" POLICY_T_BATCH ")"                                          \
                 "a(u(" POLICY_T_BATCH "))"                                      \
-                "a(u(" POLICY_T_BATCH "))"
+                "a(u(" POLICY_T_BATCH "))"                                      \
+                "a(ss)"
 
 static int util_append_policy(sd_bus_message *m) {
         int r;
@@ -94,6 +95,15 @@ static int util_append_policy(sd_bus_message *m) {
         /* per-gid batches */
         {
                 r = sd_bus_message_open_container(m, 'a', "(u(" POLICY_T_BATCH "))");
+                assert(r >= 0);
+
+                r = sd_bus_message_close_container(m);
+                assert(r >= 0);
+        }
+
+        /* empty SELinux policy */
+        {
+                r = sd_bus_message_open_container(m, 'a', "(ss)");
                 assert(r >= 0);
 
                 r = sd_bus_message_close_container(m);

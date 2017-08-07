@@ -860,13 +860,15 @@ static int policy_export_xmit(Policy *policy, CList *list1, CList *list2, sd_bus
 #define POLICY_T                                                                \
                 "(" POLICY_T_BATCH ")"                                          \
                 "a(u(" POLICY_T_BATCH "))"                                      \
-                "a(u(" POLICY_T_BATCH "))"
+                "a(u(" POLICY_T_BATCH "))"                                      \
+                "a(ss)"
 
 /**
  * policy_export() - XXX
  */
 int policy_export(Policy *policy, sd_bus_message *m) {
         PolicyNode *node;
+        PolicyRecord *i_record;
         int r;
 
         r = sd_bus_message_open_container(m, 'v', "(" POLICY_T ")");
@@ -959,6 +961,22 @@ int policy_export(Policy *policy, sd_bus_message *m) {
 
                 r = sd_bus_message_close_container(m);
                 if (r < 0)
+                        return error_origin(r);
+        }
+
+        r = sd_bus_message_close_container(m);
+        if (r < 0)
+                return error_origin(r);
+
+        r = sd_bus_message_open_container(m, 'a', "(ss)");
+        if (r < 0)
+                return error_origin(r);
+
+        c_list_for_each_entry(i_record, &policy->selinux_list, link) {
+                r = sd_bus_message_append(m, "(ss)",
+                                          i_record->selinux.name,
+                                          i_record->selinux.context);
+                if (r)
                         return error_origin(r);
         }
 

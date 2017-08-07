@@ -484,6 +484,7 @@ int policy_registry_import(PolicyRegistry *registry, CDVar *v) {
         uint32_t uidgid;
         int r;
 
+        /* XXX: provide the type */
         c_dvar_read(v, "<(", NULL);
 
         r = policy_registry_import_batch(registry, registry->default_batch, v);
@@ -522,7 +523,17 @@ int policy_registry_import(PolicyRegistry *registry, CDVar *v) {
                 c_dvar_read(v, ")");
         }
 
-        /* XXX: import SELinux policy */
+        c_dvar_read(v, "][");
+
+        while (c_dvar_more(v)) {
+                const char *name, *context;
+
+                c_dvar_read(v, "(ss)", &name, &context);
+
+                r = bus_selinux_registry_add_name(registry->selinux, name, context);
+                if (r)
+                        return error_fold(r);
+        }
 
         c_dvar_read(v, "])>");
 
