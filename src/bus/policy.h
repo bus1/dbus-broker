@@ -144,6 +144,7 @@ int policy_snapshot_dup(PolicySnapshot *snapshot, PolicySnapshot **newp);
 int policy_snapshot_check_connect(PolicySnapshot *snapshot);
 int policy_snapshot_check_own(PolicySnapshot *snapshot, const char *name);
 int policy_snapshot_check_send(PolicySnapshot *snapshot,
+                               BusSELinuxID *subject_sid,
                                NameSet *subject,
                                const char *interface,
                                const char *method,

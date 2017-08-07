@@ -556,6 +556,7 @@ int peer_queue_call(PolicySnapshot *sender_policy, NameSet *sender_names, MatchR
         }
 
         r = policy_snapshot_check_send(sender_policy,
+                                       receiver->sid,
                                        &receiver_names,
                                        message->metadata.fields.interface,
                                        message->metadata.fields.member,
@@ -625,6 +626,7 @@ static int peer_broadcast_to_matches(PolicySnapshot *sender_policy, NameSet *sen
 
                 if (sender_policy) {
                         r = policy_snapshot_check_send(sender_policy,
+                                                       receiver->sid,
                                                        &receiver_names,
                                                        message->metadata.fields.interface,
                                                        message->metadata.fields.member,

@@ -1509,7 +1509,7 @@ static int driver_dispatch_interface(Peer *peer, uint32_t serial, const char *in
                 /* ignore */
                 return 0;
 
-        r = policy_snapshot_check_send(peer->policy, NULL, interface, member, path, message->header->type);
+        r = policy_snapshot_check_send(peer->policy, NULL, NULL, interface, member, path, message->header->type);
         if (r) {
                 if (r == POLICY_E_ACCESS_DENIED)
                         return DRIVER_E_SEND_DENIED;

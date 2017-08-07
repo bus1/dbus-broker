@@ -635,7 +635,15 @@ int policy_snapshot_check_own(PolicySnapshot *snapshot, const char *name_str) {
         const char *end;
         CRBNode *rb;
         size_t i;
-        int v;
+        int v, r;
+
+        r = bus_selinux_check_own(snapshot->selinux, snapshot->sid, name_str);
+        if (r) {
+                if (r == SELINUX_E_DENIED)
+                        return POLICY_E_ACCESS_DENIED;
+
+                return error_fold(r);
+        }
 
         for (i = 0; i < snapshot->n_batches; ++i) {
                 /*
@@ -801,6 +809,7 @@ static void policy_snapshot_check_xmit(PolicyBatch *batch,
  * policy_snapshot_check_send() - XXX
  */
 int policy_snapshot_check_send(PolicySnapshot *snapshot,
+                               BusSELinuxID *subject_sid,
                                NameSet *subject,
                                const char *interface,
                                const char *method,
@@ -808,6 +817,15 @@ int policy_snapshot_check_send(PolicySnapshot *snapshot,
                                unsigned int type) {
         PolicyVerdict verdict = POLICY_VERDICT_INIT;
         size_t i;
+        int r;
+
+        r = bus_selinux_check_send(snapshot->selinux, snapshot->sid, subject_sid);
+        if (r) {
+                if (r == SELINUX_E_DENIED)
+                        return POLICY_E_ACCESS_DENIED;
+
+                return error_fold(r);
+        }
 
         for (i = 0; i < snapshot->n_batches; ++i)
                 policy_snapshot_check_xmit(snapshot->batches[i],
