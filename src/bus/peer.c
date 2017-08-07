@@ -23,6 +23,7 @@
 #include "util/error.h"
 #include "util/fdlist.h"
 #include "util/metrics.h"
+#include "util/selinux.h"
 #include "util/sockopt.h"
 #include "util/user.h"
 
@@ -196,6 +197,10 @@ int peer_new_with_fd(Peer **peerp,
         peer->owned_matches = (MatchOwner)MATCH_OWNER_INIT;
         peer->replies_outgoing = (ReplyRegistry)REPLY_REGISTRY_INIT;
         peer->owned_replies = (ReplyOwner)REPLY_OWNER_INIT(peer->owned_replies);
+
+        r = bus_selinux_id_init(&peer->sid, peer->seclabel);
+        if (r)
+                return error_fold(r);
 
         r = user_charge(user, &peer->charges[0], NULL, USER_SLOT_BYTES, sizeof(Peer));
         r = r ?: user_charge(user, &peer->charges[1], NULL, USER_SLOT_FDS, 1);
