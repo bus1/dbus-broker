@@ -28,24 +28,28 @@ static_assert(__builtin_types_compatible_p(XML_Char, char),
 /**
  * config_path_new() - XXX
  */
-int config_path_new(ConfigPath **filep, ConfigPath *parent, const char *path) {
+int config_path_new(ConfigPath **filep, ConfigPath *parent, const char *prefix, const char *path) {
         _c_cleanup_(config_path_unrefp) ConfigPath *file = NULL;
         size_t n_path, n_prefix;
-        char *t, *prefix = NULL;
+        char *t;
 
         n_path = strlen(path);
         n_prefix = 0;
 
         /* prepend parent-path if @path is relative */
-        if (parent && path[0] != '/') {
-                if (parent->is_dir) {
-                        prefix = parent->path;
-                        n_prefix = strlen(parent->path);
-                } else {
-                        t = strrchr(parent->path, '/');
-                        if (t) {
+        if (path[0] != '/') {
+                if (prefix) {
+                        n_prefix = strlen(prefix);
+                } else if (parent) {
+                        if (parent->is_dir) {
                                 prefix = parent->path;
-                                n_prefix = t - parent->path;
+                                n_prefix = strlen(parent->path);
+                        } else {
+                                t = strrchr(parent->path, '/');
+                                if (t) {
+                                        prefix = parent->path;
+                                        n_prefix = t - parent->path;
+                                }
                         }
                 }
         }
@@ -73,7 +77,7 @@ int config_path_new(ConfigPath **filep, ConfigPath *parent, const char *path) {
 static int config_path_new_dir(ConfigPath **filep, ConfigPath *parent, const char *path) {
         int r;
 
-        r = config_path_new(filep, parent, path);
+        r = config_path_new(filep, parent, NULL, path);
         if (!r)
                 (*filep)->is_dir = true;
 
@@ -992,6 +996,7 @@ static void config_parser_end_fn(void *userdata, const XML_Char *name) {
 
                         r = config_path_new(&node->include.file,
                                             state->current->includedir.dir,
+                                            NULL,
                                             de->d_name);
                         if (r) {
                                 state->error = error_trace(r);
@@ -1010,6 +1015,9 @@ static void config_parser_end_fn(void *userdata, const XML_Char *name) {
         case CONFIG_NODE_INCLUDE: {
                 r = config_path_new(&state->current->include.file,
                                     state->file,
+                                    state->current->include.selinux_root_relative ?
+                                        bus_selinux_policy_root() :
+                                        state->file->path,
                                     state->current->cdata);
                 if (r) {
                         state->error = error_trace(r);
@@ -1192,7 +1200,7 @@ int config_parser_read(ConfigParser *parser, ConfigRoot **rootp, const char *pat
          * Create a fake <include>@path</include> node on the root entry, which
          * serves as starting point.
          */
-        r = config_path_new(&file, NULL, path);
+        r = config_path_new(&file, NULL, NULL, path);
         if (r)
                 return error_trace(r);
 

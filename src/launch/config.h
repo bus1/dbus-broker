@@ -197,7 +197,7 @@ struct ConfigParser {
 
 /* files */
 
-int config_path_new(ConfigPath **filep, ConfigPath *parent, const char *path);
+int config_path_new(ConfigPath **filep, ConfigPath *parent, const char *prefix, const char *path);
 ConfigPath *config_path_ref(ConfigPath *file);
 ConfigPath *config_path_unref(ConfigPath *file);
 
