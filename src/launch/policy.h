@@ -35,6 +35,11 @@ struct PolicyRecord {
                         unsigned int type;
                         bool eavesdrop;
                 } xmit;
+
+                struct {
+                        const char *name;
+                        const char *context;
+                } selinux;
         };
 };
 
@@ -47,6 +52,10 @@ struct PolicyRecord {
         }
 
 #define POLICY_RECORD_INIT_XMIT(_x) {                                           \
+                .link = C_LIST_INIT((_x).link),                                 \
+        }
+
+#define POLICY_RECORD_INIT_SELINUX(_x) {                                        \
                 .link = C_LIST_INIT((_x).link),                                 \
         }
 
@@ -80,6 +89,8 @@ struct Policy {
 
         CRBTree uid_tree;
         CRBTree gid_tree;
+
+        CList selinux_list;
 };
 
 #define POLICY_INIT(_x) {                                                       \
@@ -89,6 +100,7 @@ struct Policy {
                 .recv_default = C_LIST_INIT((_x).recv_default),                 \
                 .uid_tree = C_RBTREE_INIT,                                      \
                 .gid_tree = C_RBTREE_INIT,                                      \
+                .selinux_list = C_LIST_INIT((_x).selinux_list)                  \
         }
 
 /* records */
@@ -96,6 +108,7 @@ struct Policy {
 int policy_record_new_connect(PolicyRecord **recordp);
 int policy_record_new_own(PolicyRecord **recordp);
 int policy_record_new_xmit(PolicyRecord **recordp);
+int policy_record_new_selinux(PolicyRecord **recordp);
 PolicyRecord *policy_record_free(PolicyRecord *record);
 
 C_DEFINE_CLEANUP(PolicyRecord *, policy_record_free);

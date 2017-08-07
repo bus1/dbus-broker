@@ -64,6 +64,23 @@ int policy_record_new_xmit(PolicyRecord **recordp) {
 }
 
 /**
+ * policy_record_new_selinux() - XXX
+ */
+int policy_record_new_selinux(PolicyRecord **recordp) {
+        _c_cleanup_(policy_record_freep) PolicyRecord *record = NULL;
+
+        record = calloc(1, sizeof(*record));
+        if (!record)
+                return error_origin(-ENOMEM);
+
+        *record = (PolicyRecord)POLICY_RECORD_INIT_SELINUX(*record);
+
+        *recordp = record;
+        record = NULL;
+        return 0;
+}
+
+/**
  * policy_record_free() - XXX
  */
 PolicyRecord *policy_record_free(PolicyRecord *record) {
@@ -151,6 +168,9 @@ void policy_init(Policy *policy) {
 void policy_deinit(Policy *policy) {
         PolicyNode *node, *t_node;
         PolicyRecord *record;
+
+        while ((record = c_list_first_entry(&policy->selinux_list, PolicyRecord, link)))
+                policy_record_free(record);
 
         c_rbtree_for_each_entry_unlink(node, t_node, &policy->gid_tree, policy_node)
                 policy_node_free(node);
@@ -517,6 +537,35 @@ static int policy_import_recv(Policy *policy, ConfigNode *cnode) {
         return 0;
 }
 
+static int policy_import_selinux(Policy *policy, ConfigNode *cnode) {
+        _c_cleanup_(policy_record_freep) PolicyRecord *record = NULL;
+        int r;
+
+        assert(cnode->parent);
+        assert(cnode->parent->type == CONFIG_NODE_SELINUX);
+
+        if (!cnode->associate.own ||
+            !cnode->associate.context) {
+                fprintf(stderr, "Invalid policy attribute combination in %s +%lu\n",
+                        cnode->file, cnode->lineno);
+                return 0;
+        }
+
+        r = policy_record_new_own(&record);
+        if (r)
+                return error_trace(r);
+
+        policy_import_verdict(policy, record, cnode);
+
+        record->selinux.name = cnode->associate.own;
+        record->selinux.context = cnode->associate.context;
+
+        c_list_link_tail(&policy->selinux_list, &record->link);
+
+        record = NULL;
+        return 0;
+}
+
 /**
  * policy_import() - XXX
  */
@@ -529,6 +578,13 @@ int policy_import(Policy *policy, ConfigRoot *root) {
                 return error_trace(r);
 
         c_list_for_each_entry(i_cnode, &root->node_list, root_link) {
+                if (i_cnode->type == CONFIG_NODE_ASSOCIATE) {
+                        r = policy_import_selinux(policy, i_cnode);
+                        if (r)
+                                return error_trace(r);
+                        continue;
+                }
+
                 if (i_cnode->type != CONFIG_NODE_ALLOW &&
                     i_cnode->type != CONFIG_NODE_DENY)
                         continue;
