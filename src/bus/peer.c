@@ -212,7 +212,7 @@ int peer_new_with_fd(Peer **peerp,
                 return error_fold(r);
         }
 
-        r = policy_snapshot_new(&peer->policy, policy, ucred.uid, gids, n_gids);
+        r = policy_snapshot_new(&peer->policy, policy, peer->sid, ucred.uid, gids, n_gids);
         if (r)
                 return error_fold(r);
 

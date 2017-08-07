@@ -213,7 +213,7 @@ static int controller_method_add_listener(Controller *controller, const char *_p
         uint32_t fd_index;
         socklen_t n;
 
-        r = policy_registry_new(&policy);
+        r = policy_registry_new(&policy, controller->sid);
         if (r)
                 return error_fold(r);
 

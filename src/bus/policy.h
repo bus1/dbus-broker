@@ -12,6 +12,8 @@
 #include <stdlib.h>
 #include "dbus/protocol.h"
 
+typedef struct BusSELinuxID BusSELinuxID;
+typedef struct BusSELinuxRegistry BusSELinuxRegistry;
 typedef struct NameSet NameSet;
 typedef struct PolicyBatch PolicyBatch;
 typedef struct PolicyBatchName PolicyBatchName;
@@ -93,6 +95,7 @@ struct PolicyRegistryNode {
         }
 
 struct PolicyRegistry {
+        BusSELinuxRegistry *selinux;
         PolicyBatch *default_batch;
         CRBTree uid_tree;
         CRBTree gid_tree;
@@ -104,6 +107,8 @@ struct PolicyRegistry {
         }
 
 struct PolicySnapshot {
+        BusSELinuxRegistry *selinux;
+        BusSELinuxID *sid;
         size_t n_batches;
         PolicyBatch *batches[];
 };
@@ -117,7 +122,7 @@ void policy_batch_free(_Atomic unsigned long *n_refs, void *userdata);
 
 /* registry */
 
-int policy_registry_new(PolicyRegistry **registryp);
+int policy_registry_new(PolicyRegistry **registryp, BusSELinuxID *fallback_id);
 PolicyRegistry *policy_registry_free(PolicyRegistry *registry);
 
 int policy_registry_import(PolicyRegistry *registry, CDVar *v);
@@ -128,6 +133,7 @@ C_DEFINE_CLEANUP(PolicyRegistry *, policy_registry_free);
 
 int policy_snapshot_new(PolicySnapshot **snapshotp,
                         PolicyRegistry *registry,
+                        BusSELinuxID *sid,
                         uint32_t uid,
                         const uint32_t *gids,
                         size_t n_gids);

@@ -11,6 +11,7 @@
 #include "bus/policy.h"
 #include "dbus/protocol.h"
 #include "util/error.h"
+#include "util/selinux.h"
 
 static PolicyXmit *policy_xmit_free(PolicyXmit *xmit) {
         if (!xmit)
@@ -301,7 +302,7 @@ static int policy_registry_node_new(PolicyRegistryNode **nodep, CRBTree *tree, u
 /**
  * policy_registry_new() - XXX
  */
-int policy_registry_new(PolicyRegistry **registryp) {
+int policy_registry_new(PolicyRegistry **registryp, BusSELinuxID *fallback_id) {
         _c_cleanup_(policy_registry_freep) PolicyRegistry *registry = NULL;
         int r;
 
@@ -310,6 +311,10 @@ int policy_registry_new(PolicyRegistry **registryp) {
                 return error_origin(-ENOMEM);
 
         *registry = (PolicyRegistry)POLICY_REGISTRY_NULL;
+
+        r = bus_selinux_registry_new(&registry->selinux, fallback_id);
+        if (r)
+                return error_fold(r);
 
         r = policy_batch_new(&registry->default_batch);
         if (r)
@@ -335,6 +340,7 @@ PolicyRegistry *policy_registry_free(PolicyRegistry *registry) {
                 policy_registry_node_free(node);
 
         policy_batch_unref(registry->default_batch);
+        bus_selinux_registry_unref(registry->selinux);
         free(registry);
 
         return NULL;
@@ -516,6 +522,8 @@ int policy_registry_import(PolicyRegistry *registry, CDVar *v) {
                 c_dvar_read(v, ")");
         }
 
+        /* XXX: import SELinux policy */
+
         c_dvar_read(v, "])>");
 
         r = c_dvar_get_poison(v);
@@ -530,6 +538,7 @@ int policy_registry_import(PolicyRegistry *registry, CDVar *v) {
  */
 int policy_snapshot_new(PolicySnapshot **snapshotp,
                         PolicyRegistry *registry,
+                        BusSELinuxID *sid,
                         uint32_t uid,
                         const uint32_t *gids,
                         size_t n_gids) {
@@ -541,6 +550,9 @@ int policy_snapshot_new(PolicySnapshot **snapshotp,
                 return error_origin(-ENOMEM);
 
         *snapshot = (PolicySnapshot)POLICY_SNAPSHOT_NULL;
+
+        snapshot->selinux = bus_selinux_registry_ref(registry->selinux);
+        snapshot->sid = sid;
 
         node = policy_registry_find_uid(registry, uid);
         if (node)
@@ -570,6 +582,7 @@ PolicySnapshot *policy_snapshot_free(PolicySnapshot *snapshot) {
 
         while (snapshot->n_batches-- > 0)
                 policy_batch_unref(snapshot->batches[snapshot->n_batches]);
+        bus_selinux_registry_unref(snapshot->selinux);
         free(snapshot);
 
         return NULL;
@@ -587,6 +600,9 @@ int policy_snapshot_dup(PolicySnapshot *snapshot, PolicySnapshot **newp) {
                 return error_origin(-ENOMEM);
 
         *new = (PolicySnapshot)POLICY_SNAPSHOT_NULL;
+
+        new->selinux = bus_selinux_registry_ref(snapshot->selinux);
+        new->sid = snapshot->sid;
 
         for (i = 0; i < snapshot->n_batches; ++i)
                 new->batches[new->n_batches++] = policy_batch_ref(snapshot->batches[i]);
