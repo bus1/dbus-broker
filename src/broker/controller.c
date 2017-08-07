@@ -13,6 +13,8 @@
 #include "dbus/connection.h"
 #include "dbus/message.h"
 #include "util/error.h"
+#include "util/selinux.h"
+#include "util/sockopt.h"
 
 static int controller_name_compare(CRBTree *t, void *k, CRBNode *rb) {
         ControllerName *name = c_container_of(rb, ControllerName, controller_node);
@@ -155,10 +157,19 @@ static int controller_dispatch_connection(DispatchFile *file) {
  */
 int controller_init(Controller *c, Broker *broker, int controller_fd) {
         _c_cleanup_(controller_deinitp) Controller *controller = c;
+        _c_cleanup_(c_freep) char *seclabel = NULL;
         int r;
 
         *controller = (Controller)CONTROLLER_NULL(*controller);
         controller->broker = broker;
+
+        r = sockopt_get_peersec(controller_fd, &seclabel, NULL);
+        if (r)
+                return error_fold(r);
+
+        r = bus_selinux_id_init(&c->sid, seclabel);
+        if (r)
+                return error_fold(r);
 
         r = connection_init_server(&controller->connection,
                                    &broker->dispatcher,
