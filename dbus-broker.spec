@@ -1,5 +1,5 @@
 %define build_date %(date +"%%a %%b %%d %%Y")
-%define build_timestamp %(date +"%%Y%%m%%d.%%H%m%%S")
+%define build_timestamp %(date +"%%Y%%m%%d.%%H%M%%S")
 
 Name:           dbus-broker
 Version:        1
@@ -8,12 +8,14 @@ Summary:        Linux D-Bus Message Broker
 License:        ASL2.0
 URL:            https://github.com/bus1/dbus-broker
 Source0:        https://github.com/bus1/dbus-broker/archive/v%{version}.tar.gz
-BuildRequires:  meson ninja-build
-BuildRequires:  glibc-devel
-BuildRequires:  systemd-devel
 BuildRequires:  expat-devel
 BuildRequires:  glib2-devel
+BuildRequires:  glibc-devel
 BuildRequires:  git
+BuildRequires:  libselinux-devel
+BuildRequires:  meson
+BuildRequires:  ninja-build
+BuildRequires:  systemd-devel
 
 %description
 Linux D-Bus Message Broker
