@@ -799,8 +799,6 @@ static void policy_snapshot_check_xmit(PolicyBatch *batch,
                  * An ownership-snapshot is given. Again, we simply iterate the
                  * names and match each. Note that the snapshot must contain
                  * queued names as well, since the policy matches on it.
-                 *
-                 * XXX: Make sure snapshots contain queued names.
                  */
                 for (i = 0; i < nameset->snapshot->n_names; ++i)
                         policy_snapshot_check_xmit_name(batch,

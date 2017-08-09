@@ -414,8 +414,7 @@ int name_registry_release_name(NameRegistry *registry,
  *
  * The names owned by a name owner are dynamic. However, sometimes we may want
  * to store the names owned at a given point in time. This allows an immutable
- * snapshot to be created of all the names the name owner is the primary owner
- * of.
+ * snapshot to be created of all the names the name owner owns.
  *
  * Return: 0 on success, negative error code on failure.
  */
@@ -425,8 +424,7 @@ int name_snapshot_new(NameSnapshot **snapshotp, NameOwner *owner) {
         size_t n_names = 0;
 
         c_rbtree_for_each_entry(ownership, &owner->ownership_tree, owner_node)
-                if (name_ownership_is_primary(ownership))
-                        ++n_names;
+                ++n_names;
 
         snapshot = malloc(sizeof(*snapshot) + n_names * sizeof(snapshot->names[0]));
         if (!snapshot)
@@ -435,8 +433,7 @@ int name_snapshot_new(NameSnapshot **snapshotp, NameOwner *owner) {
         *snapshot = (NameSnapshot)NAME_SNAPSHOT_NULL;
 
         c_rbtree_for_each_entry(ownership, &owner->ownership_tree, owner_node)
-                if (name_ownership_is_primary(ownership))
-                        snapshot->names[snapshot->n_names++] = name_ref(ownership->name);
+                snapshot->names[snapshot->n_names++] = name_ref(ownership->name);
 
         assert(n_names == snapshot->n_names);
 
