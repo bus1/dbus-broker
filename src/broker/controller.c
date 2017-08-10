@@ -13,6 +13,7 @@
 #include "dbus/connection.h"
 #include "dbus/message.h"
 #include "util/error.h"
+#include "util/proc.h"
 #include "util/selinux.h"
 #include "util/sockopt.h"
 
@@ -163,7 +164,10 @@ int controller_init(Controller *c, Broker *broker, int controller_fd) {
         *controller = (Controller)CONTROLLER_NULL(*controller);
         controller->broker = broker;
 
-        r = sockopt_get_peersec(controller_fd, &seclabel, NULL);
+        /* XXX: replace this by sockopt_get_seclabel() once
+         *      socketpair() created sockets support it.
+         */
+        r = proc_get_seclabel(&seclabel, NULL);
         if (r)
                 return error_fold(r);
 

@@ -23,6 +23,7 @@ libdbus_broker_sources = [
         'util/dispatch.c',
         'util/fdlist.c',
         'util/metrics.c',
+        'util/proc.c',
         'util/sockopt.c',
         'util/user.c',
 ]
