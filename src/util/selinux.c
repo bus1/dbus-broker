@@ -307,11 +307,11 @@ int bus_selinux_check_send(BusSELinuxRegistry *registry,
 
         receiver_sid = receiver_id ? BUS_SELINUX_SID_FROM_ID(receiver_id) : registry->fallback_sid;
 
-        r = avc_has_perm_noaudit(BUS_SELINUX_SID_FROM_ID(sender_id),
-                                 receiver_sid,
-                                 BUS_SELINUX_CLASS_DBUS,
-                                 BUS_SELINUX_PERMISSION_SEND,
-                                 NULL, NULL);
+        r = avc_has_perm(BUS_SELINUX_SID_FROM_ID(sender_id),
+                         receiver_sid,
+                         BUS_SELINUX_CLASS_DBUS,
+                         BUS_SELINUX_PERMISSION_SEND,
+                         NULL, NULL);
         if (r < 0) {
                 /*
                  * Treat unknown contexts (possibly due to policy reload)
