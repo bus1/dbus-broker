@@ -317,6 +317,10 @@ static int driver_send_error(Peer *receiver, uint32_t serial, const char *error,
         size_t n_data;
         int r;
 
+        /* If no reply was expected, never send an error. */
+        if (!serial)
+                return 0;
+
         c_dvar_begin_write(&var, type, 1);
         c_dvar_write(&var, "((yyyyuu[(y<u>)(y<s>)(y<s>)(y<g>)(y<",
                      c_dvar_is_big_endian(&var) ? 'B' : 'l', DBUS_MESSAGE_TYPE_ERROR, DBUS_HEADER_FLAG_NO_REPLY_EXPECTED, 1, 0, (uint32_t)-1,
@@ -343,7 +347,7 @@ static int driver_send_error(Peer *receiver, uint32_t serial, const char *error,
         return 0;
 }
 
-static int driver_send_reply(Peer *peer, CDVar *var, const char *arg0) {
+static int driver_send_reply(Peer *peer, CDVar *var, uint32_t serial) {
         _c_cleanup_(message_unrefp) Message *message = NULL;
         void *data;
         size_t n_data;
@@ -361,6 +365,10 @@ static int driver_send_reply(Peer *peer, CDVar *var, const char *arg0) {
         r = c_dvar_end_write(var, &data, &n_data);
         if (r)
                 return error_origin(r);
+
+        /* If no reply was expected, simply discard the message. */
+        if (!serial)
+                return 0;
 
         r = message_new_outgoing(&message, data, n_data);
         if (r)
@@ -549,7 +557,7 @@ static int driver_name_activated(Activation *activation, Peer *receiver) {
                         driver_write_reply_header(&var, sender, request->serial, driver_type_out_u);
                         c_dvar_write(&var, "(u)", DBUS_START_REPLY_SUCCESS);
 
-                        r = driver_send_reply(sender, &var, NULL);
+                        r = driver_send_reply(sender, &var, request->serial);
                         if (r)
                                 return error_trace(r);
                 }
@@ -634,7 +642,7 @@ static int driver_method_hello(Peer *peer, CDVar *in_v, uint32_t serial, CDVar *
 
         c_dvar_write(out_v, "(s)", unique_name);
 
-        r = driver_send_reply(peer, out_v, unique_name);
+        r = driver_send_reply(peer, out_v, serial);
         if (r)
                 return error_trace(r);
 
@@ -682,7 +690,7 @@ static int driver_method_request_name(Peer *peer, CDVar *in_v, uint32_t serial, 
 
         c_dvar_write(out_v, "(u)", reply);
 
-        r = driver_send_reply(peer, out_v, NULL);
+        r = driver_send_reply(peer, out_v, serial);
         if (r)
                 return error_trace(r);
 
@@ -736,7 +744,7 @@ static int driver_method_release_name(Peer *peer, CDVar *in_v, uint32_t serial, 
 
         c_dvar_write(out_v, "(u)", reply);
 
-        r = driver_send_reply(peer, out_v, NULL);
+        r = driver_send_reply(peer, out_v, serial);
         if (r)
                 return error_trace(r);
 
@@ -784,7 +792,7 @@ static int driver_method_list_queued_owners(Peer *peer, CDVar *in_v, uint32_t se
         }
         c_dvar_write(out_v, "])");
 
-        r = driver_send_reply(peer, out_v, NULL);
+        r = driver_send_reply(peer, out_v, serial);
         if (r)
                 return error_trace(r);
 
@@ -818,7 +826,7 @@ static int driver_method_list_names(Peer *peer, CDVar *in_v, uint32_t serial, CD
         }
         c_dvar_write(out_v, "])");
 
-        r = driver_send_reply(peer, out_v, NULL);
+        r = driver_send_reply(peer, out_v, serial);
         if (r)
                 return error_trace(r);
 
@@ -845,7 +853,7 @@ static int driver_method_list_activatable_names(Peer *peer, CDVar *in_v, uint32_
         }
         c_dvar_write(out_v, "])");
 
-        r = driver_send_reply(peer, out_v, NULL);
+        r = driver_send_reply(peer, out_v, serial);
         if (r)
                 return error_trace(r);
 
@@ -871,7 +879,7 @@ static int driver_method_name_has_owner(Peer *peer, CDVar *in_v, uint32_t serial
                 c_dvar_write(out_v, "(b)", !!connection);
         }
 
-        r = driver_send_reply(peer, out_v, NULL);
+        r = driver_send_reply(peer, out_v, serial);
         if (r)
                 return error_trace(r);
 
@@ -900,7 +908,7 @@ static int driver_method_start_service_by_name(Peer *peer, CDVar *in_v, uint32_t
         if (ownership) {
                 c_dvar_write(out_v, "(u)", DBUS_START_REPLY_ALREADY_RUNNING);
 
-                r = driver_send_reply(peer, out_v, NULL);
+                r = driver_send_reply(peer, out_v, serial);
                 if (r)
                         return error_trace(r);
         } else {
@@ -951,7 +959,7 @@ static int driver_method_update_activation_environment(Peer *peer, CDVar *in_v, 
 
         c_dvar_write(out_v, "()");
 
-        r = driver_send_reply(peer, out_v, NULL);
+        r = driver_send_reply(peer, out_v, serial);
         if (r)
                 return error_trace(r);
 
@@ -985,7 +993,7 @@ static int driver_method_get_name_owner(Peer *peer, CDVar *in_v, uint32_t serial
 
         c_dvar_write(out_v, "(s)", owner_str);
 
-        r = driver_send_reply(peer, out_v, owner_str);
+        r = driver_send_reply(peer, out_v, serial);
         if (r)
                 return error_trace(r);
 
@@ -1013,7 +1021,7 @@ static int driver_method_get_connection_unix_user(Peer *peer, CDVar *in_v, uint3
                 c_dvar_write(out_v, "(u)", connection->user->uid);
         }
 
-        r = driver_send_reply(peer, out_v, NULL);
+        r = driver_send_reply(peer, out_v, serial);
         if (r)
                 return error_trace(r);
 
@@ -1041,7 +1049,7 @@ static int driver_method_get_connection_unix_process_id(Peer *peer, CDVar *in_v,
                 c_dvar_write(out_v, "(u)", connection->pid);
         }
 
-        r = driver_send_reply(peer, out_v, NULL);
+        r = driver_send_reply(peer, out_v, serial);
         if (r)
                 return error_trace(r);
 
@@ -1085,7 +1093,7 @@ static int driver_method_get_connection_credentials(Peer *peer, CDVar *in_v, uin
 
         c_dvar_write(out_v, "])");
 
-        r = driver_send_reply(peer, out_v, NULL);
+        r = driver_send_reply(peer, out_v, serial);
         if (r)
                 return error_trace(r);
 
@@ -1149,7 +1157,7 @@ static int driver_method_get_connection_selinux_security_context(Peer *peer, CDV
         driver_write_bytes(out_v, connection->seclabel, connection->n_seclabel);
         c_dvar_write(out_v, ")");
 
-        r = driver_send_reply(peer, out_v, NULL);
+        r = driver_send_reply(peer, out_v, serial);
         if (r)
                 return error_trace(r);
 
@@ -1178,7 +1186,7 @@ static int driver_method_add_match(Peer *peer, CDVar *in_v, uint32_t serial, CDV
 
         c_dvar_write(out_v, "()");
 
-        r = driver_send_reply(peer, out_v, NULL);
+        r = driver_send_reply(peer, out_v, serial);
         if (r)
                 return error_trace(r);
 
@@ -1207,7 +1215,7 @@ static int driver_method_remove_match(Peer *peer, CDVar *in_v, uint32_t serial, 
 
         c_dvar_write(out_v, "()");
 
-        r = driver_send_reply(peer, out_v, NULL);
+        r = driver_send_reply(peer, out_v, serial);
         if (r)
                 return error_trace(r);
 
@@ -1229,7 +1237,7 @@ static int driver_method_get_id(Peer *peer, CDVar *in_v, uint32_t serial, CDVar 
         c_string_to_hex(peer->bus->guid, sizeof(peer->bus->guid), buffer);
         c_dvar_write(out_v, "(s)", buffer);
 
-        r = driver_send_reply(peer, out_v, buffer);
+        r = driver_send_reply(peer, out_v, serial);
         if (r)
                 return error_trace(r);
 
@@ -1345,7 +1353,7 @@ static int driver_method_introspect(Peer *peer, CDVar *in_v, uint32_t serial, CD
 
         c_dvar_write(out_v, "(s)", introspection);
 
-        r = driver_send_reply(peer, out_v, NULL);
+        r = driver_send_reply(peer, out_v, serial);
         if (r)
                 return error_trace(r);
 
@@ -1399,7 +1407,7 @@ static int driver_method_become_monitor(Peer *peer, CDVar *in_v, uint32_t serial
         /* write the output message */
         c_dvar_write(out_v, "()");
 
-        r = driver_send_reply(peer, out_v, NULL);
+        r = driver_send_reply(peer, out_v, serial);
         if (r) {
                 r = error_trace(r);
                 goto error;
@@ -1699,7 +1707,7 @@ static int driver_dispatch_internal(Peer *peer, Message *message) {
 
         if (_c_unlikely_(c_string_equal(message->metadata.fields.destination, "org.freedesktop.DBus"))) {
                 return error_trace(driver_dispatch_interface(peer,
-                                                             message->metadata.header.serial,
+                                                             message_read_serial(message),
                                                              message->metadata.fields.interface,
                                                              message->metadata.fields.member,
                                                              message->metadata.fields.path,
@@ -1762,14 +1770,14 @@ int driver_dispatch(Peer *peer, Message *message) {
         r = driver_dispatch_internal(peer, message);
         switch (r) {
         case DRIVER_E_PEER_NOT_REGISTERED:
-                r = driver_send_error(peer, message->metadata.header.serial, "org.freedesktop.DBus.Error.AccessDenied", driver_error_to_string(r));
+                r = driver_send_error(peer, message_read_serial(message), "org.freedesktop.DBus.Error.AccessDenied", driver_error_to_string(r));
                 if (r)
                         return error_trace(r);
                 /* fall through */
         case DRIVER_E_INVALID_MESSAGE:
                 return DRIVER_E_PROTOCOL_VIOLATION;
         case DRIVER_E_PEER_ALREADY_REGISTERED:
-                r = driver_send_error(peer, message->metadata.header.serial, "org.freedesktop.DBus.Error.Failed", driver_error_to_string(r));
+                r = driver_send_error(peer, message_read_serial(message), "org.freedesktop.DBus.Error.Failed", driver_error_to_string(r));
                 break;
         case DRIVER_E_UNEXPECTED_PATH:
         case DRIVER_E_UNEXPECTED_MESSAGE_TYPE:
@@ -1780,44 +1788,44 @@ int driver_dispatch(Peer *peer, Message *message) {
         case DRIVER_E_RECEIVE_DENIED:
         case DRIVER_E_PEER_NOT_PRIVILEGED:
         case DRIVER_E_NAME_REFUSED:
-                r = driver_send_error(peer, message->metadata.header.serial, "org.freedesktop.DBus.Error.AccessDenied", driver_error_to_string(r));
+                r = driver_send_error(peer, message_read_serial(message), "org.freedesktop.DBus.Error.AccessDenied", driver_error_to_string(r));
                 break;
         case DRIVER_E_UNEXPECTED_INTERFACE:
-                r = driver_send_error(peer, message->metadata.header.serial, "org.freedesktop.DBus.Error.UnknownInterface", driver_error_to_string(r));
+                r = driver_send_error(peer, message_read_serial(message), "org.freedesktop.DBus.Error.UnknownInterface", driver_error_to_string(r));
                 break;
         case DRIVER_E_UNEXPECTED_METHOD:
-                r = driver_send_error(peer, message->metadata.header.serial, "org.freedesktop.DBus.Error.UnknownMethod", driver_error_to_string(r));
+                r = driver_send_error(peer, message_read_serial(message), "org.freedesktop.DBus.Error.UnknownMethod", driver_error_to_string(r));
                 break;
         case DRIVER_E_UNEXPECTED_SIGNATURE:
         case DRIVER_E_UNEXPECTED_FLAGS:
         case DRIVER_E_NAME_RESERVED:
         case DRIVER_E_NAME_UNIQUE:
         case DRIVER_E_NAME_INVALID:
-                r = driver_send_error(peer, message->metadata.header.serial, "org.freedesktop.DBus.Error.InvalidArgs", driver_error_to_string(r));
+                r = driver_send_error(peer, message_read_serial(message), "org.freedesktop.DBus.Error.InvalidArgs", driver_error_to_string(r));
                 break;
         case DRIVER_E_QUOTA:
-                r = driver_send_error(peer, message->metadata.header.serial, "org.freedesktop.DBus.Error.LimitsExceeded", driver_error_to_string(r));
+                r = driver_send_error(peer, message_read_serial(message), "org.freedesktop.DBus.Error.LimitsExceeded", driver_error_to_string(r));
                 break;
         case DRIVER_E_PEER_NOT_FOUND:
         case DRIVER_E_NAME_NOT_FOUND:
         case DRIVER_E_NAME_OWNER_NOT_FOUND:
         case DRIVER_E_DESTINATION_NOT_FOUND:
-                r = driver_send_error(peer, message->metadata.header.serial, "org.freedesktop.DBus.Error.NameHasNoOwner", driver_error_to_string(r));
+                r = driver_send_error(peer, message_read_serial(message), "org.freedesktop.DBus.Error.NameHasNoOwner", driver_error_to_string(r));
                 break;
         case DRIVER_E_NAME_NOT_ACTIVATABLE:
-                r = driver_send_error(peer, message->metadata.header.serial, "org.freedesktop.DBus.Error.ServiceUnknown", driver_error_to_string(r));
+                r = driver_send_error(peer, message_read_serial(message), "org.freedesktop.DBus.Error.ServiceUnknown", driver_error_to_string(r));
                 break;
         case DRIVER_E_MATCH_INVALID:
-                r = driver_send_error(peer, message->metadata.header.serial, "org.freedesktop.DBus.Error.MatchRuleInvalid", driver_error_to_string(r));
+                r = driver_send_error(peer, message_read_serial(message), "org.freedesktop.DBus.Error.MatchRuleInvalid", driver_error_to_string(r));
                 break;
         case DRIVER_E_MATCH_NOT_FOUND:
-                r = driver_send_error(peer, message->metadata.header.serial, "org.freedesktop.DBus.Error.MatchRuleNotFound", driver_error_to_string(r));
+                r = driver_send_error(peer, message_read_serial(message), "org.freedesktop.DBus.Error.MatchRuleNotFound", driver_error_to_string(r));
                 break;
         case DRIVER_E_ADT_NOT_SUPPORTED:
-                r = driver_send_error(peer, message->metadata.header.serial, "org.freedesktop.DBus.Error.AdtAuditDataUnknown", driver_error_to_string(r));
+                r = driver_send_error(peer, message_read_serial(message), "org.freedesktop.DBus.Error.AdtAuditDataUnknown", driver_error_to_string(r));
                 break;
         case DRIVER_E_SELINUX_NOT_SUPPORTED:
-                r = driver_send_error(peer, message->metadata.header.serial, "org.freedesktop.DBus.Error.SELinuxSecurityContextUnknown", driver_error_to_string(r));
+                r = driver_send_error(peer, message_read_serial(message), "org.freedesktop.DBus.Error.SELinuxSecurityContextUnknown", driver_error_to_string(r));
                 break;
         default:
                 break;

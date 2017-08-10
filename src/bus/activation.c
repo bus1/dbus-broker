@@ -159,6 +159,10 @@ int activation_queue_request(Activation *activation, User *user, uint64_t sender
         if (r)
                 return error_trace(r);
 
+        /* If no reply is expected, don't store the request. */
+        if (!serial)
+                return 0;
+
         request = calloc(1, sizeof(*request));
         if (!request)
                 return error_origin(-ENOMEM);

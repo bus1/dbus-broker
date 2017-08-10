@@ -527,13 +527,14 @@ void peer_flush_matches(Peer *peer) {
 int peer_queue_call(PolicySnapshot *sender_policy, NameSet *sender_names, MatchRegistry *sender_matches, ReplyOwner *sender_replies, User *sender_user, uint64_t sender_id, Peer *receiver, Message *message) {
         _c_cleanup_(reply_slot_freep) ReplySlot *slot = NULL;
         NameSet receiver_names = NAME_SET_INIT_FROM_OWNER(&receiver->owned_names);
+        uint32_t serial;
         int r;
 
-        if (sender_replies &&
-            (message->header->type == DBUS_MESSAGE_TYPE_METHOD_CALL) &&
-            !(message->header->flags & DBUS_HEADER_FLAG_NO_REPLY_EXPECTED)) {
+        serial = message_read_serial(message);
+
+        if (sender_replies && serial) {
                 r = reply_slot_new(&slot, &receiver->replies_outgoing, sender_replies,
-                                   receiver->user, sender_user, sender_id, message_read_serial(message));
+                                   receiver->user, sender_user, sender_id, serial);
                 if (r == REPLY_E_EXISTS)
                         return PEER_E_EXPECTED_REPLY_EXISTS;
                 else if (r == REPLY_E_QUOTA)

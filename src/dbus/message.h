@@ -8,6 +8,7 @@
 #include <c-ref.h>
 #include <stdlib.h>
 #include "dbus/address.h"
+#include "dbus/protocol.h"
 
 typedef struct FDList FDList;
 typedef struct Message Message;
@@ -123,6 +124,10 @@ static inline Message *message_unref(Message *message) {
  * message_read_serial() - XXX
  */
 static inline uint32_t message_read_serial(Message *message) {
+        if (message->header->type != DBUS_MESSAGE_TYPE_METHOD_CALL ||
+            _c_unlikely_(message->header->flags & DBUS_HEADER_FLAG_NO_REPLY_EXPECTED))
+                return 0;
+
         if (_c_likely_(!message->big_endian))
                 return le32toh(message->header->serial);
         else

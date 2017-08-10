@@ -140,6 +140,9 @@ static int controller_send_error(Connection *connection, uint32_t serial, const 
         size_t n_data;
         int r;
 
+        if (!serial)
+                return 0;
+
         c_dvar_begin_write(&var, controller_type_out_unit, 1);
         c_dvar_write(&var, "((yyyyuu[(y<u>)(y<s>)])())",
                      c_dvar_is_big_endian(&var) ? 'B' : 'l', DBUS_MESSAGE_TYPE_ERROR, DBUS_HEADER_FLAG_NO_REPLY_EXPECTED, 1, 0, (uint32_t)-1,
@@ -367,6 +370,10 @@ static int controller_handle_method(const ControllerMethod *method, Controller *
         if (r)
                 return error_origin(r);
 
+        /* No reply expected. */
+        if (!serial)
+                return 0;
+
         r = message_new_outgoing(&message_out, data, n_data);
         if (r)
                 return error_fold(r);
@@ -465,7 +472,7 @@ int controller_dbus_dispatch(Controller *controller, Message *message) {
                 return error_fold(r);
 
         r = controller_dispatch_object(controller,
-                                       message->metadata.header.serial,
+                                       message_read_serial(message),
                                        message->metadata.fields.interface,
                                        message->metadata.fields.member,
                                        message->metadata.fields.path,
@@ -476,40 +483,40 @@ int controller_dbus_dispatch(Controller *controller, Message *message) {
                 return CONTROLLER_E_PROTOCOL_VIOLATION;
         case CONTROLLER_E_UNEXPECTED_MESSAGE_TYPE:
         case CONTROLLER_E_UNEXPECTED_PATH:
-                r = controller_send_error(connection, message->metadata.header.serial, "org.freedesktop.DBus.Error.AccessDenied");
+                r = controller_send_error(connection, message_read_serial(message), "org.freedesktop.DBus.Error.AccessDenied");
                 break;
         case CONTROLLER_E_UNEXPECTED_INTERFACE:
-                r = controller_send_error(connection, message->metadata.header.serial, "org.freedesktop.DBus.Error.UnknownInterface");
+                r = controller_send_error(connection, message_read_serial(message), "org.freedesktop.DBus.Error.UnknownInterface");
                 break;
         case CONTROLLER_E_UNEXPECTED_METHOD:
-                r = controller_send_error(connection, message->metadata.header.serial, "org.freedesktop.DBus.Error.UnknownMethod");
+                r = controller_send_error(connection, message_read_serial(message), "org.freedesktop.DBus.Error.UnknownMethod");
                 break;
         case CONTROLLER_E_UNEXPECTED_SIGNATURE:
-                r = controller_send_error(connection, message->metadata.header.serial, "org.freedesktop.DBus.Error.InvalidArgs");
+                r = controller_send_error(connection, message_read_serial(message), "org.freedesktop.DBus.Error.InvalidArgs");
                 break;
         case CONTROLLER_E_LISTENER_EXISTS:
-                r = controller_send_error(connection, message->metadata.header.serial, "org.bus1.DBus.Listener.Exists");
+                r = controller_send_error(connection, message_read_serial(message), "org.bus1.DBus.Listener.Exists");
                 break;
         case CONTROLLER_E_LISTENER_INVALID_FD:
-                r = controller_send_error(connection, message->metadata.header.serial, "org.bus1.DBus.Listener.InvalidFD");
+                r = controller_send_error(connection, message_read_serial(message), "org.bus1.DBus.Listener.InvalidFD");
                 break;
         case CONTROLLER_E_LISTENER_INVALID_POLICY:
-                r = controller_send_error(connection, message->metadata.header.serial, "org.bus1.DBus.Listener.InvalidPolicy");
+                r = controller_send_error(connection, message_read_serial(message), "org.bus1.DBus.Listener.InvalidPolicy");
                 break;
         case CONTROLLER_E_NAME_EXISTS:
-                r = controller_send_error(connection, message->metadata.header.serial, "org.bus1.DBus.Name.Exists");
+                r = controller_send_error(connection, message_read_serial(message), "org.bus1.DBus.Name.Exists");
                 break;
         case CONTROLLER_E_NAME_IS_ACTIVATABLE:
-                r = controller_send_error(connection, message->metadata.header.serial, "org.bus1.DBus.Name.IsActivatable");
+                r = controller_send_error(connection, message_read_serial(message), "org.bus1.DBus.Name.IsActivatable");
                 break;
         case CONTROLLER_E_NAME_INVALID:
-                r = controller_send_error(connection, message->metadata.header.serial, "org.bus1.DBus.Name.Invalid");
+                r = controller_send_error(connection, message_read_serial(message), "org.bus1.DBus.Name.Invalid");
                 break;
         case CONTROLLER_E_LISTENER_NOT_FOUND:
-                r = controller_send_error(connection, message->metadata.header.serial, "org.bus1.DBus.Listener.NotFound");
+                r = controller_send_error(connection, message_read_serial(message), "org.bus1.DBus.Listener.NotFound");
                 break;
         case CONTROLLER_E_NAME_NOT_FOUND:
-                r = controller_send_error(connection, message->metadata.header.serial, "org.bus1.DBus.Name.NotFound");
+                r = controller_send_error(connection, message_read_serial(message), "org.bus1.DBus.Name.NotFound");
                 break;
         default:
                 break;
