@@ -605,6 +605,17 @@ static int socket_recvmsg(Socket *socket,
                 goto error;
         }
 
+        if (_c_unlikely_(*fdsp && n_fds)) {
+                /* XXX: this is a protocol violation, but for now simply drop the
+                 *      spurios fds as sd-bus is broken and passes us this.
+                 *      This whole conditional should simply be dropped.
+                 */
+                while (n_fds)
+                        close(fds[--n_fds]);
+
+                fprintf(stderr, "socket: discarded unexpected file descriptors.\n");
+        }
+
         if (_c_unlikely_(n_fds)) {
                 /*
                  * So we received FDs with this hunk. If we already got FDs for
