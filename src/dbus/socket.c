@@ -509,7 +509,6 @@ int socket_queue(Socket *socket, User *user, Message *message) {
 
 static int socket_recvmsg(Socket *socket,
                           void *buffer,
-                          size_t max,
                           size_t *from,
                           size_t to,
                           FDList **fdsp,
@@ -529,7 +528,7 @@ static int socket_recvmsg(Socket *socket,
         msg = (struct msghdr){
                 .msg_iov = &(struct iovec){
                         .iov_base = buffer + *from,
-                        .iov_len = c_min(to - *from, max),
+                        .iov_len = to - *from,
                 },
                 .msg_iovlen = 1,
                 .msg_control = &control,
@@ -691,7 +690,6 @@ static int socket_dispatch_read(Socket *socket) {
 
         return socket_recvmsg(socket,
                               buffer,
-                              IQUEUE_RECV_MAX,
                               from,
                               to,
                               fds,

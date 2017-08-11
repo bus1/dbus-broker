@@ -213,6 +213,9 @@ int iqueue_get_cursor(IQueue *iq,
          * Read more data into the input buffer, and store the file-descriptors
          * in the buffer as well.
          *
+         * Only ever read in IQUEUE_RECV_MAX in order to limit the number of
+         * incoming messages we may have in the buffer at once.
+         *
          * Note that the kernel always breaks recvmsg() calls after an SKB with
          * file-descriptor payload. Hence, this could be improvded with
          * recvmmsg() so we get multiple messages at all cost. However, FD
@@ -222,7 +225,7 @@ int iqueue_get_cursor(IQueue *iq,
          */
         *bufferp = iq->data;
         *fromp = &iq->data_end;
-        *top = iq->data_size;
+        *top = (iq->data_size - iq->data_end) > IQUEUE_RECV_MAX ? iq->data_end + IQUEUE_RECV_MAX : iq->data_size;
         *fdsp = &iq->fds;
         *charge_fdsp = &iq->charge_fds;
         return 0;
