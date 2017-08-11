@@ -30,10 +30,19 @@ int proc_get_seclabel(char **labelp, size_t *lenp) {
 
         if (!fgets(buffer, sizeof(buffer), f)) {
                 if (ferror(f)) {
-                        if (errno > 0)
+                        if (errno > 0) {
+                                if (errno == EINVAL) {
+                                        if (labelp)
+                                                *labelp = NULL;
+                                        if (lenp)
+                                                *lenp = 0;
+                                        return 0;
+                                }
+
                                 return error_origin(-errno);
-                        else
+                        } else {
                                 return error_origin(-ENOTRECOVERABLE);
+                        }
                 }
 
                 c = buffer;
