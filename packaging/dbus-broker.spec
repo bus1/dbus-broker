@@ -7,7 +7,7 @@ Name:           dbus-broker
 Version:        2
 Release:        2%{?dist}
 Summary:        Linux D-Bus Message Broker
-License:        ASL2.0
+License:        ASL 2.0
 URL:            https://github.com/bus1/dbus-broker
 Source0:        https://github.com/bus1/dbus-broker/archive/v%{version}/dbus-broker-%{version}.tar.gz
 Source1:        https://github.com/c-util/c-dvar/archive/v%{c_dvar_version}/c-dvar-%{c_dvar_version}.tar.gz
@@ -35,15 +35,15 @@ Linux D-Bus Message Broker
 dbus-broker is an implementation of a message bus as defined by the D-Bus
 specification. Its aim is to provide high performance and reliability, while
 keeping compatibility to the D-Bus reference implementation. It is exclusively
-written for linux systems, and makes use of many modern features provided by
-recent linux kernel releases.
+written for Linux systems, and makes use of many modern features provided by
+recent Linux kernel releases.
 
 %prep
 %autosetup
-%setup -T -D -b 1
-%setup -T -D -b 2
-%setup -T -D -b 3
-%setup -T -D -b 4
+%setup -q -T -D -b 1
+%setup -q -T -D -b 2
+%setup -q -T -D -b 3
+%setup -q -T -D -b 4
 cd subprojects
 rm * -r
 ln -s ../../c-dvar-%{c_dvar_version} c-dvar

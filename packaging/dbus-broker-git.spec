@@ -7,7 +7,7 @@ Name:           dbus-broker-git
 Version:        1
 Release:        %{build_timestamp}%{?dist}
 Summary:        Linux D-Bus Message Broker
-License:        ASL2.0
+License:        ASL 2.0
 URL:            https://github.com/bus1/dbus-broker
 Requires:       dbus
 BuildRequires:  expat-devel
