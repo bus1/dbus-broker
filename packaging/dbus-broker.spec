@@ -5,7 +5,7 @@
 
 Name:           dbus-broker
 Version:        2
-Release:        1%{?dist}
+Release:        2%{?dist}
 Summary:        Linux D-Bus Message Broker
 License:        ASL2.0
 URL:            https://github.com/bus1/dbus-broker
@@ -26,7 +26,7 @@ BuildRequires:  libselinux-devel
 BuildRequires:  meson
 BuildRequires:  systemd
 BuildRequires:  systemd-devel
-BuildRequires:  checkpolicy, selinux-policy-devel, /usr/share/selinux/devel/policyhelp
+BuildRequires:  checkpolicy, selinux-policy-devel
 Requires:       dbus
 
 %description
@@ -82,9 +82,8 @@ if [ $1 -eq 0 ] ; then
 fi
 
 %files
-#%license AUTHORS
-#%license COPYRIGHT
-#%license LICENSE
+%license COPYING
+%license LICENSE
 %{_bindir}/dbus-broker
 %{_bindir}/dbus-broker-launch
 %{_datadir}/selinux/*/dbus-broker.pp
@@ -92,6 +91,9 @@ fi
 %{_userunitdir}/dbus-broker.service
 
 %changelog
+* Wed Aug 16 2017 Tom Gundersen <teg@jklm.no> - 2-2
+- Add license to package
+
 * Wed Aug 16 2017 Tom Gundersen <teg@jklm.no> - 2-1
 - Add SELinux support
 
