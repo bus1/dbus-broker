@@ -49,8 +49,6 @@ if [ $1 -eq 0 ] ; then
 fi
 
 %files
-%license COPYING
-%license LICENSE
 %{_bindir}/dbus-broker
 %{_bindir}/dbus-broker-launch
 %{_datadir}/selinux/*/dbus-broker.pp
