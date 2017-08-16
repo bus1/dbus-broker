@@ -26,6 +26,7 @@ BuildRequires:  libselinux-devel
 BuildRequires:  meson
 BuildRequires:  systemd
 BuildRequires:  systemd-devel
+BuildRequires:  checkpolicy, selinux-policy-devel, /usr/share/selinux/devel/policyhelp
 Requires:       dbus
 
 %description
