@@ -1,7 +1,14 @@
 dbus-broker - Linux D-Bus Message Broker
 
+CHANGES WITH 3:
+        * Added manpages.
+
+        Contributions from: Tom Gundersen
+
+        - Oslo, 2017-08-18
+
 CHANGES WITH 2:
-        * Added SELinux support
+        * Added SELinux support.
 
         Contributions from: Tom Gundersen
 

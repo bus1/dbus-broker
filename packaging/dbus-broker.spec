@@ -1,11 +1,11 @@
-%define c_dvar_version 1
-%define c_list_version 3
-%define c_rbtree_version 3
-%define c_sundry_commit 3b5f04b5af54dea68d832546833d6d460d03aefc
+%global c_dvar_version 1
+%global c_list_version 3
+%global c_rbtree_version 3
+%global c_sundry_commit 3b5f04b5af54dea68d832546833d6d460d03aefc
 
 Name:           dbus-broker
-Version:        2
-Release:        2%{?dist}
+Version:        3
+Release:        1%{?dist}
 Summary:        Linux D-Bus Message Broker
 License:        ASL 2.0
 URL:            https://github.com/bus1/dbus-broker
@@ -26,6 +26,7 @@ BuildRequires:  libselinux-devel
 BuildRequires:  meson
 BuildRequires:  systemd
 BuildRequires:  systemd-devel
+BuildRequires:  python2-docutils
 BuildRequires:  checkpolicy, selinux-policy-devel
 Requires:       dbus
 
@@ -50,22 +51,30 @@ ln -s ../../c-dvar-%{c_dvar_version} c-dvar
 ln -s ../../c-list-%{c_list_version} c-list
 ln -s ../../c-rbtree-%{c_rbtree_version} c-rbtree
 ln -s ../../c-sundry-%{c_sundry_commit} c-sundry
-cd ../..
-rm -rf selinux
-mkdir selinux
-cp dbus-broker-%{version}/selinux/dbus-broker.{te,fc} selinux/
+cd -
+rm -rf %{_vpath_builddir}/docs
+mkdir -p %{_vpath_builddir}/docs
+rm -rf %{_vpath_builddir}/selinux
+mkdir -p %{_vpath_builddir}/selinux
+cp %{_vpath_srcdir}/selinux/dbus-broker.{te,fc} %{_vpath_builddir}/selinux/
 
 %build
+echo %{_vpath_builddir}
 meson --prefix=/usr --buildtype=release %{_vpath_srcdir} %{_vpath_builddir}
 %meson_build
-cd selinux
+rst2man %{_vpath_srcdir}/docs/dbus-broker-launch.rst %{_vpath_builddir}/docs/dbus-broker-launch.1
+rst2man %{_vpath_srcdir}/docs/dbus-broker.rst %{_vpath_builddir}/docs/dbus-broker.1
+cd %{_vpath_builddir}/selinux
 make NAME=targeted -f /usr/share/selinux/devel/Makefile
 cd -
 
 %install
 %meson_install
+install -d %{buildroot}%{_mandir}/man1
+install -p -m 644 %{_vpath_builddir}/docs/dbus-broker-launch.1 %{buildroot}%{_mandir}/man1/dbus-broker-launch.1
+install -p -m 644 %{_vpath_builddir}/docs/dbus-broker.1 %{buildroot}%{_mandir}/man1/dbus-broker.1
 install -d %{buildroot}%{_datadir}/selinux/targeted
-install -p -m 644 selinux/dbus-broker.pp %{buildroot}%{_datadir}/selinux/targeted/dbus-broker.pp
+install -p -m 644 %{_vpath_builddir}/selinux/dbus-broker.pp %{buildroot}%{_datadir}/selinux/targeted/dbus-broker.pp
 
 %post
 /usr/sbin/semodule -s targeted -i %{_datadir}/selinux/targeted/dbus-broker.pp
@@ -87,10 +96,15 @@ fi
 %{_bindir}/dbus-broker
 %{_bindir}/dbus-broker-launch
 %{_datadir}/selinux/*/dbus-broker.pp
+%{_mandir}/man1/dbus-broker.1*
+%{_mandir}/man1/dbus-broker-launch.1*
 %{_unitdir}/dbus-broker.service
 %{_userunitdir}/dbus-broker.service
 
 %changelog
+* Fri Aug 18 2017 Tom Gundersen <teg@jklm.no> - 3-1
+- Add manpages
+
 * Wed Aug 16 2017 Tom Gundersen <teg@jklm.no> - 2-2
 - Add license to package
 

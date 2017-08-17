@@ -15,6 +15,7 @@ BuildRequires:  glib2-devel
 BuildRequires:  glibc-devel
 BuildRequires:  git
 BuildRequires:  libselinux-devel
+BuildRequires:  python2-docutils
 BuildRequires:  systemd-devel
 BuildRequires:  meson, gcc
 BuildRequires:  checkpolicy, selinux-policy-devel
@@ -52,6 +53,8 @@ fi
 %{_bindir}/dbus-broker
 %{_bindir}/dbus-broker-launch
 %{_datadir}/selinux/*/dbus-broker.pp
+%{_mandir}/man1/dbus-broker.1*
+%{_mandir}/man1/dbus-broker-launch.1*
 %{_unitdir}/dbus-broker.service
 %{_userunitdir}/dbus-broker.service
 
