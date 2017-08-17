@@ -69,6 +69,12 @@ ninja:
 		${NINJAFLAGS}
 .PHONY: ninja
 
+docs:
+	mkdir -p ${BUILDDIR}/docs
+	rst2man docs/dbus-broker-launch.rst ${BUILDDIR}/docs/dbus-broker-launch.1
+	rst2man docs/dbus-broker.rst ${BUILDDIR}/docs/dbus-broker.1
+.PHONY: docs
+
 test:
 	ninja \
 		-C ${BUILDDIR} \
