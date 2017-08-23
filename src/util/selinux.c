@@ -259,11 +259,11 @@ int bus_selinux_check_own(BusSELinuxRegistry *registry,
         else
                 name_sid = registry->fallback_sid;
 
-        r = avc_has_perm_noaudit(BUS_SELINUX_SID_FROM_ID(owner_id),
-                                 name_sid,
-                                 BUS_SELINUX_CLASS_DBUS,
-                                 BUS_SELINUX_PERMISSION_OWN,
-                                 NULL, NULL);
+        r = avc_has_perm(BUS_SELINUX_SID_FROM_ID(owner_id),
+                         name_sid,
+                         BUS_SELINUX_CLASS_DBUS,
+                         BUS_SELINUX_PERMISSION_OWN,
+                         NULL, NULL);
         if (r < 0) {
                 /*
                  * Treat unknown contexts (possibly due to policy reload)
