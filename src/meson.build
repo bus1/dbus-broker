@@ -36,16 +36,29 @@ libdbus_broker_dependencies = [
         dep_expat,
 ]
 
+if dep_libaudit.found()
+        libdbus_broker_sources += [
+                'util/audit.c',
+        ]
+        libdbus_broker_dependencies += [
+                dep_libaudit,
+        ]
+else
+        libdbus_broker_sources += [
+                'util/audit-fallback.c',
+        ]
+endif
+
 if dep_libselinux.found()
         libdbus_broker_sources += [
-                'util/selinux.c'
+                'util/selinux.c',
         ]
         libdbus_broker_dependencies += [
                 dep_libselinux,
         ]
 else
         libdbus_broker_sources += [
-                'util/selinux-fallback.c'
+                'util/selinux-fallback.c',
         ]
 endif
 
