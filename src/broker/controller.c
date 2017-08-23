@@ -53,6 +53,7 @@ static int controller_name_new(ControllerName **namep, Controller *controller, c
 
         name->controller = controller;
         name->controller_node = (CRBNode)C_RBNODE_INIT(name->controller_node);
+        name->activation = (Activation)ACTIVATION_NULL(name->activation);
         memcpy(name->path, path, n_path + 1);
 
         c_rbtree_add(&controller->name_tree, parent, slot, &name->controller_node);
