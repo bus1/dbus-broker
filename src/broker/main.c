@@ -10,6 +10,7 @@
 #include <sys/types.h>
 #include "broker/broker.h"
 #include "broker/main.h"
+#include "util/audit.h"
 #include "util/error.h"
 #include "util/selinux.h"
 
@@ -193,6 +194,10 @@ static int run(void) {
         _c_cleanup_(broker_freep) Broker *broker = NULL;
         int r;
 
+        r = util_audit_init_global();
+        if (r)
+                return error_fold(r);
+
         r = bus_selinux_init_global();
         if (r)
                 return error_fold(r);
@@ -202,7 +207,7 @@ static int run(void) {
                 r = broker_run(broker);
 
         bus_selinux_deinit_global();
-
+        util_audit_deinit_global();
         return error_trace(r);
 }
 
