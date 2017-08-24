@@ -49,7 +49,7 @@ else
         ]
 endif
 
-if dep_libselinux.found()
+if use_selinux
         libdbus_broker_sources += [
                 'util/selinux.c',
         ]

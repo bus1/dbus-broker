@@ -22,12 +22,16 @@ dep_csundry = dependency('libcsundry', version: '>=1', fallback: [ 'c-sundry', '
 dep_dbus = dependency('dbus-1', version: '>=1.10', required: false)
 dep_glib = dependency('glib-2.0', version: '>=2.50', required: false)
 dep_libaudit = dependency('audit', version: '>=2.7.0', required: false)
-dep_libselinux = dependency('libselinux', version: '>=2.5', required: false)
 dep_libsystemd = dependency('libsystemd', version: '>=230', required: false)
 dep_math = cc.find_library('m')
 dep_systemd = dependency('systemd', required: false)
 dep_thread = dependency('threads')
 dep_expat = dependency('expat')
+
+use_selinux = get_option('selinux')
+if use_selinux
+        dep_libselinux = dependency('libselinux', version: '>=2.5')
+endif
 
 conf.set('bindir', join_paths(get_option('prefix'), get_option('bindir')))
 

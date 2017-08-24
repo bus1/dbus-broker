@@ -1,0 +1,1 @@
+option('selinux', type: 'boolean', value: false, description: 'SELinux support')
