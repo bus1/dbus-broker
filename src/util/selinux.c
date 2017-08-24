@@ -8,6 +8,7 @@
 #include <selinux/selinux.h>
 #include <selinux/avc.h>
 #include <stdlib.h>
+#include "util/audit.h"
 #include "util/error.h"
 #include "util/selinux.h"
 
@@ -326,6 +327,27 @@ int bus_selinux_check_send(BusSELinuxRegistry *registry,
         return 0;
 }
 
+static int bus_selinux_log(int type, const char *fmt, ...) {
+        _c_cleanup_(c_freep) char *message = NULL;
+        va_list ap;
+        int r;
+
+        va_start(ap, fmt);
+        r = vasprintf(&message, fmt, ap);
+        va_end(ap);
+        if (r < 0)
+                return r;
+
+        /* XXX: we don't have access to any context, so can't find
+         * the right UID to use, follow dbus-daemon(1) and use our
+         * own. */
+        r = util_audit_log(message, getuid());
+        if (r)
+                return error_fold(r);
+
+        return 0;
+}
+
 /**
  * bus_selinux_init_global() - initialize the global SELinux context
  *
@@ -348,7 +370,9 @@ int bus_selinux_init_global(void) {
         if (r)
                 return error_origin(-errno);
 
-        /* XXX: set logging callbacks? */
+        selinux_set_callback(SELINUX_CB_LOG, (union selinux_callback)bus_selinux_log);
+
+        /* XXX: set audit callback to get more metadata in the audit log? */
 
         return 0;
 }
