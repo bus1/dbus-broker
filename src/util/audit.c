@@ -28,7 +28,7 @@ int util_audit_log(const char *message, uid_t uid) {
                 if (r <= 0)
                         return error_origin(-errno);
         } else {
-                r = fprintf(stderr, message);
+                r = fputs(message, stderr);
                 if (r < 0)
                         return error_origin(r);
         }
