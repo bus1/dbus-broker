@@ -40,14 +40,21 @@ int util_audit_log(const char *message, uid_t uid) {
  * util_audit_init_global() - initialize the global audit context
  *
  * Initialize the global audit context. This must be called before any
- * other audit function.
+ * other audit function. If audit is not supported, the context is
+ * initialized to indicate that, but the function still succeeds.
  *
  * Return: the 0 on success, negative error code on failure.
  */
 int util_audit_init_global(void) {
+        int r;
+
         assert(audit_fd < 0);
 
-        audit_fd = audit_open();
+        r = audit_open();
+        if (r < 0 && errno != EINVAL && errno != EPROTONOSUPPORT && errno != EAFNOSUPPORT)
+                return error_origin(-errno);
+
+        audit_fd = r;
 
         return 0;
 }
