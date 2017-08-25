@@ -33,7 +33,8 @@ static void sasl_split(const char *input, size_t n_input,
          */
 
         *cmd = input;
-        *arg = memchr(input, ' ', n_input);
+        /* memchr(NULL, ..) is UB */
+        *arg = !n_input ? NULL : memchr(input, ' ', n_input);
 
         if (*arg) {
                 *n_cmd = *arg - input;
