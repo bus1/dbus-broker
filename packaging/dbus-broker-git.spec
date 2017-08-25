@@ -42,7 +42,7 @@ install -p -m 644 selinux/dbus-broker.pp %{buildroot}%{_datadir}/selinux/targete
 
 %post
 /usr/sbin/semodule -s targeted -i %{_datadir}/selinux/targeted/dbus-broker.pp
-/sbin/fixfiles -R dbus-broker restore
+/sbin/fixfiles -R dbus-broker-git restore
 
 %postun
 if [ $1 -eq 0 ] ; then
