@@ -198,10 +198,6 @@ int peer_new_with_fd(Peer **peerp,
         peer->replies_outgoing = (ReplyRegistry)REPLY_REGISTRY_INIT;
         peer->owned_replies = (ReplyOwner)REPLY_OWNER_INIT(peer->owned_replies);
 
-        r = bus_selinux_id_init(&peer->sid, peer->seclabel);
-        if (r)
-                return error_fold(r);
-
         r = user_charge(user, &peer->charges[0], NULL, USER_SLOT_BYTES, sizeof(Peer));
         r = r ?: user_charge(user, &peer->charges[1], NULL, USER_SLOT_FDS, 1);
         r = r ?: user_charge(user, &peer->charges[2], NULL, USER_SLOT_OBJECTS, 1);
@@ -212,7 +208,7 @@ int peer_new_with_fd(Peer **peerp,
                 return error_fold(r);
         }
 
-        r = policy_snapshot_new(&peer->policy, policy, peer->sid, ucred.uid, gids, n_gids);
+        r = policy_snapshot_new(&peer->policy, policy, peer->seclabel, ucred.uid, gids, n_gids);
         if (r)
                 return error_fold(r);
 
@@ -557,7 +553,7 @@ int peer_queue_call(PolicySnapshot *sender_policy, NameSet *sender_names, MatchR
         }
 
         r = policy_snapshot_check_send(sender_policy,
-                                       receiver->sid,
+                                       receiver->seclabel,
                                        &receiver_names,
                                        message->metadata.fields.interface,
                                        message->metadata.fields.member,
@@ -627,7 +623,7 @@ static int peer_broadcast_to_matches(PolicySnapshot *sender_policy, NameSet *sen
 
                 if (sender_policy) {
                         r = policy_snapshot_check_send(sender_policy,
-                                                       receiver->sid,
+                                                       receiver->seclabel,
                                                        &receiver_names,
                                                        message->metadata.fields.interface,
                                                        message->metadata.fields.member,

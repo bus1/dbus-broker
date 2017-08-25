@@ -12,7 +12,6 @@
 #include <stdlib.h>
 #include "dbus/protocol.h"
 
-typedef struct BusSELinuxID BusSELinuxID;
 typedef struct BusSELinuxRegistry BusSELinuxRegistry;
 typedef struct NameSet NameSet;
 typedef struct PolicyBatch PolicyBatch;
@@ -108,7 +107,7 @@ struct PolicyRegistry {
 
 struct PolicySnapshot {
         BusSELinuxRegistry *selinux;
-        BusSELinuxID *sid;
+        char *seclabel;
         size_t n_batches;
         PolicyBatch *batches[];
 };
@@ -122,7 +121,7 @@ void policy_batch_free(_Atomic unsigned long *n_refs, void *userdata);
 
 /* registry */
 
-int policy_registry_new(PolicyRegistry **registryp, BusSELinuxID *fallback_id);
+int policy_registry_new(PolicyRegistry **registryp, const char *fallback_seclabel);
 PolicyRegistry *policy_registry_free(PolicyRegistry *registry);
 
 int policy_registry_import(PolicyRegistry *registry, CDVar *v);
@@ -133,7 +132,7 @@ C_DEFINE_CLEANUP(PolicyRegistry *, policy_registry_free);
 
 int policy_snapshot_new(PolicySnapshot **snapshotp,
                         PolicyRegistry *registry,
-                        BusSELinuxID *sid,
+                        const char *context,
                         uint32_t uid,
                         const uint32_t *gids,
                         size_t n_gids);
@@ -144,7 +143,7 @@ int policy_snapshot_dup(PolicySnapshot *snapshot, PolicySnapshot **newp);
 int policy_snapshot_check_connect(PolicySnapshot *snapshot);
 int policy_snapshot_check_own(PolicySnapshot *snapshot, const char *name);
 int policy_snapshot_check_send(PolicySnapshot *snapshot,
-                               BusSELinuxID *subject_sid,
+                               const char *subject_context,
                                NameSet *subject,
                                const char *interface,
                                const char *method,

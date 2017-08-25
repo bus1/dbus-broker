@@ -302,7 +302,7 @@ static int policy_registry_node_new(PolicyRegistryNode **nodep, CRBTree *tree, u
 /**
  * policy_registry_new() - XXX
  */
-int policy_registry_new(PolicyRegistry **registryp, BusSELinuxID *fallback_id) {
+int policy_registry_new(PolicyRegistry **registryp, const char *fallback_seclabel) {
         _c_cleanup_(policy_registry_freep) PolicyRegistry *registry = NULL;
         int r;
 
@@ -312,7 +312,7 @@ int policy_registry_new(PolicyRegistry **registryp, BusSELinuxID *fallback_id) {
 
         *registry = (PolicyRegistry)POLICY_REGISTRY_NULL;
 
-        r = bus_selinux_registry_new(&registry->selinux, fallback_id);
+        r = bus_selinux_registry_new(&registry->selinux, fallback_seclabel);
         if (r)
                 return error_fold(r);
 
@@ -526,11 +526,11 @@ int policy_registry_import(PolicyRegistry *registry, CDVar *v) {
         c_dvar_read(v, "][");
 
         while (c_dvar_more(v)) {
-                const char *name, *context;
+                const char *name, *seclabel;
 
-                c_dvar_read(v, "(ss)", &name, &context);
+                c_dvar_read(v, "(ss)", &name, &seclabel);
 
-                r = bus_selinux_registry_add_name(registry->selinux, name, context);
+                r = bus_selinux_registry_add_name(registry->selinux, name, seclabel);
                 if (r)
                         return error_fold(r);
         }
@@ -549,7 +549,7 @@ int policy_registry_import(PolicyRegistry *registry, CDVar *v) {
  */
 int policy_snapshot_new(PolicySnapshot **snapshotp,
                         PolicyRegistry *registry,
-                        BusSELinuxID *sid,
+                        const char *seclabel,
                         uint32_t uid,
                         const uint32_t *gids,
                         size_t n_gids) {
@@ -563,7 +563,10 @@ int policy_snapshot_new(PolicySnapshot **snapshotp,
         *snapshot = (PolicySnapshot)POLICY_SNAPSHOT_NULL;
 
         snapshot->selinux = bus_selinux_registry_ref(registry->selinux);
-        snapshot->sid = sid;
+
+        snapshot->seclabel = strdup(seclabel);
+        if (!snapshot->seclabel)
+                return error_origin(-ENOMEM);
 
         node = policy_registry_find_uid(registry, uid);
         if (node)
@@ -593,6 +596,7 @@ PolicySnapshot *policy_snapshot_free(PolicySnapshot *snapshot) {
 
         while (snapshot->n_batches-- > 0)
                 policy_batch_unref(snapshot->batches[snapshot->n_batches]);
+        free(snapshot->seclabel);
         bus_selinux_registry_unref(snapshot->selinux);
         free(snapshot);
 
@@ -613,7 +617,10 @@ int policy_snapshot_dup(PolicySnapshot *snapshot, PolicySnapshot **newp) {
         *new = (PolicySnapshot)POLICY_SNAPSHOT_NULL;
 
         new->selinux = bus_selinux_registry_ref(snapshot->selinux);
-        new->sid = snapshot->sid;
+
+        new->seclabel = strdup(snapshot->seclabel);
+        if (!new->seclabel)
+                return error_origin(-ENOMEM);
 
         for (i = 0; i < snapshot->n_batches; ++i)
                 new->batches[new->n_batches++] = policy_batch_ref(snapshot->batches[i]);
@@ -648,7 +655,7 @@ int policy_snapshot_check_own(PolicySnapshot *snapshot, const char *name_str) {
         size_t i;
         int v, r;
 
-        r = bus_selinux_check_own(snapshot->selinux, snapshot->sid, name_str);
+        r = bus_selinux_check_own(snapshot->selinux, snapshot->seclabel, name_str);
         if (r) {
                 if (r == SELINUX_E_DENIED)
                         return POLICY_E_ACCESS_DENIED;
@@ -818,7 +825,7 @@ static void policy_snapshot_check_xmit(PolicyBatch *batch,
  * policy_snapshot_check_send() - XXX
  */
 int policy_snapshot_check_send(PolicySnapshot *snapshot,
-                               BusSELinuxID *subject_sid,
+                               const char *subject_seclabel,
                                NameSet *subject,
                                const char *interface,
                                const char *method,
@@ -828,7 +835,7 @@ int policy_snapshot_check_send(PolicySnapshot *snapshot,
         size_t i;
         int r;
 
-        r = bus_selinux_check_send(snapshot->selinux, snapshot->sid, subject_sid);
+        r = bus_selinux_check_send(snapshot->selinux, snapshot->seclabel, subject_seclabel);
         if (r) {
                 if (r == SELINUX_E_DENIED)
                         return POLICY_E_ACCESS_DENIED;

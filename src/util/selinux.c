@@ -14,30 +14,17 @@
 
 struct BusSELinuxRegistry {
         _Atomic unsigned long n_refs;
-        security_id_t fallback_sid;
+        const char *fallback_context;
         CRBTree names;
 };
 
 struct BusSELinuxName {
-        security_id_t sid;
+        char *context;
         CRBNode rb;
         char name[];
 };
 
 typedef struct BusSELinuxName BusSELinuxName;
-
-#define BUS_SELINUX_SID_FROM_ID(id)     ((security_id_t) (id))
-#define BUS_SELINUX_SID_TO_ID(sid)      ((BusSELinuxID*) (sid))
-
-#define BUS_SELINUX_CLASS_DBUS          (1UL)
-
-#define BUS_SELINUX_PERMISSION_OWN      (1UL)
-#define BUS_SELINUX_PERMISSION_SEND     (2UL)
-
-static struct security_class_mapping dbus_class_map[] = {
-  { "dbus", { "acquire_svc", "send_msg", NULL } },
-  { NULL }
-};
 
 /** bus_selinux_is_enabled() - checks if SELinux is currently enabled
  *
@@ -59,48 +46,13 @@ const char *bus_selinux_policy_root(void) {
         return selinux_policy_root();
 }
 
-/**
- * bus_selinux_id_init() - initialize the SELinux ID
- * @idp:                pointer to ID
- * @seclabel:           seclabel to initialize from
- *
- * If SELinux is enabled, @seclabel is assumed to be a valid SELinux
- * security context and is used to initialized the ID. Otherwise,
- * the seclabel nothing is assumed about the seclabel, it is ignored
- * and instead the ID is initialized to the invalid SELinux ID.
- *
- * Return: 0 on success, or a negative error code on failure.
- */
-int bus_selinux_id_init(BusSELinuxID **idp, const char *seclabel) {
-        security_id_t sid;
-        int r;
-
-        /*
-         * If SELinux is not enabled, we better not assume anything about the
-         * security label and not try to convert it to a SID. A SELinux
-         * security context is a null-terminated string, but a security label
-         * from another LSM may not be.
-         */
-        if (!is_selinux_enabled()) {
-                *idp = BUS_SELINUX_SID_TO_ID(SECSID_WILD);
-                return 0;
-        }
-
-        r = avc_context_to_sid(seclabel, &sid);
-        if (r < 0)
-                return error_origin(-errno);
-
-        *idp = BUS_SELINUX_SID_TO_ID(sid);
-
-        return 0;
-}
-
 static BusSELinuxName *bus_selinux_name_free(BusSELinuxName *name) {
         if (!name)
                 return NULL;
 
         assert(!c_rbnode_is_linked(&name->rb));
 
+        free(name->context);
         free(name);
 
         return NULL;
@@ -111,18 +63,17 @@ C_DEFINE_CLEANUP(BusSELinuxName *, bus_selinux_name_free);
 static int bus_selinux_name_new(const char *name, const char *context, CRBTree *tree, CRBNode *parent, CRBNode **slot) {
         _c_cleanup_(bus_selinux_name_freep) BusSELinuxName *selinux_name = NULL;
         size_t n_name = strlen(name) + 1;
-        int r;
 
         selinux_name = malloc(sizeof(*selinux_name) + n_name);
         if (!selinux_name)
                 return error_origin(-ENOMEM);
         selinux_name->rb = (CRBNode)C_RBNODE_INIT(selinux_name->rb);
-        selinux_name->sid = SECSID_WILD;
+        selinux_name->context = NULL;
         memcpy(selinux_name->name, name, n_name);
 
-        r = avc_context_to_sid(context, &selinux_name->sid);
-        if (r < 0)
-                return error_origin(-errno);
+        selinux_name->context = strdup(context);
+        if (!selinux_name->context)
+                return error_origin(-ENOMEM);
 
         c_rbtree_add(tree, parent, slot, &selinux_name->rb);
         selinux_name = NULL;
@@ -133,24 +84,26 @@ static int bus_selinux_name_new(const char *name, const char *context, CRBTree *
 /**
  * bus_selinux_registry_new() - create a new SELinux registry
  * @registryp:          pointer to the new registry
- * @fallback_id:        fallback ID for queries against this registry
+ * @fallback_context:   fallback security context for queries against this registry
  *
  * A registry contains a set of names associated with security contexts, and
- * a fallback ID that should be used as the ID of the broker itself and for
- * names without anything explicitly associated.
+ * a fallback security context that should be used as the context of the broker
+ * itself and for names without anything explicitly associated.
  *
  * Return: 0 on success, or a negative error code on failure.
  */
-int bus_selinux_registry_new(BusSELinuxRegistry **registryp, BusSELinuxID *fallback_id) {
+int bus_selinux_registry_new(BusSELinuxRegistry **registryp, const char *fallback_context) {
         _c_cleanup_(bus_selinux_registry_unrefp) BusSELinuxRegistry *registry = NULL;
+        size_t n_fallback_context = strlen(fallback_context) + 1;
 
-        registry = malloc(sizeof(*registry));
+        registry = malloc(sizeof(*registry) + n_fallback_context);
         if (!registry)
                 return error_origin(-ENOMEM);
 
         registry->n_refs = C_REF_INIT;
-        registry->fallback_sid = BUS_SELINUX_SID_FROM_ID(fallback_id);
+        registry->fallback_context = (const char *)(registry + 1);
         registry->names = (CRBTree)C_RBTREE_INIT;
+        memcpy((char *)registry->fallback_context, fallback_context, n_fallback_context);
 
         *registryp = registry;
         registry = NULL;
@@ -212,13 +165,17 @@ int bus_selinux_registry_add_name(BusSELinuxRegistry *registry, const char *name
                         return error_trace(r);
         } else {
                 BusSELinuxName *selinux_name;
+                char *context_new;
 
                 selinux_name = c_container_of(parent, BusSELinuxName, rb);
 
-                /* The name already exists, simply silently override the SID. */
-                r = avc_context_to_sid(context, &selinux_name->sid);
-                if (r < 0)
-                        return error_origin(-errno);
+                /* The name already exists, simply silently override the context. */
+                context_new = strdup(context);
+                if (!context_new)
+                        return error_origin(-ENOMEM);
+
+                free(selinux_name->context);
+                selinux_name->context = context_new;
         }
 
         return 0;
@@ -227,16 +184,16 @@ int bus_selinux_registry_add_name(BusSELinuxRegistry *registry, const char *name
 /**
  * bus_selinux_check_own() - check if the given transaction is allowed
  * @registry:           SELinux registry to operate on
- * @owner_id:           ID of the owner
+ * @owner_context:      security context of the owner
  * @name:               name to be owned
  *
- * Check if the given owner ID is allowed to own the given name.
+ * Check if the given owner context is allowed to own the given name.
  *
- * The query is performed with the IDs associated with names in the
- * SELinux registry. If no ID is associated with a given name the
- * registry-wide fallback ID is used instead.
+ * The query is performed with the contexts associated with names in the
+ * SELinux registry. If no context is associated with a given name the
+ * registry-wide fallback context is used instead.
  *
- * The IDs are pinned when peers connect, and as such could in principle
+ * The contexts are pinned when peers connect, and as such could in principle
  * become invalid in case a new policy is loaded that does not know the
  * old labels. In this case we treat this as if the ownership request was
  * denied.
@@ -245,10 +202,10 @@ int bus_selinux_registry_add_name(BusSELinuxRegistry *registry, const char *name
  *         or a negative error code on failure.
  */
 int bus_selinux_check_own(BusSELinuxRegistry *registry,
-                          BusSELinuxID *owner_id,
+                          const char *owner_context,
                           const char *name) {
         BusSELinuxName *selinux_name;
-        security_id_t name_sid;
+        const char *name_context;
         int r;
 
         if (!is_selinux_enabled())
@@ -256,15 +213,15 @@ int bus_selinux_check_own(BusSELinuxRegistry *registry,
 
         selinux_name = c_rbtree_find_entry(&registry->names, name_compare, name, BusSELinuxName, rb);
         if (selinux_name)
-                name_sid = selinux_name->sid;
+                name_context = selinux_name->context;
         else
-                name_sid = registry->fallback_sid;
+                name_context = registry->fallback_context;
 
-        r = avc_has_perm(BUS_SELINUX_SID_FROM_ID(owner_id),
-                         name_sid,
-                         BUS_SELINUX_CLASS_DBUS,
-                         BUS_SELINUX_PERMISSION_OWN,
-                         NULL, NULL);
+        r = selinux_check_access(owner_context,
+                                 name_context,
+                                 "dbus",
+                                 "acquire_svc",
+                                 NULL);
         if (r < 0) {
                 /*
                  * Treat unknown contexts (possibly due to policy reload)
@@ -282,14 +239,14 @@ int bus_selinux_check_own(BusSELinuxRegistry *registry,
 /**
  * bus_selinux_check_send() - check if the given transaction is allowed
  * @registry:           SELinux registry to operate on
- * @sender_id:          ID of the sender
- * @receiver_id:        ID of the receiver, or NULL
+ * @sender_context:     security context of the sender
+ * @receiver_context:   security context of the receiver, or NULL
  *
- * Check if the given sender ID is allowed to send a message to the given
- * receiver ID. If the receiver ID is given as NULL, the per-registry
- * fallback ID is used instead.
+ * Check if the given sender context is allowed to send a message to the
+ * given receiver context. If the receiver context is given as NULL, the
+ * per-registry fallback context is used instead.
  *
- * The IDs are pinned when peers connect, and as such could in principle
+ * The contexts are pinned when peers connect, and as such could in principle
  * become invalid in case a new policy is loaded that does not know the
  * old labels. In this case we treat this as if the transaction was
  * denied.
@@ -298,21 +255,20 @@ int bus_selinux_check_own(BusSELinuxRegistry *registry,
  *         or a negative error code on failure.
  */
 int bus_selinux_check_send(BusSELinuxRegistry *registry,
-                           BusSELinuxID *sender_id,
-                           BusSELinuxID *receiver_id) {
-        security_id_t receiver_sid;
+                           const char *sender_context,
+                           const char *receiver_context) {
         int r;
 
         if (!is_selinux_enabled())
                 return 0;
 
-        receiver_sid = receiver_id ? BUS_SELINUX_SID_FROM_ID(receiver_id) : registry->fallback_sid;
+        receiver_context = receiver_context ?: registry->fallback_context;
 
-        r = avc_has_perm(BUS_SELINUX_SID_FROM_ID(sender_id),
-                         receiver_sid,
-                         BUS_SELINUX_CLASS_DBUS,
-                         BUS_SELINUX_PERMISSION_SEND,
-                         NULL, NULL);
+        r = selinux_check_access(sender_context,
+                                 receiver_context,
+                                 "dbus",
+                                 "send_msg",
+                                 NULL);
         if (r < 0) {
                 /*
                  * Treat unknown contexts (possibly due to policy reload)
@@ -361,10 +317,6 @@ int bus_selinux_init_global(void) {
 
         if (!is_selinux_enabled())
                 return 0;
-
-        r = selinux_set_mapping(dbus_class_map);
-        if (r < 0)
-                return error_origin(-errno);
 
         r = avc_open(NULL, 0);
         if (r)

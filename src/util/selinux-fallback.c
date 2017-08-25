@@ -20,12 +20,7 @@ const char *bus_selinux_policy_root(void) {
         return NULL;
 }
 
-int bus_selinux_id_init(BusSELinuxID **id, const char *seclabel) {
-        *id = NULL;
-        return 0;
-}
-
-int bus_selinux_registry_new(BusSELinuxRegistry **registryp, BusSELinuxID *fallback_id) {
+int bus_selinux_registry_new(BusSELinuxRegistry **registryp, const char *fallback_context) {
         *registryp = NULL;
         return 0;
 }
@@ -43,14 +38,14 @@ int bus_selinux_registry_add_name(BusSELinuxRegistry *registry, const char *name
 }
 
 int bus_selinux_check_own(BusSELinuxRegistry *registry,
-                          BusSELinuxID *id_owner,
+                          const char *owner_context,
                           const char *name) {
         return 0;
 }
 
 int bus_selinux_check_send(BusSELinuxRegistry *registry,
-                           BusSELinuxID *id_sender,
-                           BusSELinuxID *id_receiver) {
+                           const char *context_sender,
+                           const char *context_receiver) {
         return 0;
 }
 
