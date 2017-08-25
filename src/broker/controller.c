@@ -159,7 +159,6 @@ static int controller_dispatch_connection(DispatchFile *file) {
  */
 int controller_init(Controller *c, Broker *broker, int controller_fd) {
         _c_cleanup_(controller_deinitp) Controller *controller = c;
-        _c_cleanup_(c_freep) char *seclabel = NULL;
         int r;
 
         *controller = (Controller)CONTROLLER_NULL(*controller);
@@ -168,11 +167,7 @@ int controller_init(Controller *c, Broker *broker, int controller_fd) {
         /* XXX: replace this by sockopt_get_seclabel() once
          *      socketpair() created sockets support it.
          */
-        r = proc_get_seclabel(&seclabel, NULL);
-        if (r)
-                return error_fold(r);
-
-        r = bus_selinux_id_init(&c->sid, seclabel);
+        r = proc_get_seclabel(&controller->seclabel, &controller->n_seclabel);
         if (r)
                 return error_fold(r);
 
@@ -203,6 +198,7 @@ void controller_deinit(Controller *controller) {
                 controller_listener_free(listener);
 
         connection_deinit(&controller->connection);
+        controller->seclabel = c_free(controller->seclabel);
         controller->broker = NULL;
 }
 

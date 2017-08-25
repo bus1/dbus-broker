@@ -15,7 +15,6 @@
 
 typedef struct Broker Broker;
 typedef struct Bus Bus;
-typedef struct BusSELinuxID BusSELinuxID;
 typedef struct Controller Controller;
 typedef struct ControllerName ControllerName;
 typedef struct ControllerListener ControllerListener;
@@ -63,7 +62,8 @@ struct ControllerListener {
 
 struct Controller {
         Broker *broker;
-        BusSELinuxID *sid;
+        char *seclabel;
+        size_t n_seclabel;
         Connection connection;
         CRBTree name_tree;
         CRBTree listener_tree;
