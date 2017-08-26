@@ -21,12 +21,16 @@ dep_crbtree = dependency('libcrbtree', version: '>=3', fallback: [ 'c-rbtree', '
 dep_csundry = dependency('libcsundry', version: '>=1', fallback: [ 'c-sundry', 'libcsundry_dep' ])
 dep_dbus = dependency('dbus-1', version: '>=1.10', required: false)
 dep_glib = dependency('glib-2.0', version: '>=2.50', required: false)
-dep_libaudit = dependency('audit', version: '>=2.7.0', required: false)
 dep_libsystemd = dependency('libsystemd', version: '>=230', required: false)
 dep_math = cc.find_library('m')
 dep_systemd = dependency('systemd', required: false)
 dep_thread = dependency('threads')
 dep_expat = dependency('expat')
+
+use_audit = get_option('audit')
+if use_audit
+        dep_libaudit = dependency('audit', version: '>=2.7')
+endif
 
 use_selinux = get_option('selinux')
 if use_selinux

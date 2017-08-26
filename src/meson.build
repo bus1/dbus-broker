@@ -36,7 +36,7 @@ libdbus_broker_dependencies = [
         dep_expat,
 ]
 
-if dep_libaudit.found()
+if use_audit
         libdbus_broker_sources += [
                 'util/audit.c',
         ]

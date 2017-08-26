@@ -1,1 +1,2 @@
+option('audit', type: 'boolean', value: false, description: 'Audit support')
 option('selinux', type: 'boolean', value: false, description: 'SELinux support')
