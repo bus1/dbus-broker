@@ -24,19 +24,28 @@ BuildRequires:  checkpolicy, selinux-policy-devel
 Linux D-Bus Message Broker
 
 %prep
+rm -rf dbus-broker
 git clone --recurse-submodules https://github.com/bus1/dbus-broker.git
+rm -rf %{_vpath_builddir}/docs
+mkdir -p %{_vpath_builddir}/docs
+rm -rf selinux
 mkdir selinux
 cp dbus-broker/selinux/dbus-broker.{te,fc} selinux/
 
 %build
 meson --prefix=/usr --buildtype=release "dbus-broker" "build"
 %meson_build
+rst2man %{_vpath_srcdir}/docs/dbus-broker-launch.rst %{_vpath_builddir}/docs/dbus-broker-launch.1
+rst2man %{_vpath_srcdir}/docs/dbus-broker.rst %{_vpath_builddir}/docs/dbus-broker.1
 cd selinux
 make NAME=targeted -f /usr/share/selinux/devel/Makefile
 cd -
 
 %install
 %meson_install
+install -d %{buildroot}%{_mandir}/man1
+install -p -m 644 %{_vpath_builddir}/docs/dbus-broker-launch.1 %{buildroot}%{_mandir}/man1/dbus-broker-launch.1
+install -p -m 644 %{_vpath_builddir}/docs/dbus-broker.1 %{buildroot}%{_mandir}/man1/dbus-broker.1
 install -d %{buildroot}%{_datadir}/selinux/targeted
 install -p -m 644 selinux/dbus-broker.pp %{buildroot}%{_datadir}/selinux/targeted/dbus-broker.pp
 
