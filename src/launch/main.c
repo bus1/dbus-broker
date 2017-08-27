@@ -332,26 +332,26 @@ static int manager_fork(Manager *manager, int fd_controller) {
         return 0;
 }
 
-static int manager_request_activation(Manager *manager, Service *service) {
-        _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *signal = NULL;
+static int manager_start_unit(Manager *manager, Service *service) {
+        _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *method_call = NULL;
         int r;
 
         if (main_arg_verbose)
                 fprintf(stderr, "Activation request for '%s' -> '%s'\n", service->name, service->unit);
 
-        r = sd_bus_message_new_signal(manager->bus_regular, &signal, "/org/freedesktop/DBus", "org.freedesktop.systemd1.Activator", "ActivationRequest");
+        r = sd_bus_message_new_method_call(manager->bus_regular, &method_call,
+                                           "org.freedesktop.systemd1",
+                                           "/org/freedesktop/systemd1",
+                                           "org.freedesktop.systemd1.Manager",
+                                           "StartUnit");
         if (r < 0)
                 return error_origin(r);
 
-        r = sd_bus_message_append(signal, "s", unit);
+        r = sd_bus_message_append(method_call, "ss", service->unit, "fail");
         if (r < 0)
                 return error_origin(r);
 
-        r = sd_bus_message_set_destination(signal, "org.freedesktop.systemd1");
-        if (r < 0)
-                return error_origin(r);
-
-        r = sd_bus_send(manager->bus_regular, signal, NULL);
+        r = sd_bus_send(manager->bus_regular, method_call, NULL);
         if (r < 0)
                 return error_origin(r);
 
@@ -375,6 +375,8 @@ static int manager_start_transient_unit(Manager *manager, Service *service) {
                                            "/org/freedesktop/systemd1",
                                            "org.freedesktop.systemd1.Manager",
                                            "StartTransientUnit");
+        if (r < 0)
+                return error_origin(r);
 
         r = sd_bus_message_append(method_call, "ss", unit, "fail");
         if (r < 0)
@@ -487,7 +489,7 @@ static int manager_on_name_activate(Manager *manager, sd_bus_message *m, const c
         }
 
         if (service->unit) {
-                r = manager_request_activation(manager, service);
+                r = manager_start_unit(manager, service);
                 if (r)
                         return error_trace(r);
         } else {
