@@ -332,12 +332,12 @@ static int manager_fork(Manager *manager, int fd_controller) {
         return 0;
 }
 
-static int manager_request_activation(Manager *manager, const char *name, const char *unit) {
+static int manager_request_activation(Manager *manager, Service *service) {
         _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *signal = NULL;
         int r;
 
         if (main_arg_verbose)
-                fprintf(stderr, "Activation request for '%s' -> '%s'\n", name, unit);
+                fprintf(stderr, "Activation request for '%s' -> '%s'\n", service->name, service->unit);
 
         r = sd_bus_message_new_signal(manager->bus_regular, &signal, "/org/freedesktop/DBus", "org.freedesktop.systemd1.Activator", "ActivationRequest");
         if (r < 0)
@@ -358,15 +358,15 @@ static int manager_request_activation(Manager *manager, const char *name, const 
         return 0;
 }
 
-static int manager_start_transient_unit(Manager *manager, const char *name, char **exec, size_t n_exec) {
+static int manager_start_transient_unit(Manager *manager, Service *service) {
         _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *method_call = NULL;
         _c_cleanup_(c_freep) char *unit = NULL;
         int r;
 
         if (main_arg_verbose)
-                fprintf(stderr, "Activation request for '%s'\n", name);
+                fprintf(stderr, "Activation request for '%s'\n", service->name);
 
-        r = asprintf(&unit, "dbus-%s.service", name);
+        r = asprintf(&unit, "dbus-%s.service", service->name);
         if (r < 0)
                 return error_origin(-errno);
 
@@ -409,7 +409,7 @@ static int manager_start_transient_unit(Manager *manager, const char *name, char
                                                 return error_origin(r);
 
                                         {
-                                                r = sd_bus_message_append(method_call, "s", exec[0]);
+                                                r = sd_bus_message_append(method_call, "s", service->exec[0]);
                                                 if (r < 0)
                                                         return error_origin(r);
 
@@ -418,8 +418,8 @@ static int manager_start_transient_unit(Manager *manager, const char *name, char
                                                         return error_origin(r);
 
                                                 {
-                                                        for (size_t i = 0; i < n_exec; ++i) {
-                                                                r = sd_bus_message_append(method_call, "s", exec[i]);
+                                                        for (size_t i = 0; i < service->n_exec; ++i) {
+                                                                r = sd_bus_message_append(method_call, "s", service->exec[i]);
                                                                 if (r < 0)
                                                                         return error_origin(r);
                                                         }
@@ -487,11 +487,11 @@ static int manager_on_name_activate(Manager *manager, sd_bus_message *m, const c
         }
 
         if (service->unit) {
-                r = manager_request_activation(manager, service->name, service->unit);
+                r = manager_request_activation(manager, service);
                 if (r)
                         return error_trace(r);
         } else {
-                r = manager_start_transient_unit(manager, service->name, service->exec, service->n_exec);
+                r = manager_start_transient_unit(manager, service);
                 if (r)
                         return error_trace(r);
         }
