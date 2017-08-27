@@ -63,6 +63,21 @@ int activation_init(Activation *a, Name *name, User *user) {
         return 0;
 }
 
+static int activation_flush(Activation *activation) {
+        ActivationRequest *request;
+        ActivationMessage *message;
+
+        /* XXX: send out error replies */
+
+        while ((message = c_list_first_entry(&activation->activation_messages, ActivationMessage, link)))
+                activation_message_free(message);
+
+        while ((request = c_list_first_entry(&activation->activation_requests, ActivationRequest, link)))
+                activation_request_free(request);
+
+        return 0;
+}
+
 /**
  * activation_deinit() - XXX
  */
@@ -91,21 +106,6 @@ static int activation_request(Activation *activation) {
                 return error_fold(r);
 
         activation->requested = true;
-        return 0;
-}
-
-int activation_flush(Activation *activation) {
-        ActivationRequest *request;
-        ActivationMessage *message;
-
-        /* XXX: send out error replies */
-
-        while ((message = c_list_first_entry(&activation->activation_messages, ActivationMessage, link)))
-                activation_message_free(message);
-
-        while ((request = c_list_first_entry(&activation->activation_requests, ActivationRequest, link)))
-                activation_request_free(request);
-
         return 0;
 }
 
