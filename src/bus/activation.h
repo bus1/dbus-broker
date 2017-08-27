@@ -75,6 +75,4 @@ int activation_queue_message(Activation *activation,
                              Message *m);
 int activation_queue_request(Activation *activation, User *user, uint64_t sender_id, uint32_t serial);
 
-int activation_flush(Activation *activation);
-
 C_DEFINE_CLEANUP(Activation *, activation_deinit);

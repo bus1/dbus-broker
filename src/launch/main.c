@@ -33,6 +33,7 @@ enum {
 
 struct Service {
         Manager *manager;
+        sd_bus_slot *slot;
         CRBNode rb;
         char *name;
         char *unit;
@@ -94,6 +95,7 @@ static Service *service_free(Service *service) {
         free(service->exec);
         free(service->unit);
         free(service->name);
+        sd_bus_slot_unref(service->slot);
         free(service);
 
         return NULL;
@@ -332,9 +334,48 @@ static int manager_fork(Manager *manager, int fd_controller) {
         return 0;
 }
 
+static int manager_start_unit_handler(sd_bus_message *message, void *userdata, sd_bus_error *errorp) {
+        _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *method_call = NULL;
+        _c_cleanup_(c_freep) char *object_path = NULL;
+        const sd_bus_error *error;
+        Service *service = userdata;
+        int r;
+
+        service->slot = sd_bus_slot_unref(service->slot);
+
+        error = sd_bus_message_get_error(message);
+        if (!error)
+                /* unit started successfully */
+                return 1;
+
+        if (main_arg_verbose)
+                fprintf(stderr, "Activation request for '%s' failed: %s\n", service->name, error->message);
+
+        /* unit failed, so reset pending activation requsets in the broker */
+        r = asprintf(&object_path, "/org/bus1/DBus/Name/%s", service->id);
+        if (r < 0)
+                return error_origin(-errno);
+
+        r = sd_bus_message_new_method_call(service->manager->bus_controller, &method_call,
+                                           "org.bus1.DBus.Broker",
+                                           object_path,
+                                           "org.bus1.DBus.Name",
+                                           "Reset");
+        if (r < 0)
+                return error_origin(r);
+
+        r = sd_bus_send(service->manager->bus_controller, method_call, NULL);
+        if (r < 0)
+                return error_origin(r);
+
+        return 1;
+}
+
 static int manager_start_unit(Manager *manager, Service *service) {
         _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *method_call = NULL;
         int r;
+
+        service->slot = sd_bus_slot_unref(service->slot);
 
         if (main_arg_verbose)
                 fprintf(stderr, "Activation request for '%s' -> '%s'\n", service->name, service->unit);
@@ -351,7 +392,7 @@ static int manager_start_unit(Manager *manager, Service *service) {
         if (r < 0)
                 return error_origin(r);
 
-        r = sd_bus_send(manager->bus_regular, method_call, NULL);
+        r = sd_bus_call_async(manager->bus_regular, &service->slot, method_call, manager_start_unit_handler, service, -1);
         if (r < 0)
                 return error_origin(r);
 
@@ -362,6 +403,8 @@ static int manager_start_transient_unit(Manager *manager, Service *service) {
         _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *method_call = NULL;
         _c_cleanup_(c_freep) char *unit = NULL;
         int r;
+
+        service->slot = sd_bus_slot_unref(service->slot);
 
         if (main_arg_verbose)
                 fprintf(stderr, "Activation request for '%s'\n", service->name);
@@ -464,7 +507,7 @@ static int manager_start_transient_unit(Manager *manager, Service *service) {
         if (r < 0)
                 return error_origin(r);
 
-        r = sd_bus_send(manager->bus_regular, method_call, NULL);
+        r = sd_bus_call_async(manager->bus_regular, &service->slot, method_call, manager_start_unit_handler, service, -1);
         if (r < 0)
                 return error_origin(r);
 
