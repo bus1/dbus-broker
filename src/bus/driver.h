@@ -59,6 +59,8 @@ enum {
         _DRIVER_E_MAX,
 };
 
+int driver_name_activation_failed(Bus *bus, Activation *activation);
+
 int driver_dispatch(Peer *peer, Message *message);
 void driver_matches_cleanup(MatchOwner *owner, Bus *bus, User *user);
 int driver_goodbye(Peer *peer, bool silent);

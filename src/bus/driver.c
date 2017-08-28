@@ -534,6 +534,43 @@ static int driver_name_owner_changed(Bus *bus, const char *name, Peer *old_owner
         return 0;
 }
 
+int driver_name_activation_failed(Bus *bus, Activation *activation) {
+        ActivationRequest *request, *request_safe;
+        ActivationMessage *message, *message_safe;
+        int r;
+
+        /* in case the name is activated again in the future, we should request it again */
+        activation->requested = false;
+
+        c_list_for_each_entry_safe(request, request_safe, &activation->activation_requests, link) {
+                Peer *sender;
+
+                sender = peer_registry_find_peer(&bus->peers, request->sender_id);
+                if (sender) {
+                        r = driver_send_error(sender, request->serial, "org.freedesktop.DBus.Error.ServiceUnknown", "Could not activate remote peer.");
+                        if (r)
+                                return error_trace(r);
+                }
+
+                activation_request_free(request);
+        }
+
+        c_list_for_each_entry_safe(message, message_safe, &activation->activation_messages, link) {
+                Peer *sender;
+
+                sender = peer_registry_find_peer(&bus->peers, message->message->sender_id);
+                if (sender) {
+                        r = driver_send_error(sender, message_read_serial(message->message), "org.freedesktop.DBus.Error.NameHasNoOwner", "Could not activate remote peer.");
+                        if (r)
+                                return error_trace(r);
+                }
+
+                activation_message_free(message);
+        }
+
+        return 0;
+}
+
 static int driver_name_activated(Activation *activation, Peer *receiver) {
         ActivationRequest *request, *request_safe;
         ActivationMessage *message, *message_safe;
