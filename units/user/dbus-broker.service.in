@@ -1,9 +1,12 @@
 [Unit]
 Description=D-Bus User Message Bus
-Documentation=man:dbus-broker(1)
-Requires=dbus.socket
+Documentation=man:dbus-broker-launch(1)
+DefaultDependencies=false
+Before=basic.target shutdown.target
+Conflicts=shutdown.target
 
 [Service]
+Sockets=dbus.socket
 ExecStart=@bindir@/dbus-broker-launch -v --scope user --listen inherit
 
 [Install]
