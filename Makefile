@@ -60,6 +60,7 @@ meson:
 			--prefix /usr \
 			--buildtype debugoptimized \
 			--warnlevel 2 \
+			-Dlauncher=false \
 			${MESONFLAGS}
 .PHONY: meson
 
