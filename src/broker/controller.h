@@ -63,7 +63,6 @@ struct ControllerListener {
 struct Controller {
         Broker *broker;
         char *seclabel;
-        size_t n_seclabel;
         Connection connection;
         CRBTree name_tree;
         CRBTree listener_tree;

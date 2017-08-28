@@ -164,10 +164,7 @@ int controller_init(Controller *c, Broker *broker, int controller_fd) {
         *controller = (Controller)CONTROLLER_NULL(*controller);
         controller->broker = broker;
 
-        /* XXX: replace this by sockopt_get_seclabel() once
-         *      socketpair() created sockets support it.
-         */
-        r = proc_get_seclabel(&controller->seclabel, &controller->n_seclabel);
+        r = proc_get_seclabel(&controller->seclabel);
         if (r)
                 return error_fold(r);
 

@@ -8,59 +8,30 @@
 #include "util/error.h"
 #include "util/proc.h"
 
-/* XXX: the kernel should be made to handle SO_PEERSEC also on
+/*
+ * XXX: The kernel should be made to handle SO_PEERSEC also on
  *      socketpair sockets, making this redundant.
  */
-int proc_get_seclabel(char **labelp, size_t *lenp) {
+int proc_get_seclabel(char **labelp) {
         _c_cleanup_(c_fclosep) FILE *f = NULL;
-        char buffer[LINE_MAX], *label, *c;
+        char buffer[LINE_MAX] = {}, *c, *label;
 
         f = fopen("/proc/self/attr/current", "re");
-        if (!f) {
-                if (errno == ENOENT) {
-                        if (labelp)
-                                *labelp = NULL;
-                        if (lenp)
-                                *lenp = 0;
-                        return 0;
+        if (f) {
+                errno = 0;
+                if (!fgets(buffer, sizeof(buffer), f)) {
+                        if (ferror(f) && errno != EINVAL)
+                                return errno ? error_origin(-errno) : error_origin(-ENOTRECOVERABLE);
                 }
-
+        } else if (errno != ENOENT) {
                 return error_origin(-errno);
         }
 
-        if (!fgets(buffer, sizeof(buffer), f)) {
-                if (ferror(f)) {
-                        if (errno > 0) {
-                                if (errno == EINVAL) {
-                                        if (labelp)
-                                                *labelp = NULL;
-                                        if (lenp)
-                                                *lenp = 0;
-                                        return 0;
-                                }
-
-                                return error_origin(-errno);
-                        } else {
-                                return error_origin(-ENOTRECOVERABLE);
-                        }
-                }
-
-                c = buffer;
-        } else {
-                c = strchr(buffer, '\n');
-        }
-
-        if (c)
-                *c = '\0';
-
-        label = strdup(buffer);
+        c = strchrnul(buffer, '\n');
+        label = strndup(buffer, c - buffer);
         if (!label)
                 return error_origin(-ENOMEM);
 
-        if (labelp)
-                *labelp = label;
-        if (lenp)
-                *lenp = strlen(label);
+        *labelp = label;
         return 0;
 }
-

@@ -12,9 +12,16 @@
 
 int sockopt_get_peersec(int fd, char **labelp, size_t *lenp) {
         _c_cleanup_(c_freep) char *label = NULL;
-        char *l;
         socklen_t len = 1023;
+        char *l;
         int r;
+
+        /*
+         * There is no way to know how big a result SO_PEERSEC returns. Hence,
+         * we simply keep re-allocating the buffer to the size returned by
+         * SO_PEERSEC on failure. Note that this is racy. The seclabel can
+         * change between calls. Hence, we must retry in a loop.
+         */
 
         label = malloc(len + 1);
         if (!label)
@@ -24,20 +31,13 @@ int sockopt_get_peersec(int fd, char **labelp, size_t *lenp) {
                 r = getsockopt(fd, SOL_SOCKET, SO_PEERSEC, label, &len);
                 if (r >= 0) {
                         label[len] = '\0';
-                        if (lenp)
-                                *lenp = len;
-                        if (labelp)
-                                *labelp = label;
-                        label = NULL;
                         break;
                 } else if (errno == ENOPROTOOPT) {
-                        if (lenp)
-                                *lenp = 0;
-                        if (labelp)
-                                *labelp = NULL;
+                        *label = 0;
                         break;
-                } else if (errno != ERANGE)
-                        return -errno;
+                } else if (errno != ERANGE) {
+                        return error_origin(-errno);
+                }
 
                 l = realloc(label, len + 1);
                 if (!l)
@@ -46,6 +46,13 @@ int sockopt_get_peersec(int fd, char **labelp, size_t *lenp) {
                 label = l;
         }
 
+        /* dup label to throw away the unnecessary padding bytes */
+        l = strdup(label);
+        if (!l)
+                return error_origin(-ENOMEM);
+
+        *labelp = l;
+        *lenp = strlen(l);
         return 0;
 }
 
