@@ -59,8 +59,7 @@ mkdir -p %{_vpath_builddir}/selinux
 cp %{_vpath_srcdir}/selinux/dbus-broker.{te,fc} %{_vpath_builddir}/selinux/
 
 %build
-echo %{_vpath_builddir}
-meson --prefix=/usr --buildtype=release %{_vpath_srcdir} %{_vpath_builddir}
+%meson
 %meson_build
 rst2man %{_vpath_srcdir}/docs/dbus-broker-launch.rst %{_vpath_builddir}/docs/dbus-broker-launch.1
 rst2man %{_vpath_srcdir}/docs/dbus-broker.rst %{_vpath_builddir}/docs/dbus-broker.1
