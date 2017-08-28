@@ -1138,9 +1138,6 @@ static int driver_method_get_connection_selinux_security_context(Peer *peer, CDV
         if (!connection)
                 return DRIVER_E_PEER_NOT_FOUND;
 
-        if (!connection->seclabel)
-                return DRIVER_E_SELINUX_NOT_SUPPORTED;
-
         /*
          * Unlike "LinuxSecurityLabel" in GetConnectionCredentials(), this
          * call is specific to SELinux. Hence, we better only return the
