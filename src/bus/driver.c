@@ -1075,7 +1075,7 @@ static int driver_method_get_connection_credentials(Peer *peer, CDVar *in_v, uin
                      "UnixUserID", c_dvar_type_u, connection->user->uid,
                      "ProcessID", c_dvar_type_u, connection->pid);
 
-        if (connection->seclabel) {
+        if (connection->n_seclabel) {
                 /*
                  * The DBus specification says that the security-label is a
                  * byte array of non-0 values. The kernel disagrees.
