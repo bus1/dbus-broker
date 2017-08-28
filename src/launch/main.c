@@ -636,6 +636,7 @@ static int manager_load_service_file(Manager *manager, const char *path) {
         gsize n_exec = 0;
         _c_cleanup_(service_freep) Service *service = NULL;
         _c_cleanup_(c_freep) char *object_path = NULL;
+        _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *reply = NULL;
         GKeyFile *f;
         int r;
 
@@ -703,13 +704,18 @@ static int manager_load_service_file(Manager *manager, const char *path) {
                                "org.bus1.DBus.Broker",
                                "AddName",
                                NULL,
-                               NULL,
+                               &reply,
                                "osu",
                                object_path,
                                service->name,
                                0);
         if (r < 0) {
-                r = error_origin(r);
+                if (sd_bus_message_is_method_error(reply, "org.bus1.DBus.Name.IsActivatable")) {
+                        fprintf(stderr, "Ignoring duplicate name '%s' in service file '%s'\n", service->name, path);
+                        r = 0;
+                } else {
+                        r = error_origin(r);
+                }
                 goto exit;
         }
 
