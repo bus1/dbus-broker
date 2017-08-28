@@ -8,6 +8,7 @@
 #include <fcntl.h>
 #include <getopt.h>
 #include <glib.h>
+#include <pwd.h>
 #include <signal.h>
 #include <stdlib.h>
 #include <sys/prctl.h>
@@ -53,7 +54,6 @@ static const char *     main_arg_broker = "/usr/bin/dbus-broker";
 static bool             main_arg_force = false;
 static const char *     main_arg_listen = NULL;
 static const char *     main_arg_scope = "system";
-static const char *     main_arg_servicedir = NULL;
 static const char *     main_arg_policypath = NULL;
 static bool             main_arg_verbose = false;
 
@@ -572,7 +572,7 @@ static int manager_on_message(sd_bus_message *m, void *userdata, sd_bus_error *e
         return error_trace(r);
 }
 
-static int manager_load_service(Manager *manager, const char *path) {
+static int manager_load_service_file(Manager *manager, const char *path) {
         gchar *name = NULL, *user = NULL, *unit = NULL, **exec = NULL;
         gsize n_exec = 0;
         _c_cleanup_(service_freep) Service *service = NULL;
@@ -666,25 +666,20 @@ exit:
         return r;
 }
 
-static int manager_load_services(Manager *manager) {
+static int manager_load_service_dir(Manager *manager, const char *dirpath, const char *subdir) {
         const char suffix[] = ".service";
+        _c_cleanup_(c_freep) char *full_dir = NULL;
         _c_cleanup_(c_closedirp) DIR *dir = NULL;
-        const char *dirpath;
         struct dirent *de;
         char *path;
         size_t n;
         int r;
 
-        if (main_arg_servicedir)
-                dirpath = main_arg_servicedir;
-        else if (!strcmp(main_arg_scope, "user"))
-                dirpath = "/usr/share/dbus-1/services";
-        else if (!strcmp(main_arg_scope, "system"))
-                dirpath = "/usr/share/dbus-1/system-services";
-        else
-                return error_origin(-ENOTRECOVERABLE);
+        r = asprintf(&full_dir, "%s/%s", dirpath, subdir);
+        if (r < 0)
+                return error_origin(-ENOMEM);
 
-        dir = opendir(dirpath);
+        dir = opendir(full_dir);
         if (!dir) {
                 if (errno == ENOENT || errno == ENOTDIR)
                         return 0;
@@ -704,17 +699,110 @@ static int manager_load_services(Manager *manager) {
                 if (strcmp(de->d_name + n - strlen(suffix), suffix))
                         continue;
 
-                r = asprintf(&path, "%s/%s", dirpath, de->d_name);
+                r = asprintf(&path, "%s/%s", full_dir, de->d_name);
                 if (r < 0)
                         return error_origin(-ENOMEM);
 
-                r = manager_load_service(manager, path);
+                r = manager_load_service_file(manager, path);
                 free(path);
                 if (r)
                         return error_trace(r);
         }
         if (errno > 0)
                 return error_origin(-errno);
+
+        return 0;
+}
+
+static int manager_load_services(Manager *manager) {
+        static const char *default_data_dirs[] = {
+                "/usr/local/share",
+                "/usr/share",
+                NULL,
+        };
+        _c_cleanup_(c_freep) char *data_home_dir = NULL;
+        const char **dirs, *dir, *suffix, *runtime_dir = NULL;
+        struct passwd *passwd;
+        size_t i;
+        int r;
+
+        if (!strcmp(main_arg_scope, "user")) {
+                /*
+                 * dbus-daemon(1) allows the default search path to be modified
+                 * via the XDG_DATA_DIRS env-variable. We do not implement this
+                 * so far. If there is need, we can add it later.
+                 */
+                suffix = "dbus-1/services";
+                dirs = default_data_dirs;
+
+                /*
+                 * $HOME/.local/share/dbus-1/services is used for user buses
+                 * additionally to the above mentioned directories. Note that
+                 * it can be modified via the XDG_DATA_HOME env-variable.
+                 */
+                dir = secure_getenv("XDG_DATA_HOME");
+                if (dir) {
+                        data_home_dir = strdup(dir);
+                        if (!data_home_dir)
+                                return error_origin(-ENOMEM);
+                } else {
+                        passwd = getpwuid(getuid());
+                        if (passwd && passwd->pw_dir) {
+                                r = asprintf(&data_home_dir, "%s/.local/share", passwd->pw_dir);
+                                if (r < 0)
+                                        return error_origin(-ENOMEM);
+                        }
+                }
+                if (!data_home_dir)
+                        fprintf(stderr, "Cannot figure out service home directory\n");
+
+                /*
+                 * $XDG_RUNTIME_DIR/dbus-1/services is used in user-scope to
+                 * load transient units. dbus-daemon(1) actually creates this
+                 * path, we don't. It is incompatible with socket-activation of
+                 * dbus-daemon(1), so you must already be able to deal with
+                 * creating the directory yourself. But if the directory is
+                 * there, we load units from it.
+                 */
+                runtime_dir = secure_getenv("XDG_RUNTIME_DIR");
+                if (!runtime_dir)
+                        fprintf(stderr, "Cannot figure out service runtime directory\n");
+        } else if (!strcmp(main_arg_scope, "system")) {
+                /*
+                 * In system scope, the default data directories are used. They
+                 * cannot be modified via env-variables!
+                 *
+                 * dbus-daemon(1) also supports /lib, which we don't. If there
+                 * is need, add it later.
+                 */
+                suffix = "dbus-1/system-services";
+                dirs = default_data_dirs;
+        } else {
+                return error_origin(-ENOTRECOVERABLE);
+        }
+
+        /*
+         * Now parse all the directories and read the stored service files. The
+         * order in which these are parsed follows the order of dbus-daemon(1).
+         */
+
+        if (runtime_dir) {
+                r = manager_load_service_dir(manager, runtime_dir, suffix);
+                if (r)
+                        return error_trace(r);
+        }
+
+        if (data_home_dir) {
+                r = manager_load_service_dir(manager, data_home_dir, suffix);
+                if (r)
+                        return error_trace(r);
+        }
+
+        for (i = 0; dirs[i]; ++i) {
+                r = manager_load_service_dir(manager, dirs[i], suffix);
+                if (r)
+                        return error_trace(r);
+        }
 
         return 0;
 }
