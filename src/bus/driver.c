@@ -934,7 +934,7 @@ static int driver_method_update_activation_environment(Peer *peer, CDVar *in_v, 
         while (c_dvar_more(in_v)) {
                 c_dvar_read(in_v, "{ss}", &key, &value);
 
-                if (n_env >= z_env) {
+                if (n_env + 1 >= z_env) {
                         z_env = (z_env * 2) ?: 128;
                         t = realloc(env, z_env * sizeof(*env));
                         if (!t)
@@ -943,9 +943,8 @@ static int driver_method_update_activation_environment(Peer *peer, CDVar *in_v, 
                         env = t;
                 }
 
-                env[n_env * 2] = key;
-                env[n_env * 2 + 1] = value;
-                ++n_env;
+                env[n_env++] = key;
+                env[n_env++] = value;
         }
         c_dvar_read(in_v, "])");
 
@@ -953,7 +952,7 @@ static int driver_method_update_activation_environment(Peer *peer, CDVar *in_v, 
         if (r)
                 return error_trace(r);
 
-        r = broker_update_environment(BROKER(peer->bus), env, n_env);
+        r = broker_update_environment(BROKER(peer->bus), env, n_env / 2);
         if (r)
                 return error_fold(r);
 
