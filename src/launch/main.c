@@ -544,6 +544,20 @@ static int manager_on_name_activate(Manager *manager, sd_bus_message *m, const c
         return 0;
 }
 
+static int manager_set_environment_handler(sd_bus_message *message, void *userdata, sd_bus_error *errorp) {
+        const sd_bus_error *error;
+
+        error = sd_bus_message_get_error(message);
+        if (!error)
+                /* environment set successfully */
+                return 1;
+
+        if (main_arg_verbose)
+                fprintf(stderr, "Updating activation environment failed: %s\n", error->message);
+
+        return 1;
+}
+
 static int manager_on_set_activation_environment(Manager *manager, sd_bus_message *m) {
         _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *method_call = NULL;
         int r;
@@ -589,7 +603,7 @@ static int manager_on_set_activation_environment(Manager *manager, sd_bus_messag
         if (r < 0)
                 return error_origin(r);
 
-        r = sd_bus_send(manager->bus_regular, method_call, NULL);
+        r = sd_bus_call_async(manager->bus_regular, NULL, method_call, manager_set_environment_handler, NULL, -1);
         if (r < 0)
                 return error_origin(r);
 
