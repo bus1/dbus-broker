@@ -50,7 +50,7 @@ struct Manager {
         uint64_t service_ids;
 };
 
-static const char *     main_arg_broker = "/usr/bin/dbus-broker";
+static const char *     main_arg_broker = BINDIR "/dbus-broker";
 static bool             main_arg_force = false;
 static const char *     main_arg_listen = NULL;
 static const char *     main_arg_scope = "system";

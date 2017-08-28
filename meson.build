@@ -10,6 +10,7 @@ project(
 
 add_project_arguments('-D_GNU_SOURCE', language: 'c')
 add_project_arguments('-DPACKAGE_VERSION=' + meson.project_version(), language: 'c')
+add_project_arguments('-DBINDIR="' + join_paths(get_option('prefix'), get_option('bindir')) + '"', language: 'c')
 
 cc = meson.get_compiler('c')
 conf = configuration_data()
