@@ -110,7 +110,7 @@ exe_dbus_broker = executable(
 # target: dbus-broker-launch
 #
 
-if dep_libsystemd.found() and dep_glib.found()
+if use_launcher
         exe_dbus_broker_launch = executable(
                 'dbus-broker-launch',
                 [

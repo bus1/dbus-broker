@@ -1,2 +1,3 @@
 option('audit', type: 'boolean', value: false, description: 'Audit support')
+option('launcher', type: 'boolean', value: true, description: 'Build compatibility launcher')
 option('selinux', type: 'boolean', value: false, description: 'SELinux support')
