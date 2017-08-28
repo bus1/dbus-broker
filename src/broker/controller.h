@@ -77,7 +77,7 @@ struct Controller {
 /* names */
 
 ControllerName *controller_name_free(ControllerName *name);
-void controller_name_reset(ControllerName *name);
+int controller_name_reset(ControllerName *name);
 int controller_name_activate(ControllerName *name);
 
 C_DEFINE_CLEANUP(ControllerName *, controller_name_free);

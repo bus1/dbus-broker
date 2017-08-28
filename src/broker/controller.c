@@ -9,6 +9,7 @@
 #include "broker/controller.h"
 #include "bus/activation.h"
 #include "bus/bus.h"
+#include "bus/driver.h"
 #include "bus/policy.h"
 #include "dbus/connection.h"
 #include "dbus/message.h"
@@ -64,8 +65,14 @@ static int controller_name_new(ControllerName **namep, Controller *controller, c
 /**
  * controller_name_reset() - XXX
  */
-void controller_name_reset(ControllerName *name) {
-        activation_flush(&name->activation);
+int controller_name_reset(ControllerName *name) {
+        int r;
+
+        r = driver_name_activation_failed(&name->controller->broker->bus, &name->activation);
+        if (r)
+                return error_fold(r);
+
+        return 0;
 }
 
 /**

@@ -317,7 +317,9 @@ static int controller_method_name_reset(Controller *controller, const char *path
         if (!name)
                 return CONTROLLER_E_NAME_NOT_FOUND;
 
-        controller_name_reset(name);
+        r = controller_name_reset(name);
+        if (r)
+                return error_trace(r);
 
         c_dvar_write(out_v, "()");
 
