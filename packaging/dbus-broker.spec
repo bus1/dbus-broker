@@ -18,14 +18,16 @@ Provides:       bundled(c-dvar) = %{c_dvar_version}
 Provides:       bundled(c-list) = %{c_list_version}
 Provides:       bundled(c-rbtree) = %{c_rbtree_version}
 %{?systemd_requires}
-BuildRequires:  expat-devel
+BuildRequires:  pkgconfig(audit)
+BuildRequires:  pkgconfig(expat)
+BuildRequires:  pkgconfig(dbus-1)
+BuildRequires:  pkgconfig(glib-2.0)
+BuildRequires:  pkgconfig(libselinux)
+BuildRequires:  pkgconfig(libsystemd)
+BuildRequires:  pkgconfig(systemd)
 BuildRequires:  gcc
-BuildRequires:  glib2-devel
 BuildRequires:  glibc-devel
-BuildRequires:  libselinux-devel
 BuildRequires:  meson
-BuildRequires:  systemd
-BuildRequires:  systemd-devel
 BuildRequires:  python2-docutils
 BuildRequires:  checkpolicy, selinux-policy-devel
 Requires:       dbus
