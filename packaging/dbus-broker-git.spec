@@ -68,5 +68,5 @@ fi
 %{_userunitdir}/dbus-broker.service
 
 %changelog
-* %{build_date} <teg@jklm.no> %{version}-%{build_timestamp}
-- %{name} %{version}
+* Tue Aug 29 2017 <teg@jklm.no> 1-1
+- dbus-broker 1-1
