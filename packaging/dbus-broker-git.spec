@@ -1,5 +1,5 @@
-%global build_date %(date +"%%a %%b %%d %%Y")
-%global build_timestamp %(date +"%%Y%%m%%d.%%H%M%%S")
+%define build_date %(date +"%%a %%b %%d %%Y")
+%define build_timestamp %(date +"%%Y%%m%%d.%%H%M%%S")
 
 Name:           dbus-broker-git
 Version:        1
