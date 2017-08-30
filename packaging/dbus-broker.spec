@@ -80,7 +80,7 @@ install -p -m 644 %{_vpath_builddir}/selinux/dbus-broker.pp %{buildroot}%{_datad
 
 %post
 /usr/sbin/semodule -s targeted -i %{_datadir}/selinux/targeted/dbus-broker.pp
-/sbin/fixfiles -R dbus-broker restore
+/sbin/fixfiles -R %{name} restore
 %systemd_post dbus-broker.service
 
 %preun
