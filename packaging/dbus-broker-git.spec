@@ -16,6 +16,7 @@ BuildRequires:  pkgconfig(libselinux)
 BuildRequires:  pkgconfig(libsystemd)
 BuildRequires:  pkgconfig(systemd)
 BuildRequires:  gcc
+BuildRequires:  git
 BuildRequires:  glibc-devel
 BuildRequires:  meson
 BuildRequires:  python2-docutils
