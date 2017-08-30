@@ -62,6 +62,7 @@ cp %{_vpath_srcdir}/selinux/dbus-broker.{te,fc} %{_vpath_builddir}/selinux/
 
 %build
 %meson
+mesonconf -Dselinux=true -Daudit=true %{_vpath_builddir}
 %meson_build
 rst2man %{_vpath_srcdir}/docs/dbus-broker-launch.rst %{_vpath_builddir}/docs/dbus-broker-launch.1
 rst2man %{_vpath_srcdir}/docs/dbus-broker.rst %{_vpath_builddir}/docs/dbus-broker.1
