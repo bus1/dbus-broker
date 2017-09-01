@@ -21,6 +21,7 @@
 #include "launch/config.h"
 #include "launch/policy.h"
 #include "util/error.h"
+#include "util/log.h"
 
 typedef struct Manager Manager;
 typedef struct Service Service;
@@ -57,6 +58,7 @@ static const char *     main_arg_listen = NULL;
 static const char *     main_arg_scope = "system";
 static const char *     main_arg_policypath = NULL;
 static bool             main_arg_verbose = false;
+static Log              main_log = LOG_NULL;
 
 static sd_bus *bus_close_unref(sd_bus *bus) {
         /*
@@ -268,11 +270,13 @@ static int manager_listen_path(Manager *manager, const char *path) {
         return 0;
 }
 
-static noreturn void manager_run_child(Manager *manager, int fd_controller) {
-        char str_controller[C_DECIMAL_MAX(int) + 1];
+static noreturn void manager_run_child(Manager *manager, int fd_log, int fd_controller) {
+        char str_log[C_DECIMAL_MAX(int) + 1], str_controller[C_DECIMAL_MAX(int) + 1];
         const char * const argv[] = {
                 "dbus-broker",
                 "-v",
+                "--log",
+                str_log,
                 "--controller",
                 str_controller,
                 NULL,
@@ -281,6 +285,18 @@ static noreturn void manager_run_child(Manager *manager, int fd_controller) {
 
         r = prctl(PR_SET_PDEATHSIG, SIGTERM);
         if (r) {
+                r = error_origin(-errno);
+                goto exit;
+        }
+
+        r = fcntl(fd_log, F_GETFD);
+        if (r < 0) {
+                r = error_origin(-errno);
+                goto exit;
+        }
+
+        r = fcntl(fd_log, F_SETFD, r & ~FD_CLOEXEC);
+        if (r < 0) {
                 r = error_origin(-errno);
                 goto exit;
         }
@@ -296,6 +312,9 @@ static noreturn void manager_run_child(Manager *manager, int fd_controller) {
                 r = error_origin(-errno);
                 goto exit;
         }
+
+        r = snprintf(str_log, sizeof(str_log), "%d", fd_log);
+        assert(r < (ssize_t)sizeof(str_log));
 
         r = snprintf(str_controller, sizeof(str_controller), "%d", fd_controller);
         assert(r < (ssize_t)sizeof(str_controller));
@@ -324,7 +343,7 @@ static int manager_fork(Manager *manager, int fd_controller) {
                 return error_origin(-errno);
 
         if (!pid)
-                manager_run_child(manager, fd_controller);
+                manager_run_child(manager, log_get_fd(&main_log), fd_controller);
 
         r = sd_event_add_child(manager->event, NULL, pid, WEXITED, manager_on_child_exit, manager);
         if (r < 0)
@@ -1033,6 +1052,29 @@ static int manager_run(Manager *manager) {
         return 0;
 }
 
+static int open_log(void) {
+        _c_cleanup_(c_closep) int fd = -1;
+        struct sockaddr_un address = {
+                .sun_family = AF_UNIX,
+                .sun_path = "/run/systemd/journal/socket",
+        };
+        int r;
+
+        fd = socket(PF_UNIX, SOCK_DGRAM | SOCK_CLOEXEC, 0);
+        if (fd < 0)
+                return error_origin(-errno);
+
+        r = connect(fd,
+                    (struct sockaddr *)&address,
+                    offsetof(struct sockaddr_un, sun_path) + strlen(address.sun_path));
+        if (r < 0)
+                return error_origin(-errno);
+
+        log_init_journal_consume(&main_log, fd);
+        fd = -1;
+        return 0;
+}
+
 static void help(void) {
         printf("%s [GLOBALS...] ...\n\n"
                "Linux D-Bus Message Broker Launcher\n\n"
@@ -1189,6 +1231,10 @@ static int run(void) {
 int main(int argc, char **argv) {
         sigset_t mask_new, mask_old;
         int r;
+
+        r = open_log();
+        if (r)
+                goto exit;
 
         r = parse_argv(argc, argv);
         if (r)
