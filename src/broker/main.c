@@ -194,20 +194,10 @@ static int run(void) {
         _c_cleanup_(broker_freep) Broker *broker = NULL;
         int r;
 
-        r = util_audit_init_global();
-        if (r)
-                return error_fold(r);
-
-        r = bus_selinux_init_global();
-        if (r)
-                return error_fold(r);
-
         r = broker_new(&broker, main_arg_controller, main_arg_max_bytes, main_arg_max_fds, main_arg_max_matches, main_arg_max_objects);
         if (!r)
                 r = broker_run(broker);
 
-        bus_selinux_deinit_global();
-        util_audit_deinit_global();
         return error_trace(r);
 }
 
@@ -218,11 +208,23 @@ int main(int argc, char **argv) {
         if (r)
                 goto exit;
 
+        r = util_audit_init_global();
+        if (r)
+                return error_fold(r);
+
+        r = bus_selinux_init_global();
+        if (r)
+                return error_fold(r);
+
         r = run();
 
 exit:
+        bus_selinux_deinit_global();
+        util_audit_deinit_global();
+
         r = error_trace(r);
         if (r < 0 && main_arg_verbose)
                 fprintf(stderr, "Exiting due to fatal error: %d\n", r);
+
         return (r == 0 || r == MAIN_EXIT) ? 0 : 1;
 }
