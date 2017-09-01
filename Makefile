@@ -38,8 +38,7 @@ MYCFLAGS= \
 	-Werror=implicit-function-declaration \
 	-Werror=missing-declarations \
 	-Werror=return-type \
-	-Werror=incompatible-pointer-types \
-	-Werror=format=2
+	-Werror=incompatible-pointer-types
 
 BUILDDIR?="$$PWD/mybuild"
 
