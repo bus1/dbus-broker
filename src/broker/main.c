@@ -28,6 +28,7 @@ static void help(void) {
                "  -h --help                     Show this help\n"
                "     --version                  Show package version\n"
                "  -v --verbose                  Print progress to terminal\n"
+               "     --log FD                   Change log socket\n"
                "     --controller FD            Change controller file-descriptor\n"
                "     --max-bytes BYTES          The maximum number of bytes each user may own in the broker\n"
                "     --max-fds FDS              The maximum number of file descriptors each user may own in the broker\n"
@@ -39,6 +40,7 @@ static void help(void) {
 static int parse_argv(int argc, char *argv[]) {
         enum {
                 ARG_VERSION = 0x100,
+                ARG_LOG,
                 ARG_CONTROLLER,
                 ARG_MAX_BYTES,
                 ARG_MAX_FDS,
@@ -49,6 +51,7 @@ static int parse_argv(int argc, char *argv[]) {
                 { "help",               no_argument,            NULL,   'h'                     },
                 { "version",            no_argument,            NULL,   ARG_VERSION             },
                 { "verbose",            no_argument,            NULL,   'v'                     },
+                { "log",                required_argument,      NULL,   ARG_LOG                 },
                 { "controller",         required_argument,      NULL,   ARG_CONTROLLER          },
                 { "max-bytes",          required_argument,      NULL,   ARG_MAX_BYTES           },
                 { "max-fds",            required_argument,      NULL,   ARG_MAX_FDS             },
@@ -71,6 +74,21 @@ static int parse_argv(int argc, char *argv[]) {
                 case 'v':
                         main_arg_verbose = true;
                         break;
+
+                case ARG_LOG: {
+                        unsigned long vul;
+                        char *end;
+
+                        errno = 0;
+                        vul = strtoul(optarg, &end, 10);
+                        if (errno != 0 || *end || optarg == end || vul > INT_MAX) {
+                                fprintf(stderr, "%s: invalid log file-descriptor -- '%s'\n", program_invocation_name, optarg);
+                                return MAIN_FAILED;
+                        }
+
+                        main_arg_log = vul;
+                        break;
+                }
 
                 case ARG_CONTROLLER: {
                         unsigned long vul;
@@ -162,11 +180,35 @@ static int parse_argv(int argc, char *argv[]) {
         }
 
         /*
-         * Verify that the controller-fd exists. Preferably, we would not care
-         * and simply fail when it is used. However, the FD-number might be
+         * Verify that the passed FDs exist. Preferably, we would not care
+         * and simply fail later on. However, the FD-number might be
          * used by one of our other FDs (signalfd, epollfd, ...), and thus we
          * might trigger assertions on their behavior, which we better avoid.
          */
+
+        /* verify log-fd is DGRAM or STREAM */
+        if (main_arg_log >= 0) {
+                socklen_t n;
+                int v1, v2;
+
+                n = sizeof(v1);
+                r = getsockopt(main_arg_log, SOL_SOCKET, SO_DOMAIN, &v1, &n);
+                n = sizeof(v2);
+                r = r ?: getsockopt(main_arg_log, SOL_SOCKET, SO_TYPE, &v2, &n);
+
+                if (r < 0) {
+                        if (errno != EBADF && errno != ENOTSOCK)
+                                return error_origin(-errno);
+
+                        fprintf(stderr, "%s: log file-descriptor not a socket -- '%d'\n", program_invocation_name, main_arg_log);
+                        return MAIN_FAILED;
+                } else if (v1 != AF_UNIX || (v2 != SOCK_DGRAM && v2 != SOCK_STREAM)) {
+                        fprintf(stderr, "%s: socket type of log file-descriptor not supported -- '%d'\n", program_invocation_name, main_arg_log);
+                        return MAIN_FAILED;
+                }
+        }
+
+        /* verify controller-fd is STREAM */
         {
                 socklen_t n;
                 int v1, v2;
