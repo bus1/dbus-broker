@@ -18,6 +18,7 @@
 #include "dbus/message.h"
 #include "util/dispatch.h"
 #include "util/error.h"
+#include "util/log.h"
 #include "util/user.h"
 
 static int broker_dispatch_signals(DispatchFile *file) {
@@ -43,14 +44,22 @@ static int broker_dispatch_signals(DispatchFile *file) {
         return DISPATCH_E_EXIT;
 }
 
-int broker_new(Broker **brokerp, int controller_fd, uint64_t max_bytes, uint64_t max_fds, uint64_t max_matches, uint64_t max_objects) {
+int broker_new(Broker **brokerp, int log_fd, int controller_fd, uint64_t max_bytes, uint64_t max_fds, uint64_t max_matches, uint64_t max_objects) {
         _c_cleanup_(broker_freep) Broker *broker = NULL;
         struct ucred ucred;
-        socklen_t z_ucred = sizeof(ucred);
+        socklen_t z;
         sigset_t sigmask;
-        int r;
+        int r, log_type;
 
-        r = getsockopt(controller_fd, SOL_SOCKET, SO_PEERCRED, &ucred, &z_ucred);
+        if (log_fd >= 0) {
+                z = sizeof(log_type);
+                r = getsockopt(log_fd, SOL_SOCKET, SO_TYPE, &log_type, &z);
+                if (r < 0)
+                        return error_origin(-errno);
+        }
+
+        z = sizeof(ucred);
+        r = getsockopt(controller_fd, SOL_SOCKET, SO_PEERCRED, &ucred, &z);
         if (r < 0)
                 return error_origin(-errno);
 
@@ -58,11 +67,21 @@ int broker_new(Broker **brokerp, int controller_fd, uint64_t max_bytes, uint64_t
         if (!broker)
                 return error_origin(-ENOMEM);
 
+        broker->log = (Log)LOG_NULL;
         broker->bus = (Bus)BUS_NULL(broker->bus);
         broker->dispatcher = (DispatchContext)DISPATCH_CONTEXT_NULL(broker->dispatcher);
         broker->signals_fd = -1;
         broker->signals_file = (DispatchFile)DISPATCH_FILE_NULL(broker->signals_file);
         broker->controller = (Controller)CONTROLLER_NULL(broker->controller);
+
+        if (log_fd < 0)
+                log_init(&broker->log);
+        else if (log_type == SOCK_STREAM)
+                log_init_stderr(&broker->log, log_fd);
+        else if (log_type == SOCK_DGRAM)
+                log_init_journal(&broker->log, log_fd);
+        else
+                return error_origin(-ENOTRECOVERABLE);
 
         r = bus_init(&broker->bus, max_bytes, max_fds, max_matches, max_objects);
         if (r)
@@ -114,6 +133,7 @@ Broker *broker_free(Broker *broker) {
         c_close(broker->signals_fd);
         dispatch_context_deinit(&broker->dispatcher);
         bus_deinit(&broker->bus);
+        log_deinit(&broker->log);
         free(broker);
 
         return NULL;

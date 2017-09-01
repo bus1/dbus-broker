@@ -9,10 +9,12 @@
 #include "broker/controller.h"
 #include "bus/bus.h"
 #include "util/dispatch.h"
+#include "util/log.h"
 
 typedef struct Broker Broker;
 
 struct Broker {
+        Log log;
         Bus bus;
         DispatchContext dispatcher;
 
@@ -24,7 +26,7 @@ struct Broker {
 
 /* broker */
 
-int broker_new(Broker **brokerp, int controller_fd, uint64_t max_bytes, uint64_t max_fds, uint64_t max_matches, uint64_t max_objects);
+int broker_new(Broker **brokerp, int log_fd, int controller_fd, uint64_t max_bytes, uint64_t max_fds, uint64_t max_matches, uint64_t max_objects);
 Broker *broker_free(Broker *broker);
 
 int broker_run(Broker *broker);
