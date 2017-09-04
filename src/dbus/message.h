@@ -11,6 +11,7 @@
 #include "dbus/protocol.h"
 
 typedef struct FDList FDList;
+typedef struct Log Log;
 typedef struct Message Message;
 typedef struct MessageHeader MessageHeader;
 typedef struct MessageMetadata MessageMetadata;
@@ -99,6 +100,8 @@ void message_free(_Atomic unsigned long *n_refs, void *userdata);
 
 int message_parse_metadata(Message *message);
 void message_stitch_sender(Message *message, uint64_t sender_id);
+
+void message_log_append(Message *message, Log *log);
 
 /* inline helpers */
 
