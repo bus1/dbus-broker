@@ -11,6 +11,7 @@
 #include "dbus/message.h"
 #include "dbus/protocol.h"
 #include "util/fdlist.h"
+#include "util/log.h"
 #include "util/error.h"
 
 static_assert(_DBUS_MESSAGE_FIELD_N <= 8 * sizeof(unsigned int), "Header fields exceed bitmap");
@@ -597,4 +598,53 @@ void message_stitch_sender(Message *message, uint64_t sender_id) {
                 message->header->n_fields = htobe32(message->n_header - sizeof(*message->header));
         else
                 message->header->n_fields = htole32(message->n_header - sizeof(*message->header));
+}
+
+void message_log_append(Message *message, Log *log) {
+        log_appendf(log,
+                    "DBUS_BROKER_MESSAGE_DESTINATION=%s\n"
+                    "DBUS_BRKOER_MESSAGE_SERIAL=%d\n"
+                    "DBUS_BROKER_MESSAGE_SIGNATURE=%s\n",
+                    message->metadata.fields.destination ?: "<broadcast>",
+                    message->metadata.header.serial,
+                    message->metadata.fields.signature ?: "<missing>");
+
+        switch (message->metadata.header.type) {
+        case DBUS_MESSAGE_TYPE_METHOD_CALL:
+                log_appendf(log,
+                            "DBUS_BROKER_MESSAGE_TYPE=method_call\n"
+                            "DBUS_BROKER_MESSAGE_PATH=%s\n"
+                            "DBUS_BRKOER_MESSAGE_INTERFACE=%s\n"
+                            "DBUS_BROKER_MESSAGE_MEMBER=%s\n",
+                            message->metadata.fields.path ?: "<missing>",
+                            message->metadata.fields.interface ?: "<missing>",
+                            message->metadata.fields.member ?: "<missing>");
+                break;
+        case DBUS_MESSAGE_TYPE_SIGNAL:
+                log_appendf(log,
+                            "DBUS_BROKER_MESSAGE_TYPE=signal\n"
+                            "DBUS_BROKER_MESSAGE_PATH=%s\n"
+                            "DBUS_BROKER_MESSAGE_INTERFACE=%s\n"
+                            "DBUS_BROKER_MESSAGE_MEMBER=%s\n",
+                            message->metadata.fields.path ?: "<missing>",
+                            message->metadata.fields.interface ?: "<missing>",
+                            message->metadata.fields.member ?: "<missing>");
+                break;
+        case DBUS_MESSAGE_TYPE_METHOD_RETURN:
+                log_appendf(log,
+                            "DBUS_BROKER_MESSAGE_TYPE=method_return\n"
+                            "MESSAGE_REPLY_SERIAL=%d\n",
+                            message->metadata.fields.reply_serial);
+                break;
+        case DBUS_MESSAGE_TYPE_ERROR:
+                log_appendf(log,
+                            "DBUS_BROKER_MESSAGE_TYPE=method_return\n"
+                            "DBUS_BROKER_MESSAGE_ERROR_NAME=%s\n"
+                            "DBUS_BROKER_MESSAGE_REPLY_SERIAL=%d\n",
+                            message->metadata.fields.error_name,
+                            message->metadata.fields.reply_serial);
+                break;
+        default:
+                log_appendf(log, "DBUS_BROKER_MESSAGE_TYPE=%u\n", message->metadata.header.type);
+        }
 }
