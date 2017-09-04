@@ -61,3 +61,6 @@ int bus_init(Bus *bus,
 void bus_deinit(Bus *bus);
 
 Peer *bus_find_peer_by_name(Bus *bus, Name **namep, const char *name);
+
+int bus_log_commit_policy_send(Bus *bus, uint64_t sender_id, uint64_t receiver_id, Message *message);
+int bus_log_commit_policy_receive(Bus *bus, uint64_t sender_id, uint64_t receiver_id, Message *message);
