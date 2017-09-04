@@ -56,9 +56,11 @@ install -p -m 644 %{_vpath_builddir}/docs/dbus-broker.1 %{buildroot}%{_mandir}/m
 install -d %{buildroot}%{_datadir}/selinux/targeted
 install -p -m 644 %{_vpath_builddir}/selinux/dbus-broker.pp %{buildroot}%{_datadir}/selinux/targeted/dbus-broker.pp
 
+%pre
+%selinux_relabel_pre -s targeted
+
 %post
-/usr/sbin/semodule -s targeted -i %{_datadir}/selinux/targeted/dbus-broker.pp
-/sbin/fixfiles -R %{name} restore
+%selinux_modules_install -s targeted %{_datadir}/selinux/targeted/dbus-broker.pp
 %systemd_post dbus-broker.service
 
 %preun
@@ -67,8 +69,11 @@ install -p -m 644 %{_vpath_builddir}/selinux/dbus-broker.pp %{buildroot}%{_datad
 %postun
 %systemd_postun dbus-broker.service
 if [ $1 -eq 0 ] ; then
-  /usr/sbin/semodule -s targeted -r dbus-broker
+    %selinux_modules_uninstall -s targeted dbus-broker
 fi
+
+%posttrans
+%selinux_relabel_post -s targeted
 
 %files
 %{_bindir}/dbus-broker
