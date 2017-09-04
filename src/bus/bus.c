@@ -15,6 +15,7 @@
 #include "util/user.h"
 
 int bus_init(Bus *bus,
+             Log *log,
              unsigned int max_bytes,
              unsigned int max_fds,
              unsigned int max_matches,
@@ -24,6 +25,7 @@ int bus_init(Bus *bus,
         int r;
 
         *bus = (Bus)BUS_NULL(*bus);
+        bus->log = log;
 
         random = (void *)getauxval(AT_RANDOM);
         assert(random);

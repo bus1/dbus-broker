@@ -83,7 +83,7 @@ int broker_new(Broker **brokerp, int log_fd, int controller_fd, uint64_t max_byt
         else
                 return error_origin(-ENOTRECOVERABLE);
 
-        r = bus_init(&broker->bus, max_bytes, max_fds, max_matches, max_objects);
+        r = bus_init(&broker->bus, &broker->log, max_bytes, max_fds, max_matches, max_objects);
         if (r)
                 return error_fold(r);
 
