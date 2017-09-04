@@ -21,10 +21,12 @@ enum {
 };
 
 typedef struct Bus Bus;
+typedef struct Log Log;
 typedef struct Message Message;
 typedef struct User User;
 
 struct Bus {
+        Log *log;
         User *user;
         pid_t pid;
         char guid[16];
@@ -51,6 +53,7 @@ struct Bus {
         }
 
 int bus_init(Bus *bus,
+             Log *log,
              unsigned int max_bytes,
              unsigned int max_fds,
              unsigned int max_matches,
