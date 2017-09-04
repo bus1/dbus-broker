@@ -12,6 +12,7 @@
 #include "bus/name.h"
 #include "dbus/address.h"
 #include "util/error.h"
+#include "util/log.h"
 #include "util/user.h"
 
 int bus_init(Bus *bus,
@@ -76,4 +77,45 @@ Peer *bus_find_peer_by_name(Bus *bus, Name **namep, const char *name_str) {
         if (namep)
                 *namep = name;
         return peer;
+}
+
+static int bus_log_commit_policy(Bus *bus, const char *action, uint64_t sender_id, uint64_t receiver_id, Message *message) {
+        Log *log = bus->log;
+        int r;
+
+        message_log_append(message, log);
+
+        log_appendf(log, "DBUS_BROKER_TRANSMIT_ACTION=%s\n", action);
+
+        if (sender_id == ADDRESS_ID_INVALID) {
+                log_appendf(log,
+                            "DBUS_BROKER_SENDER_UNIQUE_NAME=org.freedesktop.DBus\n");
+        } else {
+                log_appendf(log,
+                            "DBUS_BROKER_SENDER_UNIQUE_NAME=:1.%llu\n",
+                            sender_id);
+        }
+
+        if (receiver_id == ADDRESS_ID_INVALID) {
+                log_appendf(log,
+                            "DBUS_BOKER_RECEIVER_UNIQUE_NAME=org.freedesktop.DBus\n");
+        } else {
+                log_appendf(log,
+                            "DBUS_BROKER_RECEIVER_UNIQUE_NAME=:1.%llu\n",
+                            receiver_id);
+        }
+
+        r = log_commitf(log, ":1.%llu failed to %s message, due to policy.", sender_id, action);
+        if (r)
+                return error_fold(r);
+
+        return 0;
+}
+
+int bus_log_commit_policy_send(Bus *bus, uint64_t sender_id, uint64_t receiver_id, Message *message) {
+        return bus_log_commit_policy(bus, "send", sender_id, receiver_id, message);
+}
+
+int bus_log_commit_policy_receive(Bus *bus, uint64_t receiver_id, uint64_t sender_id, Message *message) {
+        return bus_log_commit_policy(bus, "receive", sender_id, receiver_id, message);
 }
