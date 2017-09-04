@@ -1,3 +1,4 @@
 option('audit', type: 'boolean', value: false, description: 'Audit support')
 option('launcher', type: 'boolean', value: true, description: 'Build compatibility launcher')
+option('reference_test', type: 'boolean', value: false, description: 'Run test suite against reference implementation')
 option('selinux', type: 'boolean', value: false, description: 'SELinux support')

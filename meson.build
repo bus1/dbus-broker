@@ -45,6 +45,8 @@ if use_launcher
         conf.set('userunitdir', dep_systemd.get_pkgconfig_variable('systemduserunitdir'))
 endif
 
+use_reference_test = get_option('reference_test')
+
 use_selinux = get_option('selinux')
 if use_selinux
         dep_libselinux = dependency('libselinux', version: '>=2.5')
