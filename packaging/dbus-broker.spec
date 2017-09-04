@@ -77,6 +77,9 @@ install -p -m 644 %{_vpath_builddir}/docs/dbus-broker.1 %{buildroot}%{_mandir}/m
 install -d %{buildroot}%{_datadir}/selinux/targeted
 install -p -m 644 %{_vpath_builddir}/selinux/dbus-broker.pp %{buildroot}%{_datadir}/selinux/targeted/dbus-broker.pp
 
+%check
+%meson_test
+
 %pre
 %selinux_relabel_pre -s targeted
 
