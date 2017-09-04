@@ -22,6 +22,7 @@
 #include "util/dispatch.h"
 #include "util/error.h"
 #include "util/fdlist.h"
+#include "util/log.h"
 #include "util/metrics.h"
 #include "util/selinux.h"
 #include "util/sockopt.h"
@@ -546,8 +547,14 @@ int peer_queue_call(PolicySnapshot *sender_policy, NameSet *sender_names, MatchR
                                           message->metadata.fields.path,
                                           message->header->type);
         if (r) {
-                if (r == POLICY_E_ACCESS_DENIED)
+                if (r == POLICY_E_ACCESS_DENIED) {
+                        log_append_here(receiver->bus->log, LOG_WARNING, 0);
+                        r = bus_log_commit_policy_receive(receiver->bus, receiver->id, sender_id, message);
+                        if (r)
+                                return error_trace(r);
+
                         return PEER_E_RECEIVE_DENIED;
+                }
 
                 return error_fold(r);
         }
@@ -560,8 +567,14 @@ int peer_queue_call(PolicySnapshot *sender_policy, NameSet *sender_names, MatchR
                                        message->metadata.fields.path,
                                        message->header->type);
         if (r) {
-                if (r == POLICY_E_ACCESS_DENIED)
+                if (r == POLICY_E_ACCESS_DENIED) {
+                        log_append_here(receiver->bus->log, LOG_WARNING, 0);
+                        r = bus_log_commit_policy_send(receiver->bus, sender_id, receiver->id, message);
+                        if (r)
+                                return error_fold(r);
+
                         return PEER_E_SEND_DENIED;
+                }
 
                 return error_fold(r);
         }

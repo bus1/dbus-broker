@@ -1552,8 +1552,14 @@ static int driver_dispatch_interface(Peer *peer, uint32_t serial, const char *in
 
         r = policy_snapshot_check_send(peer->policy, NULL, NULL, interface, member, path, message->header->type);
         if (r) {
-                if (r == POLICY_E_ACCESS_DENIED)
+                if (r == POLICY_E_ACCESS_DENIED) {
+                        log_append_here(peer->bus->log, LOG_WARNING, 0);
+                        r = bus_log_commit_policy_send(peer->bus, peer->id, ADDRESS_ID_INVALID, message);
+                        if (r)
+                                return error_fold(r);
+
                         return DRIVER_E_SEND_DENIED;
+                }
 
                 return error_fold(r);
         }
