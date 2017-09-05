@@ -15,7 +15,6 @@
 #include "dbus/connection.h"
 
 typedef struct Bus Bus;
-typedef struct BusSELinuxID BusSELinuxID;
 typedef struct DispatchContext DispatchContext;
 typedef struct Peer Peer;
 typedef struct PeerRegistry PeerRegistry;
@@ -57,7 +56,6 @@ struct Peer {
         pid_t pid;
         char *seclabel;
         size_t n_seclabel;
-        BusSELinuxID *sid;
         UserCharge charges[3];
 
         uint64_t id;
