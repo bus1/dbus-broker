@@ -1,0 +1,65 @@
+#!/bin/bash
+
+#
+# Some configuration flags needed to build the environment matrix
+#
+
+MY_CFLAGS=$(echo \
+                -Wno-unused-parameter \
+                -Wno-maybe-uninitialized \
+                -Wno-pointer-arith \
+                -Wno-unknown-warning-option \
+                \
+                -Wundef \
+                -Wlogical-op \
+                -Wmissing-include-dirs \
+                -Wold-style-definition \
+                -Wdeclaration-after-statement \
+                -Wfloat-equal \
+                -Wsuggest-attribute=noreturn \
+                -Wstrict-prototypes \
+                -Wredundant-decls \
+                -Wmissing-noreturn \
+                -Wshadow \
+                -Wendif-labels \
+                -Wstrict-aliasing=3 \
+                -Wwrite-strings \
+                -Wdate-time \
+                -Wnested-externs \
+                -Werror=overflow \
+                -Werror=missing-prototypes \
+                -Werror=implicit-function-declaration \
+                -Werror=missing-declarations \
+                -Werror=return-type \
+                -Werror=incompatible-pointer-types \
+                -Werror \
+        )
+
+MY_VALGRIND=$(echo \
+                valgrind \
+                --gen-suppressions=all \
+                --trace-children=yes \
+                --leak-check=full \
+                --error-exitcode=1 \
+        )
+
+#
+# Export non-matrix based variables unconditionally
+#
+
+export MY_VALGRIND
+
+#
+# Build our environment-matrix
+#
+
+MY_CC_0='CC=gcc'
+MY_CC_1='CC=clang'
+
+MY_CFLAGS_0="CFLAGS=\"$MY_CFLAGS -O2\""
+MY_CFLAGS_1="CFLAGS=\"$MY_CFLAGS -O3\""
+
+CHERRY_MATRIX+=("export $MY_CC_0 $MY_CFLAGS_0")
+CHERRY_MATRIX+=("export $MY_CC_0 $MY_CFLAGS_1")
+CHERRY_MATRIX+=("export $MY_CC_1 $MY_CFLAGS_0")
+CHERRY_MATRIX+=("export $MY_CC_1 $MY_CFLAGS_1")
