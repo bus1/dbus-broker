@@ -367,6 +367,10 @@ static int driver_monitor(Bus *bus, Peer *sender, Message *message) {
 static int driver_send_unicast(Peer *receiver, Message *message) {
         int r;
 
+        r = driver_monitor(receiver->bus, NULL, message);
+        if (r)
+                return error_fold(r);
+
         /* XXX: handle quota */
         r = connection_queue(&receiver->connection, NULL, message);
         if (r)
@@ -568,6 +572,10 @@ static int driver_notify_name_owner_changed(Bus *bus, const char *name, const ch
                 return error_origin(r);
 
         r = message_new_outgoing(&message, data, n_data);
+        if (r)
+                return error_fold(r);
+
+        r = driver_monitor(bus, NULL, message);
         if (r)
                 return error_fold(r);
 
