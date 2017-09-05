@@ -20,7 +20,11 @@ BuildRequires:  git
 BuildRequires:  glibc-devel
 BuildRequires:  meson
 BuildRequires:  python2-docutils
-BuildRequires:  checkpolicy, selinux-policy-devel
+BuildRequires:  selinux-policy-devel
+Requires(post): selinux-policy
+Requires(post): libselinux-utils
+Requires(post): policycoreutils
+Requires(post): policycoreutils-python-utils
 Requires:       dbus
 
 %description
