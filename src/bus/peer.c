@@ -551,7 +551,7 @@ int peer_queue_call(PolicySnapshot *sender_policy, NameSet *sender_names, MatchR
                         log_append_here(receiver->bus->log, LOG_WARNING, 0);
                         r = bus_log_commit_policy_receive(receiver->bus, receiver->id, sender_id, message);
                         if (r)
-                                return error_trace(r);
+                                return error_fold(r);
 
                         return PEER_E_RECEIVE_DENIED;
                 }
