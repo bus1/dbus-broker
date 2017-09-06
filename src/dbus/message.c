@@ -10,9 +10,9 @@
 #include <stdlib.h>
 #include "dbus/message.h"
 #include "dbus/protocol.h"
+#include "util/error.h"
 #include "util/fdlist.h"
 #include "util/log.h"
-#include "util/error.h"
 
 static_assert(_DBUS_MESSAGE_FIELD_N <= 8 * sizeof(unsigned int), "Header fields exceed bitmap");
 
@@ -603,7 +603,7 @@ void message_stitch_sender(Message *message, uint64_t sender_id) {
 void message_log_append(Message *message, Log *log) {
         log_appendf(log,
                     "DBUS_BROKER_MESSAGE_DESTINATION=%s\n"
-                    "DBUS_BRKOER_MESSAGE_SERIAL=%d\n"
+                    "DBUS_BROKER_MESSAGE_SERIAL=%"PRIu32"\n"
                     "DBUS_BROKER_MESSAGE_SIGNATURE=%s\n",
                     message->metadata.fields.destination ?: "<broadcast>",
                     message->metadata.header.serial,
@@ -614,7 +614,7 @@ void message_log_append(Message *message, Log *log) {
                 log_appendf(log,
                             "DBUS_BROKER_MESSAGE_TYPE=method_call\n"
                             "DBUS_BROKER_MESSAGE_PATH=%s\n"
-                            "DBUS_BRKOER_MESSAGE_INTERFACE=%s\n"
+                            "DBUS_BROKER_MESSAGE_INTERFACE=%s\n"
                             "DBUS_BROKER_MESSAGE_MEMBER=%s\n",
                             message->metadata.fields.path ?: "<missing>",
                             message->metadata.fields.interface ?: "<missing>",
@@ -633,14 +633,14 @@ void message_log_append(Message *message, Log *log) {
         case DBUS_MESSAGE_TYPE_METHOD_RETURN:
                 log_appendf(log,
                             "DBUS_BROKER_MESSAGE_TYPE=method_return\n"
-                            "MESSAGE_REPLY_SERIAL=%d\n",
+                            "MESSAGE_REPLY_SERIAL=%"PRIu32"\n",
                             message->metadata.fields.reply_serial);
                 break;
         case DBUS_MESSAGE_TYPE_ERROR:
                 log_appendf(log,
                             "DBUS_BROKER_MESSAGE_TYPE=method_return\n"
                             "DBUS_BROKER_MESSAGE_ERROR_NAME=%s\n"
-                            "DBUS_BROKER_MESSAGE_REPLY_SERIAL=%d\n",
+                            "DBUS_BROKER_MESSAGE_REPLY_SERIAL=%"PRIu32"\n",
                             message->metadata.fields.error_name,
                             message->metadata.fields.reply_serial);
                 break;
