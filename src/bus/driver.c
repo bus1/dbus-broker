@@ -1718,15 +1718,17 @@ int driver_goodbye(Peer *peer, bool silent) {
 }
 
 static int driver_forward_unicast(Peer *sender, const char *destination, Message *message) {
+        NameSet sender_names = NAME_SET_INIT_FROM_OWNER(&sender->owned_names);
         Peer *receiver;
         Name *name;
-        NameSet sender_names = NAME_SET_INIT_FROM_OWNER(&sender->owned_names);
         int r;
 
         receiver = bus_find_peer_by_name(sender->bus, &name, destination);
         if (!receiver) {
-                if (!name || !name->activation)
+                if (message->metadata.header.flags & DBUS_HEADER_FLAG_NO_AUTO_START)
                         return DRIVER_E_DESTINATION_NOT_FOUND;
+                if (!name || !name->activation)
+                        return DRIVER_E_NAME_NOT_ACTIVATABLE;
 
                 r = activation_queue_message(name->activation, sender->user, &sender->owned_names, sender->policy, message);
                 if (r)
