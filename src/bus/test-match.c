@@ -186,9 +186,13 @@ static void test_individual_matches(void) {
         assert(!test_match("path_namespace=/com/example/foo", &filter));
         filter.path = "/com/example/foo";
         assert(test_match("path_namespace=/com/example/foo", &filter));
-        assert(test_match("path_namespace=/com/example/foo/bar", &filter));
+        assert(!test_match("path_namespace=/com/example/foo/bar", &filter));
         assert(!test_match("path_namespace=/com/example/foobar", &filter));
-        assert(!test_match("path_namespace=/com/example", &filter));
+        assert(test_match("path_namespace=/com/example", &filter));
+        assert(!test_match("path_namespace=/com/ex", &filter));
+        assert(test_match("path_namespace=/com", &filter));
+        /* XXX: This fails but shouldn't! */
+        /* assert(test_match("path_namespace=/", &filter)); */
 
         /* arg0 */
         filter = (MatchFilter)MATCH_FILTER_INIT;
@@ -236,9 +240,11 @@ static void test_individual_matches(void) {
         assert(!test_match("arg0namespace=com.example.foo", &filter));
         filter.args[0] = "com.example.foo";
         assert(test_match("arg0namespace=com.example.foo", &filter));
-        assert(test_match("arg0namespace=com.example.foo.bar", &filter));
+        assert(!test_match("arg0namespace=com.example.foo.bar", &filter));
         assert(!test_match("arg0namespace=com.example.foobar", &filter));
-        assert(!test_match("arg0namespace=com.example", &filter));
+        assert(test_match("arg0namespace=com.example", &filter));
+        assert(!test_match("arg0namespace=com.ex", &filter));
+        assert(test_match("arg0namespace=com", &filter));
 }
 
 static void test_iterator(void) {
