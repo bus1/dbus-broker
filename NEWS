@@ -1,6 +1,54 @@
 dbus-broker - Linux D-Bus Message Broker
 
+CHANGES WITH 4:
+
+        * Add optional libaudit support in combination with SELinux. If
+          enabled, SELinux AVC violations will end up in the audit log, rather
+          than syslog.
+
+        * Drop auto-detection of dependencies. The build-system now requires
+          explicit configuration via meson (see `mesonconf' or `-Dfoo=bar').
+
+          3 user-options are provided:
+
+              - audit=off
+                Whether libaudit should be used as dependency to log AVC
+                violations in combination with SELinux.
+
+              - selinux=off
+                Whether libselinux should be used as dependency to implement
+                MAC-security compatible to dbus-daemon(1).
+
+              - launcher=on
+                Whether the dbus-broker-launch compatibility binary should be
+                built or not.
+
+        * Submodule fallback logic is no longer available. All submodules are
+          forcibly linked from now on. Once the submodules have public, stable
+          releases, we will make them mandatory dependencies. Until then, they
+          will be mandatory builtins.
+
+        * The compatibility launcher now supports extended service search-paths
+          according to the D-Bus Specification. Before, it hard-coded
+          /usr/share/dbus-1, but now it correctly follows the XDG Base Dir
+          Spec.
+
+        * Units will now be activated via explicit calls to StartUnit() rather
+          than faking a ActivationRequest directed signal. This allows to catch
+          startup failures (or rejections) and allows to reject all pending
+          activation requests right away.
+
+        * The broker now logs policy violations to the system log.
+
+        * Lots of bug fixes all around.
+
+        Contributions from: David Herrmann, Laurent Bigonville, Michal Schmidt,
+                            Mike Gilbert, Tom Gundersen
+
+        - Tübingen, 2017-09-07
+
 CHANGES WITH 3:
+
         * Added manpages.
 
         Contributions from: Tom Gundersen
@@ -8,6 +56,7 @@ CHANGES WITH 3:
         - Oslo, 2017-08-18
 
 CHANGES WITH 2:
+
         * Added SELinux support.
 
         Contributions from: Tom Gundersen

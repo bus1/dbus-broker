@@ -1,7 +1,7 @@
 project(
         'dbus-broker',
         'c',
-        version: '3',
+        version: '4',
         license: 'Apache',
         default_options: [
                 'c_std=c11',
