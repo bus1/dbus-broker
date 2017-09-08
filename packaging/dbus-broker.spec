@@ -4,7 +4,7 @@
 %global c_sundry_commit 3b5f04b5af54dea68d832546833d6d460d03aefc
 
 Name:           dbus-broker
-Version:        3
+Version:        4
 Release:        1%{?dist}
 Summary:        Linux D-Bus Message Broker
 License:        ASL 2.0
@@ -31,7 +31,6 @@ BuildRequires:  meson
 BuildRequires:  python2-docutils
 BuildRequires:  selinux-policy-devel
 Requires(post): selinux-policy
-Requires(post): libselinux-utils
 Requires(post): policycoreutils
 Requires(post): policycoreutils-python-utils
 Requires:       dbus
@@ -115,6 +114,11 @@ fi
 %{_userunitdir}/dbus-broker.service
 
 %changelog
+* Fri Sep 08 2017 Tom Gundersen <teg@jklm.no> - 4-1
+- Use audit for SELinux logging
+- Support full search-paths for service files
+- Log policy failures
+
 * Fri Aug 18 2017 Tom Gundersen <teg@jklm.no> - 3-1
 - Add manpages
 
