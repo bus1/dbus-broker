@@ -1,7 +1,7 @@
 %global c_dvar_version 1
 %global c_list_version 3
 %global c_rbtree_version 3
-%global c_sundry_commit 3b5f04b5af54dea68d832546833d6d460d03aefc
+%global c_sundry_commit bdf6e5fcfd0c8bc956545ebf2855de36cab855b5
 
 Name:           dbus-broker
 Version:        4
