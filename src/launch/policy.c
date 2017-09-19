@@ -859,7 +859,7 @@ static int policy_export_xmit(Policy *policy, CList *list1, CList *list2, sd_bus
 
 #define POLICY_T                                                                \
                 "(" POLICY_T_BATCH ")"                                          \
-                "a(u(" POLICY_T_BATCH "))"                                      \
+                "a(uu(" POLICY_T_BATCH "))"                                     \
                 "a(u(" POLICY_T_BATCH "))"                                      \
                 "a(ss)"
 
@@ -894,16 +894,16 @@ int policy_export(Policy *policy, sd_bus_message *m) {
         if (r < 0)
                 return error_origin(r);
 
-        r = sd_bus_message_open_container(m, 'a', "(u(" POLICY_T_BATCH "))");
+        r = sd_bus_message_open_container(m, 'a', "(uu(" POLICY_T_BATCH "))");
         if (r < 0)
                 return error_origin(r);
 
         c_rbtree_for_each_entry(node, &policy->uid_tree, policy_node) {
-                r = sd_bus_message_open_container(m, 'r', "u(" POLICY_T_BATCH ")");
+                r = sd_bus_message_open_container(m, 'r', "uu(" POLICY_T_BATCH ")");
                 if (r < 0)
                         return error_origin(r);
 
-                r = sd_bus_message_append(m, "u", node->uidgid);
+                r = sd_bus_message_append(m, "uu", node->uidgid, node->uidgid);
                 if (r < 0)
                         return error_origin(r);
 
