@@ -16,6 +16,8 @@ cc = meson.get_compiler('c')
 conf = configuration_data()
 mod_pkgconfig = import('pkgconfig')
 
+rst2man = find_program('rst2man')
+
 sub_cdvar = subproject('c-dvar', version: '>=1')
 sub_clist = subproject('c-list', version: '>=3')
 sub_crbtree = subproject('c-rbtree', version: '>=3')
@@ -54,6 +56,7 @@ endif
 
 conf.set('bindir', join_paths(get_option('prefix'), get_option('bindir')))
 
+subdir('docs')
 subdir('src')
 
 if use_launcher
