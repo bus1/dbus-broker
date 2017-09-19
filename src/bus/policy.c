@@ -481,7 +481,6 @@ static int policy_registry_import_batch(PolicyRegistry *registry,
  */
 int policy_registry_import(PolicyRegistry *registry, CDVar *v) {
         PolicyRegistryNode *node;
-        uint32_t uidgid;
         int r;
 
         /* XXX: provide the type */
@@ -494,9 +493,15 @@ int policy_registry_import(PolicyRegistry *registry, CDVar *v) {
         c_dvar_read(v, "[");
 
         while (c_dvar_more(v)) {
-                c_dvar_read(v, "(u", &uidgid);
+                uint32_t uid_start, uid_end;
 
-                r = policy_registry_at_uid(registry, &node, uidgid);
+                c_dvar_read(v, "(uu", &uid_start, &uid_end);
+
+                /* XXX: support ranges */
+                if (uid_start != uid_end)
+                        return POLICY_E_INVALID;
+
+                r = policy_registry_at_uid(registry, &node, uid_start);
                 if (r)
                         return error_trace(r);
 
@@ -510,9 +515,11 @@ int policy_registry_import(PolicyRegistry *registry, CDVar *v) {
         c_dvar_read(v, "][");
 
         while (c_dvar_more(v)) {
-                c_dvar_read(v, "(u", &uidgid);
+                uint32_t gid;
 
-                r = policy_registry_at_gid(registry, &node, uidgid);
+                c_dvar_read(v, "(u", &gid);
+
+                r = policy_registry_at_gid(registry, &node, gid);
                 if (r)
                         return error_trace(r);
 
