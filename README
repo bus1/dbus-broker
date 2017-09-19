@@ -43,6 +43,7 @@ REQUIREMENTS:
 
             meson >= 0.41
             pkg-config >= 0.29
+            python-docutils
 
 INSTALL:
         The meson build-system is used for dbus-broker. Contact upstream

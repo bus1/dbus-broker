@@ -51,20 +51,13 @@ ln -s ../../c-list-%{c_list_version} c-list
 ln -s ../../c-rbtree-%{c_rbtree_version} c-rbtree
 ln -s ../../c-sundry-%{c_sundry_commit} c-sundry
 cd -
-rm -rf %{_vpath_builddir}/docs
-mkdir -p %{_vpath_builddir}/docs
 
 %build
 %meson -Dselinux=true -Daudit=true
 %meson_build
-rst2man %{_vpath_srcdir}/docs/dbus-broker-launch.rst %{_vpath_builddir}/docs/dbus-broker-launch.1
-rst2man %{_vpath_srcdir}/docs/dbus-broker.rst %{_vpath_builddir}/docs/dbus-broker.1
 
 %install
 %meson_install
-install -d %{buildroot}%{_mandir}/man1
-install -p -m 644 %{_vpath_builddir}/docs/dbus-broker-launch.1 %{buildroot}%{_mandir}/man1/dbus-broker-launch.1
-install -p -m 644 %{_vpath_builddir}/docs/dbus-broker.1 %{buildroot}%{_mandir}/man1/dbus-broker.1
 
 %check
 %meson_test
