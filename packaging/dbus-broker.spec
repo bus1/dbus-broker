@@ -29,10 +29,6 @@ BuildRequires:  gcc
 BuildRequires:  glibc-devel
 BuildRequires:  meson
 BuildRequires:  python2-docutils
-BuildRequires:  selinux-policy-devel
-Requires(post): selinux-policy
-Requires(post): policycoreutils
-Requires(post): policycoreutils-python-utils
 Requires:       dbus
 
 %description
@@ -57,35 +53,23 @@ ln -s ../../c-sundry-%{c_sundry_commit} c-sundry
 cd -
 rm -rf %{_vpath_builddir}/docs
 mkdir -p %{_vpath_builddir}/docs
-rm -rf %{_vpath_builddir}/selinux
-mkdir -p %{_vpath_builddir}/selinux
-cp %{_vpath_srcdir}/selinux/dbus-broker.{te,fc} %{_vpath_builddir}/selinux/
 
 %build
 %meson -Dselinux=true -Daudit=true
 %meson_build
 rst2man %{_vpath_srcdir}/docs/dbus-broker-launch.rst %{_vpath_builddir}/docs/dbus-broker-launch.1
 rst2man %{_vpath_srcdir}/docs/dbus-broker.rst %{_vpath_builddir}/docs/dbus-broker.1
-cd %{_vpath_builddir}/selinux
-make NAME=targeted -f /usr/share/selinux/devel/Makefile
-cd -
 
 %install
 %meson_install
 install -d %{buildroot}%{_mandir}/man1
 install -p -m 644 %{_vpath_builddir}/docs/dbus-broker-launch.1 %{buildroot}%{_mandir}/man1/dbus-broker-launch.1
 install -p -m 644 %{_vpath_builddir}/docs/dbus-broker.1 %{buildroot}%{_mandir}/man1/dbus-broker.1
-install -d %{buildroot}%{_datadir}/selinux/targeted
-install -p -m 644 %{_vpath_builddir}/selinux/dbus-broker.pp %{buildroot}%{_datadir}/selinux/targeted/dbus-broker.pp
 
 %check
 %meson_test
 
-%pre
-%selinux_relabel_pre -s targeted
-
 %post
-%selinux_modules_install -s targeted %{_datadir}/selinux/targeted/dbus-broker.pp
 %systemd_post dbus-broker.service
 
 %preun
@@ -93,19 +77,12 @@ install -p -m 644 %{_vpath_builddir}/selinux/dbus-broker.pp %{buildroot}%{_datad
 
 %postun
 %systemd_postun dbus-broker.service
-if [ $1 -eq 0 ] ; then
-    %selinux_modules_uninstall -s targeted dbus-broker
-fi
-
-%posttrans
-%selinux_relabel_post -s targeted
 
 %files
 %license COPYING
 %license LICENSE
 %{_bindir}/dbus-broker
 %{_bindir}/dbus-broker-launch
-%{_datadir}/selinux/*/dbus-broker.pp
 %{_mandir}/man1/dbus-broker.1*
 %{_mandir}/man1/dbus-broker-launch.1*
 %{_unitdir}/dbus-broker.service
