@@ -30,33 +30,33 @@ static void test_size(void) {
 
         /* verify total message size cannot exceed 128MB */
 
-        hdr.n_body = 0;
+        hdr.n_body = htole32(0);
         r = message_new_incoming(&m, hdr);
         assert(r == 0);
         message_unref(m);
 
-        hdr.n_body = 128;
+        hdr.n_body = htole32(128);
         r = message_new_incoming(&m, hdr);
         assert(r == 0);
         message_unref(m);
 
-        hdr.n_body = 128UL * 1024UL * 1024UL - sizeof(MessageHeader);
+        hdr.n_body = htole32(128UL * 1024UL * 1024UL - sizeof(MessageHeader));
         r = message_new_incoming(&m, hdr);
         assert(r == 0);
         message_unref(m);
 
-        hdr.n_body = 128UL * 1024UL * 1024UL - sizeof(MessageHeader) + 1UL;
+        hdr.n_body = htole32(128UL * 1024UL * 1024UL - sizeof(MessageHeader) + 1UL);
         r = message_new_incoming(&m, hdr);
         assert(r == MESSAGE_E_TOO_LARGE);
 
-        hdr.n_fields = 8;
-        hdr.n_body = 128UL * 1024UL * 1024UL - sizeof(MessageHeader) - 8;
+        hdr.n_fields = htole32(8);
+        hdr.n_body = htole32(128UL * 1024UL * 1024UL - sizeof(MessageHeader) - 8);
         r = message_new_incoming(&m, hdr);
         assert(r == 0);
         message_unref(m);
 
-        hdr.n_fields = 8 + 1;
-        hdr.n_body = 128UL * 1024UL * 1024UL - sizeof(MessageHeader) - 8;
+        hdr.n_fields = htole32(8 + 1);
+        hdr.n_body = htole32(128UL * 1024UL * 1024UL - sizeof(MessageHeader) - 8);
         r = message_new_incoming(&m, hdr);
         assert(r == MESSAGE_E_TOO_LARGE);
 }
