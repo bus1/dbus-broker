@@ -589,8 +589,18 @@ int policy_snapshot_new(PolicySnapshot **snapshotp,
                         size_t n_gids) {
         _c_cleanup_(policy_snapshot_freep) PolicySnapshot *snapshot = NULL;
         PolicyRegistryNode *node;
+        size_t n_batches = 1 + n_gids;
 
-        snapshot = calloc(1, sizeof(*snapshot) + (n_gids + 1) * sizeof(*snapshot->batches));
+        c_rbtree_for_each_entry(node, &registry->uid_range_tree, registry_node) {
+                if (node->index.uidgid_start > uid)
+                        continue;
+                if (node->index.uidgid_end < uid)
+                        continue;
+
+                ++n_batches;
+        }
+
+        snapshot = calloc(1, sizeof(*snapshot) + n_batches * sizeof(*snapshot->batches));
         if (!snapshot)
                 return error_origin(-ENOMEM);
 
@@ -602,19 +612,28 @@ int policy_snapshot_new(PolicySnapshot **snapshotp,
         if (!snapshot->seclabel)
                 return error_origin(-ENOMEM);
 
+        c_rbtree_for_each_entry(node, &registry->uid_range_tree, registry_node) {
+                if (node->index.uidgid_start > uid)
+                        continue;
+                if (node->index.uidgid_end < uid)
+                        continue;
+
+                snapshot->batches[snapshot->n_batches++] = policy_batch_ref(node->batch);
+        }
+
         node = policy_registry_find_uid(registry, uid);
         if (node)
-                snapshot->batches[0] = policy_batch_ref(node->batch);
+                snapshot->batches[snapshot->n_batches++] = policy_batch_ref(node->batch);
         else
-                snapshot->batches[0] = policy_batch_ref(registry->default_batch);
-
-        ++snapshot->n_batches;
+                snapshot->batches[snapshot->n_batches++] = policy_batch_ref(registry->default_batch);
 
         while (n_gids-- > 0) {
                 node = policy_registry_find_gid(registry, gids[n_gids]);
                 if (node)
                         snapshot->batches[snapshot->n_batches++] = policy_batch_ref(node->batch);
         }
+
+        assert(snapshot->n_batches <= n_batches);
 
         *snapshotp = snapshot;
         snapshot = NULL;
