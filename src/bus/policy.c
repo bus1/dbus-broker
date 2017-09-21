@@ -255,11 +255,15 @@ static int policy_batch_add_recv(PolicyBatch *batch,
 
 static int policy_registry_node_compare(CRBTree *t, void *k, CRBNode *n) {
         PolicyRegistryNode *node = c_container_of(n, PolicyRegistryNode, registry_node);
-        uint32_t uidgid = (uint32_t)(unsigned long)k;
+        PolicyRegistryNodeIndex *index = k;
 
-        if (uidgid < node->uidgid)
+        if (index->uidgid_start < node->index.uidgid_start)
                 return -1;
-        else if (uidgid > node->uidgid)
+        else if (index->uidgid_start > node->index.uidgid_start)
+                return 1;
+        else if (index->uidgid_end < node->index.uidgid_end)
+                return -1;
+        else if (index->uidgid_end > node->index.uidgid_end)
                 return 1;
         else
                 return 0;
@@ -278,7 +282,7 @@ static PolicyRegistryNode *policy_registry_node_free(PolicyRegistryNode *node) {
 
 C_DEFINE_CLEANUP(PolicyRegistryNode *, policy_registry_node_free);
 
-static int policy_registry_node_new(PolicyRegistryNode **nodep, CRBTree *tree, uint32_t uidgid) {
+static int policy_registry_node_new(PolicyRegistryNode **nodep, CRBTree *tree, uint32_t uidgid_start, uint32_t uidgid_end) {
         _c_cleanup_(policy_registry_node_freep) PolicyRegistryNode *node = NULL;
         int r;
 
@@ -287,7 +291,8 @@ static int policy_registry_node_new(PolicyRegistryNode **nodep, CRBTree *tree, u
                 return error_origin(-ENOMEM);
 
         *node = (PolicyRegistryNode)POLICY_REGISTRY_NODE_NULL(*node);
-        node->uidgid = uidgid;
+        node->index.uidgid_start = uidgid_start;
+        node->index.uidgid_end = uidgid_end;
         node->registry_tree = tree;
 
         r = policy_batch_new(&node->batch);
@@ -338,6 +343,8 @@ PolicyRegistry *policy_registry_free(PolicyRegistry *registry) {
                 policy_registry_node_free(node);
         c_rbtree_for_each_entry_unlink(node, t_node, &registry->uid_tree, registry_node)
                 policy_registry_node_free(node);
+        c_rbtree_for_each_entry_unlink(node, t_node, &registry->uid_range_tree, registry_node)
+                policy_registry_node_free(node);
 
         policy_batch_unref(registry->default_batch);
         bus_selinux_registry_unref(registry->selinux);
@@ -346,33 +353,47 @@ PolicyRegistry *policy_registry_free(PolicyRegistry *registry) {
         return NULL;
 }
 
-static PolicyRegistryNode *policy_registry_find_uid(PolicyRegistry *registry, uint32_t uidgid) {
+static PolicyRegistryNode *policy_registry_find_uid(PolicyRegistry *registry, uint32_t uid) {
+        PolicyRegistryNodeIndex index = {
+                .uidgid_start = uid,
+                .uidgid_end = uid,
+        };
+
         return c_rbtree_find_entry(&registry->uid_tree,
                                    policy_registry_node_compare,
-                                   (void *)(unsigned long)uidgid,
+                                   &index,
                                    PolicyRegistryNode,
                                    registry_node);
 }
 
-static PolicyRegistryNode *policy_registry_find_gid(PolicyRegistry *registry, uint32_t uidgid) {
+static PolicyRegistryNode *policy_registry_find_gid(PolicyRegistry *registry, uint32_t gid) {
+        PolicyRegistryNodeIndex index = {
+                .uidgid_start = gid,
+                .uidgid_end = gid,
+        };
+
         return c_rbtree_find_entry(&registry->gid_tree,
                                    policy_registry_node_compare,
-                                   (void *)(unsigned long)uidgid,
+                                   &index,
                                    PolicyRegistryNode,
                                    registry_node);
 }
 
-static int policy_registry_at_uidgid(CRBTree *tree, PolicyRegistryNode **nodep, uint32_t uidgid) {
+static int policy_registry_at_uidgid(CRBTree *tree, PolicyRegistryNode **nodep, uint32_t uidgid_start, uint32_t uidgid_end) {
         CRBNode *parent, **slot;
         PolicyRegistryNode *node;
+        PolicyRegistryNodeIndex index = {
+                .uidgid_start = uidgid_start,
+                .uidgid_end = uidgid_end,
+        };
         int r;
 
         slot = c_rbtree_find_slot(tree,
                                   policy_registry_node_compare,
-                                  (void *)(unsigned long)uidgid,
+                                  &index,
                                   &parent);
         if (slot) {
-                r = policy_registry_node_new(&node, tree, uidgid);
+                r = policy_registry_node_new(&node, tree, uidgid_start, uidgid_end);
                 if (r)
                         return error_trace(r);
 
@@ -386,11 +407,15 @@ static int policy_registry_at_uidgid(CRBTree *tree, PolicyRegistryNode **nodep, 
 }
 
 static int policy_registry_at_uid(PolicyRegistry *registry, PolicyRegistryNode **nodep, uint32_t uid) {
-        return policy_registry_at_uidgid(&registry->uid_tree, nodep, uid);
+        return policy_registry_at_uidgid(&registry->uid_tree, nodep, uid, uid);
+}
+
+static int policy_registry_at_uid_range(PolicyRegistry *registry, PolicyRegistryNode **nodep, uint32_t uid_start, uint32_t uid_end) {
+        return policy_registry_at_uidgid(&registry->uid_range_tree, nodep, uid_start, uid_end);
 }
 
 static int policy_registry_at_gid(PolicyRegistry *registry, PolicyRegistryNode **nodep, uint32_t gid) {
-        return policy_registry_at_uidgid(&registry->gid_tree, nodep, gid);
+        return policy_registry_at_uidgid(&registry->gid_tree, nodep, gid, gid);
 }
 
 static int policy_registry_import_batch(PolicyRegistry *registry,
@@ -497,13 +522,15 @@ int policy_registry_import(PolicyRegistry *registry, CDVar *v) {
 
                 c_dvar_read(v, "(uu", &uid_start, &uid_end);
 
-                /* XXX: support ranges */
-                if (uid_start != uid_end)
-                        return POLICY_E_INVALID;
-
-                r = policy_registry_at_uid(registry, &node, uid_start);
-                if (r)
-                        return error_trace(r);
+                if (uid_start == uid_end) {
+                        r = policy_registry_at_uid(registry, &node, uid_start);
+                        if (r)
+                                return error_trace(r);
+                } else {
+                        r = policy_registry_at_uid_range(registry, &node, uid_start, uid_end);
+                        if (r)
+                                return error_trace(r);
+                }
 
                 r = policy_registry_import_batch(registry, node->batch, v);
                 if (r)
