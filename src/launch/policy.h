@@ -13,6 +13,7 @@
 
 typedef struct Policy Policy;
 typedef struct PolicyNode PolicyNode;
+typedef struct PolicyNodeIndex PolicyNodeIndex;
 typedef struct PolicyRecord PolicyRecord;
 
 struct PolicyRecord {
@@ -59,8 +60,18 @@ struct PolicyRecord {
                 .link = C_LIST_INIT((_x).link),                                 \
         }
 
+struct PolicyNodeIndex {
+        uint32_t uidgid_start;
+        uint32_t uidgid_end;
+};
+
+#define POLICY_NODE_INDEX_NULL {                                                \
+                .uidgid_start = (uint32_t)-1,                                   \
+                .uidgid_end = (uint32_t)-1,                                     \
+        }                                                                       \
+
 struct PolicyNode {
-        uint32_t uidgid;
+        PolicyNodeIndex index;
         CRBTree *policy_tree;
         CRBNode policy_node;
 
@@ -71,7 +82,7 @@ struct PolicyNode {
 };
 
 #define POLICY_NODE_NULL(_x) {                                                  \
-                .uidgid = (uint32_t)-1,                                         \
+                .index = POLICY_NODE_INDEX_NULL,                                \
                 .policy_node = C_RBNODE_INIT((_x).policy_node),                 \
                 .connect_list = C_LIST_INIT((_x).connect_list),                 \
                 .own_list = C_LIST_INIT((_x).own_list),                         \
