@@ -220,6 +220,14 @@ static int policy_at_uidgid(CRBTree *tree, PolicyNode **nodep, uint32_t uidgid_s
         return 0;
 }
 
+static int policy_at_systemuid(Policy *policy, PolicyNode **nodep) {
+        return policy_at_uidgid(&policy->uid_tree, nodep, 0, SYSTEMUIDMAX);
+}
+
+static int policy_at_nonsystemuid(Policy *policy, PolicyNode **nodep) {
+        return policy_at_uidgid(&policy->uid_tree, nodep, SYSTEMUIDMAX + 1, -1);
+}
+
 static int policy_at_uid(Policy *policy, PolicyNode **nodep, uint32_t uid) {
         return policy_at_uidgid(&policy->uid_tree, nodep, uid, uid);
 }
@@ -392,6 +400,18 @@ static int policy_import_own(Policy *policy, ConfigNode *cnode) {
                         return error_trace(r);
 
                 c_list_link_tail(&node->own_list, &record->link);
+        } else if (cnode->parent->policy.context == CONFIG_POLICY_NO_CONSOLE) {
+                r = policy_at_systemuid(policy, &node);
+                if (r)
+                        return error_trace(r);
+
+                c_list_link_tail(&node->own_list, &record->link);
+        } else if (cnode->parent->policy.context == CONFIG_POLICY_AT_CONSOLE) {
+                r = policy_at_nonsystemuid(policy, &node);
+                if (r)
+                        return error_trace(r);
+
+                c_list_link_tail(&node->own_list, &record->link);
         } else if (cnode->parent->policy.context == CONFIG_POLICY_GROUP) {
                 r = policy_at_gid(policy, &node, cnode->parent->policy.id);
                 if (r)
@@ -458,6 +478,18 @@ static int policy_import_send(Policy *policy, ConfigNode *cnode) {
 
         if (cnode->parent->policy.context == CONFIG_POLICY_USER) {
                 r = policy_at_uid(policy, &node, cnode->parent->policy.id);
+                if (r)
+                        return error_trace(r);
+
+                c_list_link_tail(&node->send_list, &record->link);
+        } else if (cnode->parent->policy.context == CONFIG_POLICY_NO_CONSOLE) {
+                r = policy_at_systemuid(policy, &node);
+                if (r)
+                        return error_trace(r);
+
+                c_list_link_tail(&node->send_list, &record->link);
+        } else if (cnode->parent->policy.context == CONFIG_POLICY_AT_CONSOLE) {
+                r = policy_at_nonsystemuid(policy, &node);
                 if (r)
                         return error_trace(r);
 
@@ -532,6 +564,18 @@ static int policy_import_recv(Policy *policy, ConfigNode *cnode) {
                         return error_trace(r);
 
                 c_list_link_tail(&node->recv_list, &record->link);
+        } else if (cnode->parent->policy.context == CONFIG_POLICY_NO_CONSOLE) {
+                r = policy_at_systemuid(policy, &node);
+                if (r)
+                        return error_trace(r);
+
+                c_list_link_tail(&node->recv_list, &record->link);
+        } else if (cnode->parent->policy.context == CONFIG_POLICY_AT_CONSOLE) {
+                r = policy_at_nonsystemuid(policy, &node);
+                if (r)
+                        return error_trace(r);
+
+                c_list_link_tail(&node->recv_list, &record->link);
         } else if (cnode->parent->policy.context == CONFIG_POLICY_GROUP) {
                 r = policy_at_gid(policy, &node, cnode->parent->policy.id);
                 if (r)
@@ -602,12 +646,6 @@ int policy_import(Policy *policy, ConfigRoot *root) {
                     i_cnode->parent->type != CONFIG_NODE_POLICY ||
                     !i_cnode->parent->policy.context) {
                         fprintf(stderr, "Policy record without policy context in %s +%lu\n",
-                                i_cnode->file, i_cnode->lineno);
-                        continue;
-                }
-
-                if (i_cnode->parent->policy.context == CONFIG_POLICY_AT_CONSOLE) {
-                        fprintf(stderr, "Policy record in console-context in %s +%lu: at_console=true is deprecated and ignored\n",
                                 i_cnode->file, i_cnode->lineno);
                         continue;
                 }
