@@ -18,6 +18,7 @@ typedef struct PolicyBatch PolicyBatch;
 typedef struct PolicyBatchName PolicyBatchName;
 typedef struct PolicyRegistry PolicyRegistry;
 typedef struct PolicyRegistryNode PolicyRegistryNode;
+typedef struct PolicyRegistryNodeIndex PolicyRegistryNodeIndex;
 typedef struct PolicySnapshot PolicySnapshot;
 typedef struct PolicyVerdict PolicyVerdict;
 typedef struct PolicyXmit PolicyXmit;
@@ -82,25 +83,38 @@ struct PolicyBatch {
                 .name_tree = C_RBTREE_INIT,                                     \
         }
 
+struct PolicyRegistryNodeIndex {
+        uint32_t uidgid_start;
+        uint32_t uidgid_end;
+};
+
+#define POLICY_REGISTRY_NODE_INDEX_NULL {                                       \
+                .uidgid_start = (uint32_t)-1,                                   \
+                .uidgid_end = (uint32_t)-1,                                     \
+        }
+
 struct PolicyRegistryNode {
-        uint32_t uidgid;
+        PolicyRegistryNodeIndex index;
         CRBTree *registry_tree;
         CRBNode registry_node;
         PolicyBatch *batch;
 };
 
 #define POLICY_REGISTRY_NODE_NULL(_x) {                                         \
+                .index = POLICY_REGISTRY_NODE_INDEX_NULL,                       \
                 .registry_node = C_RBNODE_INIT((_x).registry_node),             \
         }
 
 struct PolicyRegistry {
         BusSELinuxRegistry *selinux;
         PolicyBatch *default_batch;
+        CRBTree uid_range_tree;
         CRBTree uid_tree;
         CRBTree gid_tree;
 };
 
 #define POLICY_REGISTRY_NULL {                                                  \
+                .uid_range_tree = C_RBTREE_INIT,                                \
                 .uid_tree = C_RBTREE_INIT,                                      \
                 .gid_tree = C_RBTREE_INIT,                                      \
         }
