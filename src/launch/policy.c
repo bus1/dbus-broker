@@ -106,11 +106,15 @@ static void policy_record_xmit_trim(PolicyRecord *record) {
 
 static int policy_node_compare(CRBTree *t, void *k, CRBNode *n) {
         PolicyNode *node = c_container_of(n, PolicyNode, policy_node);
-        uint32_t uidgid = (uint32_t)(unsigned long)k;
+        PolicyNodeIndex *index = k;
 
-        if (uidgid < node->uidgid)
+        if (index->uidgid_start < node->index.uidgid_start)
                 return -1;
-        else if (uidgid > node->uidgid)
+        else if (index->uidgid_start > node->index.uidgid_start)
+                return 1;
+        else if (index->uidgid_end < node->index.uidgid_end)
+                return -1;
+        else if (index->uidgid_end > node->index.uidgid_end)
                 return 1;
         else
                 return 0;
@@ -139,7 +143,7 @@ static PolicyNode *policy_node_free(PolicyNode *node) {
 
 C_DEFINE_CLEANUP(PolicyNode *, policy_node_free);
 
-static int policy_node_new(PolicyNode **nodep, CRBTree *tree, uint32_t uidgid) {
+static int policy_node_new(PolicyNode **nodep, CRBTree *tree, uint32_t uidgid_start, uint32_t uidgid_end) {
         _c_cleanup_(policy_node_freep) PolicyNode *node = NULL;
 
         node = calloc(1, sizeof(*node));
@@ -147,7 +151,8 @@ static int policy_node_new(PolicyNode **nodep, CRBTree *tree, uint32_t uidgid) {
                 return error_origin(-ENOMEM);
 
         *node = (PolicyNode)POLICY_NODE_NULL(*node);
-        node->uidgid = uidgid;
+        node->index.uidgid_start = uidgid_start;
+        node->index.uidgid_end = uidgid_end;
         node->policy_tree = tree;
 
         *nodep = node;
@@ -187,17 +192,21 @@ void policy_deinit(Policy *policy) {
                 policy_record_free(record);
 }
 
-static int policy_at_uidgid(CRBTree *tree, PolicyNode **nodep, uint32_t uidgid) {
+static int policy_at_uidgid(CRBTree *tree, PolicyNode **nodep, uint32_t uidgid_start, uint32_t uidgid_end) {
         CRBNode *parent, **slot;
         PolicyNode *node;
+        PolicyNodeIndex index = {
+                .uidgid_start = uidgid_start,
+                .uidgid_end = uidgid_end,
+        };
         int r;
 
         slot = c_rbtree_find_slot(tree,
                                   policy_node_compare,
-                                  (void *)(unsigned long)uidgid,
+                                  &index,
                                   &parent);
         if (slot) {
-                r = policy_node_new(&node, tree, uidgid);
+                r = policy_node_new(&node, tree, uidgid_start, uidgid_end);
                 if (r)
                         return error_trace(r);
 
@@ -211,12 +220,12 @@ static int policy_at_uidgid(CRBTree *tree, PolicyNode **nodep, uint32_t uidgid) 
         return 0;
 }
 
-static int policy_at_uid(Policy *policy, PolicyNode **nodep, uint32_t uidgid) {
-        return policy_at_uidgid(&policy->uid_tree, nodep, uidgid);
+static int policy_at_uid(Policy *policy, PolicyNode **nodep, uint32_t uid) {
+        return policy_at_uidgid(&policy->uid_tree, nodep, uid, uid);
 }
 
-static int policy_at_gid(Policy *policy, PolicyNode **nodep, uint32_t uidgid) {
-        return policy_at_uidgid(&policy->gid_tree, nodep, uidgid);
+static int policy_at_gid(Policy *policy, PolicyNode **nodep, uint32_t gid) {
+        return policy_at_uidgid(&policy->gid_tree, nodep, gid, gid);
 }
 
 static void policy_import_verdict(Policy *policy,
@@ -899,11 +908,13 @@ int policy_export(Policy *policy, sd_bus_message *m) {
                 return error_origin(r);
 
         c_rbtree_for_each_entry(node, &policy->uid_tree, policy_node) {
+                bool range = false;
+
                 r = sd_bus_message_open_container(m, 'r', "uu(" POLICY_T_BATCH ")");
                 if (r < 0)
                         return error_origin(r);
 
-                r = sd_bus_message_append(m, "uu", node->uidgid, node->uidgid);
+                r = sd_bus_message_append(m, "uu", node->index.uidgid_start, node->index.uidgid_end);
                 if (r < 0)
                         return error_origin(r);
 
@@ -911,10 +922,13 @@ int policy_export(Policy *policy, sd_bus_message *m) {
                 if (r < 0)
                         return error_origin(r);
 
-                r = policy_export_connect(policy, &policy->connect_default, &node->connect_list, m);
-                r = r ?: policy_export_own(policy, &policy->own_default, &node->own_list, m);
-                r = r ?: policy_export_xmit(policy, &policy->send_default, &node->send_list, m);
-                r = r ?: policy_export_xmit(policy, &policy->recv_default, &node->recv_list, m);
+                if (node->index.uidgid_start != node->index.uidgid_end)
+                        range = true;
+
+                r = policy_export_connect(policy, range ? NULL : &policy->connect_default, &node->connect_list, m);
+                r = r ?: policy_export_own(policy, range ? NULL : &policy->own_default, &node->own_list, m);
+                r = r ?: policy_export_xmit(policy, range ? NULL : &policy->send_default, &node->send_list, m);
+                r = r ?: policy_export_xmit(policy, range ? NULL : &policy->recv_default, &node->recv_list, m);
                 if (r)
                         return error_trace(r);
 
@@ -940,7 +954,9 @@ int policy_export(Policy *policy, sd_bus_message *m) {
                 if (r < 0)
                         return error_origin(r);
 
-                r = sd_bus_message_append(m, "u", node->uidgid);
+                assert(node->index.uidgid_start == node->index.uidgid_end);
+
+                r = sd_bus_message_append(m, "u", node->index.uidgid_start);
                 if (r < 0)
                         return error_origin(r);
 
