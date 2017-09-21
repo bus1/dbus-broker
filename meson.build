@@ -42,6 +42,7 @@ if use_launcher
         dep_libsystemd = dependency('libsystemd', version: '>=230')
         dep_systemd = dependency('systemd', version: '>=230')
 
+        add_project_arguments('-DSYSTEMUIDMAX=' + dep_systemd.get_pkgconfig_variable('systemuidmax'), language: 'c')
         conf.set('systemunitdir', dep_systemd.get_pkgconfig_variable('systemdsystemunitdir'))
         conf.set('userunitdir', dep_systemd.get_pkgconfig_variable('systemduserunitdir'))
 endif
