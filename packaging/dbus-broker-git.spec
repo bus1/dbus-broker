@@ -18,6 +18,7 @@ BuildRequires:  glibc-devel
 BuildRequires:  meson
 BuildRequires:  python2-docutils
 Requires:       dbus
+Conflicts:      dbus-broker
 
 %description
 Linux D-Bus Message Broker
@@ -51,7 +52,6 @@ cd dbus-broker
 %files
 %{_bindir}/dbus-broker
 %{_bindir}/dbus-broker-launch
-%{_datadir}/selinux/*/dbus-broker.pp
 %{_mandir}/man1/dbus-broker.1*
 %{_mandir}/man1/dbus-broker-launch.1*
 %{_unitdir}/dbus-broker.service
