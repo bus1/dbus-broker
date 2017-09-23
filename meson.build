@@ -15,8 +15,7 @@ add_project_arguments('-DBINDIR="' + join_paths(get_option('prefix'), get_option
 cc = meson.get_compiler('c')
 conf = configuration_data()
 mod_pkgconfig = import('pkgconfig')
-
-rst2man = find_program('rst2man')
+prog_rst2man = find_program('rst2man')
 
 sub_cdvar = subproject('c-dvar', version: '>=1')
 sub_clist = subproject('c-list', version: '>=3')
