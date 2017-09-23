@@ -1,22 +1,22 @@
-%global c_dvar_version 1
-%global c_list_version 3
-%global c_rbtree_version 3
-%global c_sundry_commit bdf6e5fcfd0c8bc956545ebf2855de36cab855b5
+%global c_dvar_commit 7706828ecda2d8c508d6fc233dc9d198bab482ad
+%global c_list_commit 9e50b8b08e0b0b75e1c651d5aa4e3cf94368a574
+%global c_rbtree_commit 6181232360c9b517a6af3d82ebdbdce5fe36933a
+%global c_sundry_commit 50c8ccf01b39b3f11e59c69d1cafea5bef5a9769
 
 Name:           dbus-broker
-Version:        4
+Version:        5
 Release:        1%{?dist}
 Summary:        Linux D-Bus Message Broker
 License:        ASL 2.0
 URL:            https://github.com/bus1/dbus-broker
 Source0:        https://github.com/bus1/dbus-broker/archive/v%{version}/dbus-broker-%{version}.tar.gz
-Source1:        https://github.com/c-util/c-dvar/archive/v%{c_dvar_version}/c-dvar-%{c_dvar_version}.tar.gz
-Source2:        https://github.com/c-util/c-list/archive/v%{c_list_version}/c-list-%{c_list_version}.tar.gz
-Source3:        https://github.com/c-util/c-rbtree/archive/v%{c_rbtree_version}/c-rbtree-%{c_rbtree_version}.tar.gz
+Source1:        https://github.com/c-util/c-dvar/archive/%{c_dvar_commit}/c-dvar-%{c_dvar_commit}.tar.gz
+Source2:        https://github.com/c-util/c-list/archive/%{c_list_commit}/c-list-%{c_list_commit}.tar.gz
+Source3:        https://github.com/c-util/c-rbtree/archive/%{c_rbtree_commit}/c-rbtree-%{c_rbtree_commit}.tar.gz
 Source4:        https://github.com/c-util/c-sundry/archive/%{c_sundry_commit}/c-sundry-%{c_sundry_commit}.tar.gz
-Provides:       bundled(c-dvar) = %{c_dvar_version}
-Provides:       bundled(c-list) = %{c_list_version}
-Provides:       bundled(c-rbtree) = %{c_rbtree_version}
+Provides:       bundled(c-dvar) = 1
+Provides:       bundled(c-list) = 3
+Provides:       bundled(c-rbtree) = 3
 %{?systemd_requires}
 BuildRequires:  pkgconfig(audit)
 BuildRequires:  pkgconfig(expat)
@@ -46,9 +46,9 @@ recent Linux kernel releases.
 %setup -q -T -D -b 4
 cd subprojects
 rm * -r
-ln -s ../../c-dvar-%{c_dvar_version} c-dvar
-ln -s ../../c-list-%{c_list_version} c-list
-ln -s ../../c-rbtree-%{c_rbtree_version} c-rbtree
+ln -s ../../c-dvar-%{c_dvar_commit} c-dvar
+ln -s ../../c-list-%{c_list_commit} c-list
+ln -s ../../c-rbtree-%{c_rbtree_commit} c-rbtree
 ln -s ../../c-sundry-%{c_sundry_commit} c-sundry
 cd -
 
@@ -82,6 +82,11 @@ cd -
 %{_userunitdir}/dbus-broker.service
 
 %changelog
+* Tue Oct 10 2017 Tom Gundersen <teg@jklm.no> - 5-1
+- Drop downstream SELinux module
+- Support (in a limited way) at_console= policies
+- Order dbus-broker before basic.target
+
 * Fri Sep 08 2017 Tom Gundersen <teg@jklm.no> - 4-1
 - Use audit for SELinux logging
 - Support full search-paths for service files
