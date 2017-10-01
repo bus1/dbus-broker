@@ -261,7 +261,21 @@ static int manager_listen_path(Manager *manager, const char *path) {
         if (r < 0)
                 return error_origin(-errno);
 
-        r = listen(s, 256);
+        /*
+         * The backlog parameter selects the maximum number of pending
+         * connections on a listener socket. Unfortunately, there is no fair
+         * queue sharing available, so any malicious peer can easily exhaust
+         * this limit.
+         *
+         * On linux, this limit is capped to `net/core/somaxconn` sysctl, which
+         * is 1024 by default. We simply use the same default value due to lack
+         * of any other reasonable choice.
+         *
+         * Preferably, we would tie this to our quota-infrastructure somehow.
+         * Unfortunately, there is still no mechanism to control this. Hence,
+         * we simply stick to the same limits everyone else uses on AF_UNIX.
+         */
+        r = listen(s, 1024);
         if (r < 0)
                 return error_origin(-errno);
 
