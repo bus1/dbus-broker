@@ -1,5 +1,30 @@
 dbus-broker - Linux D-Bus Message Broker
 
+CHANGES WITH 5:
+
+        * Man-pages for dbus-broker and dbus-broker-launch are now built via
+          meson and installed into `$prefix/man' by default.
+
+        * The dbus-broker.service unit is now ordered before basic.target. This
+          ensures that D-Bus applications can use the bus during shutdown.
+          Until now, shutdown of the message bus was unordered against shutdown
+          of D-Bus applications. While applications should handle such
+          situations gracefully, ordering dbus-broker.service before
+          basic.target eliminates a random source of bus errors during
+          shutdown.
+
+        * If running the launcher, you are highly recommended to update
+          libexpat to 2.2.3, or newer. It contains fixes to avoid random stalls
+          on /dev/random. For details, see:
+
+              https://github.com/libexpat/libexpat/blob/R_2_2_3/expat/Changes
+              https://github.com/libexpat/libexpat/pull/92
+              https://bugs.freedesktop.org/show_bug.cgi?id=101858
+
+        Contributions from:
+
+        - Foobar, 2017-XX-YY
+
 CHANGES WITH 4:
 
         * Add optional libaudit support in combination with SELinux. If
