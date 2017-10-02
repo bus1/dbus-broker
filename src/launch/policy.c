@@ -216,7 +216,7 @@ static int policy_at_uid(Policy *policy, PolicyNode **nodep, uint32_t uidgid) {
 }
 
 static int policy_at_gid(Policy *policy, PolicyNode **nodep, uint32_t uidgid) {
-        return policy_at_uidgid(&policy->uid_tree, nodep, uidgid);
+        return policy_at_uidgid(&policy->gid_tree, nodep, uidgid);
 }
 
 static void policy_import_verdict(Policy *policy,
