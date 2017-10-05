@@ -699,24 +699,36 @@ static int driver_name_activated(Activation *activation, Peer *receiver) {
                                         r = driver_send_error(sender, message_read_serial(message->message),
                                                               "org.freedesktop.DBus.Error.LimitsExceeded",
                                                               driver_error_to_string(DRIVER_E_QUOTA));
+                                else
+                                        r = 0;
+
                                 break;
                         case PEER_E_EXPECTED_REPLY_EXISTS:
                                 if (sender)
                                         r = driver_send_error(sender, message_read_serial(message->message),
                                                               "org.freedesktop.DBus.Error.AccessDenied",
                                                               driver_error_to_string(DRIVER_E_EXPECTED_REPLY_EXISTS));
+                                else
+                                        r = 0;
+
                                 break;
                         case PEER_E_RECEIVE_DENIED:
                                 if (sender)
                                         r = driver_send_error(sender, message_read_serial(message->message),
                                                               "org.freedesktop.DBus.Error.AccessDenied",
                                                               driver_error_to_string(DRIVER_E_RECEIVE_DENIED));
+                                else
+                                        r = 0;
+
                                 break;
                         case PEER_E_SEND_DENIED:
                                 if (sender)
                                         r = driver_send_error(sender, message_read_serial(message->message),
                                                               "org.freedesktop.DBus.Error.AccessDenied",
                                                               driver_error_to_string(DRIVER_E_SEND_DENIED));
+                                else
+                                        r = 0;
+
                                 break;
                         }
 
