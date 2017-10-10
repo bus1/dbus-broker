@@ -5,6 +5,14 @@ CHANGES WITH 5:
         * Man-pages for dbus-broker and dbus-broker-launch are now built via
           meson and installed into `$prefix/man' by default.
 
+        * AddListener() on org.bus1.DBus.Broker now supports uid-ranges. This
+          is used by the launcher to implement at_console={true,false} policies
+          by considering any uid higher than SYSTEMUIDMAX (as defined by
+          systemd) to be at the console. For a detailed discussion, see:
+
+              https://github.com/bus1/dbus-broker/issues/56
+              https://github.com/systemd/systemd/pull/6762
+
         * The dbus-broker.service unit is now ordered before basic.target. This
           ensures that D-Bus applications can use the bus during shutdown.
           Until now, shutdown of the message bus was unordered against shutdown
@@ -21,9 +29,10 @@ CHANGES WITH 5:
               https://github.com/libexpat/libexpat/pull/92
               https://bugs.freedesktop.org/show_bug.cgi?id=101858
 
-        Contributions from:
+        Contributions from: David Herrmann, Marc-Antoine Perennou, Tom
+                            Gundersen
 
-        - Foobar, 2017-XX-YY
+        - Tübingen, 2017-10-10
 
 CHANGES WITH 4:
 
