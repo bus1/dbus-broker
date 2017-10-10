@@ -49,6 +49,7 @@ all:
 	@echo "   test: Run test suite via ninja"
 	@echo "    osi: Build test-container via mkosi"
 	@echo "    run: Run test-container via nspawn"
+	@echo "release: Print checklist for releases"
 .PHONY: all
 
 meson:
@@ -93,3 +94,30 @@ run:
 		--bind-ro "${BUILDDIR}/src/dbus-broker:/usr/bin/dbus-broker" \
 		--bind-ro "${BUILDDIR}/src/dbus-broker-launch:/usr/bin/dbus-broker-launch"
 .PHONY: run
+
+VNEXT=2
+VPREV="$$((${VNEXT} - 1))"
+release:
+	@echo "Checklist for release of dbus-broker-${VNEXT}:"
+	@echo
+	@echo " * Fill in NEWS via:"
+	@echo "       git log v${VPREV}..HEAD"
+	@echo " * List contributors in NEWS via:"
+	@echo "       git log --format='%an, ' v${VPREV}..HEAD | sort -u | tr -d '\n'"
+	@echo " * Bump project.version in ./meson.build"
+	@echo
+	@echo " * Commit and push at least once"
+	@echo
+	@echo " * Tag 'v${VNEXT}' with content 'dbus-broker ${VNEXT}' via:"
+	@echo "       git tag -s -m 'dbus-broker ${VNEXT}' v${VNEXT} HEAD"
+	@echo " * Create tarball via: (VERIFY YOU HAVE v${VNEXT} CHECKED OUT!)"
+	@echo "       git archive-all -v --prefix dbus-broker-${VNEXT}/ dbus-broker-${VNEXT}.tar"
+	@echo "       xz dbus-broker-${VNEXT}.tar"
+	@echo
+	@echo " * Build and test tarball"
+	@echo
+	@echo " * Push tag via:"
+	@echo "       git push <remote> v${VNEXT}"
+	@echo " * Upload tarball to github via custom release"
+	@echo
+.PHONY: release
