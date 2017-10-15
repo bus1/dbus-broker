@@ -1,5 +1,13 @@
 dbus-broker - Linux D-Bus Message Broker
 
+CHANGES WITH 6:
+
+        * Bugfixes for 32bit architectures.
+
+        Contributions from: David Herrmann, Tom Gundersen
+
+        - Tübingen, 2017-10-15
+
 CHANGES WITH 5:
 
         * Man-pages for dbus-broker and dbus-broker-launch are now built via
