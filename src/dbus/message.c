@@ -19,6 +19,9 @@ static_assert(_DBUS_MESSAGE_FIELD_N <= 8 * sizeof(unsigned int), "Header fields 
 static int message_new(Message **messagep, bool big_endian, size_t n_extra) {
         _c_cleanup_(message_unrefp) Message *message = NULL;
 
+        static_assert(alignof(message->extra) >= 8,
+                      "Message payload has insufficient alignment");
+
         message = malloc(sizeof(*message) + c_align8(n_extra));
         if (!message)
                 return error_origin(-ENOMEM);
@@ -73,7 +76,7 @@ int message_new_incoming(Message **messagep, MessageHeader header) {
         message->n_data = n_data;
         message->n_header = n_header;
         message->n_body = n_body;
-        message->data = message + 1;
+        message->data = message->extra;
         message->header = (void *)message->data;
         message->body = message->data + c_align8(n_header);
         message->vecs[0] = (struct iovec){ message->header, c_align8(n_header) };

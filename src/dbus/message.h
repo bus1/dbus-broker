@@ -82,6 +82,7 @@ struct Message {
         void *original_sender;
         struct iovec vecs[4];
         alignas(8) uint8_t patch[MESSAGE_PATCH_MAX];
+        alignas(8) uint8_t extra[];
 };
 
 struct MessageHeader {
