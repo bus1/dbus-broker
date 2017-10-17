@@ -1,5 +1,13 @@
 dbus-broker - Linux D-Bus Message Broker
 
+CHANGES WITH 7:
+
+        * More bugfixes for 32bit architectures.
+
+        Contributions from: David Herrmann
+
+        - Berlin, 2017-10-17
+
 CHANGES WITH 6:
 
         * Bugfixes for 32bit architectures.
