@@ -526,6 +526,8 @@ void message_stitch_sender(Message *message, uint64_t sender_id) {
         assert(n_sender <= ADDRESS_ID_STRING_MAX);
         static_assert(1 + 3 + 4 + ADDRESS_ID_STRING_MAX + 1 <= sizeof(message->patch),
                       "Message patch buffer has insufficient size");
+        static_assert(alignof(message->patch) >= 8,
+                      "Message patch buffer has insufficient alignment");
 
         if (message->original_sender) {
                 /*
