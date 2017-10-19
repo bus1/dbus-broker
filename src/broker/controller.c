@@ -10,6 +10,7 @@
 #include "bus/activation.h"
 #include "bus/bus.h"
 #include "bus/driver.h"
+#include "bus/listener.h"
 #include "bus/policy.h"
 #include "dbus/connection.h"
 #include "dbus/message.h"
@@ -123,6 +124,13 @@ static int controller_listener_new(ControllerListener **listenerp, Controller *c
         c_rbtree_add(&controller->listener_tree, parent, slot, &listener->controller_node);
         *listenerp = listener;
         return 0;
+}
+
+/**
+ * controller_listener_set_policy() - XXX
+ */
+int controller_listener_set_policy(ControllerListener *listener, PolicyRegistry *policy) {
+        return error_fold(listener_set_policy(&listener->listener, policy));
 }
 
 static int controller_dispatch_connection(DispatchFile *file) {

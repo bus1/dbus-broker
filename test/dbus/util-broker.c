@@ -121,7 +121,7 @@ static int util_append_policy(sd_bus_message *m) {
 
 void util_fork_broker(sd_bus **busp, sd_event *event, int listener_fd, pid_t *pidp) {
         _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
-        _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *message = NULL;
+        _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *message = NULL, *message2 = NULL;
         _c_cleanup_(c_freep) char *fdstr = NULL;
         int r, pair[2];
         pid_t pid;
@@ -191,6 +191,20 @@ void util_fork_broker(sd_bus **busp, sd_event *event, int listener_fd, pid_t *pi
         assert(r >= 0);
 
         r = sd_bus_call(bus, message, -1, NULL, NULL);
+        assert(r >= 0);
+
+        r = sd_bus_message_new_method_call(bus,
+                                           &message2,
+                                           NULL,
+                                           "/org/bus1/DBus/Listener/0",
+                                           "org.bus1.DBus.Listener",
+                                           "SetPolicy");
+        assert(r >= 0);
+
+        r = util_append_policy(message2);
+        assert(r >= 0);
+
+        r = sd_bus_call(bus, message2, -1, NULL, NULL);
         assert(r >= 0);
 
         *busp = bus;

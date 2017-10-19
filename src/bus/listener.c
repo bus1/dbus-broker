@@ -120,3 +120,26 @@ void listener_deinit(Listener *listener) {
         listener->socket_fd = c_close(listener->socket_fd);
         listener->bus = NULL;
 }
+
+/**
+ * listener_set_policy() - XXX
+ */
+int listener_set_policy(Listener *listener, PolicyRegistry *registry) {
+        Peer *peer;
+        int r;
+
+        c_list_for_each_entry(peer, &listener->peer_list, listener_link) {
+                PolicySnapshot *policy;
+
+                r = policy_snapshot_new(&policy, registry, peer->seclabel, peer->user->uid, peer->gids, peer->n_gids);
+                if (r)
+                        return error_fold(r);
+
+                policy_snapshot_free(peer->policy);
+                peer->policy = policy;
+        }
+
+        policy_registry_free(listener->policy);
+        listener->policy = registry;
+        return 0;
+}
