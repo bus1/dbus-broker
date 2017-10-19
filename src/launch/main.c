@@ -943,10 +943,9 @@ static int manager_add_listener(Manager *manager) {
         if (r < 0)
                 return error_origin(r);
 
-        r = sd_bus_message_append(m, "ohs",
+        r = sd_bus_message_append(m, "oh",
                                   "/org/bus1/DBus/Listener/0",
-                                  manager->fd_listen,
-                                  policypath);
+                                  manager->fd_listen);
         if (r < 0)
                 return error_origin(r);
 

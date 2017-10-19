@@ -182,10 +182,9 @@ void util_fork_broker(sd_bus **busp, sd_event *event, int listener_fd, pid_t *pi
         assert(r >= 0);
 
         r = sd_bus_message_append(message,
-                                  "ohs",
+                                  "oh",
                                   "/org/bus1/DBus/Listener/0",
-                                  listener_fd,
-                                  NULL);
+                                  listener_fd);
         assert(r >= 0);
 
         r = util_append_policy(message);
