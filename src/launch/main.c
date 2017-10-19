@@ -36,6 +36,7 @@ struct Service {
         Manager *manager;
         sd_bus_slot *slot;
         CRBNode rb;
+        CRBNode rb_by_name;
         char *name;
         char *unit;
         char **exec;
@@ -49,6 +50,7 @@ struct Manager {
         sd_bus *bus_regular;
         int fd_listen;
         CRBTree services;
+        CRBTree services_by_name;
         uint64_t service_ids;
 };
 
@@ -87,10 +89,17 @@ static int service_compare(CRBTree *t, void *k, CRBNode *n) {
         return strcmp(k, service->id);
 }
 
+static int service_compare_by_name(CRBTree *t, void *k, CRBNode *n) {
+        Service *service = c_container_of(n, Service, rb_by_name);
+
+        return strcmp(k, service->name);
+}
+
 static Service *service_free(Service *service) {
         if (!service)
                 return NULL;
 
+        c_rbtree_remove_init(&service->manager->services_by_name, &service->rb_by_name);
         c_rbtree_remove_init(&service->manager->services, &service->rb);
         for (size_t i = 0; i < service->n_exec; ++i)
                 free(service->exec[i]);
@@ -105,7 +114,14 @@ static Service *service_free(Service *service) {
 
 C_DEFINE_CLEANUP(Service *, service_free);
 
-static int service_new(Service **servicep, Manager *manager, const char *name, const char *unit, char **exec, size_t n_exec) {
+static int service_new(Service **servicep,
+                       Manager *manager,
+                       const char *name,
+                       CRBNode **slot_by_name,
+                       CRBNode *parent_by_name,
+                       const char *unit,
+                       char **exec,
+                       size_t n_exec) {
         _c_cleanup_(service_freep) Service *service = NULL;
         CRBNode **slot, *parent;
 
@@ -115,6 +131,7 @@ static int service_new(Service **servicep, Manager *manager, const char *name, c
 
         service->manager = manager;
         service->rb = (CRBNode)C_RBNODE_INIT(service->rb);
+        service->rb_by_name = (CRBNode)C_RBNODE_INIT(service->rb_by_name);
         sprintf(service->id, "%" PRIu64, ++manager->service_ids);
 
         service->name = strdup(name);
@@ -144,6 +161,7 @@ static int service_new(Service **servicep, Manager *manager, const char *name, c
         slot = c_rbtree_find_slot(&manager->services, service_compare, service->id, &parent);
         assert(slot);
         c_rbtree_add(&manager->services, parent, slot, &service->rb);
+        c_rbtree_add(&manager->services_by_name, parent_by_name, slot_by_name, &service->rb_by_name);
 
         *servicep = service;
         service = NULL;
@@ -158,6 +176,7 @@ static Manager *manager_free(Manager *manager) {
 
         c_rbtree_for_each_entry_unlink(service, safe, &manager->services, rb)
                 service_free(service);
+        assert(c_rbtree_is_empty(&manager->services_by_name));
 
         c_close(manager->fd_listen);
         bus_close_unref(manager->bus_regular);
@@ -671,6 +690,7 @@ static int manager_load_service_file(Manager *manager, const char *path) {
         _c_cleanup_(c_freep) char *object_path = NULL;
         _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *reply = NULL;
         GKeyFile *f;
+        CRBNode **slot, *parent;
         int r;
 
         /*
@@ -719,9 +739,16 @@ static int manager_load_service_file(Manager *manager, const char *path) {
          *      For now, using 'root' seems good enough.
          */
 
-        r = service_new(&service, manager, name, unit, exec, n_exec);
-        if (r) {
-                r = error_trace(r);
+        slot = c_rbtree_find_slot(&manager->services_by_name, service_compare_by_name, name, &parent);
+        if (slot) {
+                r = service_new(&service, manager, name, slot, parent, unit, exec, n_exec);
+                if (r) {
+                        r = error_trace(r);
+                        goto exit;
+                }
+        } else {
+                fprintf(stderr, "Ignoring duplicate name '%s' in service file '%s'\n", name, path);
+                r = 0;
                 goto exit;
         }
 
@@ -743,12 +770,7 @@ static int manager_load_service_file(Manager *manager, const char *path) {
                                service->name,
                                0);
         if (r < 0) {
-                if (sd_bus_message_is_method_error(reply, "org.bus1.DBus.Name.IsActivatable")) {
-                        fprintf(stderr, "Ignoring duplicate name '%s' in service file '%s'\n", service->name, path);
-                        r = 0;
-                } else {
-                        r = error_origin(r);
-                }
+                r = error_origin(r);
                 goto exit;
         }
 
