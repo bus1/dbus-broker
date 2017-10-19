@@ -184,6 +184,7 @@ int peer_new_with_fd(Peer **peerp,
         peer->bus = bus;
         peer->connection = (Connection)CONNECTION_NULL(peer->connection);
         peer->registry_node = (CRBNode)C_RBNODE_INIT(peer->registry_node);
+        peer->listener_link = (CList)C_LIST_INIT(peer->listener_link);
         peer->user = user;
         user = NULL;
         peer->pid = ucred.pid;
@@ -251,6 +252,7 @@ Peer *peer_free(Peer *peer) {
         assert(!peer->registered);
 
         c_rbtree_remove_init(&peer->bus->peers.peer_tree, &peer->registry_node);
+        c_list_unlink_init(&peer->listener_link);
 
         fd = peer->connection.socket.fd;
 

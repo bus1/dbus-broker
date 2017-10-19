@@ -62,6 +62,7 @@ struct Peer {
 
         uint64_t id;
         CRBNode registry_node;
+        CList listener_link;
 
         Connection connection;
         bool registered : 1;
