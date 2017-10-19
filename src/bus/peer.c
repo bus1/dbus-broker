@@ -187,6 +187,9 @@ int peer_new_with_fd(Peer **peerp,
         peer->user = user;
         user = NULL;
         peer->pid = ucred.pid;
+        peer->gids = gids;
+        gids = NULL;
+        peer->n_gids = n_gids;
         peer->seclabel = seclabel;
         seclabel = NULL;
         peer->n_seclabel = n_seclabel;
@@ -209,7 +212,7 @@ int peer_new_with_fd(Peer **peerp,
                 return error_fold(r);
         }
 
-        r = policy_snapshot_new(&peer->policy, policy, peer->seclabel, ucred.uid, gids, n_gids);
+        r = policy_snapshot_new(&peer->policy, policy, peer->seclabel, ucred.uid, peer->gids, peer->n_gids);
         if (r)
                 return error_fold(r);
 
@@ -263,6 +266,7 @@ Peer *peer_free(Peer *peer) {
         user_charge_deinit(&peer->charges[1]);
         user_charge_deinit(&peer->charges[0]);
         free(peer->seclabel);
+        free(peer->gids);
         free(peer);
 
         close(fd);
