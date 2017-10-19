@@ -85,6 +85,7 @@ C_DEFINE_CLEANUP(ControllerName *, controller_name_free);
 /* listeners */
 
 ControllerListener *controller_listener_free(ControllerListener *listener);
+int controller_listener_set_policy(ControllerListener *listener, PolicyRegistry *policy);
 
 C_DEFINE_CLEANUP(ControllerListener *, controller_listener_free);
 

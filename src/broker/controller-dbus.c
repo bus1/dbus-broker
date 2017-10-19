@@ -53,6 +53,13 @@ struct ControllerMethod {
                 _body                                   \
         )
 
+static const CDVarType controller_type_in_v[] = {
+        C_DVAR_T_INIT(
+                C_DVAR_T_TUPLE1(
+                        C_DVAR_T_v
+                )
+        )
+};
 static const CDVarType controller_type_in_ohv[] = {
         C_DVAR_T_INIT(
                 C_DVAR_T_TUPLE3(
@@ -302,6 +309,41 @@ static int controller_method_name_release(Controller *controller, const char *pa
         return 0;
 }
 
+static int controller_method_listener_set_policy(Controller *controller, const char *path, CDVar *in_v, FDList *fds, CDVar *out_v) {
+        _c_cleanup_(policy_registry_freep) PolicyRegistry *policy = NULL;
+        ControllerListener *listener;
+        int r;
+
+        r = policy_registry_new(&policy, controller->seclabel);
+        if (r)
+                return error_fold(r);
+
+        c_dvar_read(in_v, "(");
+
+        r = policy_registry_import(policy, in_v);
+        if (r)
+                return (r == POLICY_E_INVALID) ? CONTROLLER_E_LISTENER_INVALID_POLICY : error_fold(r);
+
+        c_dvar_read(in_v, ")");
+
+        r = controller_end_read(in_v);
+        if (r)
+                return error_trace(r);
+
+        listener = controller_find_listener(controller, path);
+        if (!listener)
+                return CONTROLLER_E_LISTENER_NOT_FOUND;
+
+        r = controller_listener_set_policy(listener, policy);
+        if (r)
+                return error_trace(r);
+        policy = NULL;
+
+        c_dvar_write(out_v, "()");
+
+        return 0;
+}
+
 static int controller_method_name_reset(Controller *controller, const char *path, CDVar *in_v, FDList *fds, CDVar *out_v) {
         ControllerName *name;
         int r;
@@ -425,7 +467,7 @@ static int controller_dispatch_name(Controller *controller, uint32_t serial, con
 static int controller_dispatch_listener(Controller *controller, uint32_t serial, const char *method, const char *path, const char *signature, Message *message) {
         static const ControllerMethod methods[] = {
                 { "Release",    controller_method_listener_release,     c_dvar_type_unit,       controller_type_out_unit },
-                /* XXX: SetPolicy */
+                { "SetPolicy",  controller_method_listener_set_policy,  controller_type_in_v,   controller_type_out_unit },
         };
 
         for (size_t i = 0; i < C_ARRAY_SIZE(methods); i++) {
