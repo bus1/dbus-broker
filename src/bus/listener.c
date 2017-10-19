@@ -54,6 +54,8 @@ static int listener_dispatch(DispatchFile *file) {
                 return error_fold(r);
         fd = -1; /* consume fd */
 
+        c_list_link_tail(&listener->peer_list, &peer->listener_link);
+
         r = peer_spawn(peer);
         if (r)
                 return error_fold(r);
