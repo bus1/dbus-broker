@@ -932,11 +932,8 @@ static int manager_load_services(Manager *manager) {
         return 0;
 }
 
-static int manager_add_listener(Manager *manager) {
+static int manager_load_policy(Manager *manager, ConfigRoot **rootp, Policy *policy) {
         _c_cleanup_(config_parser_deinit) ConfigParser parser = CONFIG_PARSER_NULL(parser);
-        _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *m = NULL;
-        _c_cleanup_(config_root_freep) ConfigRoot *root = NULL;
-        _c_cleanup_(policy_deinit) Policy policy = POLICY_INIT(policy);
         const char *policypath;
         int r;
 
@@ -951,15 +948,22 @@ static int manager_add_listener(Manager *manager) {
 
         config_parser_init(&parser);
 
-        r = config_parser_read(&parser, &root, policypath);
+        r = config_parser_read(&parser, rootp, policypath);
         if (r)
                 return error_fold(r);
 
-        r = policy_import(&policy, root);
+        r = policy_import(policy, *rootp);
         if (r)
                 return error_fold(r);
 
-        policy_optimize(&policy);
+        policy_optimize(policy);
+
+        return 0;
+}
+
+static int manager_add_listener(Manager *manager, Policy *policy) {
+        _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *m = NULL;
+        int r;
 
         r = sd_bus_message_new_method_call(manager->bus_controller,
                                            &m,
@@ -976,7 +980,7 @@ static int manager_add_listener(Manager *manager) {
         if (r < 0)
                 return error_origin(r);
 
-        r = policy_export(&policy, m);
+        r = policy_export(policy, m);
         if (r)
                 return error_fold(r);
 
@@ -1032,6 +1036,8 @@ static int manager_connect(Manager *manager) {
 }
 
 static int manager_run(Manager *manager) {
+        _c_cleanup_(config_root_freep) ConfigRoot *root = NULL;
+        _c_cleanup_(policy_deinit) Policy policy = POLICY_INIT(policy);
         int r, controller[2];
 
         assert(manager->fd_listen >= 0);
@@ -1071,7 +1077,11 @@ static int manager_run(Manager *manager) {
         if (r)
                 return error_trace(r);
 
-        r = manager_add_listener(manager);
+        r = manager_load_policy(manager, &root, &policy);
+        if (r)
+                return error_trace(r);
+
+        r = manager_add_listener(manager, &policy);
         if (r)
                 return error_trace(r);
 
