@@ -687,8 +687,6 @@ static int manager_load_service_file(Manager *manager, const char *path) {
         gchar *name = NULL, *user = NULL, *unit = NULL, **exec = NULL;
         gsize n_exec = 0;
         _c_cleanup_(service_freep) Service *service = NULL;
-        _c_cleanup_(c_freep) char *object_path = NULL;
-        _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *reply = NULL;
         GKeyFile *f;
         CRBNode **slot, *parent;
         int r;
@@ -752,28 +750,6 @@ static int manager_load_service_file(Manager *manager, const char *path) {
                 goto exit;
         }
 
-        r = asprintf(&object_path, "/org/bus1/DBus/Name/%s", service->id);
-        if (r < 0) {
-                r = error_origin(-ENOMEM);
-                goto exit;
-        }
-
-        r = sd_bus_call_method(manager->bus_controller,
-                               NULL,
-                               "/org/bus1/DBus/Broker",
-                               "org.bus1.DBus.Broker",
-                               "AddName",
-                               NULL,
-                               &reply,
-                               "osu",
-                               object_path,
-                               service->name,
-                               0);
-        if (r < 0) {
-                r = error_origin(r);
-                goto exit;
-        }
-
         service = NULL;
         r = 0;
 
@@ -830,6 +806,35 @@ static int manager_load_service_dir(Manager *manager, const char *dirpath, const
         }
         if (errno > 0)
                 return error_origin(-errno);
+
+        return 0;
+}
+
+static int manager_add_services(Manager *manager) {
+        Service *service;
+        int r;
+
+        c_rbtree_for_each_entry(service, &manager->services, rb) {
+                _c_cleanup_(c_freep) char *object_path = NULL;
+
+                r = asprintf(&object_path, "/org/bus1/DBus/Name/%s", service->id);
+                if (r < 0)
+                        return error_origin(-ENOMEM);
+
+                r = sd_bus_call_method(manager->bus_controller,
+                                       NULL,
+                                       "/org/bus1/DBus/Broker",
+                                       "org.bus1.DBus.Broker",
+                                       "AddName",
+                                       NULL,
+                                       NULL,
+                                       "osu",
+                                       object_path,
+                                       service->name,
+                                       0);
+                if (r < 0)
+                        return error_origin(r);
+        }
 
         return 0;
 }
@@ -1059,6 +1064,10 @@ static int manager_run(Manager *manager) {
                 return error_origin(r);
 
         r = manager_load_services(manager);
+        if (r)
+                return error_trace(r);
+
+        r = manager_add_services(manager);
         if (r)
                 return error_trace(r);
 
