@@ -344,7 +344,7 @@ static int manager_listen_path(Manager *manager, const char *path) {
         return 0;
 }
 
-static noreturn void manager_run_child(Manager *manager, int fd_log, int fd_controller) {
+static noreturn void manager_run_child(Manager *manager, int fd_log, int fd_controller, bool audit) {
         char str_log[C_DECIMAL_MAX(int) + 1], str_controller[C_DECIMAL_MAX(int) + 1];
         const char * const argv[] = {
                 "dbus-broker",
@@ -353,6 +353,7 @@ static noreturn void manager_run_child(Manager *manager, int fd_log, int fd_cont
                 str_log,
                 "--controller",
                 str_controller,
+                audit ? "--audit" : NULL, /* note that this needs to be the last argument to work */
                 NULL,
         };
         int r;
@@ -408,7 +409,7 @@ static int manager_on_child_exit(sd_event_source *source, const siginfo_t *si, v
                              (si->si_code == CLD_EXITED) ? si->si_status : EXIT_FAILURE);
 }
 
-static int manager_fork(Manager *manager, int fd_controller) {
+static int manager_fork(Manager *manager, int fd_controller, bool audit) {
         pid_t pid;
         int r;
 
@@ -417,7 +418,7 @@ static int manager_fork(Manager *manager, int fd_controller) {
                 return error_origin(-errno);
 
         if (!pid)
-                manager_run_child(manager, log_get_fd(&main_log), fd_controller);
+                manager_run_child(manager, log_get_fd(&main_log), fd_controller, audit);
 
         r = sd_event_add_child(manager->event, NULL, pid, WEXITED, manager_on_child_exit, manager);
         if (r < 0)
@@ -1222,7 +1223,7 @@ const sd_bus_vtable manager_vtable[] = {
         SD_BUS_VTABLE_END
 };
 
-static int manager_run(Manager *manager) {
+static int manager_run(Manager *manager, bool audit) {
         _c_cleanup_(config_root_freep) ConfigRoot *root = NULL;
         _c_cleanup_(policy_deinit) Policy policy = POLICY_INIT(policy);
         int r, controller[2];
@@ -1242,7 +1243,7 @@ static int manager_run(Manager *manager) {
         }
 
         /* consumes FD controller[1] */
-        r = manager_fork(manager, controller[1]);
+        r = manager_fork(manager, controller[1], audit);
         if (r) {
                 close(controller[1]);
                 return error_trace(r);
@@ -1457,7 +1458,7 @@ static int run(void) {
                 return MAIN_FAILED;
         }
 
-        r = manager_run(manager);
+        r = manager_run(manager, !strcmp(main_arg_scope, "system"));
         r = error_trace(r);
 
         if (unlink_path) {
