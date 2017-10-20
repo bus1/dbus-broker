@@ -14,8 +14,9 @@
 #include "util/error.h"
 #include "util/selinux.h"
 
-int main_arg_log = -1;
+bool main_arg_audit = false;
 int main_arg_controller = 3;
+int main_arg_log = -1;
 uint64_t main_arg_max_bytes = 16 * 1024 * 1024;
 uint64_t main_arg_max_fds = 64;
 uint64_t main_arg_max_matches = 10 * 1024;
@@ -28,6 +29,7 @@ static void help(void) {
                "  -h --help                     Show this help\n"
                "     --version                  Show package version\n"
                "  -v --verbose                  Print progress to terminal\n"
+               "     --audit                    Log to the audit subsystem\n"
                "     --log FD                   Change log socket\n"
                "     --controller FD            Change controller file-descriptor\n"
                "     --max-bytes BYTES          The maximum number of bytes each user may own in the broker\n"
@@ -40,8 +42,9 @@ static void help(void) {
 static int parse_argv(int argc, char *argv[]) {
         enum {
                 ARG_VERSION = 0x100,
-                ARG_LOG,
+                ARG_AUDIT,
                 ARG_CONTROLLER,
+                ARG_LOG,
                 ARG_MAX_BYTES,
                 ARG_MAX_FDS,
                 ARG_MAX_MATCHES,
@@ -51,6 +54,7 @@ static int parse_argv(int argc, char *argv[]) {
                 { "help",               no_argument,            NULL,   'h'                     },
                 { "version",            no_argument,            NULL,   ARG_VERSION             },
                 { "verbose",            no_argument,            NULL,   'v'                     },
+                { "audit",              no_argument,            NULL,   ARG_AUDIT               },
                 { "log",                required_argument,      NULL,   ARG_LOG                 },
                 { "controller",         required_argument,      NULL,   ARG_CONTROLLER          },
                 { "max-bytes",          required_argument,      NULL,   ARG_MAX_BYTES           },
@@ -73,6 +77,10 @@ static int parse_argv(int argc, char *argv[]) {
 
                 case 'v':
                         main_arg_verbose = true;
+                        break;
+
+                case ARG_AUDIT:
+                        main_arg_audit = true;
                         break;
 
                 case ARG_LOG: {
@@ -251,9 +259,11 @@ int main(int argc, char **argv) {
         if (r)
                 goto exit;
 
-        r = util_audit_init_global();
-        if (r)
-                return error_fold(r);
+        if (main_arg_audit) {
+                r = util_audit_init_global();
+                if (r)
+                        return error_fold(r);
+        }
 
         r = bus_selinux_init_global();
         if (r)
