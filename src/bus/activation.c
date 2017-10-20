@@ -63,29 +63,18 @@ int activation_init(Activation *a, Name *name, User *user) {
         return 0;
 }
 
-static int activation_flush(Activation *activation) {
+/**
+ * activation_deinit() - XXX
+ */
+void activation_deinit(Activation *activation) {
         ActivationRequest *request;
         ActivationMessage *message;
-
-        /* XXX: send out error replies */
 
         while ((message = c_list_first_entry(&activation->activation_messages, ActivationMessage, link)))
                 activation_message_free(message);
 
         while ((request = c_list_first_entry(&activation->activation_requests, ActivationRequest, link)))
                 activation_request_free(request);
-
-        return 0;
-}
-
-/**
- * activation_deinit() - XXX
- */
-void activation_deinit(Activation *activation) {
-        activation_flush(activation);
-
-        assert(c_list_is_empty(&activation->activation_messages));
-        assert(c_list_is_empty(&activation->activation_requests));
 
         activation->user = user_unref(activation->user);
 
