@@ -1176,6 +1176,25 @@ static int manager_connect(Manager *manager) {
         return 0;
 }
 
+static int bus_method_reload_config(sd_bus_message *message, void *userdata, sd_bus_error *error) {
+        Manager *manager = userdata;
+        int r;
+
+        r = manager_reload_config(manager);
+        if (r)
+                return error_fold(r);
+
+        return sd_bus_reply_method_return(message, NULL);
+}
+
+const sd_bus_vtable manager_vtable[] = {
+        SD_BUS_VTABLE_START(0),
+
+        SD_BUS_METHOD("ReloadConfig", NULL, NULL, bus_method_reload_config, 0),
+
+        SD_BUS_VTABLE_END
+};
+
 static int manager_run(Manager *manager) {
         _c_cleanup_(config_root_freep) ConfigRoot *root = NULL;
         _c_cleanup_(policy_deinit) Policy policy = POLICY_INIT(policy);
@@ -1201,6 +1220,10 @@ static int manager_run(Manager *manager) {
                 close(controller[1]);
                 return error_trace(r);
         }
+
+        r = sd_bus_add_object_vtable(manager->bus_controller, NULL, "/org/bus1/DBus/Launcher", "org.bus1.DBus.Launcher", manager_vtable, manager);
+        if (r < 0)
+                return error_origin(r);
 
         r = sd_bus_add_filter(manager->bus_controller, NULL, manager_on_message, manager);
         if (r < 0)
