@@ -302,6 +302,10 @@ static int controller_method_name_release(Controller *controller, const char *pa
         if (!name)
                 return CONTROLLER_E_NAME_NOT_FOUND;
 
+        r = controller_name_reset(name);
+        if (r)
+                return error_trace(r);
+
         controller_name_free(name);
 
         c_dvar_write(out_v, "()");
