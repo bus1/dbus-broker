@@ -427,7 +427,6 @@ static int manager_fork(Manager *manager, int fd_controller) {
 }
 
 static int manager_start_unit_handler(sd_bus_message *message, void *userdata, sd_bus_error *errorp) {
-        _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *method_call = NULL;
         _c_cleanup_(c_freep) char *object_path = NULL;
         const sd_bus_error *error;
         Service *service = userdata;
@@ -448,15 +447,14 @@ static int manager_start_unit_handler(sd_bus_message *message, void *userdata, s
         if (r < 0)
                 return error_origin(-errno);
 
-        r = sd_bus_message_new_method_call(service->manager->bus_controller, &method_call,
-                                           "org.bus1.DBus.Broker",
-                                           object_path,
-                                           "org.bus1.DBus.Name",
-                                           "Reset");
-        if (r < 0)
-                return error_origin(r);
-
-        r = sd_bus_send(service->manager->bus_controller, method_call, NULL);
+        r = sd_bus_call_method(service->manager->bus_controller,
+                               NULL,
+                               object_path,
+                               "org.bus1.DBus.Name",
+                               "Reset",
+                               NULL,
+                               NULL,
+                               "");
         if (r < 0)
                 return error_origin(r);
 
