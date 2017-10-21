@@ -18,6 +18,7 @@
 #include "util/proc.h"
 #include "util/selinux.h"
 #include "util/sockopt.h"
+#include "util/user.h"
 
 static int controller_name_compare(CRBTree *t, void *k, CRBNode *rb) {
         ControllerName *name = c_container_of(rb, ControllerName, controller_node);
@@ -81,6 +82,72 @@ int controller_name_reset(ControllerName *name) {
  */
 int controller_name_activate(ControllerName *name) {
         return controller_dbus_send_activation(name->controller, name->path);
+}
+
+static int controller_reload_compare(CRBTree *t, void *k, CRBNode *rb) {
+        ControllerReload *reload = c_container_of(rb, ControllerReload, controller_node);
+        uint32_t serial = *(uint32_t *)k;
+
+        if (serial < reload->serial)
+                return -1;
+        if (serial > reload->serial)
+                return 1;
+
+        return 0;
+}
+
+ControllerReload *controller_reload_free(ControllerReload *reload) {
+        if (!reload)
+                return NULL;
+
+        user_charge_deinit(&reload->charge);
+        c_rbtree_remove_init(&reload->controller->reload_tree, &reload->controller_node);
+        free(reload);
+
+        return NULL;
+}
+
+static int controller_reload_new(ControllerReload **reloadp, User *user, Controller *controller) {
+        CRBNode **slot, *parent;
+        ControllerReload *reload;
+        uint32_t serial;
+        int r;
+
+        for (uint32_t i = 0; i < UINT32_MAX; i++) {
+                serial = ++controller->serial;
+
+                if (!serial)
+                        continue;
+
+                slot = c_rbtree_find_slot(&controller->reload_tree, controller_reload_compare, &serial, &parent);
+                if (slot)
+                        break;
+        }
+        if (!slot)
+                return CONTROLLER_E_SERIAL_EXHAUSTED;
+
+        reload = calloc(1, sizeof(*reload));
+        if (!reload)
+                return error_origin(-ENOMEM);
+
+        *reload = (ControllerReload)CONTROLLER_RELOAD_NULL(*reload);
+        reload->controller = controller;
+        reload->serial = serial;
+
+        r = user_charge(controller->broker->bus.user, &reload->charge, user, USER_SLOT_BYTES, sizeof(ControllerReload));
+        if (r)
+                return (r == USER_E_QUOTA) ? CONTROLLER_E_QUOTA : error_fold(r);
+
+        c_rbtree_add(&controller->reload_tree, parent, slot, &reload->controller_node);
+        *reloadp = reload;
+        return 0;
+}
+
+/**
+ * controller_reload_completed() - XXX
+ */
+int controller_reload_completed(ControllerReload *reload) {
+        return error_fold(driver_reload_config_completed(&reload->controller->broker->bus, reload->sender_id, reload->sender_serial));
 }
 
 static int controller_listener_compare(CRBTree *t, void *k, CRBNode *rb) {
@@ -277,6 +344,31 @@ int controller_add_listener(Controller *controller,
 }
 
 /**
+ * controller_request_reload() - XXX
+ */
+int controller_request_reload(Controller *controller,
+                              User *sender_user,
+                              uint64_t sender_id,
+                              uint32_t sender_serial) {
+        _c_cleanup_(controller_reload_freep) ControllerReload *reload = NULL;
+        int r;
+
+        r = controller_reload_new(&reload, sender_user, controller);
+        if (r)
+                return error_trace(r);
+
+        reload->sender_id = sender_id;
+        reload->sender_serial = sender_serial;
+
+        r = controller_dbus_send_reload(controller, sender_user, reload->serial);
+        if (r)
+                return error_trace(r);
+
+        reload = NULL;
+        return 0;
+}
+
+/**
  * controller_find_name() - XXX
  */
 ControllerName *controller_find_name(Controller *controller, const char *path) {
@@ -295,5 +387,16 @@ ControllerListener *controller_find_listener(Controller *controller, const char 
                                                  controller_listener_compare,
                                                  path),
                               ControllerListener,
+                              controller_node);
+}
+
+/**
+ * controller_find_reload() - XXX
+ */
+ControllerReload *controller_find_reload(Controller *controller, uint32_t serial) {
+        return c_container_of(c_rbtree_find_node(&controller->reload_tree,
+                                                 controller_reload_compare,
+                                                 &serial),
+                              ControllerReload,
                               controller_node);
 }

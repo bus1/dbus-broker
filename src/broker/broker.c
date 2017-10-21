@@ -176,5 +176,20 @@ int broker_run(Broker *broker) {
 }
 
 int broker_update_environment(Broker *broker, const char * const *env, size_t n_env) {
-        return controller_dbus_send_environment(&broker->controller, env, n_env);
+        return error_fold(controller_dbus_send_environment(&broker->controller, env, n_env));
+}
+
+int broker_reload_config(Broker *broker, User *sender_user, uint64_t sender_id, uint32_t sender_serial) {
+        int r;
+
+        r = controller_request_reload(&broker->controller, sender_user, sender_id, sender_serial);
+        if (r) {
+                if (r == CONTROLLER_E_SERIAL_EXHAUSTED ||
+                    r == CONTROLLER_E_QUOTA)
+                        return BROKER_E_FORWARD_FAILED;
+
+                return error_fold(r);
+        }
+
+        return 0;
 }

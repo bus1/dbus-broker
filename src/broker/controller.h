@@ -12,18 +12,23 @@
 #include "bus/listener.h"
 #include "bus/policy.h"
 #include "dbus/connection.h"
+#include "util/user.h"
 
 typedef struct Broker Broker;
 typedef struct Bus Bus;
 typedef struct Controller Controller;
 typedef struct ControllerName ControllerName;
 typedef struct ControllerListener ControllerListener;
+typedef struct ControllerReload ControllerReload;
 typedef struct Message Message;
 
 enum {
         _CONTROLLER_E_SUCCESS,
 
         CONTROLLER_E_EOF,
+
+        CONTROLLER_E_SERIAL_EXHAUSTED,
+        CONTROLLER_E_QUOTA,
 
         CONTROLLER_E_PROTOCOL_VIOLATION,
 
@@ -34,6 +39,7 @@ enum {
         CONTROLLER_E_UNEXPECTED_INTERFACE,
         CONTROLLER_E_UNEXPECTED_METHOD,
         CONTROLLER_E_UNEXPECTED_SIGNATURE,
+        CONTROLLER_E_UNEXPECTED_REPLY,
 
         CONTROLLER_E_LISTENER_EXISTS,
         CONTROLLER_E_LISTENER_INVALID_FD,
@@ -60,18 +66,36 @@ struct ControllerListener {
         char path[];
 };
 
+struct ControllerReload {
+        Controller *controller;
+        UserCharge charge;
+        CRBNode controller_node;
+        uint64_t sender_id;
+        uint32_t sender_serial;
+        uint32_t serial;
+};
+
+#define CONTROLLER_RELOAD_NULL(_x) {                                                    \
+                .charge = USER_CHARGE_INIT,                                             \
+                .controller_node = (CRBNode)C_RBNODE_INIT((_x).controller_node),        \
+                .sender_id = ADDRESS_ID_INVALID,                                        \
+        }
+
 struct Controller {
         Broker *broker;
         char *seclabel;
         Connection connection;
         CRBTree name_tree;
         CRBTree listener_tree;
+        CRBTree reload_tree;
+        uint32_t serial;
 };
 
 #define CONTROLLER_NULL(_x) {                                                   \
                 .connection = CONNECTION_NULL((_x).connection),                 \
                 .name_tree = C_RBTREE_INIT,                                     \
                 .listener_tree = C_RBTREE_INIT,                                 \
+                .reload_tree = C_RBTREE_INIT,                                   \
         }
 
 /* names */
@@ -89,6 +113,12 @@ int controller_listener_set_policy(ControllerListener *listener, PolicyRegistry 
 
 C_DEFINE_CLEANUP(ControllerListener *, controller_listener_free);
 
+/* reload */
+ControllerReload *controller_reload_free(ControllerReload *reload);
+int controller_reload_completed(ControllerReload *reload);
+
+C_DEFINE_CLEANUP(ControllerReload *, controller_reload_free);
+
 /* controller */
 
 int controller_init(Controller *controller, Broker *broker, int controller_fd);
@@ -104,11 +134,17 @@ int controller_add_listener(Controller *controller,
                             const char *path,
                             int listener_fd,
                             PolicyRegistry *policy);
+int controller_request_reload(Controller *controller,
+                              User *user,
+                              uint64_t sender_id,
+                              uint32_t sender_serial);
 ControllerName *controller_find_name(Controller *controller, const char *path);
 ControllerListener *controller_find_listener(Controller *controller, const char *path);
+ControllerReload *controller_find_reload(Controller *controller, uint32_t serial);
 
 int controller_dbus_dispatch(Controller *controller, Message *message);
 int controller_dbus_send_activation(Controller *controller, const char *path);
+int controller_dbus_send_reload(Controller *controller, User *user, uint32_t serial);
 int controller_dbus_send_environment(Controller *controller, const char * const *env, size_t n_env);
 
 C_DEFINE_CLEANUP(Controller *, controller_deinit);

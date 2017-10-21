@@ -11,7 +11,14 @@
 #include "util/dispatch.h"
 #include "util/log.h"
 
+enum {
+        _BROKER_E_SUCCESS,
+
+        BROKER_E_FORWARD_FAILED,
+};
+
 typedef struct Broker Broker;
+typedef struct User User;
 
 struct Broker {
         Log log;
@@ -31,6 +38,7 @@ Broker *broker_free(Broker *broker);
 
 int broker_run(Broker *broker);
 int broker_update_environment(Broker *broker, const char * const *env, size_t n_env);
+int broker_reload_config(Broker *broker, User *sender_user, uint64_t sender_id, uint32_t sender_serial);
 
 C_DEFINE_CLEANUP(Broker *, broker_free);
 
