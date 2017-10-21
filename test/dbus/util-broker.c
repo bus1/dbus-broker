@@ -163,11 +163,11 @@ void util_fork_broker(sd_bus **busp, sd_event *event, int listener_fd, pid_t *pi
         r = sd_bus_new(&bus);
         assert(r >= 0);
 
-        r = sd_bus_attach_event(bus, event, SD_EVENT_PRIORITY_NORMAL);
-        assert(r >= 0);
-
         /* consumes the fd */
         r = sd_bus_set_fd(bus, pair[0], pair[0]);
+        assert(r >= 0);
+
+        r = sd_bus_attach_event(bus, event, SD_EVENT_PRIORITY_NORMAL);
         assert(r >= 0);
 
         r = sd_bus_start(bus);
