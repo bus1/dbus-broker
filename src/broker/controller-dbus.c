@@ -507,12 +507,29 @@ static int controller_dispatch_object(Controller *controller, uint32_t serial, c
         return CONTROLLER_E_UNEXPECTED_PATH;
 }
 
+static int controller_dispatch_reply(Controller *controller, uint32_t serial, const char *signature, Message *message) {
+        ControllerReload *reload;
+        int r;
+
+        reload = controller_find_reload(controller, serial);
+        if (!reload)
+                return CONTROLLER_E_UNEXPECTED_REPLY;
+
+        if (strcmp(signature, ""))
+                return CONTROLLER_E_UNEXPECTED_SIGNATURE;
+
+        r = controller_reload_completed(reload);
+        if (r)
+                return error_trace(r);
+
+        controller_reload_free(reload);
+
+        return 0;
+}
+
 int controller_dbus_dispatch(Controller *controller, Message *message) {
         Connection *connection = &controller->connection;
         int r;
-
-        if (message->header->type != DBUS_MESSAGE_TYPE_METHOD_CALL)
-                return CONTROLLER_E_PROTOCOL_VIOLATION;
 
         r = message_parse_metadata(message);
         if (r > 0)
@@ -520,15 +537,29 @@ int controller_dbus_dispatch(Controller *controller, Message *message) {
         else if (r < 0)
                 return error_fold(r);
 
-        r = controller_dispatch_object(controller,
-                                       message_read_serial(message),
-                                       message->metadata.fields.interface,
-                                       message->metadata.fields.member,
-                                       message->metadata.fields.path,
-                                       message->metadata.fields.signature,
-                                       message);
+        switch (message->header->type) {
+        case DBUS_MESSAGE_TYPE_METHOD_CALL:
+                r = controller_dispatch_object(controller,
+                                               message_read_serial(message),
+                                               message->metadata.fields.interface,
+                                               message->metadata.fields.member,
+                                               message->metadata.fields.path,
+                                               message->metadata.fields.signature,
+                                               message);
+                break;
+        case DBUS_MESSAGE_TYPE_METHOD_RETURN:
+                r = controller_dispatch_reply(controller,
+                                              message->metadata.fields.reply_serial,
+                                              message->metadata.fields.signature,
+                                              message);
+                break;
+        default:
+                return CONTROLLER_E_PROTOCOL_VIOLATION;
+        }
+
         switch (r) {
         case CONTROLLER_E_INVALID_MESSAGE:
+        case CONTROLLER_E_UNEXPECTED_REPLY:
                 return CONTROLLER_E_PROTOCOL_VIOLATION;
         case CONTROLLER_E_UNEXPECTED_MESSAGE_TYPE:
         case CONTROLLER_E_UNEXPECTED_PATH:
@@ -663,6 +694,50 @@ int controller_dbus_send_environment(Controller *controller, const char * const 
         r = connection_queue(&controller->connection, NULL, message);
         if (r)
                 return error_fold(r);
+
+        return 0;
+}
+
+/**
+ * controller_dbus_send_reload() - XXX
+ */
+int controller_dbus_send_reload(Controller *controller, User *user, uint32_t serial) {
+        static const CDVarType type[] = {
+                C_DVAR_T_INIT(
+                        CONTROLLER_T_MESSAGE(
+                                C_DVAR_T_TUPLE0
+                        )
+                )
+        };
+        _c_cleanup_(c_dvar_deinit) CDVar var = C_DVAR_INIT;
+        _c_cleanup_(message_unrefp) Message *message = NULL;
+        _c_cleanup_(c_freep) void *data = NULL;
+        size_t n_data;
+        int r;
+
+        c_dvar_begin_write(&var, type, 1);
+        c_dvar_write(&var, "((yyyyuu[(y<o>)(y<s>)(y<s>)])())",
+                     c_dvar_is_big_endian(&var) ? 'B' : 'l', DBUS_MESSAGE_TYPE_METHOD_CALL, 0, 1, 0, serial,
+                     DBUS_MESSAGE_FIELD_PATH, c_dvar_type_o, "/org/bus1/DBus/Launcher",
+                     DBUS_MESSAGE_FIELD_INTERFACE, c_dvar_type_s, "org.bus1.DBus.Launcher",
+                     DBUS_MESSAGE_FIELD_MEMBER, c_dvar_type_s, "ReloadConfig");
+
+        r = c_dvar_end_write(&var, &data, &n_data);
+        if (r)
+                return error_origin(r);
+
+        r = message_new_outgoing(&message, data, n_data);
+        if (r)
+                return error_fold(r);
+        data = NULL;
+
+        r = connection_queue(&controller->connection, user, message);
+        if (r) {
+                if (r == CONNECTION_E_QUOTA)
+                        return CONTROLLER_E_QUOTA;
+
+                return error_fold(r);
+        }
 
         return 0;
 }

@@ -265,6 +265,7 @@ static const char *driver_error_to_string(int r) {
                 [DRIVER_E_UNEXPECTED_METHOD]                    = "Invalid method call",
                 [DRIVER_E_UNEXPECTED_SIGNATURE]                 = "Invalid signature for method",
                 [DRIVER_E_UNEXPECTED_REPLY]                     = "No pending reply with that serial",
+                [DRIVER_E_FORWARD_FAILED]                       = "Request could not be forwarded to the parent process",
                 [DRIVER_E_QUOTA]                                = "Sending user's quota exceeded",
                 [DRIVER_E_UNEXPECTED_FLAGS]                     = "Invalid flags",
                 [DRIVER_E_UNEXPECTED_ENVIRONMENT_UPDATE]        = "User is not authorized to update environment variables",
@@ -1354,6 +1355,48 @@ static int driver_method_remove_match(Peer *peer, CDVar *in_v, uint32_t serial, 
         return 0;
 }
 
+int driver_reload_config_completed(Bus *bus, uint64_t sender_id, uint32_t reply_serial) {
+        Peer *sender;
+        int r;
+
+        sender = peer_registry_find_peer(&bus->peers, sender_id);
+        if (sender) {
+                _c_cleanup_(c_dvar_deinit) CDVar var = C_DVAR_INIT;
+
+                c_dvar_begin_write(&var, driver_type_out_unit, 1);
+                c_dvar_write(&var, "(");
+                driver_write_reply_header(&var, sender, reply_serial, driver_type_out_unit);
+                c_dvar_write(&var, "()");
+
+                r = driver_send_reply(sender, &var, reply_serial);
+                if (r)
+                        return error_trace(r);
+        }
+
+        return 0;
+}
+
+static int driver_method_reload_config(Peer *peer, CDVar *in_v, uint32_t serial, CDVar *out_v) {
+        int r;
+
+        /* verify the input argument */
+        c_dvar_read(in_v, "()");
+
+        r = driver_end_read(in_v);
+        if (r)
+                return error_trace(r);
+
+        r = broker_reload_config(BROKER(peer->bus), peer->user, peer->id, serial);
+        if (r) {
+                if (r == BROKER_E_FORWARD_FAILED)
+                        return DRIVER_E_FORWARD_FAILED;
+
+                return error_fold(r);
+        }
+
+        return 0;
+}
+
 static int driver_method_get_id(Peer *peer, CDVar *in_v, uint32_t serial, CDVar *out_v) {
         char buffer[sizeof(peer->bus->guid) * 2 + 1] = {};
         int r;
@@ -1625,6 +1668,7 @@ static int driver_dispatch_method(Peer *peer, uint32_t serial, const char *metho
                 { "GetConnectionSELinuxSecurityContext",        NULL,                           driver_method_get_connection_selinux_security_context,          driver_type_in_s,       driver_type_out_ay },
                 { "AddMatch",                                   NULL,                           driver_method_add_match,                                        driver_type_in_s,       driver_type_out_unit },
                 { "RemoveMatch",                                NULL,                           driver_method_remove_match,                                     driver_type_in_s,       driver_type_out_unit },
+                { "ReloadConfig",                               NULL,                           driver_method_reload_config,                                    c_dvar_type_unit,       driver_type_out_unit },
                 { "GetId",                                      NULL,                           driver_method_get_id,                                           c_dvar_type_unit,       driver_type_out_s },
                 { "Introspect",                                 NULL,                           driver_method_introspect,                                       c_dvar_type_unit,       driver_type_out_s },
                 { "BecomeMonitor",                              "/org/freedesktop/DBus",        driver_method_become_monitor,                                   driver_type_in_asu,     driver_type_out_unit },
@@ -1876,6 +1920,7 @@ int driver_dispatch(Peer *peer, Message *message) {
         case DRIVER_E_NAME_INVALID:
                 r = driver_send_error(peer, message_read_serial(message), "org.freedesktop.DBus.Error.InvalidArgs", driver_error_to_string(r));
                 break;
+        case DRIVER_E_FORWARD_FAILED:
         case DRIVER_E_QUOTA:
                 r = driver_send_error(peer, message_read_serial(message), "org.freedesktop.DBus.Error.LimitsExceeded", driver_error_to_string(r));
                 break;

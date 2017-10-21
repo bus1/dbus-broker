@@ -31,6 +31,8 @@ enum {
         DRIVER_E_UNEXPECTED_SIGNATURE,
         DRIVER_E_UNEXPECTED_REPLY,
 
+        DRIVER_E_FORWARD_FAILED,
+
         DRIVER_E_QUOTA,
 
         DRIVER_E_UNEXPECTED_FLAGS,
@@ -60,6 +62,7 @@ enum {
 };
 
 int driver_name_activation_failed(Bus *bus, Activation *activation);
+int driver_reload_config_completed(Bus *bus, uint64_t sender_id, uint32_t reply_serial);
 
 int driver_dispatch(Peer *peer, Message *message);
 void driver_matches_cleanup(MatchOwner *owner, Bus *bus, User *user);

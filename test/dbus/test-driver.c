@@ -1257,6 +1257,27 @@ static void test_introspect(void) {
         util_broker_terminate(broker);
 }
 
+static void test_reload_config(void) {
+        _c_cleanup_(util_broker_freep) Broker *broker = NULL;
+        int r;
+
+        util_broker_new(&broker);
+        util_broker_spawn(broker);
+
+        /* call ReloadConfig and block until it succeeds */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+
+                util_broker_connect(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "ReloadConfig", NULL, NULL,
+                                       "");
+                assert(r >= 0);
+        }
+
+        util_broker_terminate(broker);
+}
 static void test_become_monitor(void) {
         _c_cleanup_(util_broker_freep) Broker *broker = NULL;
         int r;
@@ -1298,6 +1319,7 @@ int main(int argc, char **argv) {
         test_get_connection_unix_process_id();
         test_get_adt_audit_session_data();
         test_get_id();
+        test_reload_config();
         test_introspect();
         test_become_monitor();
 

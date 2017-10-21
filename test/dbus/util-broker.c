@@ -119,9 +119,41 @@ static int util_append_policy(sd_bus_message *m) {
         return 0;
 }
 
+static int util_method_reload_config(sd_bus_message *message, void *userdata, sd_bus_error *error) {
+        sd_bus *bus;
+        _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *message2 = NULL;
+        int r;
+
+        bus = sd_bus_message_get_bus(message);
+
+        r = sd_bus_message_new_method_call(bus,
+                                           &message2,
+                                           NULL,
+                                           "/org/bus1/DBus/Listener/0",
+                                           "org.bus1.DBus.Listener",
+                                           "SetPolicy");
+        assert(r >= 0);
+
+        r = util_append_policy(message2);
+        assert(r >= 0);
+
+        r = sd_bus_call(bus, message2, -1, NULL, NULL);
+        assert(r >= 0);
+
+        return sd_bus_reply_method_return(message, NULL);
+}
+
+const sd_bus_vtable util_vtable[] = {
+        SD_BUS_VTABLE_START(0),
+
+        SD_BUS_METHOD("ReloadConfig", NULL, NULL, util_method_reload_config, 0),
+
+        SD_BUS_VTABLE_END
+};
+
 void util_fork_broker(sd_bus **busp, sd_event *event, int listener_fd, pid_t *pidp) {
         _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
-        _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *message = NULL, *message2 = NULL;
+        _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *message = NULL;
         _c_cleanup_(c_freep) char *fdstr = NULL;
         int r, pair[2];
         pid_t pid;
@@ -170,6 +202,9 @@ void util_fork_broker(sd_bus **busp, sd_event *event, int listener_fd, pid_t *pi
         r = sd_bus_attach_event(bus, event, SD_EVENT_PRIORITY_NORMAL);
         assert(r >= 0);
 
+        r = sd_bus_add_object_vtable(bus, NULL, "/org/bus1/DBus/Launcher", "org.bus1.DBus.Launcher", util_vtable, NULL);
+        assert(r >= 0);
+
         r = sd_bus_start(bus);
         assert(r >= 0);
 
@@ -191,20 +226,6 @@ void util_fork_broker(sd_bus **busp, sd_event *event, int listener_fd, pid_t *pi
         assert(r >= 0);
 
         r = sd_bus_call(bus, message, -1, NULL, NULL);
-        assert(r >= 0);
-
-        r = sd_bus_message_new_method_call(bus,
-                                           &message2,
-                                           NULL,
-                                           "/org/bus1/DBus/Listener/0",
-                                           "org.bus1.DBus.Listener",
-                                           "SetPolicy");
-        assert(r >= 0);
-
-        r = util_append_policy(message2);
-        assert(r >= 0);
-
-        r = sd_bus_call(bus, message2, -1, NULL, NULL);
         assert(r >= 0);
 
         *busp = bus;
