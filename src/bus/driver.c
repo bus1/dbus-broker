@@ -391,7 +391,7 @@ static int driver_send_error(Peer *receiver, uint32_t serial, const char *error,
         };
         _c_cleanup_(c_dvar_deinit) CDVar var = C_DVAR_INIT;
         _c_cleanup_(message_unrefp) Message *message = NULL;
-        void *data;
+        _c_cleanup_(c_freep) void *data = NULL;
         size_t n_data;
         int r;
 
@@ -417,6 +417,7 @@ static int driver_send_error(Peer *receiver, uint32_t serial, const char *error,
         r = message_new_outgoing(&message, data, n_data);
         if (r)
                 return error_fold(r);
+        data = NULL;
 
         r = driver_send_unicast(receiver, message);
         if (r)
@@ -427,7 +428,7 @@ static int driver_send_error(Peer *receiver, uint32_t serial, const char *error,
 
 static int driver_send_reply(Peer *peer, CDVar *var, uint32_t serial) {
         _c_cleanup_(message_unrefp) Message *message = NULL;
-        void *data;
+        _c_cleanup_(c_freep) void *data = NULL;
         size_t n_data;
         int r;
 
@@ -451,6 +452,7 @@ static int driver_send_reply(Peer *peer, CDVar *var, uint32_t serial) {
         r = message_new_outgoing(&message, data, n_data);
         if (r)
                 return error_fold(r);
+        data = NULL;
 
         r = driver_send_unicast(peer, message);
         if (r)
@@ -471,7 +473,7 @@ static int driver_notify_name_acquired(Peer *peer, const char *name) {
         };
         _c_cleanup_(c_dvar_deinit) CDVar var = C_DVAR_INIT;
         _c_cleanup_(message_unrefp) Message *message = NULL;
-        void *data;
+        _c_cleanup_(c_freep) void *data = NULL;
         size_t n_data;
         int r;
 
@@ -487,6 +489,7 @@ static int driver_notify_name_acquired(Peer *peer, const char *name) {
         r = message_new_outgoing(&message, data, n_data);
         if (r)
                 return error_fold(r);
+        data = NULL;
 
         r = driver_send_unicast(peer, message);
         if (r)
@@ -507,7 +510,7 @@ static int driver_notify_name_lost(Peer *peer, const char *name) {
         };
         _c_cleanup_(c_dvar_deinit) CDVar var = C_DVAR_INIT;
         _c_cleanup_(message_unrefp) Message *message = NULL;
-        void *data;
+        _c_cleanup_(c_freep) void *data = NULL;
         size_t n_data;
         int r;
 
@@ -523,6 +526,7 @@ static int driver_notify_name_lost(Peer *peer, const char *name) {
         r = message_new_outgoing(&message, data, n_data);
         if (r)
                 return error_fold(r);
+        data = NULL;
 
         r = driver_send_unicast(peer, message);
         if (r)
@@ -558,7 +562,7 @@ static int driver_notify_name_owner_changed(Bus *bus, const char *name, const ch
         };
         _c_cleanup_(c_dvar_deinit) CDVar var = C_DVAR_INIT;
         _c_cleanup_(message_unrefp) Message *message = NULL;
-        void *data;
+        _c_cleanup_(c_freep) void *data = NULL;
         size_t n_data;
         int r;
 
@@ -574,6 +578,7 @@ static int driver_notify_name_owner_changed(Bus *bus, const char *name, const ch
         r = message_new_outgoing(&message, data, n_data);
         if (r)
                 return error_fold(r);
+        data = NULL;
 
         r = driver_monitor(bus, NULL, message);
         if (r)
