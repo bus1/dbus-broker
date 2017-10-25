@@ -142,7 +142,7 @@ static void controller_write_reply_header(CDVar *var, uint32_t serial, const CDV
 static int controller_send_error(Connection *connection, uint32_t serial, const char *error) {
         _c_cleanup_(c_dvar_deinit) CDVar var = C_DVAR_INIT;
         _c_cleanup_(message_unrefp) Message *message = NULL;
-        void *data;
+        _c_cleanup_(c_freep) void *data = NULL;
         size_t n_data;
         int r;
 
@@ -162,6 +162,7 @@ static int controller_send_error(Connection *connection, uint32_t serial, const 
         r = message_new_outgoing(&message, data, n_data);
         if (r)
                 return error_fold(r);
+        data = NULL;
 
         r = connection_queue(connection, NULL, message);
         if (r) {
@@ -374,7 +375,7 @@ static int controller_method_name_reset(Controller *controller, const char *path
 static int controller_handle_method(const ControllerMethod *method, Controller *controller, const char *path, uint32_t serial, const char *signature_in, Message *message_in) {
         _c_cleanup_(c_dvar_deinit) CDVar var_in = C_DVAR_INIT, var_out = C_DVAR_INIT;
         _c_cleanup_(message_unrefp) Message *message_out = NULL;
-        void *data;
+        _c_cleanup_(c_freep) void *data = NULL;
         size_t n_data;
         int r;
 
@@ -424,6 +425,7 @@ static int controller_handle_method(const ControllerMethod *method, Controller *
         r = message_new_outgoing(&message_out, data, n_data);
         if (r)
                 return error_fold(r);
+        data = NULL;
 
         r = connection_queue(&controller->connection, NULL, message_out);
         if (r) {
@@ -585,8 +587,8 @@ int controller_dbus_send_activation(Controller *controller, const char *path) {
         };
         _c_cleanup_(c_dvar_deinit) CDVar var = C_DVAR_INIT;
         _c_cleanup_(message_unrefp) Message *message = NULL;
+        _c_cleanup_(c_freep) void *data = NULL;
         size_t n_data;
-        void *data;
         int r;
 
         c_dvar_begin_write(&var, type, 1);
@@ -603,6 +605,7 @@ int controller_dbus_send_activation(Controller *controller, const char *path) {
         r = message_new_outgoing(&message, data, n_data);
         if (r)
                 return error_fold(r);
+        data = NULL;
 
         r = connection_queue(&controller->connection, NULL, message);
         if (r)
@@ -631,8 +634,8 @@ int controller_dbus_send_environment(Controller *controller, const char * const 
         };
         _c_cleanup_(c_dvar_deinit) CDVar var = C_DVAR_INIT;
         _c_cleanup_(message_unrefp) Message *message = NULL;
+        _c_cleanup_(c_freep) void *data = NULL;
         size_t i, n_data;
-        void *data;
         int r;
 
         c_dvar_begin_write(&var, type, 1);
@@ -655,6 +658,7 @@ int controller_dbus_send_environment(Controller *controller, const char * const 
         r = message_new_outgoing(&message, data, n_data);
         if (r)
                 return error_fold(r);
+        data = NULL;
 
         r = connection_queue(&controller->connection, NULL, message);
         if (r)
