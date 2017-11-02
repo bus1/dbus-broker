@@ -48,6 +48,7 @@ struct Service {
         char *unit;
         char **exec;
         size_t n_exec;
+        uint64_t instance;
         char id[];
 };
 
@@ -499,7 +500,7 @@ static int manager_start_transient_unit(Manager *manager, Service *service) {
         if (main_arg_verbose)
                 fprintf(stderr, "Activation request for '%s'\n", service->name);
 
-        r = asprintf(&unit, "dbus-%s.service", service->name);
+        r = asprintf(&unit, "dbus-%s@%"PRIu64".service", service->name, service->instance++);
         if (r < 0)
                 return error_origin(-errno);
 
@@ -575,6 +576,34 @@ static int manager_start_transient_unit(Manager *manager, Service *service) {
                                 }
 
                                 r = sd_bus_message_close_container(method_call);
+                                if (r < 0)
+                                        return error_origin(r);
+                        }
+
+                        r = sd_bus_message_close_container(method_call);
+                        if (r < 0)
+                                return error_origin(r);
+                }
+
+                r = sd_bus_message_close_container(method_call);
+                if (r < 0)
+                        return error_origin(r);
+
+                r = sd_bus_message_open_container(method_call, 'r', "sv");
+                if (r < 0)
+                        return error_origin(r);
+
+                {
+                        r = sd_bus_message_append(method_call, "s", "KillMode");
+                        if (r < 0)
+                                return error_origin(r);
+
+                        r = sd_bus_message_open_container(method_call, 'v', "s");
+                        if (r < 0)
+                                return error_origin(r);
+
+                        {
+                                r = sd_bus_message_append(method_call, "s", "process");
                                 if (r < 0)
                                         return error_origin(r);
                         }
