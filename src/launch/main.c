@@ -1419,6 +1419,8 @@ static int run(void) {
                         r = asprintf(&listen_path, "/var/run/user/%u/bus", getuid());
                 if (r < 0)
                         return error_origin(-ENOMEM);
+
+                path = listen_path;
         } else if (!strcmp(main_arg_scope, "system")) {
                 path = "/var/run/dbus/system_bus_socket";
         } else {
