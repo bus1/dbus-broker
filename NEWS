@@ -1,5 +1,33 @@
 dbus-broker - Linux D-Bus Message Broker
 
+CHANGES WITH 8:
+
+        * The launcher now uses instantiated systemd template units when
+          activating a service that has no associated systemd service file.
+          This allows services to stick around after being deactivated. It is
+          closer in behavior to the original service activation of dbus-daemon,
+          while still keeping them out of the dbus-broker environment.
+
+        * Audit is now only enabled when --audit is passed to dbus-broker. By
+          default, the launcher will pass it only for the system bus.
+
+        * The launcher now supports configuration reloading. When triggered, it
+          forces the launcher to reload the bus configuration and all service
+          files, and adjust the broker state. Note that not all modifiers can
+          be adjusted at runtime (e.g., you cannot change the user the broker
+          runs as). The set of modifiers that can be adjusted at runtime is the
+          same set that dbus-daemon(1) supports.
+          The reload operation can be triggered via a direct SIGHUP to the
+          launcher, or via the ReloadConfig() call on org.freedesktop.DBus.
+
+        * The AddListener() call on org.bus1.DBus.Broker no longer accepts the
+          policy filesystem path. It was a no-op since dbus-broker supports
+          parsing policies in the launcher.
+
+        Contributions from: David Herrmann, Tom Gundersen
+
+        - Tübingen, 2017-11-07
+
 CHANGES WITH 7:
 
         * More bugfixes for 32bit architectures.
