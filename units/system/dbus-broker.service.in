@@ -10,6 +10,7 @@ Sockets=dbus.socket
 OOMScoreAdjust=-900
 LimitNOFILE=16384
 ExecStart=@bindir@/dbus-broker-launch -v --scope system --listen inherit
+ExecReload=@bindir@/busctl call org.freedesktop.DBus /org/freedesktop/DBus org.freedesktop.DBus ReloadConfig
 
 [Install]
 Alias=dbus.service
