@@ -6,6 +6,7 @@ Before=basic.target shutdown.target
 Conflicts=shutdown.target
 
 [Service]
+Type=notify
 Sockets=dbus.socket
 ExecStart=@bindir@/dbus-broker-launch -v --scope user --listen inherit
 ExecReload=@bindir@/busctl --user call org.freedesktop.DBus /org/freedesktop/DBus org.freedesktop.DBus ReloadConfig

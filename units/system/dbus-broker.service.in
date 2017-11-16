@@ -6,6 +6,7 @@ Before=basic.target shutdown.target
 Conflicts=shutdown.target
 
 [Service]
+Type=notify
 Sockets=dbus.socket
 OOMScoreAdjust=-900
 LimitNOFILE=16384

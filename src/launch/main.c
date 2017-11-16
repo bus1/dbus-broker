@@ -1289,6 +1289,8 @@ static int manager_run(Manager *manager, bool audit) {
         if (r < 0)
                 return error_origin(r);
 
+        (void) sd_notify(0, "READY=1");
+
         r = sd_event_loop(manager->event);
         if (r < 0)
                 return error_origin(r);
