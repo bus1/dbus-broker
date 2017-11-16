@@ -1134,6 +1134,8 @@ static int manager_reload_config(Manager *manager) {
         Service *service;
         int r;
 
+        (void) sd_notify(0, "RELOADING=1");
+
         c_rbtree_for_each_entry(service, &manager->services, rb)
                 service->state = SERVICE_STATE_DEFUNCT;
 
@@ -1156,6 +1158,8 @@ static int manager_reload_config(Manager *manager) {
         r = manager_add_services(manager);
         if (r)
                 return error_trace(r);
+
+        (void) sd_notify(0, "READY=1");
 
         return 0;
 }
@@ -1289,7 +1293,12 @@ static int manager_run(Manager *manager, bool audit) {
         if (r < 0)
                 return error_origin(r);
 
+        (void) sd_notify(0, "READY=1");
+
         r = sd_event_loop(manager->event);
+
+        (void) sd_notify(0, "STOPPING=1");
+
         if (r < 0)
                 return error_origin(r);
         else if (r > 0)
