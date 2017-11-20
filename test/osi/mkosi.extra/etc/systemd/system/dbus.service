@@ -1,17 +1,1 @@
-[Unit]
-Description=D-Bus System Message Bus
-Documentation=man:dbus-daemon(1)
-Requires=dbus.socket
-
-[Service]
-OOMScoreAdjust=-900
-
-# dbus-broker(1) Exec* lines:
-ExecStart=/usr/bin/dbus-broker-launch -v --scope system --listen inherit
-
-# valgrind dbus-broker(1) Exec* lines:
-#ExecStart=/usr/bin/valgrind --trace-children=yes --leak-check=full /usr/bin/dbus-broker-launch -v --scope system --listen inherit
-
-# dbus-daemon(1) Exec* lines:
-#ExecStart=/usr/bin/dbus-daemon --system --address=systemd: --nofork --nopidfile --systemd-activation
-#ExecReload=/usr/bin/dbus-send --print-reply --system --type=method_call --dest=org.freedesktop.DBus / org.freedesktop.DBus.ReloadConfig
+/usr/lib/systemd/system/dbus-broker.service

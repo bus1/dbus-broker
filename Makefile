@@ -84,7 +84,10 @@ test:
 .PHONY: test
 
 osi:
-	mkosi -C test/osi/
+	mkosi \
+		-C test/osi/ \
+		--build-sources "../../" \
+		--force
 .PHONY: osi
 
 run:

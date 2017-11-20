@@ -6,8 +6,12 @@ Format=directory
 Output=rootfs
 
 [Packages]
-#Cache=/var/cache/pacman/pkg/
 Packages=
-        openssh
+        base-devel
         htop
+        meson
+        ninja
+        openssh
+        python-docutils
         valgrind
+        xfsprogs
