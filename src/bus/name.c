@@ -60,7 +60,7 @@ static NameOwnership *name_ownership_free(NameOwnership *ownership) {
         assert(!c_list_is_linked(&ownership->name_link));
 
         user_charge_deinit(&ownership->charge);
-        c_rbtree_remove_init(&ownership->owner->ownership_tree, &ownership->owner_node);
+        c_rbnode_unlink_init(&ownership->owner_node);
         name_unref(ownership->name);
         free(ownership);
 
@@ -228,7 +228,7 @@ void name_free(_Atomic unsigned long *n_refs, void *userdata) {
         assert(!name->activation);
 
         match_registry_deinit(&name->matches);
-        c_rbtree_remove_init(&name->registry->name_tree, &name->registry_node);
+        c_rbnode_unlink_init(&name->registry_node);
         free(name);
 }
 

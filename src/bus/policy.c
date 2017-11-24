@@ -81,7 +81,7 @@ static PolicyBatchName *policy_batch_name_free(PolicyBatchName *name) {
         while ((xmit = c_list_first_entry(&name->send_unindexed, PolicyXmit, batch_link)))
                 policy_xmit_free(xmit);
 
-        c_rbtree_remove_init(&name->batch->name_tree, &name->batch_node);
+        c_rbnode_unlink_init(&name->batch_node);
         free(name);
 
         return NULL;
@@ -273,7 +273,7 @@ static PolicyRegistryNode *policy_registry_node_free(PolicyRegistryNode *node) {
         if (!node)
                 return NULL;
 
-        c_rbtree_remove_init(node->registry_tree, &node->registry_node);
+        c_rbnode_unlink_init(&node->registry_node);
         policy_batch_unref(node->batch);
         free(node);
 
@@ -282,7 +282,7 @@ static PolicyRegistryNode *policy_registry_node_free(PolicyRegistryNode *node) {
 
 C_DEFINE_CLEANUP(PolicyRegistryNode *, policy_registry_node_free);
 
-static int policy_registry_node_new(PolicyRegistryNode **nodep, CRBTree *tree, uint32_t uidgid_start, uint32_t uidgid_end) {
+static int policy_registry_node_new(PolicyRegistryNode **nodep, uint32_t uidgid_start, uint32_t uidgid_end) {
         _c_cleanup_(policy_registry_node_freep) PolicyRegistryNode *node = NULL;
         int r;
 
@@ -293,7 +293,6 @@ static int policy_registry_node_new(PolicyRegistryNode **nodep, CRBTree *tree, u
         *node = (PolicyRegistryNode)POLICY_REGISTRY_NODE_NULL(*node);
         node->index.uidgid_start = uidgid_start;
         node->index.uidgid_end = uidgid_end;
-        node->registry_tree = tree;
 
         r = policy_batch_new(&node->batch);
         if (r)
@@ -393,7 +392,7 @@ static int policy_registry_at_uidgid(CRBTree *tree, PolicyRegistryNode **nodep, 
                                   &index,
                                   &parent);
         if (slot) {
-                r = policy_registry_node_new(&node, tree, uidgid_start, uidgid_end);
+                r = policy_registry_node_new(&node, uidgid_start, uidgid_end);
                 if (r)
                         return error_trace(r);
 

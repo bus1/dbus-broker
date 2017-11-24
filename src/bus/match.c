@@ -366,7 +366,7 @@ static MatchRule *match_rule_free(MatchRule *rule) {
         match_keys_deinit(&rule->keys);
         user_charge_deinit(&rule->charge[1]);
         user_charge_deinit(&rule->charge[0]);
-        c_rbtree_remove_init(&rule->owner->rule_tree, &rule->owner_node);
+        c_rbnode_unlink_init(&rule->owner_node);
         match_rule_unlink(rule);
         free(rule);
 

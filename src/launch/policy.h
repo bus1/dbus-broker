@@ -72,7 +72,6 @@ struct PolicyNodeIndex {
 
 struct PolicyNode {
         PolicyNodeIndex index;
-        CRBTree *policy_tree;
         CRBNode policy_node;
 
         CList connect_list;
