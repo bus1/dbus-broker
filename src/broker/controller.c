@@ -270,10 +270,10 @@ void controller_deinit(Controller *controller) {
         ControllerListener *listener, *listener_safe;
         ControllerName *name, *name_safe;
 
-        c_rbtree_for_each_entry_unlink(name, name_safe, &controller->name_tree, controller_node)
+        c_rbtree_for_each_entry_safe_postorder_unlink(name, name_safe, &controller->name_tree, controller_node)
                 controller_name_free(name);
 
-        c_rbtree_for_each_entry_unlink(listener, listener_safe, &controller->listener_tree, controller_node)
+        c_rbtree_for_each_entry_safe_postorder_unlink(listener, listener_safe, &controller->listener_tree, controller_node)
                 controller_listener_free(listener);
 
         connection_deinit(&controller->connection);

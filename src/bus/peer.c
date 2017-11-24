@@ -771,7 +771,7 @@ void peer_registry_flush(PeerRegistry *registry) {
         Peer *peer, *safe;
         int r;
 
-        c_rbtree_for_each_entry_unlink(peer, safe, &registry->peer_tree, registry_node) {
+        c_rbtree_for_each_entry_safe_postorder_unlink(peer, safe, &registry->peer_tree, registry_node) {
                 r = driver_goodbye(peer, true);
                 assert(!r); /* can not fail in silent mode */
                 peer_free(peer);

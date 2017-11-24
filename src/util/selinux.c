@@ -114,7 +114,7 @@ static void bus_selinux_registry_free(_Atomic unsigned long *n_refs, void *userd
         BusSELinuxRegistry *registry = c_container_of(n_refs, BusSELinuxRegistry, n_refs);
         BusSELinuxName *name, *name_safe;
 
-        c_rbtree_for_each_entry_unlink(name, name_safe, &registry->names, rb)
+        c_rbtree_for_each_entry_safe_postorder_unlink(name, name_safe, &registry->names, rb)
                 bus_selinux_name_free(name);
 
         free(registry);
