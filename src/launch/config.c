@@ -174,8 +174,8 @@ ConfigNode *config_node_free(ConfigNode *node) {
         if (node->parent)
                 --node->parent->n_children;
 
-        c_list_unlink_init(&node->include_link);
-        c_list_unlink_init(&node->root_link);
+        c_list_unlink(&node->include_link);
+        c_list_unlink(&node->root_link);
         free(node);
 
         return NULL;
@@ -1218,7 +1218,7 @@ int config_parser_read(ConfigParser *parser, ConfigRoot **rootp, const char *pat
          * fill in all the contents of the include.
          */
         while ((node = c_list_first_entry(&root->include_list, ConfigNode, include_link))) {
-                c_list_unlink_init(&node->include_link);
+                c_list_unlink(&node->include_link);
 
                 r = config_parser_include(parser, root, node);
                 if (r)

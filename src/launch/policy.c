@@ -87,7 +87,7 @@ PolicyRecord *policy_record_free(PolicyRecord *record) {
         if (!record)
                 return NULL;
 
-        c_list_unlink_init(&record->link);
+        c_list_unlink(&record->link);
         free(record);
 
         return NULL;
@@ -135,7 +135,7 @@ static PolicyNode *policy_node_free(PolicyNode *node) {
         while ((record = c_list_first_entry(&node->connect_list, PolicyRecord, link)))
                 policy_record_free(record);
 
-        c_rbnode_unlink_init(&node->policy_node);
+        c_rbnode_unlink(&node->policy_node);
         free(node);
 
         return NULL;

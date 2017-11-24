@@ -34,7 +34,7 @@ ControllerName *controller_name_free(ControllerName *name) {
                 return NULL;
 
         activation_deinit(&name->activation);
-        c_rbnode_unlink_init(&name->controller_node);
+        c_rbnode_unlink(&name->controller_node);
         free(name);
 
         return NULL;
@@ -101,7 +101,7 @@ ControllerReload *controller_reload_free(ControllerReload *reload) {
                 return NULL;
 
         user_charge_deinit(&reload->charge);
-        c_rbnode_unlink_init(&reload->controller_node);
+        c_rbnode_unlink(&reload->controller_node);
         free(reload);
 
         return NULL;
@@ -164,7 +164,7 @@ ControllerListener *controller_listener_free(ControllerListener *listener) {
                 return NULL;
 
         listener_deinit(&listener->listener);
-        c_rbnode_unlink_init(&listener->controller_node);
+        c_rbnode_unlink(&listener->controller_node);
         free(listener);
 
         return NULL;

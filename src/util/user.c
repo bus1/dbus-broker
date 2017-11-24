@@ -44,7 +44,7 @@ static void user_usage_link(UserUsage *usage, CRBNode *parent, CRBNode **slot) {
 }
 
 static void user_usage_unlink(UserUsage *usage) {
-        c_rbnode_unlink_init(&usage->user_node);
+        c_rbnode_unlink(&usage->user_node);
         --usage->user->n_usages;
 }
 
@@ -147,7 +147,7 @@ static void user_link(User *user, CRBNode *parent, CRBNode **slot) {
 }
 
 static void user_unlink(User *user) {
-        c_rbnode_unlink_init(&user->registry_node);
+        c_rbnode_unlink(&user->registry_node);
 }
 
 static int user_new(User **userp, UserRegistry *registry, uid_t uid) {

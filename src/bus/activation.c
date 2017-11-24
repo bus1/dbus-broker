@@ -18,7 +18,7 @@ ActivationRequest *activation_request_free(ActivationRequest *request) {
         if (!request)
                 return NULL;
 
-        c_list_unlink_init(&request->link);
+        c_list_unlink(&request->link);
         user_charge_deinit(&request->charge);
         free(request);
 
@@ -34,7 +34,7 @@ ActivationMessage *activation_message_free(ActivationMessage *message) {
         name_snapshot_free(message->senders_names);
         policy_snapshot_free(message->senders_policy);
         message_unref(message->message);
-        c_list_unlink_init(&message->link);
+        c_list_unlink(&message->link);
         user_charge_deinit(&message->charges[1]);
         user_charge_deinit(&message->charges[0]);
         user_unref(message->user);
