@@ -17,7 +17,7 @@ static PolicyXmit *policy_xmit_free(PolicyXmit *xmit) {
         if (!xmit)
                 return NULL;
 
-        c_list_unlink_init(&xmit->batch_link);
+        c_list_unlink(&xmit->batch_link);
         free(xmit);
 
         return NULL;
@@ -81,7 +81,7 @@ static PolicyBatchName *policy_batch_name_free(PolicyBatchName *name) {
         while ((xmit = c_list_first_entry(&name->send_unindexed, PolicyXmit, batch_link)))
                 policy_xmit_free(xmit);
 
-        c_rbnode_unlink_init(&name->batch_node);
+        c_rbnode_unlink(&name->batch_node);
         free(name);
 
         return NULL;
@@ -273,7 +273,7 @@ static PolicyRegistryNode *policy_registry_node_free(PolicyRegistryNode *node) {
         if (!node)
                 return NULL;
 
-        c_rbnode_unlink_init(&node->registry_node);
+        c_rbnode_unlink(&node->registry_node);
         policy_batch_unref(node->batch);
         free(node);
 

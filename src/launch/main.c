@@ -107,8 +107,8 @@ static Service *service_free(Service *service) {
         if (!service)
                 return NULL;
 
-        c_rbnode_unlink_init(&service->rb_by_name);
-        c_rbnode_unlink_init(&service->rb);
+        c_rbnode_unlink(&service->rb_by_name);
+        c_rbnode_unlink(&service->rb);
         for (size_t i = 0; i < service->n_exec; ++i)
                 free(service->exec[i]);
         free(service->exec);

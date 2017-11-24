@@ -60,7 +60,7 @@ static NameOwnership *name_ownership_free(NameOwnership *ownership) {
         assert(!c_list_is_linked(&ownership->name_link));
 
         user_charge_deinit(&ownership->charge);
-        c_rbnode_unlink_init(&ownership->owner_node);
+        c_rbnode_unlink(&ownership->owner_node);
         name_unref(ownership->name);
         free(ownership);
 
@@ -121,7 +121,7 @@ void name_ownership_release(NameOwnership *ownership, NameChange *change) {
         assert(!change->new_owner);
 
         primary = name_primary(ownership->name);
-        c_list_unlink_init(&ownership->name_link);
+        c_list_unlink(&ownership->name_link);
 
         if (ownership == primary) {
                 primary = name_primary(ownership->name);
@@ -167,12 +167,12 @@ static int name_ownership_update(NameOwnership *ownership, uint32_t flags, NameC
                 change->old_owner = primary->owner;
                 change->new_owner = ownership->owner;
 
-                c_list_unlink_init(&ownership->name_link);
+                c_list_unlink(&ownership->name_link);
                 c_list_link_front(&name->ownership_list, &ownership->name_link);
 
                 /* drop previous primary owner, if queuing is not requested */
                 if (primary->flags & DBUS_NAME_FLAG_DO_NOT_QUEUE) {
-                        c_list_unlink_init(&primary->name_link);
+                        c_list_unlink(&primary->name_link);
                         name_ownership_free(primary);
                 }
 
@@ -184,7 +184,7 @@ static int name_ownership_update(NameOwnership *ownership, uint32_t flags, NameC
                 r = NAME_E_IN_QUEUE;
         } else {
                 /* we are dropped */
-                c_list_unlink_init(&ownership->name_link);
+                c_list_unlink(&ownership->name_link);
                 r = NAME_E_EXISTS;
         }
 
@@ -228,7 +228,7 @@ void name_free(_Atomic unsigned long *n_refs, void *userdata) {
         assert(!name->activation);
 
         match_registry_deinit(&name->matches);
-        c_rbnode_unlink_init(&name->registry_node);
+        c_rbnode_unlink(&name->registry_node);
         free(name);
 }
 

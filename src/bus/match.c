@@ -366,7 +366,7 @@ static MatchRule *match_rule_free(MatchRule *rule) {
         match_keys_deinit(&rule->keys);
         user_charge_deinit(&rule->charge[1]);
         user_charge_deinit(&rule->charge[0]);
-        c_rbnode_unlink_init(&rule->owner_node);
+        c_rbnode_unlink(&rule->owner_node);
         match_rule_unlink(rule);
         free(rule);
 
@@ -457,7 +457,7 @@ void match_rule_link(MatchRule *rule, MatchRegistry *registry, bool monitor) {
  */
 void match_rule_unlink(MatchRule *rule) {
         if (rule->registry) {
-                c_list_unlink_init(&rule->registry_link);
+                c_list_unlink(&rule->registry_link);
                 rule->registry = NULL;
         }
 }

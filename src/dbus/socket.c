@@ -49,7 +49,7 @@ static SocketBuffer *socket_buffer_free(SocketBuffer *buffer) {
 
         user_charge_deinit(&buffer->charges[1]);
         user_charge_deinit(&buffer->charges[0]);
-        c_list_unlink_init(&buffer->link);
+        c_list_unlink(&buffer->link);
         message_unref(buffer->message);
         free(buffer);
 

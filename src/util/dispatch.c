@@ -143,7 +143,7 @@ void dispatch_file_deinit(DispatchFile *file) {
                 assert(r >= 0);
 
                 --file->context->n_files;
-                c_list_unlink_init(&file->ready_link);
+                c_list_unlink(&file->ready_link);
         }
 
         file->fd = -1;
@@ -189,7 +189,7 @@ void dispatch_file_deselect(DispatchFile *file, uint32_t mask) {
 
         file->user_mask &= ~mask;
         if (!(file->events & file->user_mask))
-                c_list_unlink_init(&file->ready_link);
+                c_list_unlink(&file->ready_link);
 }
 
 /**
@@ -206,7 +206,7 @@ void dispatch_file_clear(DispatchFile *file, uint32_t mask) {
 
         file->events &= ~mask;
         if (!(file->events & file->user_mask))
-                c_list_unlink_init(&file->ready_link);
+                c_list_unlink(&file->ready_link);
 }
 
 /**
