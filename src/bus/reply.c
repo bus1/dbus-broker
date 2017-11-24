@@ -77,7 +77,7 @@ ReplySlot *reply_slot_free(ReplySlot *slot) {
 
         user_charge_deinit(&slot->charge);
         c_list_unlink(&slot->owner_link);
-        c_rbtree_remove_init(&slot->registry->reply_tree, &slot->registry_node);
+        c_rbnode_unlink_init(&slot->registry_node);
 
         free(slot);
 

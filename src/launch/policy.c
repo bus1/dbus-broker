@@ -135,7 +135,7 @@ static PolicyNode *policy_node_free(PolicyNode *node) {
         while ((record = c_list_first_entry(&node->connect_list, PolicyRecord, link)))
                 policy_record_free(record);
 
-        c_rbtree_remove_init(node->policy_tree, &node->policy_node);
+        c_rbnode_unlink_init(&node->policy_node);
         free(node);
 
         return NULL;
@@ -143,7 +143,7 @@ static PolicyNode *policy_node_free(PolicyNode *node) {
 
 C_DEFINE_CLEANUP(PolicyNode *, policy_node_free);
 
-static int policy_node_new(PolicyNode **nodep, CRBTree *tree, uint32_t uidgid_start, uint32_t uidgid_end) {
+static int policy_node_new(PolicyNode **nodep, uint32_t uidgid_start, uint32_t uidgid_end) {
         _c_cleanup_(policy_node_freep) PolicyNode *node = NULL;
 
         node = calloc(1, sizeof(*node));
@@ -153,7 +153,6 @@ static int policy_node_new(PolicyNode **nodep, CRBTree *tree, uint32_t uidgid_st
         *node = (PolicyNode)POLICY_NODE_NULL(*node);
         node->index.uidgid_start = uidgid_start;
         node->index.uidgid_end = uidgid_end;
-        node->policy_tree = tree;
 
         *nodep = node;
         node = NULL;
@@ -206,7 +205,7 @@ static int policy_at_uidgid(CRBTree *tree, PolicyNode **nodep, uint32_t uidgid_s
                                   &index,
                                   &parent);
         if (slot) {
-                r = policy_node_new(&node, tree, uidgid_start, uidgid_end);
+                r = policy_node_new(&node, uidgid_start, uidgid_end);
                 if (r)
                         return error_trace(r);
 

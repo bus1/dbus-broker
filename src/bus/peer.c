@@ -251,7 +251,7 @@ Peer *peer_free(Peer *peer) {
 
         assert(!peer->registered);
 
-        c_rbtree_remove_init(&peer->bus->peers.peer_tree, &peer->registry_node);
+        c_rbnode_unlink_init(&peer->registry_node);
         c_list_unlink_init(&peer->listener_link);
 
         fd = peer->connection.socket.fd;
