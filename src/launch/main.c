@@ -195,7 +195,7 @@ static Manager *manager_free(Manager *manager) {
         if (!manager)
                 return NULL;
 
-        c_rbtree_for_each_entry_unlink(service, safe, &manager->services, rb)
+        c_rbtree_for_each_entry_safe_postorder_unlink(service, safe, &manager->services, rb)
                 service_free(service);
         assert(c_rbtree_is_empty(&manager->services_by_name));
 

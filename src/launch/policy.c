@@ -177,9 +177,9 @@ void policy_deinit(Policy *policy) {
         while ((record = c_list_first_entry(&policy->selinux_list, PolicyRecord, link)))
                 policy_record_free(record);
 
-        c_rbtree_for_each_entry_unlink(node, t_node, &policy->gid_tree, policy_node)
+        c_rbtree_for_each_entry_safe_postorder_unlink(node, t_node, &policy->gid_tree, policy_node)
                 policy_node_free(node);
-        c_rbtree_for_each_entry_unlink(node, t_node, &policy->uid_tree, policy_node)
+        c_rbtree_for_each_entry_safe_postorder_unlink(node, t_node, &policy->uid_tree, policy_node)
                 policy_node_free(node);
 
         while ((record = c_list_first_entry(&policy->recv_default, PolicyRecord, link)))

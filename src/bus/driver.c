@@ -1737,7 +1737,7 @@ int driver_goodbye(Peer *peer, bool silent) {
         c_list_for_each_entry_safe(rule, rule_safe, &peer->matches.rule_list, registry_link)
                 match_rule_unlink(rule);
 
-        c_rbtree_for_each_entry_unlink(ownership, ownership_safe, &peer->owned_names.ownership_tree, owner_node) {
+        c_rbtree_for_each_entry_safe_postorder_unlink(ownership, ownership_safe, &peer->owned_names.ownership_tree, owner_node) {
                 NameChange change;
 
                 name_change_init(&change);
@@ -1763,7 +1763,7 @@ int driver_goodbye(Peer *peer, bool silent) {
                 peer_unregister(peer);
         }
 
-        c_rbtree_for_each_entry_unlink(reply, reply_safe, &peer->replies_outgoing.reply_tree, registry_node) {
+        c_rbtree_for_each_entry_safe_postorder_unlink(reply, reply_safe, &peer->replies_outgoing.reply_tree, registry_node) {
                 Peer *sender = c_container_of(reply->owner, Peer, owned_replies);
 
                 if (!silent) {

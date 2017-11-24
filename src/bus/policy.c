@@ -127,7 +127,7 @@ void policy_batch_free(_Atomic unsigned long *n_refs, void *userdata) {
         PolicyBatch *batch = c_container_of(n_refs, PolicyBatch, n_refs);
         PolicyBatchName *name, *t_name;
 
-        c_rbtree_for_each_entry_unlink(name, t_name, &batch->name_tree, batch_node)
+        c_rbtree_for_each_entry_safe_postorder_unlink(name, t_name, &batch->name_tree, batch_node)
                 policy_batch_name_free(name);
 
         free(batch);
@@ -339,11 +339,11 @@ PolicyRegistry *policy_registry_free(PolicyRegistry *registry) {
         if (!registry)
                 return NULL;
 
-        c_rbtree_for_each_entry_unlink(node, t_node, &registry->gid_tree, registry_node)
+        c_rbtree_for_each_entry_safe_postorder_unlink(node, t_node, &registry->gid_tree, registry_node)
                 policy_registry_node_free(node);
-        c_rbtree_for_each_entry_unlink(node, t_node, &registry->uid_tree, registry_node)
+        c_rbtree_for_each_entry_safe_postorder_unlink(node, t_node, &registry->uid_tree, registry_node)
                 policy_registry_node_free(node);
-        c_rbtree_for_each_entry_unlink(node, t_node, &registry->uid_range_tree, registry_node)
+        c_rbtree_for_each_entry_safe_postorder_unlink(node, t_node, &registry->uid_range_tree, registry_node)
                 policy_registry_node_free(node);
 
         policy_batch_unref(registry->default_batch);
