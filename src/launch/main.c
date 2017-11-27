@@ -48,6 +48,7 @@ struct Service {
         char *unit;
         char **exec;
         size_t n_exec;
+        char *user;
         uint64_t instance;
         char id[];
 };
@@ -109,6 +110,7 @@ static Service *service_free(Service *service) {
 
         c_rbnode_unlink(&service->rb_by_name);
         c_rbnode_unlink(&service->rb);
+        free(service->user);
         for (size_t i = 0; i < service->n_exec; ++i)
                 free(service->exec[i]);
         free(service->exec);
@@ -122,10 +124,11 @@ static Service *service_free(Service *service) {
 
 C_DEFINE_CLEANUP(Service *, service_free);
 
-static int service_update(Service *service, const char *unit, char **exec, size_t n_exec) {
+static int service_update(Service *service, const char *unit, char **exec, size_t n_exec, const char *user) {
         service->unit = c_free(service->unit);
         service->exec = c_free(service->exec);
         service->n_exec = 0;
+        service->user = c_free(service->user);
 
         if (unit) {
                 service->unit = strdup(unit);
@@ -147,6 +150,12 @@ static int service_update(Service *service, const char *unit, char **exec, size_
                 }
         }
 
+        if (user) {
+                service->user = strdup(user);
+                if (!service->user)
+                        return error_origin(-ENOMEM);
+        }
+
         return 0;
 }
 
@@ -157,7 +166,8 @@ static int service_new(Service **servicep,
                        CRBNode *parent_by_name,
                        const char *unit,
                        char **exec,
-                       size_t n_exec) {
+                       size_t n_exec,
+                       const char *user) {
         _c_cleanup_(service_freep) Service *service = NULL;
         CRBNode **slot, *parent;
         int r;
@@ -175,7 +185,7 @@ static int service_new(Service **servicep,
         if (!service->name)
                 return error_origin(-ENOMEM);
 
-        r = service_update(service, unit, exec, n_exec);
+        r = service_update(service, unit, exec, n_exec, user);
         if (r)
                 return error_trace(r);
 
@@ -617,6 +627,36 @@ static int manager_start_transient_unit(Manager *manager, Service *service) {
                 r = sd_bus_message_close_container(method_call);
                 if (r < 0)
                         return error_origin(r);
+
+                if (service->user) {
+                        r = sd_bus_message_open_container(method_call, 'r', "sv");
+                        if (r < 0)
+                                return error_origin(r);
+
+                        {
+                                r = sd_bus_message_append(method_call, "s", "User");
+                                if (r < 0)
+                                        return error_origin(r);
+
+                                r = sd_bus_message_open_container(method_call, 'v', "s");
+                                if (r < 0)
+                                        return error_origin(r);
+
+                                {
+                                        r = sd_bus_message_append(method_call, "s", service->user);
+                                        if (r < 0)
+                                                return error_origin(r);
+                                }
+
+                                r = sd_bus_message_close_container(method_call);
+                                if (r < 0)
+                                        return error_origin(r);
+                        }
+
+                        r = sd_bus_message_close_container(method_call);
+                        if (r < 0)
+                                return error_origin(r);
+                }
         }
 
         r = sd_bus_message_close_container(method_call);
@@ -799,15 +839,15 @@ static int manager_load_service_file(Manager *manager, const char *path) {
         }
 
         /*
-         * XXX: @user is unused so far, and we pass `0' as uid to dbus-broker.
-         *      Preferably, we would resolve @user to a uid, but we also do not
-         *      want to call into NSS..
-         *      For now, using 'root' seems good enough.
+         * XXX: @user is only passed as a string to PID1, and we pass `0' as uid to
+         *      dbus-broker. Preferably, we would resolve @user to a uid, but we also
+         *      do not want to call into NSS..
+         *      For now, using 'root' for accounting seems good enough.
          */
 
         slot = c_rbtree_find_slot(&manager->services_by_name, service_compare_by_name, name, &parent);
         if (slot) {
-                r = service_new(&service, manager, name, slot, parent, unit, exec, n_exec);
+                r = service_new(&service, manager, name, slot, parent, unit, exec, n_exec, user);
                 if (r) {
                         r = error_trace(r);
                         goto exit;
@@ -817,7 +857,7 @@ static int manager_load_service_file(Manager *manager, const char *path) {
 
                 if (old_service->state == SERVICE_STATE_DEFUNCT) {
                         old_service->state = SERVICE_STATE_CURRENT;
-                        r = service_update(old_service, unit, exec, n_exec);
+                        r = service_update(old_service, unit, exec, n_exec, user);
                         if (r)
                                 r = error_trace(r);
                 } else {
