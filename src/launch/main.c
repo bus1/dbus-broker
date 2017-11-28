@@ -633,6 +633,18 @@ static int manager_start_transient_unit(Manager *manager, Service *service) {
                         return error_origin(r);
 
                 if (service->user) {
+                        /*
+                         * Ideally we would unconditionally pass the UID
+                         * we are accounting on to systemd to run the service
+                         * under. However, in the case of the user instance,
+                         * systemd fails to start a transient unit if a user
+                         * is provided due to lack of permission. In practice
+                         * this works out ok, as in this case we would have
+                         * provided our own UID, which is systemd's UID, so
+                         * it would ammount to a no-op. It would have been
+                         * better if systemd could detect this case and not
+                         * fail, but in practice this is perfectly fine.
+                         */
                         r = sd_bus_message_open_container(method_call, 'r', "sv");
                         if (r < 0)
                                 return error_origin(r);
@@ -647,7 +659,20 @@ static int manager_start_transient_unit(Manager *manager, Service *service) {
                                         return error_origin(r);
 
                                 {
-                                        r = sd_bus_message_append(method_call, "s", service->user);
+                                        _c_cleanup_(c_freep) char *uid = NULL;
+
+                                        /*
+                                         * Pass the UID we parsed, rather than the
+                                         * original username. This should resolve
+                                         * to the same, but out of an abundance of
+                                         * caution, we try to avoid any
+                                         * inconsistencies.
+                                         */
+                                        r = asprintf(&uid, "%"PRIu32, service->uid);
+                                        if (r < 0)
+                                                return error_origin(-errno);
+
+                                        r = sd_bus_message_append(method_call, "s", uid);
                                         if (r < 0)
                                                 return error_origin(r);
                                 }
