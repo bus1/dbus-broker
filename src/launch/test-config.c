@@ -6,6 +6,7 @@
 #include <c-macro.h>
 #include <stdlib.h>
 #include "launch/config.h"
+#include "launch/nss-cache.h"
 
 static const char *test_type2str[_CONFIG_NODE_N] = {
         [CONFIG_NODE_BUSCONFIG]         = "busconfig",
@@ -35,12 +36,13 @@ static const char *test_type2str[_CONFIG_NODE_N] = {
 static void print_config(const char *path) {
         _c_cleanup_(config_parser_deinit) ConfigParser parser = CONFIG_PARSER_NULL(parser);
         _c_cleanup_(config_root_freep) ConfigRoot *root = NULL;
+        _c_cleanup_(nss_cache_deinit) NSSCache nss_cache = NSS_CACHE_INIT;
         ConfigNode *i_node;
         int r;
 
         config_parser_init(&parser);
 
-        r = config_parser_read(&parser, &root, path);
+        r = config_parser_read(&parser, &root, path, &nss_cache);
         assert(!r);
 
         c_list_for_each_entry(i_node, &root->node_list, root_link) {

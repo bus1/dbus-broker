@@ -1122,7 +1122,7 @@ static int manager_load_services(Manager *manager, NSSCache *nss_cache) {
         return 0;
 }
 
-static int manager_load_policy(Manager *manager, ConfigRoot **rootp, Policy *policy) {
+static int manager_load_policy(Manager *manager, ConfigRoot **rootp, Policy *policy, NSSCache *nss_cache) {
         _c_cleanup_(config_parser_deinit) ConfigParser parser = CONFIG_PARSER_NULL(parser);
         const char *policypath;
         int r;
@@ -1138,7 +1138,7 @@ static int manager_load_policy(Manager *manager, ConfigRoot **rootp, Policy *pol
 
         config_parser_init(&parser);
 
-        r = config_parser_read(&parser, rootp, policypath);
+        r = config_parser_read(&parser, rootp, policypath, nss_cache);
         if (r)
                 return error_fold(r);
 
@@ -1219,7 +1219,7 @@ static int manager_reload_config(Manager *manager) {
         if (r)
                 return error_trace(r);
 
-        r = manager_load_policy(manager, &root, &policy);
+        r = manager_load_policy(manager, &root, &policy, &nss_cache);
         if (r)
                 return error_trace(r);
 
@@ -1344,7 +1344,7 @@ static int manager_run(Manager *manager, bool audit) {
         if (r)
                 return error_trace(r);
 
-        r = manager_load_policy(manager, &root, &policy);
+        r = manager_load_policy(manager, &root, &policy, &nss_cache);
         if (r)
                 return error_trace(r);
 

@@ -138,7 +138,7 @@ endif
 test_address = executable('test-address', ['dbus/test-address.c'], dependencies: libdbus_broker_dep)
 test('Address Handling', test_address)
 
-test_config = executable('test-config', ['launch/test-config.c', 'launch/config.c'], dependencies: libdbus_broker_dep)
+test_config = executable('test-config', ['launch/test-config.c', 'launch/config.c', 'launch/nss-cache.c'], dependencies: libdbus_broker_dep)
 test('Configuration Parser', test_config)
 
 test_dispatch = executable('test-dispatch', ['util/test-dispatch.c'], dependencies: libdbus_broker_dep)
