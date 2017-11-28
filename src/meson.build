@@ -117,6 +117,7 @@ if use_launcher
                 [
                         'launch/config.c',
                         'launch/main.c',
+                        'launch/nss-cache.c',
                         'launch/policy.c',
                 ],
                 dependencies: [
