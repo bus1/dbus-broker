@@ -19,6 +19,7 @@
 #include <systemd/sd-daemon.h>
 #include <systemd/sd-event.h>
 #include "launch/config.h"
+#include "launch/nss-cache.h"
 #include "launch/policy.h"
 #include "util/error.h"
 #include "util/log.h"
@@ -49,6 +50,7 @@ struct Service {
         char **exec;
         size_t n_exec;
         char *user;
+        uid_t uid;
         uint64_t instance;
         char id[];
 };
@@ -124,11 +126,12 @@ static Service *service_free(Service *service) {
 
 C_DEFINE_CLEANUP(Service *, service_free);
 
-static int service_update(Service *service, const char *unit, char **exec, size_t n_exec, const char *user) {
+static int service_update(Service *service, const char *unit, char **exec, size_t n_exec, const char *user, uid_t uid) {
         service->unit = c_free(service->unit);
         service->exec = c_free(service->exec);
         service->n_exec = 0;
         service->user = c_free(service->user);
+        service->uid = uid;
 
         if (unit) {
                 service->unit = strdup(unit);
@@ -167,7 +170,8 @@ static int service_new(Service **servicep,
                        const char *unit,
                        char **exec,
                        size_t n_exec,
-                       const char *user) {
+                       const char *user,
+                       uid_t uid) {
         _c_cleanup_(service_freep) Service *service = NULL;
         CRBNode **slot, *parent;
         int r;
@@ -185,7 +189,7 @@ static int service_new(Service **servicep,
         if (!service->name)
                 return error_origin(-ENOMEM);
 
-        r = service_update(service, unit, exec, n_exec, user);
+        r = service_update(service, unit, exec, n_exec, user, uid);
         if (r)
                 return error_trace(r);
 
@@ -791,12 +795,13 @@ static int manager_on_message(sd_bus_message *m, void *userdata, sd_bus_error *e
         return error_trace(r);
 }
 
-static int manager_load_service_file(Manager *manager, const char *path) {
+static int manager_load_service_file(Manager *manager, const char *path, NSSCache *nss_cache) {
         gchar *name = NULL, *user = NULL, *unit = NULL, **exec = NULL;
         gsize n_exec = 0;
         _c_cleanup_(service_freep) Service *service = NULL;
         GKeyFile *f;
         CRBNode **slot, *parent;
+        uid_t uid;
         int r;
 
         /*
@@ -838,16 +843,23 @@ static int manager_load_service_file(Manager *manager, const char *path) {
                 goto exit;
         }
 
-        /*
-         * XXX: @user is only passed as a string to PID1, and we pass `0' as uid to
-         *      dbus-broker. Preferably, we would resolve @user to a uid, but we also
-         *      do not want to call into NSS..
-         *      For now, using 'root' for accounting seems good enough.
-         */
+        if (user) {
+                r = nss_cache_get_uid(nss_cache, &uid, user);
+                if (r) {
+                        if (r == NSS_CACHE_E_INVALID_NAME) {
+                                fprintf(stderr, "Invalid user name '%s' in service file '%s'\n", user, path);
+                                r = 0;
+                                goto exit;
+                        }
+                }
+
+        } else {
+                uid = getuid();
+        }
 
         slot = c_rbtree_find_slot(&manager->services_by_name, service_compare_by_name, name, &parent);
         if (slot) {
-                r = service_new(&service, manager, name, slot, parent, unit, exec, n_exec, user);
+                r = service_new(&service, manager, name, slot, parent, unit, exec, n_exec, user, uid);
                 if (r) {
                         r = error_trace(r);
                         goto exit;
@@ -857,7 +869,7 @@ static int manager_load_service_file(Manager *manager, const char *path) {
 
                 if (old_service->state == SERVICE_STATE_DEFUNCT) {
                         old_service->state = SERVICE_STATE_CURRENT;
-                        r = service_update(old_service, unit, exec, n_exec, user);
+                        r = service_update(old_service, unit, exec, n_exec, user, uid);
                         if (r)
                                 r = error_trace(r);
                 } else {
@@ -879,7 +891,7 @@ exit:
         return r;
 }
 
-static int manager_load_service_dir(Manager *manager, const char *dirpath, const char *subdir) {
+static int manager_load_service_dir(Manager *manager, const char *dirpath, const char *subdir, NSSCache *nss_cache) {
         const char suffix[] = ".service";
         _c_cleanup_(c_freep) char *full_dir = NULL;
         _c_cleanup_(c_closedirp) DIR *dir = NULL;
@@ -916,7 +928,7 @@ static int manager_load_service_dir(Manager *manager, const char *dirpath, const
                 if (r < 0)
                         return error_origin(-ENOMEM);
 
-                r = manager_load_service_file(manager, path);
+                r = manager_load_service_file(manager, path, nss_cache);
                 free(path);
                 if (r)
                         return error_trace(r);
@@ -951,7 +963,7 @@ static int manager_add_services(Manager *manager) {
                                        "osu",
                                        object_path,
                                        service->name,
-                                       0);
+                                       service->uid);
                 if (r < 0)
                         return error_origin(r);
 
@@ -992,7 +1004,7 @@ static int manager_remove_services(Manager *manager) {
         return 0;
 }
 
-static int manager_load_services(Manager *manager) {
+static int manager_load_services(Manager *manager, NSSCache *nss_cache) {
         static const char *default_data_dirs[] = {
                 "/usr/local/share",
                 "/usr/share",
@@ -1065,19 +1077,19 @@ static int manager_load_services(Manager *manager) {
          */
 
         if (runtime_dir) {
-                r = manager_load_service_dir(manager, runtime_dir, suffix);
+                r = manager_load_service_dir(manager, runtime_dir, suffix, nss_cache);
                 if (r)
                         return error_trace(r);
         }
 
         if (data_home_dir) {
-                r = manager_load_service_dir(manager, data_home_dir, suffix);
+                r = manager_load_service_dir(manager, data_home_dir, suffix, nss_cache);
                 if (r)
                         return error_trace(r);
         }
 
         for (i = 0; dirs[i]; ++i) {
-                r = manager_load_service_dir(manager, dirs[i], suffix);
+                r = manager_load_service_dir(manager, dirs[i], suffix, nss_cache);
                 if (r)
                         return error_trace(r);
         }
@@ -1171,13 +1183,14 @@ static int manager_set_policy(Manager *manager, Policy *policy) {
 static int manager_reload_config(Manager *manager) {
         _c_cleanup_(config_root_freep) ConfigRoot *root = NULL;
         _c_cleanup_(policy_deinit) Policy policy = POLICY_INIT(policy);
+        _c_cleanup_(nss_cache_deinit) NSSCache nss_cache = (NSSCache)NSS_CACHE_INIT;
         Service *service;
         int r;
 
         c_rbtree_for_each_entry(service, &manager->services, rb)
                 service->state = SERVICE_STATE_DEFUNCT;
 
-        r = manager_load_services(manager);
+        r = manager_load_services(manager, &nss_cache);
         if (r)
                 return error_trace(r);
 
@@ -1266,6 +1279,7 @@ const sd_bus_vtable manager_vtable[] = {
 static int manager_run(Manager *manager, bool audit) {
         _c_cleanup_(config_root_freep) ConfigRoot *root = NULL;
         _c_cleanup_(policy_deinit) Policy policy = POLICY_INIT(policy);
+        _c_cleanup_(nss_cache_deinit) NSSCache nss_cache = NSS_CACHE_INIT;
         int r, controller[2];
 
         assert(manager->fd_listen >= 0);
@@ -1301,7 +1315,7 @@ static int manager_run(Manager *manager, bool audit) {
         if (r < 0)
                 return error_origin(r);
 
-        r = manager_load_services(manager);
+        r = manager_load_services(manager, &nss_cache);
         if (r)
                 return error_trace(r);
 
