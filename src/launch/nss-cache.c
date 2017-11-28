@@ -64,10 +64,20 @@ static int nss_cache_node_compare(CRBTree *t, void *k, CRBNode *rb) {
 int nss_cache_get_uid(NSSCache *cache, uid_t *uidp, const char *user) {
         NSSCacheNode *node;
         CRBNode **slot, *parent;
+        char *end;
+        unsigned long long int uid;
         int r;
 
         if (!strcmp(user, "root")) {
                 *uidp = 0;
+                return 0;
+        }
+
+        static_assert(sizeof(uid_t) == sizeof(uint32_t), "uid_t is not 32 bits");
+        errno = 0;
+        uid = strtoull(user, &end, 10);
+        if (end != user && *end == '\0' && errno == 0 && uid < UINT32_MAX) {
+                *uidp = uid;
                 return 0;
         }
 
@@ -96,10 +106,20 @@ int nss_cache_get_uid(NSSCache *cache, uid_t *uidp, const char *user) {
 int nss_cache_get_gid(NSSCache *cache, gid_t *gidp, const char *group) {
         NSSCacheNode *node;
         CRBNode **slot, *parent;
+        char *end;
+        unsigned long long int gid;
         int r;
 
         if (!strcmp(group, "root")) {
                 *gidp = 0;
+                return 0;
+        }
+
+        static_assert(sizeof(gid_t) == sizeof(uint32_t), "gid_t is not 32 bits");
+        errno = 0;
+        gid = strtoull(group, &end, 10);
+        if (end != group && *end == '\0' && errno == 0 && gid < UINT32_MAX) {
+                *gidp = gid;
                 return 0;
         }
 
