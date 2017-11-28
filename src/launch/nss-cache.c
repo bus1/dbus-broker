@@ -66,6 +66,11 @@ int nss_cache_get_uid(NSSCache *cache, uid_t *uidp, const char *user) {
         CRBNode **slot, *parent;
         int r;
 
+        if (!strcmp(user, "root")) {
+                *uidp = 0;
+                return 0;
+        }
+
         slot = c_rbtree_find_slot(&cache->user_tree, nss_cache_node_compare, user, &parent);
         if (!slot) {
                 node = c_rbnode_entry(parent, NSSCacheNode, rb);
@@ -92,6 +97,11 @@ int nss_cache_get_gid(NSSCache *cache, gid_t *gidp, const char *group) {
         NSSCacheNode *node;
         CRBNode **slot, *parent;
         int r;
+
+        if (!strcmp(group, "root")) {
+                *gidp = 0;
+                return 0;
+        }
 
         slot = c_rbtree_find_slot(&cache->group_tree, nss_cache_node_compare, group, &parent);
         if (!slot) {
