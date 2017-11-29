@@ -1,5 +1,28 @@
 dbus-broker - Linux D-Bus Message Broker
 
+CHANGES WITH 9:
+
+        * A configuration reload of the launcher can now be triggered via its
+          managing systemd instance. The ExecReload= key is hooked up to
+          trigger a ReloadConfig() D-Bus call.
+
+        * The launcher now runs as 'Type=notify' systemd service type. This
+          closes a possible dead-lock during startup. Previously, there was a
+          chance of systemd itself connecting to D-Bus in a blocking manner,
+          before the launcher was ready. This might have resulted in the
+          launcher waiting on systemd, and thus dead-lock.
+          By running as 'Type=notify' systemd will wait for the launcher to be
+          ready before connecting to it.
+
+        * Activated units now inherit their user from the actual D-Bus service,
+          if provided. They used to be started as root, but now the 'User=' key
+          is properly honored.
+
+        Contributions from: David Herrmann, Marc-Antoine Perennou, Tom
+                            Gundersen
+
+        - Tübingen, 2017-11-29
+
 CHANGES WITH 8:
 
         * The launcher now uses instantiated systemd template units when
