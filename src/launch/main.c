@@ -1307,6 +1307,18 @@ static int manager_run(Manager *manager, bool audit) {
         _c_cleanup_(nss_cache_deinit) NSSCache nss_cache = NSS_CACHE_INIT;
         int r, controller[2];
 
+        r = manager_load_services(manager, &nss_cache);
+        if (r)
+                return error_trace(r);
+
+        r = manager_load_policy(manager, &root, &policy, &nss_cache);
+        if (r)
+                return error_trace(r);
+
+        r = sd_notify(false, "READY=1");
+        if (r < 0)
+                return error_origin(r);
+
         assert(manager->fd_listen >= 0);
 
         r = socketpair(PF_UNIX, SOCK_STREAM | SOCK_CLOEXEC | SOCK_NONBLOCK, 0, controller);
@@ -1340,14 +1352,6 @@ static int manager_run(Manager *manager, bool audit) {
         if (r < 0)
                 return error_origin(r);
 
-        r = manager_load_services(manager, &nss_cache);
-        if (r)
-                return error_trace(r);
-
-        r = manager_load_policy(manager, &root, &policy, &nss_cache);
-        if (r)
-                return error_trace(r);
-
         r = manager_add_services(manager);
         if (r)
                 return error_trace(r);
@@ -1365,10 +1369,6 @@ static int manager_run(Manager *manager, bool audit) {
                 return error_origin(r);
 
         r = sd_bus_attach_event(manager->bus_regular, manager->event, SD_EVENT_PRIORITY_NORMAL);
-        if (r < 0)
-                return error_origin(r);
-
-        r = sd_notify(false, "READY=1");
         if (r < 0)
                 return error_origin(r);
 
