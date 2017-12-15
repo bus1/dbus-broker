@@ -443,11 +443,11 @@ void util_broker_spawn(Broker *broker) {
 
                 r = pthread_create(&broker->thread, NULL, util_broker_thread, broker);
                 assert(r >= 0);
-
-                /* block until we get EOF, so we know the broker was exec'ed */
-                r = read(broker->pipe_fds[0], buffer, sizeof(buffer) - 1);
-                assert(!r);
         }
+
+        /* block until we get EOF, so we know the daemon was exec'ed */
+        r = read(broker->pipe_fds[0], buffer, sizeof(buffer) - 1);
+        assert(!r);
 
         pthread_sigmask(SIG_SETMASK, &sigold, NULL);
 }
