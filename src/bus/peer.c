@@ -482,7 +482,6 @@ int peer_remove_match(Peer *peer, const char *rule_string) {
 
 int peer_become_monitor(Peer *peer, MatchOwner *owned_matches) {
         MatchRule *rule;
-        size_t n_matches = 0;
         int r, poison = 0;
 
         assert(!peer->registered);
@@ -500,8 +499,6 @@ int peer_become_monitor(Peer *peer, MatchOwner *owned_matches) {
                 r = peer_link_match(peer, rule, true);
                 if (r && !poison)
                         poison = error_trace(r);
-
-                ++n_matches;
         }
 
         if (poison)
