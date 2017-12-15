@@ -506,8 +506,8 @@ void match_owner_deinit(MatchOwner *owner) {
  * match_owner_ref_rule() - XXX
  */
 int match_owner_ref_rule(MatchOwner *owner, MatchRule **rulep, User *user, const char *rule_string) {
-        _c_cleanup_(match_rule_user_unrefp) MatchRule *rule = NULL;
         CRBNode **slot, *parent;
+        MatchRule *rule;
         int r;
 
         r = match_rule_new(&rule, owner, user, rule_string);
@@ -519,16 +519,15 @@ int match_owner_ref_rule(MatchOwner *owner, MatchRule **rulep, User *user, const
         slot = c_rbtree_find_slot(&owner->rule_tree, match_rule_compare, &rule->keys, &parent);
         if (!slot) {
                 /* one already exists, take a ref on that instead and drop the one we created */
-                if (rulep)
-                        *rulep = match_rule_user_ref(c_container_of(parent, MatchRule, owner_node));
+                match_rule_user_unref(rule);
+                rule = match_rule_user_ref(c_container_of(parent, MatchRule, owner_node));
         } else {
                 /* link the new rule into the rbtree */
                 c_rbtree_add(&owner->rule_tree, parent, slot, &rule->owner_node);
-                if (rulep)
-                        *rulep = rule;
-                rule = NULL;
         }
 
+        if (rulep)
+                *rulep = rule;
         return 0;
 }
 
