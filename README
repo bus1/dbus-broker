@@ -55,4 +55,4 @@ INSTALL:
             $ ninja -C build test
             # ninja -C build install
 
-        No configuration options are available.
+        For custom configuration options see meson_options.txt.
