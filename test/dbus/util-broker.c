@@ -27,9 +27,6 @@ void util_event_new(sd_event **eventp) {
         assert(sigismember(&sigold, SIGCHLD) == 1);
         assert(sigismember(&sigold, SIGUSR1) == 1);
 
-        r = sd_event_add_signal(event, NULL, SIGUSR1, NULL, (void *)(uintptr_t)0);
-        assert(r >= 0);
-
         *eventp = event;
         event = NULL;
 }
@@ -161,10 +158,6 @@ void util_fork_broker(sd_bus **busp, sd_event *event, int listener_fd, pid_t *pi
         r = socketpair(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0, pair);
         assert(r >= 0);
 
-        /* the broker reports the controller as its pid */
-        if (pidp)
-                *pidp = getpid();
-
         pid = fork();
         assert(pid >= 0);
         c_close(pair[!!pid]);
@@ -188,6 +181,10 @@ void util_fork_broker(sd_bus **busp, sd_event *event, int listener_fd, pid_t *pi
                 assert(r >= 0);
                 abort();
         }
+
+        /* remember the daemon's pid */
+        if (pidp)
+                *pidp = pid;
 
         r = sd_event_add_child(event, NULL, pid, WEXITED, util_event_sigchld, NULL);
         assert(r >= 0);
@@ -325,6 +322,16 @@ Broker *util_broker_free(Broker *broker) {
         return NULL;
 }
 
+static int util_event_sigusr1(sd_event_source *source, const struct signalfd_siginfo *ssi, void *userdata) {
+        Broker *broker = userdata;
+        int r;
+
+        r = kill(broker->child_pid, SIGTERM);
+        assert(!r);
+
+        return 0;
+}
+
 static void *util_broker_thread(void *userdata) {
         _c_cleanup_(sd_event_unrefp) sd_event *event = NULL;
         _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
@@ -336,11 +343,18 @@ static void *util_broker_thread(void *userdata) {
 
         util_event_new(&event);
 
+        r = sd_event_add_signal(event, NULL, SIGUSR1, util_event_sigusr1, broker);
+        assert(r >= 0);
+
         if (broker->listener_fd >= 0) {
-                util_fork_broker(&bus, event, broker->listener_fd, &broker->pid);
+                util_fork_broker(&bus, event, broker->listener_fd, &broker->child_pid);
+                /* dbus-broker reports its controller in GetConnectionUnixProcessID */
+                broker->pid = getpid();
         } else {
                 assert(broker->listener_fd < 0);
-                util_fork_daemon(event, broker->pipe_fds[1], &broker->pid);
+                util_fork_daemon(event, broker->pipe_fds[1], &broker->child_pid);
+                /* dbus-daemon reports itself in GetConnectionUnixProcessID */
+                broker->pid = broker->child_pid;
         }
 
         broker->pipe_fds[1] = c_close(broker->pipe_fds[1]);

@@ -22,6 +22,7 @@ struct Broker {
         int listener_fd;
         int pipe_fds[2];
         pid_t pid;
+        pid_t child_pid;
 };
 
 #define BROKER_NULL {                                                           \
