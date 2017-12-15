@@ -503,6 +503,13 @@ void match_owner_deinit(MatchOwner *owner) {
 }
 
 /**
+ * match_owner_move() - XXX
+ */
+void match_owner_move(MatchOwner *to, MatchOwner *from) {
+        c_rbtree_move(&to->rule_tree, &from->rule_tree);
+}
+
+/**
  * match_owner_ref_rule() - XXX
  */
 int match_owner_ref_rule(MatchOwner *owner, MatchRule **rulep, User *user, const char *rule_string) {

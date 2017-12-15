@@ -489,8 +489,7 @@ int peer_become_monitor(Peer *peer, MatchOwner *owned_matches) {
         assert(c_rbtree_is_empty(&peer->owned_matches.rule_tree));
 
         /* only fatal errors may occur after this point */
-        peer->owned_matches = *owned_matches;
-        *owned_matches = (MatchOwner)MATCH_OWNER_INIT;
+        match_owner_move(&peer->owned_matches, owned_matches);
 
         c_rbtree_for_each_entry(rule, &peer->owned_matches.rule_tree, owner_node) {
 
