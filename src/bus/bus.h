@@ -29,6 +29,8 @@ struct Bus {
         Log *log;
         User *user;
         pid_t pid;
+        char *seclabel;
+        size_t n_seclabel;
         char guid[16];
 
         UserRegistry users;

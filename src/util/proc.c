@@ -12,7 +12,7 @@
  * XXX: The kernel should be made to handle SO_PEERSEC also on
  *      socketpair sockets, making this redundant.
  */
-int proc_get_seclabel(char **labelp) {
+int proc_get_seclabel(char **labelp, size_t *n_labelp) {
         _c_cleanup_(c_fclosep) FILE *f = NULL;
         char buffer[LINE_MAX] = {}, *c, *label;
 
@@ -32,6 +32,8 @@ int proc_get_seclabel(char **labelp) {
         if (!label)
                 return error_origin(-ENOMEM);
 
+        if (n_labelp)
+                *n_labelp = strlen(label);
         *labelp = label;
         return 0;
 }

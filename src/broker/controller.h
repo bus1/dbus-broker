@@ -83,7 +83,6 @@ struct ControllerReload {
 
 struct Controller {
         Broker *broker;
-        char *seclabel;
         Connection connection;
         CRBTree name_tree;
         CRBTree listener_tree;

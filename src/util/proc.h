@@ -7,4 +7,4 @@
 #include <c-macro.h>
 #include <stdlib.h>
 
-int proc_get_seclabel(char **labelp);
+int proc_get_seclabel(char **labelp, size_t *n_labelp);
