@@ -32,8 +32,16 @@ void util_event_new(sd_event **eventp) {
 }
 
 static int util_event_sigchld(sd_event_source *source, const siginfo_t *si, void *userdata) {
-        return sd_event_exit(sd_event_source_get_event(source),
-                             (si->si_code == CLD_EXITED) ? si->si_status : EXIT_FAILURE);
+        int status;
+
+        if (si->si_code == CLD_EXITED)
+                status = si->si_status;
+        else if (si->si_code == CLD_KILLED && si->si_status == SIGTERM)
+                status = EXIT_SUCCESS;
+        else
+                status = EXIT_FAILURE;
+
+        return sd_event_exit(sd_event_source_get_event(source), status);
 }
 
 #define POLICY_T_BATCH                                                          \
