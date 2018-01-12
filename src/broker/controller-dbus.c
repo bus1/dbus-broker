@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+#include "broker/broker.h"
 #include "broker/controller.h"
 #include "bus/policy.h"
 #include "dbus/connection.h"
@@ -223,7 +224,7 @@ static int controller_method_add_listener(Controller *controller, const char *_p
         uint32_t fd_index;
         socklen_t n;
 
-        r = policy_registry_new(&policy, controller->seclabel);
+        r = policy_registry_new(&policy, controller->broker->bus.seclabel);
         if (r)
                 return error_fold(r);
 
@@ -319,7 +320,7 @@ static int controller_method_listener_set_policy(Controller *controller, const c
         ControllerListener *listener;
         int r;
 
-        r = policy_registry_new(&policy, controller->seclabel);
+        r = policy_registry_new(&policy, controller->broker->bus.seclabel);
         if (r)
                 return error_fold(r);
 
