@@ -4,7 +4,9 @@
 
 #include <c-macro.h>
 #include <stdlib.h>
-#include "../../src/dbus/protocol.h"
+#include "dbus/protocol.h"
+#include "util/proc.h"
+#include "util/selinux.h"
 #include "util-broker.h"
 
 static void test_hello(void) {
@@ -1104,6 +1106,141 @@ static void test_get_connection_unix_process_id(void) {
         util_broker_terminate(broker);
 }
 
+static void test_verify_selinux_context(sd_bus_message *reply) {
+        _c_cleanup_(c_freep) char *own_context = NULL;
+        size_t n_own_context;
+        int r;
+
+        r = proc_get_seclabel(&own_context, &n_own_context);
+        assert(r >= 0);
+
+        r = sd_bus_message_enter_container(reply, 'a', "y");
+        assert(r >= 0);
+
+        for (unsigned int i = 0; i < n_own_context; ++i) {
+                char c;
+
+                r = sd_bus_message_read(reply, "y", &c);
+                assert(r >= 0);
+
+                assert(own_context[i] == c);
+        }
+
+        r = sd_bus_message_exit_container(reply);
+        assert(r >= 0);
+}
+
+static void test_get_selinux_security_context(void) {
+        _c_cleanup_(util_broker_freep) Broker *broker = NULL;
+        int r;
+
+        util_broker_new(&broker);
+        util_broker_spawn(broker);
+
+        /* get selinux context of well-known name */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
+		_c_cleanup_(sd_bus_message_unrefp) sd_bus_message *reply = NULL;
+
+                util_broker_connect(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "RequestName", NULL, NULL,
+                                       "su", "com.example.foo", 0);
+                assert(r >= 0);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "GetConnectionSELinuxSecurityContext", &error, &reply,
+                                       "s", "com.example.foo");
+                if (bus_selinux_is_enabled()) {
+			test_verify_selinux_context(reply);
+		} else {
+			assert(r < 0);
+	                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.SELinuxSecurityContextUnknown"));
+		}
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "ReleaseName", NULL, NULL,
+                                       "s", "com.example.foo");
+                assert(r >= 0);
+        }
+
+        /* get selinux security context of driver */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
+		_c_cleanup_(sd_bus_message_unrefp) sd_bus_message *reply = NULL;
+
+                util_broker_connect(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "GetConnectionSELinuxSecurityContext", &error, &reply,
+                                       "s", "org.freedesktop.DBus");
+                if (bus_selinux_is_enabled()) {
+			/* XXX: figure out how to get the expected context */
+			//test_verify_selinux_context(reply);
+		} else {
+			assert(r < 0);
+	                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.SELinuxSecurityContextUnknown"));
+		}
+        }
+
+        /* get selinux security context of unique name */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
+		_c_cleanup_(sd_bus_message_unrefp) sd_bus_message *reply = NULL;
+                const char *unique_name;
+
+                util_broker_connect(broker, &bus);
+
+                r = sd_bus_get_unique_name(bus, &unique_name);
+                assert(r >= 0);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "GetConnectionSELinuxSecurityContext", &error, &reply,
+                                       "s", unique_name);
+                if (bus_selinux_is_enabled()) {
+			test_verify_selinux_context(reply);
+		} else {
+			assert(r < 0);
+	                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.SELinuxSecurityContextUnknown"));
+		}
+
+        }
+
+        /* get selinux security context of name that does not exist */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
+
+                util_broker_connect(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "GetConnectionSELinuxSecurityContext", &error, NULL,
+                                       "s", "com.example.foo");
+                assert(r < 0);
+                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.NameHasNoOwner"));
+        }
+
+        /* get selinux security context of invalid name */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
+
+                util_broker_connect(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "GetConnectionSELinuxSecurityContext", &error, NULL,
+                                       "s", "org");
+                assert(r < 0);
+                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.NameHasNoOwner"));
+        }
+
+        util_broker_terminate(broker);
+}
+
 static void test_get_adt_audit_session_data(void) {
         _c_cleanup_(util_broker_freep) Broker *broker = NULL;
         int r;
@@ -1318,6 +1455,7 @@ int main(int argc, char **argv) {
         test_list_queued_owners();
         test_get_connection_unix_user();
         test_get_connection_unix_process_id();
+        test_get_selinux_security_context();
         test_get_adt_audit_session_data();
         test_get_id();
         test_reload_config();
@@ -1333,11 +1471,6 @@ static void test_driver_api(struct sockaddr_un *address, socklen_t addrlen) {
                                "GetConnectionCredentials", NULL, NULL,
                                "s", "com.example.baz");
         assert(r >= 0);
-
-        r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
-                               "GetConnectionSELinuxSecurityContext", NULL, NULL,
-                               "s", "com.example.baz");
-        /* this will fail or succeed depending on whether or not SELinux is enabled */
 
         r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                "AddMatch", NULL, NULL,
