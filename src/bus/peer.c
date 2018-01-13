@@ -199,7 +199,7 @@ int peer_new_with_fd(Peer **peerp,
         peer->owned_names = (NameOwner)NAME_OWNER_INIT;
         peer->matches = (MatchRegistry)MATCH_REGISTRY_INIT(peer->matches);
         peer->owned_matches = (MatchOwner)MATCH_OWNER_INIT;
-        peer->replies_outgoing = (ReplyRegistry)REPLY_REGISTRY_INIT;
+        peer->replies = (ReplyRegistry)REPLY_REGISTRY_INIT;
         peer->owned_replies = (ReplyOwner)REPLY_OWNER_INIT(peer->owned_replies);
 
         r = user_charge(user, &peer->charges[0], NULL, USER_SLOT_BYTES, sizeof(Peer));
@@ -256,7 +256,7 @@ Peer *peer_free(Peer *peer) {
         fd = peer->connection.socket.fd;
 
         reply_owner_deinit(&peer->owned_replies);
-        reply_registry_deinit(&peer->replies_outgoing);
+        reply_registry_deinit(&peer->replies);
         match_owner_deinit(&peer->owned_matches);
         match_registry_deinit(&peer->matches);
         name_owner_deinit(&peer->owned_names);
@@ -531,7 +531,7 @@ int peer_queue_call(PolicySnapshot *sender_policy, NameSet *sender_names, MatchR
         serial = message_read_serial(message);
 
         if (sender_replies && serial) {
-                r = reply_slot_new(&slot, &receiver->replies_outgoing, sender_replies,
+                r = reply_slot_new(&slot, &receiver->replies, sender_replies,
                                    receiver->user, sender_user, sender_id, serial);
                 if (r == REPLY_E_EXISTS)
                         return PEER_E_EXPECTED_REPLY_EXISTS;
@@ -602,7 +602,7 @@ int peer_queue_reply(Peer *sender, const char *destination, uint32_t reply_seria
         if (addr.type != ADDRESS_TYPE_ID)
                 return PEER_E_UNEXPECTED_REPLY;
 
-        slot = reply_slot_get_by_id(&sender->replies_outgoing, addr.id, reply_serial);
+        slot = reply_slot_get_by_id(&sender->replies, addr.id, reply_serial);
         if (!slot)
                 return PEER_E_UNEXPECTED_REPLY;
 
