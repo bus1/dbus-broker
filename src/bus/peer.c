@@ -361,13 +361,74 @@ void peer_release_name_ownership(Peer *peer, NameOwnership *ownership, NameChang
 
 static int peer_link_match(Peer *peer, MatchRule *rule, bool monitor) {
         Address addr;
-        Peer *sender;
+        Peer *sender, *owner;
         int r;
 
         if (!rule->keys.sender) {
                 match_rule_link(rule, &peer->bus->wildcard_matches, monitor);
         } else if (strcmp(rule->keys.sender, "org.freedesktop.DBus") == 0) {
-                match_rule_link(rule, &peer->bus->sender_matches, monitor);
+                if (rule->keys.filter.member &&
+                    strcmp(rule->keys.filter.member, "NameOwnerChanged") == 0 &&
+                    rule->keys.filter.args[0] &&
+                    strcmp(rule->keys.filter.args[0], "org.freedesktop.DBus") != 0) {
+                        /*
+                         * This rule is a subscription to NameOwnerChanged signals on a specific name,
+                         * link it on the name or peer that may trigger it.
+                         */
+                        address_from_string(&addr, rule->keys.filter.args[0]);
+                        switch (addr.type) {
+                        case ADDRESS_TYPE_ID: {
+                                owner = peer_registry_find_peer(&peer->bus->peers, addr.id);
+                                if (owner) {
+                                        match_rule_link(rule, &owner->name_owner_changed_matches, monitor);
+                                } else if (addr.id >= peer->bus->peers.ids) {
+                                        /*
+                                         * This peer does not yet exist, but it could
+                                         * appear, keep it with the wildcards. It will
+                                         * stay there even if the peer later appears.
+                                         * This works and is meant for compatibility.
+                                         * It does not perform nicely, but there is
+                                         * also no reason to ever guess the ID of a
+                                         * forthcoming peer, so this is most likely
+                                         * a bug in a client.
+                                         */
+                                        match_rule_link(rule, &peer->bus->sender_matches, monitor);
+                                } else {
+                                        /*
+                                         * The peer has already disconnected and will
+                                         * never reappear, since the ID allocator is
+                                         * already beyond the ID.
+                                         * We can simply skip linking the rule, since
+                                         * it can never have an effect. It stays linked
+                                         * in its owner, though, so we don't lose
+                                         * track.
+                                         */
+                                }
+                                break;
+                        }
+                        case ADDRESS_TYPE_NAME:
+                        case ADDRESS_TYPE_OTHER: {
+                                _c_cleanup_(name_unrefp) Name *name = NULL;
+
+                                r = name_registry_ref_name(&peer->bus->names, &name, rule->keys.filter.args[0]);
+                                if (r)
+                                        return error_fold(r);
+
+                                match_rule_link(rule, &name->name_owner_changed_matches, monitor);
+                                name_ref(name); /* this reference must be explicitly released */
+                                break;
+                        }
+                        default:
+                                return error_origin(-ENOTRECOVERABLE);
+                        }
+                } else {
+                        /*
+                         * This should be a wildcard match on all NameOwnerChanged signals, we also
+                         * install other (unexpected) matches here, they will always be false negatives
+                         * but for the sake of simplicity we do not attempt to optimize them away.
+                         */
+                        match_rule_link(rule, &peer->bus->sender_matches, monitor);
+                }
         } else {
                 address_from_string(&addr, rule->keys.sender);
                 switch (addr.type) {
@@ -377,25 +438,17 @@ static int peer_link_match(Peer *peer, MatchRule *rule, bool monitor) {
                                 match_rule_link(rule, &sender->sender_matches, monitor);
                         } else if (addr.id >= peer->bus->peers.ids) {
                                 /*
-                                 * This peer does not yet exist, but it could
-                                 * appear, keep it with the wildcards. It will
-                                 * stay there even if the peer later appears.
-                                 * This works and is meant for compatibility.
-                                 * It does not perform nicely, but there is
-                                 * also no reason to ever guess the ID of a
-                                 * forthcoming peer.
+                                 * This peer does not yet exist, by the same
+                                 * reasoning as above, keep it as a wildcard
+                                 * match.
                                  */
                                 rule->keys.filter.sender = addr.id;
                                 match_rule_link(rule, &peer->bus->wildcard_matches, monitor);
                         } else {
                                 /*
                                  * The peer has already disconnected and will
-                                 * never reappear, since the ID allocator is
-                                 * already beyond the ID.
-                                 * We can simply skip linking the rule, since
-                                 * it can never have an effect. It stays linked
-                                 * in its owner, though, so we don't lose
-                                 * track.
+                                 * never reappear, don't link it, by the same
+                                 * logic as above.
                                  */
                         }
                         break;
@@ -449,6 +502,26 @@ int peer_add_match(Peer *peer, const char *rule_string) {
         return 0;
 }
 
+static Name *peer_match_rule_to_name(MatchRule *rule) {
+        if (!rule->keys.sender)
+                return NULL;
+        /*
+         * A match can be associated with a name in two cases:
+         *  - if it is a NameOwnerChanged subscription on the name, or
+         *  - if it is a sender match on the name.
+         */
+        if (strcmp(rule->keys.sender, "org.freedesktop.DBus") == 0) {
+                if (rule->keys.filter.member && strcmp(rule->keys.filter.member, "NameOwnerChanged") == 0 &&
+                    rule->keys.filter.args[0] && strcmp(rule->keys.filter.args[0], "org.freedesktop.DBus") != 0 &&
+                    rule->keys.filter.args[0][0] != ':')
+                        return c_container_of(rule->registry, Name, name_owner_changed_matches);
+        } else if (rule->keys.sender[0] != ':') {
+                return c_container_of(rule->registry, Name, sender_matches);
+        }
+
+        return NULL;
+}
+
 int peer_remove_match(Peer *peer, const char *rule_string) {
         _c_cleanup_(name_unrefp) Name *name = NULL;
         MatchRule *rule;
@@ -462,8 +535,11 @@ int peer_remove_match(Peer *peer, const char *rule_string) {
         else if (!rule)
                 return PEER_E_MATCH_NOT_FOUND;
 
-        if (rule->keys.sender && *rule->keys.sender != ':' && strcmp(rule->keys.sender, "org.freedesktop.DBus") != 0)
-                name = c_container_of(rule->registry, Name, sender_matches);
+        /*
+         * A match may pin a name, in which case first get the name from the
+         * rule, then unref the rule, before finally unreffing the name.
+         */
+        name = peer_match_rule_to_name(rule);
 
         match_rule_user_unref(rule);
 
@@ -506,8 +582,10 @@ void peer_flush_matches(Peer *peer) {
                 _c_cleanup_(name_unrefp) Name *name = NULL;
                 MatchRule *rule = c_container_of(node, MatchRule, owner_node);
 
-                if (rule->keys.sender && *rule->keys.sender != ':' && strcmp(rule->keys.sender, "org.freedesktop.DBus") != 0)
-                        name = c_container_of(rule->registry, Name, sender_matches);
+                /*
+                 * As above, a match may pin a name.
+                 */
+                name = peer_match_rule_to_name(rule);
 
                 match_rule_user_unref(rule);
         }
