@@ -51,7 +51,7 @@ void bus_deinit(Bus *bus) {
         peer_registry_deinit(&bus->peers);
         user_registry_deinit(&bus->users);
         name_registry_deinit(&bus->names);
-        match_registry_deinit(&bus->driver_matches);
+        match_registry_deinit(&bus->sender_matches);
         match_registry_deinit(&bus->wildcard_matches);
 }
 

@@ -70,7 +70,7 @@ struct Peer {
 
         PolicySnapshot *policy;
         NameOwner owned_names;
-        MatchRegistry matches;
+        MatchRegistry sender_matches;
         MatchOwner owned_matches;
         ReplyRegistry replies;
         ReplyOwner owned_replies;

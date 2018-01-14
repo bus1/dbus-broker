@@ -36,7 +36,7 @@ struct Bus {
         UserRegistry users;
         NameRegistry names;
         MatchRegistry wildcard_matches;
-        MatchRegistry driver_matches;
+        MatchRegistry sender_matches;
         PeerRegistry peers;
 
         uint64_t transaction_ids;
@@ -49,7 +49,7 @@ struct Bus {
                 .users = USER_REGISTRY_NULL,                                    \
                 .names = NAME_REGISTRY_INIT,                                    \
                 .wildcard_matches = MATCH_REGISTRY_INIT((_x).wildcard_matches), \
-                .driver_matches = MATCH_REGISTRY_INIT((_x).driver_matches),     \
+                .sender_matches = MATCH_REGISTRY_INIT((_x).sender_matches),     \
                 .peers = PEER_REGISTRY_INIT,                                    \
                 .metrics = METRICS_INIT,                                        \
         }

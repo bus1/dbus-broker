@@ -227,7 +227,7 @@ void name_free(_Atomic unsigned long *n_refs, void *userdata) {
         assert(c_list_is_empty(&name->ownership_list));
         assert(!name->activation);
 
-        match_registry_deinit(&name->matches);
+        match_registry_deinit(&name->sender_matches);
         c_rbnode_unlink(&name->registry_node);
         free(name);
 }

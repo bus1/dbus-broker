@@ -347,17 +347,17 @@ static int driver_monitor(Bus *bus, Peer *sender, Message *message) {
                         if (!name_ownership_is_primary(ownership))
                                 continue;
 
-                        r = driver_monitor_to_matches(&ownership->name->matches, &filter, bus->transaction_ids, message);
+                        r = driver_monitor_to_matches(&ownership->name->sender_matches, &filter, bus->transaction_ids, message);
                         if (r)
                                 return error_trace(r);
                 }
 
-                r = driver_monitor_to_matches(&sender->matches, &filter, bus->transaction_ids, message);
+                r = driver_monitor_to_matches(&sender->sender_matches, &filter, bus->transaction_ids, message);
                 if (r)
                         return error_trace(r);
         } else {
                 /* sent from the driver */
-                r = driver_monitor_to_matches(&bus->driver_matches, &filter, bus->transaction_ids, message);
+                r = driver_monitor_to_matches(&bus->sender_matches, &filter, bus->transaction_ids, message);
                 if (r)
                         return error_trace(r);
         }
@@ -1759,7 +1759,7 @@ int driver_goodbye(Peer *peer, bool silent) {
         c_list_for_each_entry_safe(reply, reply_safe, &peer->owned_replies.reply_list, owner_link)
                 reply_slot_free(reply);
 
-        c_list_for_each_entry_safe(rule, rule_safe, &peer->matches.rule_list, registry_link)
+        c_list_for_each_entry_safe(rule, rule_safe, &peer->sender_matches.rule_list, registry_link)
                 match_rule_unlink(rule);
 
         c_rbtree_for_each_entry_safe_postorder_unlink(ownership, ownership_safe, &peer->owned_names.ownership_tree, owner_node) {
@@ -1823,7 +1823,7 @@ static int driver_forward_unicast(Peer *sender, const char *destination, Message
                 return 0;
         }
 
-        r = peer_queue_call(sender->policy, &sender_names, &sender->matches, &sender->owned_replies, sender->user, sender->id, receiver, message);
+        r = peer_queue_call(sender->policy, &sender_names, &sender->sender_matches, &sender->owned_replies, sender->user, sender->id, receiver, message);
         if (r) {
                 if (r == PEER_E_EXPECTED_REPLY_EXISTS)
                         return DRIVER_E_EXPECTED_REPLY_EXISTS;
@@ -1864,7 +1864,7 @@ static int driver_dispatch_internal(Peer *peer, Message *message) {
                 if (message->metadata.header.type == DBUS_MESSAGE_TYPE_SIGNAL) {
                         NameSet sender_names = NAME_SET_INIT_FROM_OWNER(&peer->owned_names);
 
-                        r = peer_broadcast(peer->policy, &sender_names, &peer->matches, peer->id, NULL, peer->bus, NULL, message);
+                        r = peer_broadcast(peer->policy, &sender_names, &peer->sender_matches, peer->id, NULL, peer->bus, NULL, message);
                         if (r)
                                 return error_fold(r);
 
