@@ -197,7 +197,7 @@ int peer_new_with_fd(Peer **peerp,
         peer->charges[1] = (UserCharge)USER_CHARGE_INIT;
         peer->charges[2] = (UserCharge)USER_CHARGE_INIT;
         peer->owned_names = (NameOwner)NAME_OWNER_INIT;
-        peer->matches = (MatchRegistry)MATCH_REGISTRY_INIT(peer->matches);
+        peer->sender_matches = (MatchRegistry)MATCH_REGISTRY_INIT(peer->sender_matches);
         peer->owned_matches = (MatchOwner)MATCH_OWNER_INIT;
         peer->replies = (ReplyRegistry)REPLY_REGISTRY_INIT;
         peer->owned_replies = (ReplyOwner)REPLY_OWNER_INIT(peer->owned_replies);
@@ -258,7 +258,7 @@ Peer *peer_free(Peer *peer) {
         reply_owner_deinit(&peer->owned_replies);
         reply_registry_deinit(&peer->replies);
         match_owner_deinit(&peer->owned_matches);
-        match_registry_deinit(&peer->matches);
+        match_registry_deinit(&peer->sender_matches);
         name_owner_deinit(&peer->owned_names);
         policy_snapshot_free(peer->policy);
         connection_deinit(&peer->connection);
@@ -376,14 +376,14 @@ static int peer_link_match(Peer *peer, MatchRule *rule, bool monitor) {
         if (!rule->keys.sender) {
                 match_rule_link(rule, &peer->bus->wildcard_matches, monitor);
         } else if (strcmp(rule->keys.sender, "org.freedesktop.DBus") == 0) {
-                match_rule_link(rule, &peer->bus->driver_matches, monitor);
+                match_rule_link(rule, &peer->bus->sender_matches, monitor);
         } else {
                 address_from_string(&addr, rule->keys.sender);
                 switch (addr.type) {
                 case ADDRESS_TYPE_ID: {
                         sender = peer_registry_find_peer(&peer->bus->peers, addr.id);
                         if (sender) {
-                                match_rule_link(rule, &sender->matches, monitor);
+                                match_rule_link(rule, &sender->sender_matches, monitor);
                         } else if (addr.id >= peer->bus->peers.ids) {
                                 /*
                                  * This peer does not yet exist, but it could
@@ -423,7 +423,7 @@ static int peer_link_match(Peer *peer, MatchRule *rule, bool monitor) {
                         if (r)
                                 return error_fold(r);
 
-                        match_rule_link(rule, &name->matches, monitor);
+                        match_rule_link(rule, &name->sender_matches, monitor);
                         name_ref(name); /* this reference must be explicitly released */
                         break;
                 }
@@ -472,7 +472,7 @@ int peer_remove_match(Peer *peer, const char *rule_string) {
                 return PEER_E_MATCH_NOT_FOUND;
 
         if (rule->keys.sender && *rule->keys.sender != ':' && strcmp(rule->keys.sender, "org.freedesktop.DBus") != 0)
-                name = c_container_of(rule->registry, Name, matches);
+                name = c_container_of(rule->registry, Name, sender_matches);
 
         match_rule_user_unref(rule);
 
@@ -516,7 +516,7 @@ void peer_flush_matches(Peer *peer) {
                 MatchRule *rule = c_container_of(node, MatchRule, owner_node);
 
                 if (rule->keys.sender && *rule->keys.sender != ':' && strcmp(rule->keys.sender, "org.freedesktop.DBus") != 0)
-                        name = c_container_of(rule->registry, Name, matches);
+                        name = c_container_of(rule->registry, Name, sender_matches);
 
                 match_rule_user_unref(rule);
         }
@@ -726,7 +726,7 @@ int peer_broadcast(PolicySnapshot *sender_policy, NameSet *sender_names, MatchRe
                                 if (!name_ownership_is_primary(ownership))
                                         continue;
 
-                                r = peer_broadcast_to_matches(sender_policy, sender_names, &ownership->name->matches, filter, bus->transaction_ids, message);
+                                r = peer_broadcast_to_matches(sender_policy, sender_names, &ownership->name->sender_matches, filter, bus->transaction_ids, message);
                                 if (r)
                                         return error_trace(r);
                         }
@@ -735,7 +735,7 @@ int peer_broadcast(PolicySnapshot *sender_policy, NameSet *sender_names, MatchRe
                         snapshot = sender_names->snapshot;
 
                         for (size_t i = 0; i < snapshot->n_names; ++i) {
-                                r = peer_broadcast_to_matches(sender_policy, sender_names, &snapshot->names[i]->matches, filter, bus->transaction_ids, message);
+                                r = peer_broadcast_to_matches(sender_policy, sender_names, &snapshot->names[i]->sender_matches, filter, bus->transaction_ids, message);
                                 if (r)
                                         return error_trace(r);
                         }
@@ -745,7 +745,7 @@ int peer_broadcast(PolicySnapshot *sender_policy, NameSet *sender_names, MatchRe
                 }
         } else {
                 /* sent from the driver */
-                r = peer_broadcast_to_matches(NULL, NULL, &bus->driver_matches, filter, bus->transaction_ids, message);
+                r = peer_broadcast_to_matches(NULL, NULL, &bus->sender_matches, filter, bus->transaction_ids, message);
                 if (r)
                         return error_trace(r);
         }
