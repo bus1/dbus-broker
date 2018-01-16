@@ -1130,7 +1130,145 @@ static void test_verify_selinux_context(sd_bus_message *reply) {
         assert(r >= 0);
 }
 
-static void test_get_selinux_security_context(void) {
+static void test_verify_credentials(sd_bus_message *message) {
+        bool got_uid = false, got_pid = false;
+        int r;
+
+        /* We do not fail on unexpected credentials. */
+
+        r = sd_bus_message_enter_container(message, 'a', "{sv}");
+        assert(r >= 0);
+
+        while ((r = sd_bus_message_enter_container(message, 'e', "sv")) > 0) {
+                const char *key;
+
+                r = sd_bus_message_read(message, "s", &key);
+                assert(r >= 0);
+
+                r = sd_bus_message_skip(message, "v");
+                assert(r >= 0);
+
+                r = sd_bus_message_exit_container(message);
+                assert(r >= 0);
+
+                if (strcmp(key, "UnixUserID") == 0)
+                        got_uid = true;
+                else if (strcmp(key, "ProcessID") == 0)
+                        got_pid = true;
+        }
+
+        r = sd_bus_message_exit_container(message);
+        assert(r >= 0);
+
+        assert(got_uid);
+        assert(got_pid);
+
+        /*
+         * XXX: verify that we get the security label at least when SELinux is enabled
+         * however, be aware that the dbus daemon does not return the label for the driver.
+         */
+}
+
+static void test_get_connection_credentials(void) {
+        _c_cleanup_(util_broker_freep) Broker *broker = NULL;
+        int r;
+
+        util_broker_new(&broker);
+        util_broker_spawn(broker);
+
+        /* get connection credentials of well-known name */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+		_c_cleanup_(sd_bus_message_unrefp) sd_bus_message *reply = NULL;
+
+                util_broker_connect(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "RequestName", NULL, NULL,
+                                       "su", "com.example.foo", 0);
+                assert(r >= 0);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "GetConnectionCredentials", NULL, &reply,
+                                       "s", "com.example.foo");
+                assert(r >= 0);
+
+                test_verify_credentials(reply);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "ReleaseName", NULL, NULL,
+                                       "s", "com.example.foo");
+                assert(r >= 0);
+        }
+
+        /* get connection credentials of driver */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+		_c_cleanup_(sd_bus_message_unrefp) sd_bus_message *reply = NULL;
+
+                util_broker_connect(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "GetConnectionCredentials", NULL, &reply,
+                                       "s", "org.freedesktop.DBus");
+		assert(r >= 0);
+
+                test_verify_credentials(reply);
+        }
+
+        /* get connection credentials of unique name */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+		_c_cleanup_(sd_bus_message_unrefp) sd_bus_message *reply = NULL;
+                const char *unique_name;
+
+                util_broker_connect(broker, &bus);
+
+                r = sd_bus_get_unique_name(bus, &unique_name);
+                assert(r >= 0);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "GetConnectionCredentials", NULL, &reply,
+                                       "s", unique_name);
+                assert(r >= 0);
+
+                test_verify_credentials(reply);
+
+        }
+
+        /* get connection credentials of name that does not exist */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
+
+                util_broker_connect(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "GetConnectionCredentials", &error, NULL,
+                                       "s", "com.example.foo");
+                assert(r < 0);
+                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.NameHasNoOwner"));
+        }
+
+        /* get connection credentials of invalid name */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
+
+                util_broker_connect(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "GetConnectionCredentials", &error, NULL,
+                                       "s", "org");
+                assert(r < 0);
+                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.NameHasNoOwner"));
+        }
+
+        util_broker_terminate(broker);
+}
+
+
+static void test_get_connection_selinux_security_context(void) {
         _c_cleanup_(util_broker_freep) Broker *broker = NULL;
         int r;
 
@@ -1455,7 +1593,8 @@ int main(int argc, char **argv) {
         test_list_queued_owners();
         test_get_connection_unix_user();
         test_get_connection_unix_process_id();
-        test_get_selinux_security_context();
+        test_get_connection_credentials();
+        test_get_connection_selinux_security_context();
         test_get_adt_audit_session_data();
         test_get_id();
         test_reload_config();
@@ -1467,11 +1606,6 @@ int main(int argc, char **argv) {
 
 #if 0
 static void test_driver_api(struct sockaddr_un *address, socklen_t addrlen) {
-        r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
-                               "GetConnectionCredentials", NULL, NULL,
-                               "s", "com.example.baz");
-        assert(r >= 0);
-
         r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                "AddMatch", NULL, NULL,
                                "s", "sender=org.freedesktop.DBus");
