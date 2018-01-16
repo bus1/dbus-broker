@@ -835,6 +835,159 @@ static void test_list_activatable_names(void) {
         util_broker_terminate(broker);
 }
 
+static void test_add_match(void) {
+        _c_cleanup_(util_broker_freep) Broker *broker = NULL;
+        int r;
+
+        util_broker_new(&broker);
+        util_broker_spawn(broker);
+
+        /* add invalid match */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
+
+                util_broker_connect(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "AddMatch", &error, NULL,
+                                       "s", "foo");
+                assert(r < 0);
+                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.MatchRuleInvalid"));
+        }
+
+        /* add match */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+
+                util_broker_connect(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "AddMatch", NULL, NULL,
+                                       "s", "sender=org.freedesktop.DBus");
+                assert(r >= 0);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "RemoveMatch", NULL, NULL,
+                                       "s", "sender=org.freedesktop.DBus");
+                assert(r >= 0);
+        }
+
+        util_broker_terminate(broker);
+}
+
+static void test_remove_match(void) {
+        _c_cleanup_(util_broker_freep) Broker *broker = NULL;
+        int r;
+
+        util_broker_new(&broker);
+        util_broker_spawn(broker);
+
+        /* remove invalid match */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
+
+                util_broker_connect(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "RemoveMatch", &error, NULL,
+                                       "s", "foo");
+                assert(r < 0);
+                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.MatchRuleInvalid"));
+        }
+
+        /* remove non-existent match */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
+
+                util_broker_connect(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "RemoveMatch", &error, NULL,
+                                       "s", "sender=org.freedesktop.DBus");
+                if (!getenv("DBUS_BROKER_TEST_DAEMON")) {
+                        /* XXX: dbus-daemon is buggy, ignore for now. See <https://bugs.freedesktop.org/show_bug.cgi?id=101161> */
+                        assert(r < 0);
+                        assert(!strcmp(error.name, "org.freedesktop.DBus.Error.MatchRuleNotFound"));
+                }
+        }
+
+        /* remove match, and verify */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
+
+                util_broker_connect(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "AddMatch", NULL, NULL,
+                                       "s", "sender=org.freedesktop.DBus");
+                assert(r >= 0);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "RemoveMatch", NULL, NULL,
+                                       "s", "sender=org.freedesktop.DBus");
+                assert(r >= 0);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "RemoveMatch", &error, NULL,
+                                       "s", "sender=org.freedesktop.DBus");
+                if (!getenv("DBUS_BROKER_TEST_DAEMON")) {
+                        /* XXX: ignore bug in dbus-daemon, as above */
+                        assert(r < 0);
+                        assert(!strcmp(error.name, "org.freedesktop.DBus.Error.MatchRuleNotFound"));
+                }
+        }
+
+        /* verify refcounting, add a match twice, and make sure it can be removed twice */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+
+                util_broker_connect(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "AddMatch", NULL, NULL,
+                                       "s", "sender=org.freedesktop.DBus");
+                assert(r >= 0);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "AddMatch", NULL, NULL,
+                                       "s", "sender=org.freedesktop.DBus");
+                assert(r >= 0);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "RemoveMatch", NULL, NULL,
+                                       "s", "sender=org.freedesktop.DBus");
+                assert(r >= 0);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "RemoveMatch", NULL, NULL,
+                                       "s", "sender=org.freedesktop.DBus");
+                assert(r >= 0);
+        }
+
+        /* verify equality */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+
+                util_broker_connect(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "AddMatch", NULL, NULL,
+                                       "s", "sender=org.freedesktop.DBus,interface=org.freedesktop.DBus");
+                assert(r >= 0);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "RemoveMatch", NULL, NULL,
+                                       "s", "interface=org.freedesktop.DBus,sender=org.freedesktop.DBus");
+                assert(r >= 0);
+        }
+
+        util_broker_terminate(broker);
+}
+
 static void test_list_queued_owners(void) {
         _c_cleanup_(util_broker_freep) Broker *broker = NULL;
         int r;
@@ -1665,6 +1818,8 @@ int main(int argc, char **argv) {
         test_start_service_by_name();
         test_list_names();
         test_list_activatable_names();
+        test_add_match();
+        test_remove_match();
         test_list_queued_owners();
         test_get_connection_unix_user();
         test_get_connection_unix_process_id();
@@ -1681,16 +1836,6 @@ int main(int argc, char **argv) {
 
 #if 0
 static void test_driver_api(struct sockaddr_un *address, socklen_t addrlen) {
-        r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
-                               "AddMatch", NULL, NULL,
-                               "s", "sender=org.freedesktop.DBus");
-        assert(r >= 0);
-
-        r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
-                               "RemoveMatch", NULL, NULL,
-                               "s", "sender=org.freedesktop.DBus");
-        assert(r >= 0);
-
         r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                "UpdateActivationEnvironment", NULL, NULL,
                                "a{ss}", 0);
