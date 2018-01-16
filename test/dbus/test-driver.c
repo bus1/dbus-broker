@@ -651,6 +651,80 @@ static void test_name_has_owner(void) {
         util_broker_terminate(broker);
 }
 
+static void test_start_service_by_name(void) {
+        _c_cleanup_(util_broker_freep) Broker *broker = NULL;
+        int r;
+
+        util_broker_new(&broker);
+        util_broker_spawn(broker);
+
+        /* XXX: test invalid flags? */
+
+        /* start non-existent name */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
+
+                util_broker_connect(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "StartServiceByName", &error, NULL,
+                                       "su", "com.example.foo", 0);
+                assert(r < 0);
+                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.ServiceUnknown"));
+        }
+
+        /* start own unique name */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
+                const char *unique_name;
+
+                util_broker_connect(broker, &bus);
+
+                r = sd_bus_get_unique_name(bus, &unique_name);
+                assert(r >= 0);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "StartServiceByName", &error, NULL,
+                                       "su", unique_name, 0);
+                assert(r < 0);
+                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.ServiceUnknown"));
+        }
+
+        /* XXX: start actual name, config must be pushed into the driver/broker first */
+
+        /* start driver name */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
+
+                util_broker_connect(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "StartServiceByName", &error, NULL,
+                                       "su", "org.freedesktop.DBus", 0);
+                assert(r < 0);
+                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.ServiceUnknown"));
+        }
+
+        /* start invalid name */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
+
+                util_broker_connect(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "StartServiceByName", &error, NULL,
+                                       "su", "org", 0);
+                assert(r < 0);
+                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.ServiceUnknown"));
+        }
+
+        util_broker_terminate(broker);
+}
+
 static void test_list_names(void) {
         _c_cleanup_(util_broker_freep) Broker *broker = NULL;
         int r;
@@ -1588,6 +1662,7 @@ int main(int argc, char **argv) {
         test_release_name();
         test_get_name_owner();
         test_name_has_owner();
+        test_start_service_by_name();
         test_list_names();
         test_list_activatable_names();
         test_list_queued_owners();
@@ -1615,11 +1690,6 @@ static void test_driver_api(struct sockaddr_un *address, socklen_t addrlen) {
                                "RemoveMatch", NULL, NULL,
                                "s", "sender=org.freedesktop.DBus");
         assert(r >= 0);
-
-        r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
-                               "StartServiceByName", NULL, NULL,
-                               "su", "com.example.baz", 0);
-        assert(r < 0);
 
         r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                "UpdateActivationEnvironment", NULL, NULL,
