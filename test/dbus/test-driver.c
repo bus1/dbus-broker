@@ -725,6 +725,27 @@ static void test_start_service_by_name(void) {
         util_broker_terminate(broker);
 }
 
+static void test_update_activation_environment(void) {
+        _c_cleanup_(util_broker_freep) Broker *broker = NULL;
+        int r;
+
+        util_broker_new(&broker);
+        util_broker_spawn(broker);
+
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+
+                util_broker_connect(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "UpdateActivationEnvironment", NULL, NULL,
+                                       "a{ss}", 1, "foo", "bar");
+                assert(r >= 0);
+        }
+
+        util_broker_terminate(broker);
+}
+
 static void test_list_names(void) {
         _c_cleanup_(util_broker_freep) Broker *broker = NULL;
         int r;
@@ -1816,6 +1837,7 @@ int main(int argc, char **argv) {
         test_get_name_owner();
         test_name_has_owner();
         test_start_service_by_name();
+        test_update_activation_environment();
         test_list_names();
         test_list_activatable_names();
         test_add_match();
@@ -1833,12 +1855,3 @@ int main(int argc, char **argv) {
 
         return 0;
 }
-
-#if 0
-static void test_driver_api(struct sockaddr_un *address, socklen_t addrlen) {
-        r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
-                               "UpdateActivationEnvironment", NULL, NULL,
-                               "a{ss}", 0);
-        assert(r >= 0);
-}
-#endif
