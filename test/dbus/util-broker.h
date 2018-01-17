@@ -49,5 +49,11 @@ void util_broker_terminate(Broker *broker);
 void util_broker_connect_fd(Broker *broker, int *fdp);
 void util_broker_connect_raw(Broker *broker, sd_bus **busp);
 void util_broker_connect(Broker *broker, sd_bus **busp);
+void util_broker_connect_monitor(Broker *broker, sd_bus **busp);
+
+void util_broker_consume_method_call(sd_bus *bus, const char *interface, const char *member);
+void util_broker_consume_method_return(sd_bus *bus);
+void util_broker_consume_method_error(sd_bus *bus, const char *name);
+void util_broker_consume_signal(sd_bus *bus, const char *interface, const char *member);
 
 C_DEFINE_CLEANUP(Broker *, util_broker_free);
