@@ -827,10 +827,6 @@ static int driver_method_request_name(Peer *peer, CDVar *in_v, uint32_t serial, 
 
         c_dvar_write(out_v, "(u)", reply);
 
-        r = driver_send_reply(peer, out_v, serial);
-        if (r)
-                return error_trace(r);
-
         if (change.name) {
                 r = driver_name_owner_changed(peer->bus,
                                               change.name->name,
@@ -846,6 +842,10 @@ static int driver_method_request_name(Peer *peer, CDVar *in_v, uint32_t serial, 
         }
 
         name_change_deinit(&change);
+
+        r = driver_send_reply(peer, out_v, serial);
+        if (r)
+                return error_trace(r);
 
         return 0;
 }
@@ -881,10 +881,6 @@ static int driver_method_release_name(Peer *peer, CDVar *in_v, uint32_t serial, 
 
         c_dvar_write(out_v, "(u)", reply);
 
-        r = driver_send_reply(peer, out_v, serial);
-        if (r)
-                return error_trace(r);
-
         if (change.name) {
                 r = driver_name_owner_changed(peer->bus,
                                               change.name->name,
@@ -895,6 +891,10 @@ static int driver_method_release_name(Peer *peer, CDVar *in_v, uint32_t serial, 
         }
 
         name_change_deinit(&change);
+
+        r = driver_send_reply(peer, out_v, serial);
+        if (r)
+                return error_trace(r);
 
         return 0;
 }
