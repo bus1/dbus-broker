@@ -167,7 +167,7 @@ static const CDVarType driver_type_out_apsv[] = {
         )
 };
 
-static void driver_write_bytes(CDVar *var, char *bytes, size_t n_bytes) {
+static void driver_write_bytes(CDVar *var, const char *bytes, size_t n_bytes) {
         c_dvar_write(var, "[");
         for (size_t i = 0; i < n_bytes; ++i)
                 c_dvar_write(var, "y", bytes[i]);
@@ -347,17 +347,17 @@ static int driver_monitor(Bus *bus, Peer *sender, Message *message) {
                         if (!name_ownership_is_primary(ownership))
                                 continue;
 
-                        r = driver_monitor_to_matches(&ownership->name->matches, &filter, bus->transaction_ids, message);
+                        r = driver_monitor_to_matches(&ownership->name->sender_matches, &filter, bus->transaction_ids, message);
                         if (r)
                                 return error_trace(r);
                 }
 
-                r = driver_monitor_to_matches(&sender->matches, &filter, bus->transaction_ids, message);
+                r = driver_monitor_to_matches(&sender->sender_matches, &filter, bus->transaction_ids, message);
                 if (r)
                         return error_trace(r);
         } else {
                 /* sent from the driver */
-                r = driver_monitor_to_matches(&bus->driver_matches, &filter, bus->transaction_ids, message);
+                r = driver_monitor_to_matches(&bus->sender_matches, &filter, bus->transaction_ids, message);
                 if (r)
                         return error_trace(r);
         }
@@ -536,7 +536,7 @@ static int driver_notify_name_lost(Peer *peer, const char *name) {
         return 0;
 }
 
-static int driver_notify_name_owner_changed(Bus *bus, const char *name, const char *old_owner, const char *new_owner) {
+static int driver_notify_name_owner_changed(Bus *bus, MatchRegistry *matches, const char *name, const char *old_owner, const char *new_owner) {
         MatchFilter filter = {
                 .type = DBUS_MESSAGE_TYPE_SIGNAL,
                 .destination = ADDRESS_ID_INVALID,
@@ -585,14 +585,14 @@ static int driver_notify_name_owner_changed(Bus *bus, const char *name, const ch
         if (r)
                 return error_fold(r);
 
-        r = peer_broadcast(NULL, NULL, NULL, ADDRESS_ID_INVALID, NULL, bus, &filter, message);
+        r = peer_broadcast(NULL, NULL, matches, ADDRESS_ID_INVALID, NULL, bus, &filter, message);
         if (r)
                 return error_fold(r);
 
         return 0;
 }
 
-static int driver_name_owner_changed(Bus *bus, const char *name, Peer *old_owner, Peer *new_owner) {
+static int driver_name_owner_changed(Bus *bus, MatchRegistry *matches, const char *name, Peer *old_owner, Peer *new_owner) {
         const char *old_owner_str, *new_owner_str;
         int r;
 
@@ -609,7 +609,7 @@ static int driver_name_owner_changed(Bus *bus, const char *name, Peer *old_owner
                         return error_trace(r);
         }
 
-        r = driver_notify_name_owner_changed(bus, name, old_owner_str, new_owner_str);
+        r = driver_notify_name_owner_changed(bus, matches, name, old_owner_str, new_owner_str);
         if (r)
                 return error_trace(r);
 
@@ -783,7 +783,7 @@ static int driver_method_hello(Peer *peer, CDVar *in_v, uint32_t serial, CDVar *
         if (r)
                 return error_trace(r);
 
-        r = driver_name_owner_changed(peer->bus, NULL, NULL, peer);
+        r = driver_name_owner_changed(peer->bus, &peer->name_owner_changed_matches, NULL, NULL, peer);
         if (r)
                 return error_trace(r);
 
@@ -827,12 +827,9 @@ static int driver_method_request_name(Peer *peer, CDVar *in_v, uint32_t serial, 
 
         c_dvar_write(out_v, "(u)", reply);
 
-        r = driver_send_reply(peer, out_v, serial);
-        if (r)
-                return error_trace(r);
-
         if (change.name) {
                 r = driver_name_owner_changed(peer->bus,
+                                              &change.name->name_owner_changed_matches,
                                               change.name->name,
                                               c_container_of(change.old_owner, Peer, owned_names),
                                               c_container_of(change.new_owner, Peer, owned_names));
@@ -846,6 +843,10 @@ static int driver_method_request_name(Peer *peer, CDVar *in_v, uint32_t serial, 
         }
 
         name_change_deinit(&change);
+
+        r = driver_send_reply(peer, out_v, serial);
+        if (r)
+                return error_trace(r);
 
         return 0;
 }
@@ -881,12 +882,9 @@ static int driver_method_release_name(Peer *peer, CDVar *in_v, uint32_t serial, 
 
         c_dvar_write(out_v, "(u)", reply);
 
-        r = driver_send_reply(peer, out_v, serial);
-        if (r)
-                return error_trace(r);
-
         if (change.name) {
                 r = driver_name_owner_changed(peer->bus,
+                                              &change.name->name_owner_changed_matches,
                                               change.name->name,
                                               c_container_of(change.old_owner, Peer, owned_names),
                                               c_container_of(change.new_owner, Peer, owned_names));
@@ -895,6 +893,10 @@ static int driver_method_release_name(Peer *peer, CDVar *in_v, uint32_t serial, 
         }
 
         name_change_deinit(&change);
+
+        r = driver_send_reply(peer, out_v, serial);
+        if (r)
+                return error_trace(r);
 
         return 0;
 }
@@ -1194,7 +1196,10 @@ static int driver_method_get_connection_unix_process_id(Peer *peer, CDVar *in_v,
 
 static int driver_method_get_connection_credentials(Peer *peer, CDVar *in_v, uint32_t serial, CDVar *out_v) {
         Peer *connection;
-        const char *name;
+        const char *name, *seclabel;
+        size_t n_seclabel;
+        uid_t uid;
+        pid_t pid;
         int r;
 
         c_dvar_read(in_v, "(s)", &name);
@@ -1203,15 +1208,27 @@ static int driver_method_get_connection_credentials(Peer *peer, CDVar *in_v, uin
         if (r)
                 return error_trace(r);
 
-        connection = bus_find_peer_by_name(peer->bus, NULL, name);
-        if (!connection)
-                return DRIVER_E_PEER_NOT_FOUND;
+        if (strcmp(name, "org.freedesktop.DBus") == 0) {
+                uid = peer->bus->user->uid;
+                pid = peer->bus->pid;
+                seclabel = peer->bus->seclabel;
+                n_seclabel = peer->bus->n_seclabel;
+        } else {
+                connection = bus_find_peer_by_name(peer->bus, NULL, name);
+                if (!connection)
+                        return DRIVER_E_PEER_NOT_FOUND;
+
+                uid = connection->user->uid;
+                pid = connection->pid;
+                seclabel = connection->seclabel;
+                n_seclabel = connection->n_seclabel;
+        }
 
         c_dvar_write(out_v, "([{s<u>}{s<u>}",
-                     "UnixUserID", c_dvar_type_u, connection->user->uid,
-                     "ProcessID", c_dvar_type_u, connection->pid);
+                     "UnixUserID", c_dvar_type_u, uid,
+                     "ProcessID", c_dvar_type_u, pid);
 
-        if (connection->n_seclabel) {
+        if (n_seclabel) {
                 /*
                  * The DBus specification says that the security-label is a
                  * byte array of non-0 values. The kernel disagrees.
@@ -1223,7 +1240,7 @@ static int driver_method_get_connection_credentials(Peer *peer, CDVar *in_v, uin
                  * so we can safely copy from it.
                  */
                 c_dvar_write(out_v, "{s<", "LinuxSecurityLabel", (const CDVarType[]){ C_DVAR_T_INIT(C_DVAR_T_ARRAY(C_DVAR_T_y)) });
-                driver_write_bytes(out_v, connection->seclabel, connection->n_seclabel + 1);
+                driver_write_bytes(out_v, seclabel, n_seclabel + 1);
                 c_dvar_write(out_v, ">}");
         }
 
@@ -1260,8 +1277,8 @@ static int driver_method_get_adt_audit_session_data(Peer *peer, CDVar *in_v, uin
 }
 
 static int driver_method_get_connection_selinux_security_context(Peer *peer, CDVar *in_v, uint32_t serial, CDVar *out_v) {
-        Peer *connection;
-        const char *name;
+        const char *name, *seclabel;
+        size_t n_seclabel;
         int r;
 
         c_dvar_read(in_v, "(s)", &name);
@@ -1270,9 +1287,19 @@ static int driver_method_get_connection_selinux_security_context(Peer *peer, CDV
         if (r)
                 return error_trace(r);
 
-        connection = bus_find_peer_by_name(peer->bus, NULL, name);
-        if (!connection)
-                return DRIVER_E_PEER_NOT_FOUND;
+        if (!strcmp(name, "org.freedesktop.DBus")) {
+                seclabel = peer->bus->seclabel;
+                n_seclabel = peer->bus->n_seclabel;
+        } else {
+                Peer *connection;
+
+                connection = bus_find_peer_by_name(peer->bus, NULL, name);
+                if (!connection)
+                        return DRIVER_E_PEER_NOT_FOUND;
+
+                seclabel = connection->seclabel;
+                n_seclabel = connection->n_seclabel;
+	}
 
         /*
          * Unlike "LinuxSecurityLabel" in GetConnectionCredentials(), this
@@ -1287,7 +1314,7 @@ static int driver_method_get_connection_selinux_security_context(Peer *peer, CDV
          * trailing 0-byte in the data blob.
          */
         c_dvar_write(out_v, "(");
-        driver_write_bytes(out_v, connection->seclabel, connection->n_seclabel);
+        driver_write_bytes(out_v, seclabel, n_seclabel);
         c_dvar_write(out_v, ")");
 
         r = driver_send_reply(peer, out_v, serial);
@@ -1734,7 +1761,7 @@ int driver_goodbye(Peer *peer, bool silent) {
         c_list_for_each_entry_safe(reply, reply_safe, &peer->owned_replies.reply_list, owner_link)
                 reply_slot_free(reply);
 
-        c_list_for_each_entry_safe(rule, rule_safe, &peer->matches.rule_list, registry_link)
+        c_list_for_each_entry_safe(rule, rule_safe, &peer->sender_matches.rule_list, registry_link)
                 match_rule_unlink(rule);
 
         c_rbtree_for_each_entry_safe_postorder_unlink(ownership, ownership_safe, &peer->owned_names.ownership_tree, owner_node) {
@@ -1744,6 +1771,7 @@ int driver_goodbye(Peer *peer, bool silent) {
                 peer_release_name_ownership(peer, ownership, &change);
                 if (!silent && change.name)
                         r = driver_name_owner_changed(peer->bus,
+                                                      &change.name->name_owner_changed_matches,
                                                       change.name->name,
                                                       c_container_of(change.old_owner, Peer, owned_names),
                                                       c_container_of(change.new_owner, Peer, owned_names));
@@ -1756,14 +1784,17 @@ int driver_goodbye(Peer *peer, bool silent) {
 
         if (peer_is_registered(peer)) {
                 if (!silent) {
-                        r = driver_name_owner_changed(peer->bus, NULL, peer, NULL);
+                        r = driver_name_owner_changed(peer->bus, &peer->name_owner_changed_matches, NULL, peer, NULL);
                         if (r)
                                 return error_trace(r);
                 }
                 peer_unregister(peer);
         }
 
-        c_rbtree_for_each_entry_safe_postorder_unlink(reply, reply_safe, &peer->replies_outgoing.reply_tree, registry_node) {
+        c_list_for_each_entry_safe(rule, rule_safe, &peer->name_owner_changed_matches.rule_list, registry_link)
+                match_rule_unlink(rule);
+
+        c_rbtree_for_each_entry_safe_postorder_unlink(reply, reply_safe, &peer->replies.reply_tree, registry_node) {
                 Peer *sender = c_container_of(reply->owner, Peer, owned_replies);
 
                 if (!silent) {
@@ -1798,7 +1829,7 @@ static int driver_forward_unicast(Peer *sender, const char *destination, Message
                 return 0;
         }
 
-        r = peer_queue_call(sender->policy, &sender_names, &sender->matches, &sender->owned_replies, sender->user, sender->id, receiver, message);
+        r = peer_queue_call(sender->policy, &sender_names, &sender->sender_matches, &sender->owned_replies, sender->user, sender->id, receiver, message);
         if (r) {
                 if (r == PEER_E_EXPECTED_REPLY_EXISTS)
                         return DRIVER_E_EXPECTED_REPLY_EXISTS;
@@ -1839,7 +1870,7 @@ static int driver_dispatch_internal(Peer *peer, Message *message) {
                 if (message->metadata.header.type == DBUS_MESSAGE_TYPE_SIGNAL) {
                         NameSet sender_names = NAME_SET_INIT_FROM_OWNER(&peer->owned_names);
 
-                        r = peer_broadcast(peer->policy, &sender_names, &peer->matches, peer->id, NULL, peer->bus, NULL, message);
+                        r = peer_broadcast(peer->policy, &sender_names, &peer->sender_matches, peer->id, NULL, peer->bus, NULL, message);
                         if (r)
                                 return error_fold(r);
 

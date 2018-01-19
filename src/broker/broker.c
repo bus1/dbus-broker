@@ -19,6 +19,7 @@
 #include "util/dispatch.h"
 #include "util/error.h"
 #include "util/log.h"
+#include "util/proc.h"
 #include "util/user.h"
 
 static int broker_dispatch_signals(DispatchFile *file) {
@@ -87,6 +88,10 @@ int broker_new(Broker **brokerp, int log_fd, int controller_fd, uint64_t max_byt
         log_set_lossy(&broker->log, true);
 
         r = bus_init(&broker->bus, &broker->log, max_bytes, max_fds, max_matches, max_objects);
+        if (r)
+                return error_fold(r);
+
+        r = proc_get_seclabel(&broker->bus.seclabel, &broker->bus.n_seclabel);
         if (r)
                 return error_fold(r);
 

@@ -24,7 +24,6 @@
 #include "util/fdlist.h"
 #include "util/log.h"
 #include "util/metrics.h"
-#include "util/selinux.h"
 #include "util/sockopt.h"
 #include "util/user.h"
 
@@ -180,11 +179,9 @@ int peer_new_with_fd(Peer **peerp,
         peer = calloc(1, sizeof(*peer));
         if (!peer)
                 return error_origin(-ENOMEM);
+        *peer = (Peer)PEER_INIT(*peer);
 
         peer->bus = bus;
-        peer->connection = (Connection)CONNECTION_NULL(peer->connection);
-        peer->registry_node = (CRBNode)C_RBNODE_INIT(peer->registry_node);
-        peer->listener_link = (CList)C_LIST_INIT(peer->listener_link);
         peer->user = user;
         user = NULL;
         peer->pid = ucred.pid;
@@ -194,14 +191,6 @@ int peer_new_with_fd(Peer **peerp,
         peer->seclabel = seclabel;
         seclabel = NULL;
         peer->n_seclabel = n_seclabel;
-        peer->charges[0] = (UserCharge)USER_CHARGE_INIT;
-        peer->charges[1] = (UserCharge)USER_CHARGE_INIT;
-        peer->charges[2] = (UserCharge)USER_CHARGE_INIT;
-        peer->owned_names = (NameOwner)NAME_OWNER_INIT;
-        peer->matches = (MatchRegistry)MATCH_REGISTRY_INIT(peer->matches);
-        peer->owned_matches = (MatchOwner)MATCH_OWNER_INIT;
-        peer->replies_outgoing = (ReplyRegistry)REPLY_REGISTRY_INIT;
-        peer->owned_replies = (ReplyOwner)REPLY_OWNER_INIT(peer->owned_replies);
 
         r = user_charge(user, &peer->charges[0], NULL, USER_SLOT_BYTES, sizeof(Peer));
         r = r ?: user_charge(user, &peer->charges[1], NULL, USER_SLOT_FDS, 1);
@@ -257,9 +246,10 @@ Peer *peer_free(Peer *peer) {
         fd = peer->connection.socket.fd;
 
         reply_owner_deinit(&peer->owned_replies);
-        reply_registry_deinit(&peer->replies_outgoing);
+        reply_registry_deinit(&peer->replies);
         match_owner_deinit(&peer->owned_matches);
-        match_registry_deinit(&peer->matches);
+        match_registry_deinit(&peer->name_owner_changed_matches);
+        match_registry_deinit(&peer->sender_matches);
         name_owner_deinit(&peer->owned_names);
         policy_snapshot_free(peer->policy);
         connection_deinit(&peer->connection);
@@ -371,41 +361,94 @@ void peer_release_name_ownership(Peer *peer, NameOwnership *ownership, NameChang
 
 static int peer_link_match(Peer *peer, MatchRule *rule, bool monitor) {
         Address addr;
-        Peer *sender;
+        Peer *sender, *owner;
         int r;
 
         if (!rule->keys.sender) {
                 match_rule_link(rule, &peer->bus->wildcard_matches, monitor);
         } else if (strcmp(rule->keys.sender, "org.freedesktop.DBus") == 0) {
-                match_rule_link(rule, &peer->bus->driver_matches, monitor);
+                if (rule->keys.filter.member &&
+                    strcmp(rule->keys.filter.member, "NameOwnerChanged") == 0 &&
+                    rule->keys.filter.args[0] &&
+                    strcmp(rule->keys.filter.args[0], "org.freedesktop.DBus") != 0) {
+                        /*
+                         * This rule is a subscription to NameOwnerChanged signals on a specific name,
+                         * link it on the name or peer that may trigger it.
+                         */
+                        address_from_string(&addr, rule->keys.filter.args[0]);
+                        switch (addr.type) {
+                        case ADDRESS_TYPE_ID: {
+                                owner = peer_registry_find_peer(&peer->bus->peers, addr.id);
+                                if (owner) {
+                                        match_rule_link(rule, &owner->name_owner_changed_matches, monitor);
+                                } else if (addr.id >= peer->bus->peers.ids) {
+                                        /*
+                                         * This peer does not yet exist, but it could
+                                         * appear, keep it with the wildcards. It will
+                                         * stay there even if the peer later appears.
+                                         * This works and is meant for compatibility.
+                                         * It does not perform nicely, but there is
+                                         * also no reason to ever guess the ID of a
+                                         * forthcoming peer, so this is most likely
+                                         * a bug in a client.
+                                         */
+                                        match_rule_link(rule, &peer->bus->sender_matches, monitor);
+                                } else {
+                                        /*
+                                         * The peer has already disconnected and will
+                                         * never reappear, since the ID allocator is
+                                         * already beyond the ID.
+                                         * We can simply skip linking the rule, since
+                                         * it can never have an effect. It stays linked
+                                         * in its owner, though, so we don't lose
+                                         * track.
+                                         */
+                                }
+                                break;
+                        }
+                        case ADDRESS_TYPE_NAME:
+                        case ADDRESS_TYPE_OTHER: {
+                                _c_cleanup_(name_unrefp) Name *name = NULL;
+
+                                r = name_registry_ref_name(&peer->bus->names, &name, rule->keys.filter.args[0]);
+                                if (r)
+                                        return error_fold(r);
+
+                                match_rule_link(rule, &name->name_owner_changed_matches, monitor);
+                                name_ref(name); /* this reference must be explicitly released */
+                                break;
+                        }
+                        default:
+                                return error_origin(-ENOTRECOVERABLE);
+                        }
+                } else {
+                        /*
+                         * This should be a wildcard match on all NameOwnerChanged signals, we also
+                         * install other (unexpected) matches here, they will always be false negatives
+                         * but for the sake of simplicity we do not attempt to optimize them away.
+                         */
+                        match_rule_link(rule, &peer->bus->sender_matches, monitor);
+                }
         } else {
                 address_from_string(&addr, rule->keys.sender);
                 switch (addr.type) {
                 case ADDRESS_TYPE_ID: {
                         sender = peer_registry_find_peer(&peer->bus->peers, addr.id);
                         if (sender) {
-                                match_rule_link(rule, &sender->matches, monitor);
+                                match_rule_link(rule, &sender->sender_matches, monitor);
                         } else if (addr.id >= peer->bus->peers.ids) {
                                 /*
-                                 * This peer does not yet exist, but it could
-                                 * appear, keep it with the wildcards. It will
-                                 * stay there even if the peer later appears.
-                                 * This works and is meant for compatibility.
-                                 * It does not perform nicely, but there is
-                                 * also no reason to ever guess the ID of a
-                                 * forthcoming peer.
+                                 * This peer does not yet exist, by the same
+                                 * reasoning as above, keep it as a wildcard
+                                 * match.
                                  */
                                 rule->keys.filter.sender = addr.id;
                                 match_rule_link(rule, &peer->bus->wildcard_matches, monitor);
                         } else {
                                 /*
                                  * The peer has already disconnected and will
-                                 * never reappear, since the ID allocator is
-                                 * already beyond the ID.
-                                 * We can simply skip linking the rule, since
-                                 * it can never have an effect. It stays linked
-                                 * in its owner, though, so we don't lose
-                                 * track.
+                                 * never reappear, don't link it, by the same
+                                 * logic as above.
                                  */
                         }
                         break;
@@ -424,7 +467,7 @@ static int peer_link_match(Peer *peer, MatchRule *rule, bool monitor) {
                         if (r)
                                 return error_fold(r);
 
-                        match_rule_link(rule, &name->matches, monitor);
+                        match_rule_link(rule, &name->sender_matches, monitor);
                         name_ref(name); /* this reference must be explicitly released */
                         break;
                 }
@@ -459,6 +502,26 @@ int peer_add_match(Peer *peer, const char *rule_string) {
         return 0;
 }
 
+static Name *peer_match_rule_to_name(MatchRule *rule) {
+        if (!rule->keys.sender)
+                return NULL;
+        /*
+         * A match can be associated with a name in two cases:
+         *  - if it is a NameOwnerChanged subscription on the name, or
+         *  - if it is a sender match on the name.
+         */
+        if (strcmp(rule->keys.sender, "org.freedesktop.DBus") == 0) {
+                if (rule->keys.filter.member && strcmp(rule->keys.filter.member, "NameOwnerChanged") == 0 &&
+                    rule->keys.filter.args[0] && strcmp(rule->keys.filter.args[0], "org.freedesktop.DBus") != 0 &&
+                    rule->keys.filter.args[0][0] != ':')
+                        return c_container_of(rule->registry, Name, name_owner_changed_matches);
+        } else if (rule->keys.sender[0] != ':') {
+                return c_container_of(rule->registry, Name, sender_matches);
+        }
+
+        return NULL;
+}
+
 int peer_remove_match(Peer *peer, const char *rule_string) {
         _c_cleanup_(name_unrefp) Name *name = NULL;
         MatchRule *rule;
@@ -472,8 +535,11 @@ int peer_remove_match(Peer *peer, const char *rule_string) {
         else if (!rule)
                 return PEER_E_MATCH_NOT_FOUND;
 
-        if (rule->keys.sender && *rule->keys.sender != ':' && strcmp(rule->keys.sender, "org.freedesktop.DBus") != 0)
-                name = c_container_of(rule->registry, Name, matches);
+        /*
+         * A match may pin a name, in which case first get the name from the
+         * rule, then unref the rule, before finally unreffing the name.
+         */
+        name = peer_match_rule_to_name(rule);
 
         match_rule_user_unref(rule);
 
@@ -516,8 +582,10 @@ void peer_flush_matches(Peer *peer) {
                 _c_cleanup_(name_unrefp) Name *name = NULL;
                 MatchRule *rule = c_container_of(node, MatchRule, owner_node);
 
-                if (rule->keys.sender && *rule->keys.sender != ':' && strcmp(rule->keys.sender, "org.freedesktop.DBus") != 0)
-                        name = c_container_of(rule->registry, Name, matches);
+                /*
+                 * As above, a match may pin a name.
+                 */
+                name = peer_match_rule_to_name(rule);
 
                 match_rule_user_unref(rule);
         }
@@ -532,7 +600,7 @@ int peer_queue_call(PolicySnapshot *sender_policy, NameSet *sender_names, MatchR
         serial = message_read_serial(message);
 
         if (sender_replies && serial) {
-                r = reply_slot_new(&slot, &receiver->replies_outgoing, sender_replies,
+                r = reply_slot_new(&slot, &receiver->replies, sender_replies,
                                    receiver->user, sender_user, sender_id, serial);
                 if (r == REPLY_E_EXISTS)
                         return PEER_E_EXPECTED_REPLY_EXISTS;
@@ -603,7 +671,7 @@ int peer_queue_reply(Peer *sender, const char *destination, uint32_t reply_seria
         if (addr.type != ADDRESS_TYPE_ID)
                 return PEER_E_UNEXPECTED_REPLY;
 
-        slot = reply_slot_get_by_id(&sender->replies_outgoing, addr.id, reply_serial);
+        slot = reply_slot_get_by_id(&sender->replies, addr.id, reply_serial);
         if (!slot)
                 return PEER_E_UNEXPECTED_REPLY;
 
@@ -677,7 +745,7 @@ static int peer_broadcast_to_matches(PolicySnapshot *sender_policy, NameSet *sen
         return 0;
 }
 
-int peer_broadcast(PolicySnapshot *sender_policy, NameSet *sender_names, MatchRegistry *sender_matches, uint64_t sender_id, Peer *destination, Bus *bus, MatchFilter *filter, Message *message) {
+int peer_broadcast(PolicySnapshot *sender_policy, NameSet *sender_names, MatchRegistry *matches, uint64_t sender_id, Peer *destination, Bus *bus, MatchFilter *filter, Message *message) {
         MatchFilter fallback_filter = MATCH_FILTER_INIT;
         int r;
 
@@ -708,8 +776,8 @@ int peer_broadcast(PolicySnapshot *sender_policy, NameSet *sender_names, MatchRe
         if (r)
                 return error_trace(r);
 
-        if (sender_matches) {
-                r = peer_broadcast_to_matches(sender_policy, sender_names, sender_matches, filter, bus->transaction_ids, message);
+        if (matches) {
+                r = peer_broadcast_to_matches(sender_policy, sender_names, matches, filter, bus->transaction_ids, message);
                 if (r)
                         return error_trace(r);
         }
@@ -727,7 +795,7 @@ int peer_broadcast(PolicySnapshot *sender_policy, NameSet *sender_names, MatchRe
                                 if (!name_ownership_is_primary(ownership))
                                         continue;
 
-                                r = peer_broadcast_to_matches(sender_policy, sender_names, &ownership->name->matches, filter, bus->transaction_ids, message);
+                                r = peer_broadcast_to_matches(sender_policy, sender_names, &ownership->name->sender_matches, filter, bus->transaction_ids, message);
                                 if (r)
                                         return error_trace(r);
                         }
@@ -736,7 +804,7 @@ int peer_broadcast(PolicySnapshot *sender_policy, NameSet *sender_names, MatchRe
                         snapshot = sender_names->snapshot;
 
                         for (size_t i = 0; i < snapshot->n_names; ++i) {
-                                r = peer_broadcast_to_matches(sender_policy, sender_names, &snapshot->names[i]->matches, filter, bus->transaction_ids, message);
+                                r = peer_broadcast_to_matches(sender_policy, sender_names, &snapshot->names[i]->sender_matches, filter, bus->transaction_ids, message);
                                 if (r)
                                         return error_trace(r);
                         }
@@ -746,7 +814,7 @@ int peer_broadcast(PolicySnapshot *sender_policy, NameSet *sender_names, MatchRe
                 }
         } else {
                 /* sent from the driver */
-                r = peer_broadcast_to_matches(NULL, NULL, &bus->driver_matches, filter, bus->transaction_ids, message);
+                r = peer_broadcast_to_matches(NULL, NULL, &bus->sender_matches, filter, bus->transaction_ids, message);
                 if (r)
                         return error_trace(r);
         }

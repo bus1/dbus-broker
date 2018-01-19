@@ -4,7 +4,9 @@
 
 #include <c-macro.h>
 #include <stdlib.h>
-#include "../../src/dbus/protocol.h"
+#include "dbus/protocol.h"
+#include "util/proc.h"
+#include "util/selinux.h"
 #include "util-broker.h"
 
 static void test_hello(void) {
@@ -568,7 +570,8 @@ static void test_name_has_owner(void) {
         {
                 _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
                 _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *reply = NULL;
-                const char *unique_name, *owned;
+                const char *unique_name;
+                int owned;
 
                 util_broker_connect(broker, &bus);
 
@@ -588,7 +591,7 @@ static void test_name_has_owner(void) {
         {
                 _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
                 _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *reply = NULL;
-                const char *owned;
+                int owned;
 
                 util_broker_connect(broker, &bus);
 
@@ -615,7 +618,7 @@ static void test_name_has_owner(void) {
         {
                 _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
                 _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *reply = NULL;
-                const char *owned;
+                int owned;
 
                 util_broker_connect(broker, &bus);
 
@@ -643,6 +646,101 @@ static void test_name_has_owner(void) {
                 r = sd_bus_message_read(reply, "b", &owned);
                 assert(r >= 0);
                 assert(!owned);
+        }
+
+        util_broker_terminate(broker);
+}
+
+static void test_start_service_by_name(void) {
+        _c_cleanup_(util_broker_freep) Broker *broker = NULL;
+        int r;
+
+        util_broker_new(&broker);
+        util_broker_spawn(broker);
+
+        /* XXX: test invalid flags? */
+
+        /* start non-existent name */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
+
+                util_broker_connect(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "StartServiceByName", &error, NULL,
+                                       "su", "com.example.foo", 0);
+                assert(r < 0);
+                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.ServiceUnknown"));
+        }
+
+        /* start own unique name */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
+                const char *unique_name;
+
+                util_broker_connect(broker, &bus);
+
+                r = sd_bus_get_unique_name(bus, &unique_name);
+                assert(r >= 0);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "StartServiceByName", &error, NULL,
+                                       "su", unique_name, 0);
+                assert(r < 0);
+                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.ServiceUnknown"));
+        }
+
+        /* XXX: start actual name, config must be pushed into the driver/broker first */
+
+        /* start driver name */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
+
+                util_broker_connect(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "StartServiceByName", &error, NULL,
+                                       "su", "org.freedesktop.DBus", 0);
+                assert(r < 0);
+                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.ServiceUnknown"));
+        }
+
+        /* start invalid name */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
+
+                util_broker_connect(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "StartServiceByName", &error, NULL,
+                                       "su", "org", 0);
+                assert(r < 0);
+                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.ServiceUnknown"));
+        }
+
+        util_broker_terminate(broker);
+}
+
+static void test_update_activation_environment(void) {
+        _c_cleanup_(util_broker_freep) Broker *broker = NULL;
+        int r;
+
+        util_broker_new(&broker);
+        util_broker_spawn(broker);
+
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+
+                util_broker_connect(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "UpdateActivationEnvironment", NULL, NULL,
+                                       "a{ss}", 1, "foo", "bar");
+                assert(r >= 0);
         }
 
         util_broker_terminate(broker);
@@ -752,6 +850,159 @@ static void test_list_activatable_names(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "ReleaseName", NULL, NULL,
                                        "s", "com.example.foo");
+                assert(r >= 0);
+        }
+
+        util_broker_terminate(broker);
+}
+
+static void test_add_match(void) {
+        _c_cleanup_(util_broker_freep) Broker *broker = NULL;
+        int r;
+
+        util_broker_new(&broker);
+        util_broker_spawn(broker);
+
+        /* add invalid match */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
+
+                util_broker_connect(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "AddMatch", &error, NULL,
+                                       "s", "foo");
+                assert(r < 0);
+                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.MatchRuleInvalid"));
+        }
+
+        /* add match */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+
+                util_broker_connect(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "AddMatch", NULL, NULL,
+                                       "s", "sender=org.freedesktop.DBus");
+                assert(r >= 0);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "RemoveMatch", NULL, NULL,
+                                       "s", "sender=org.freedesktop.DBus");
+                assert(r >= 0);
+        }
+
+        util_broker_terminate(broker);
+}
+
+static void test_remove_match(void) {
+        _c_cleanup_(util_broker_freep) Broker *broker = NULL;
+        int r;
+
+        util_broker_new(&broker);
+        util_broker_spawn(broker);
+
+        /* remove invalid match */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
+
+                util_broker_connect(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "RemoveMatch", &error, NULL,
+                                       "s", "foo");
+                assert(r < 0);
+                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.MatchRuleInvalid"));
+        }
+
+        /* remove non-existent match */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
+
+                util_broker_connect(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "RemoveMatch", &error, NULL,
+                                       "s", "sender=org.freedesktop.DBus");
+                if (!getenv("DBUS_BROKER_TEST_DAEMON")) {
+                        /* XXX: dbus-daemon is buggy, ignore for now. See <https://bugs.freedesktop.org/show_bug.cgi?id=101161> */
+                        assert(r < 0);
+                        assert(!strcmp(error.name, "org.freedesktop.DBus.Error.MatchRuleNotFound"));
+                }
+        }
+
+        /* remove match, and verify */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
+
+                util_broker_connect(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "AddMatch", NULL, NULL,
+                                       "s", "sender=org.freedesktop.DBus");
+                assert(r >= 0);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "RemoveMatch", NULL, NULL,
+                                       "s", "sender=org.freedesktop.DBus");
+                assert(r >= 0);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "RemoveMatch", &error, NULL,
+                                       "s", "sender=org.freedesktop.DBus");
+                if (!getenv("DBUS_BROKER_TEST_DAEMON")) {
+                        /* XXX: ignore bug in dbus-daemon, as above */
+                        assert(r < 0);
+                        assert(!strcmp(error.name, "org.freedesktop.DBus.Error.MatchRuleNotFound"));
+                }
+        }
+
+        /* verify refcounting, add a match twice, and make sure it can be removed twice */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+
+                util_broker_connect(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "AddMatch", NULL, NULL,
+                                       "s", "sender=org.freedesktop.DBus");
+                assert(r >= 0);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "AddMatch", NULL, NULL,
+                                       "s", "sender=org.freedesktop.DBus");
+                assert(r >= 0);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "RemoveMatch", NULL, NULL,
+                                       "s", "sender=org.freedesktop.DBus");
+                assert(r >= 0);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "RemoveMatch", NULL, NULL,
+                                       "s", "sender=org.freedesktop.DBus");
+                assert(r >= 0);
+        }
+
+        /* verify equality */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+
+                util_broker_connect(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "AddMatch", NULL, NULL,
+                                       "s", "sender=org.freedesktop.DBus,interface=org.freedesktop.DBus");
+                assert(r >= 0);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "RemoveMatch", NULL, NULL,
+                                       "s", "interface=org.freedesktop.DBus,sender=org.freedesktop.DBus");
                 assert(r >= 0);
         }
 
@@ -1103,6 +1354,279 @@ static void test_get_connection_unix_process_id(void) {
         util_broker_terminate(broker);
 }
 
+static void test_verify_selinux_context(sd_bus_message *reply) {
+        _c_cleanup_(c_freep) char *own_context = NULL;
+        size_t n_own_context;
+        int r;
+
+        r = proc_get_seclabel(&own_context, &n_own_context);
+        assert(r >= 0);
+
+        r = sd_bus_message_enter_container(reply, 'a', "y");
+        assert(r >= 0);
+
+        for (unsigned int i = 0; i < n_own_context; ++i) {
+                char c;
+
+                r = sd_bus_message_read(reply, "y", &c);
+                assert(r >= 0);
+
+                assert(own_context[i] == c);
+        }
+
+        r = sd_bus_message_exit_container(reply);
+        assert(r >= 0);
+}
+
+static void test_verify_credentials(sd_bus_message *message) {
+        bool got_uid = false, got_pid = false;
+        int r;
+
+        /* We do not fail on unexpected credentials. */
+
+        r = sd_bus_message_enter_container(message, 'a', "{sv}");
+        assert(r >= 0);
+
+        while ((r = sd_bus_message_enter_container(message, 'e', "sv")) > 0) {
+                const char *key;
+
+                r = sd_bus_message_read(message, "s", &key);
+                assert(r >= 0);
+
+                r = sd_bus_message_skip(message, "v");
+                assert(r >= 0);
+
+                r = sd_bus_message_exit_container(message);
+                assert(r >= 0);
+
+                if (strcmp(key, "UnixUserID") == 0)
+                        got_uid = true;
+                else if (strcmp(key, "ProcessID") == 0)
+                        got_pid = true;
+        }
+
+        r = sd_bus_message_exit_container(message);
+        assert(r >= 0);
+
+        assert(got_uid);
+        assert(got_pid);
+
+        /*
+         * XXX: verify that we get the security label at least when SELinux is enabled
+         * however, be aware that the dbus daemon does not return the label for the driver.
+         */
+}
+
+static void test_get_connection_credentials(void) {
+        _c_cleanup_(util_broker_freep) Broker *broker = NULL;
+        int r;
+
+        util_broker_new(&broker);
+        util_broker_spawn(broker);
+
+        /* get connection credentials of well-known name */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+		_c_cleanup_(sd_bus_message_unrefp) sd_bus_message *reply = NULL;
+
+                util_broker_connect(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "RequestName", NULL, NULL,
+                                       "su", "com.example.foo", 0);
+                assert(r >= 0);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "GetConnectionCredentials", NULL, &reply,
+                                       "s", "com.example.foo");
+                assert(r >= 0);
+
+                test_verify_credentials(reply);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "ReleaseName", NULL, NULL,
+                                       "s", "com.example.foo");
+                assert(r >= 0);
+        }
+
+        /* get connection credentials of driver */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+		_c_cleanup_(sd_bus_message_unrefp) sd_bus_message *reply = NULL;
+
+                util_broker_connect(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "GetConnectionCredentials", NULL, &reply,
+                                       "s", "org.freedesktop.DBus");
+		assert(r >= 0);
+
+                test_verify_credentials(reply);
+        }
+
+        /* get connection credentials of unique name */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+		_c_cleanup_(sd_bus_message_unrefp) sd_bus_message *reply = NULL;
+                const char *unique_name;
+
+                util_broker_connect(broker, &bus);
+
+                r = sd_bus_get_unique_name(bus, &unique_name);
+                assert(r >= 0);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "GetConnectionCredentials", NULL, &reply,
+                                       "s", unique_name);
+                assert(r >= 0);
+
+                test_verify_credentials(reply);
+
+        }
+
+        /* get connection credentials of name that does not exist */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
+
+                util_broker_connect(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "GetConnectionCredentials", &error, NULL,
+                                       "s", "com.example.foo");
+                assert(r < 0);
+                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.NameHasNoOwner"));
+        }
+
+        /* get connection credentials of invalid name */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
+
+                util_broker_connect(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "GetConnectionCredentials", &error, NULL,
+                                       "s", "org");
+                assert(r < 0);
+                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.NameHasNoOwner"));
+        }
+
+        util_broker_terminate(broker);
+}
+
+
+static void test_get_connection_selinux_security_context(void) {
+        _c_cleanup_(util_broker_freep) Broker *broker = NULL;
+        int r;
+
+        util_broker_new(&broker);
+        util_broker_spawn(broker);
+
+        /* get selinux context of well-known name */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
+		_c_cleanup_(sd_bus_message_unrefp) sd_bus_message *reply = NULL;
+
+                util_broker_connect(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "RequestName", NULL, NULL,
+                                       "su", "com.example.foo", 0);
+                assert(r >= 0);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "GetConnectionSELinuxSecurityContext", &error, &reply,
+                                       "s", "com.example.foo");
+                if (bus_selinux_is_enabled()) {
+			test_verify_selinux_context(reply);
+		} else {
+			assert(r < 0);
+	                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.SELinuxSecurityContextUnknown"));
+		}
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "ReleaseName", NULL, NULL,
+                                       "s", "com.example.foo");
+                assert(r >= 0);
+        }
+
+        /* get selinux security context of driver */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
+		_c_cleanup_(sd_bus_message_unrefp) sd_bus_message *reply = NULL;
+
+                util_broker_connect(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "GetConnectionSELinuxSecurityContext", &error, &reply,
+                                       "s", "org.freedesktop.DBus");
+                if (bus_selinux_is_enabled()) {
+			/* XXX: figure out how to get the expected context */
+			//test_verify_selinux_context(reply);
+		} else {
+			assert(r < 0);
+	                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.SELinuxSecurityContextUnknown"));
+		}
+        }
+
+        /* get selinux security context of unique name */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
+		_c_cleanup_(sd_bus_message_unrefp) sd_bus_message *reply = NULL;
+                const char *unique_name;
+
+                util_broker_connect(broker, &bus);
+
+                r = sd_bus_get_unique_name(bus, &unique_name);
+                assert(r >= 0);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "GetConnectionSELinuxSecurityContext", &error, &reply,
+                                       "s", unique_name);
+                if (bus_selinux_is_enabled()) {
+			test_verify_selinux_context(reply);
+		} else {
+			assert(r < 0);
+	                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.SELinuxSecurityContextUnknown"));
+		}
+
+        }
+
+        /* get selinux security context of name that does not exist */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
+
+                util_broker_connect(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "GetConnectionSELinuxSecurityContext", &error, NULL,
+                                       "s", "com.example.foo");
+                assert(r < 0);
+                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.NameHasNoOwner"));
+        }
+
+        /* get selinux security context of invalid name */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
+
+                util_broker_connect(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "GetConnectionSELinuxSecurityContext", &error, NULL,
+                                       "s", "org");
+                assert(r < 0);
+                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.NameHasNoOwner"));
+        }
+
+        util_broker_terminate(broker);
+}
+
 static void test_get_adt_audit_session_data(void) {
         _c_cleanup_(util_broker_freep) Broker *broker = NULL;
         int r;
@@ -1312,11 +1836,17 @@ int main(int argc, char **argv) {
         test_release_name();
         test_get_name_owner();
         test_name_has_owner();
+        test_start_service_by_name();
+        test_update_activation_environment();
         test_list_names();
         test_list_activatable_names();
+        test_add_match();
+        test_remove_match();
         test_list_queued_owners();
         test_get_connection_unix_user();
         test_get_connection_unix_process_id();
+        test_get_connection_credentials();
+        test_get_connection_selinux_security_context();
         test_get_adt_audit_session_data();
         test_get_id();
         test_reload_config();
@@ -1325,37 +1855,3 @@ int main(int argc, char **argv) {
 
         return 0;
 }
-
-#if 0
-static void test_driver_api(struct sockaddr_un *address, socklen_t addrlen) {
-        r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
-                               "GetConnectionCredentials", NULL, NULL,
-                               "s", "com.example.baz");
-        assert(r >= 0);
-
-        r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
-                               "GetConnectionSELinuxSecurityContext", NULL, NULL,
-                               "s", "com.example.baz");
-        /* this will fail or succeed depending on whether or not SELinux is enabled */
-
-        r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
-                               "AddMatch", NULL, NULL,
-                               "s", "sender=org.freedesktop.DBus");
-        assert(r >= 0);
-
-        r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
-                               "RemoveMatch", NULL, NULL,
-                               "s", "sender=org.freedesktop.DBus");
-        assert(r >= 0);
-
-        r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
-                               "StartServiceByName", NULL, NULL,
-                               "su", "com.example.baz", 0);
-        assert(r < 0);
-
-        r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
-                               "UpdateActivationEnvironment", NULL, NULL,
-                               "a{ss}", 0);
-        assert(r >= 0);
-}
-#endif

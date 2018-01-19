@@ -60,17 +60,19 @@ struct Name {
         CRBNode registry_node;
 
         Activation *activation;
-        MatchRegistry matches;
+        MatchRegistry sender_matches;
+        MatchRegistry name_owner_changed_matches;
 
         CList ownership_list;
         char name[];
 };
 
-#define NAME_INIT(_x) {                                                         \
-                .n_refs = C_REF_INIT,                                           \
-                .registry_node = C_RBNODE_INIT((_x).registry_node),             \
-                .matches = MATCH_REGISTRY_INIT((_x).matches),                   \
-                .ownership_list = C_LIST_INIT((_x).ownership_list),             \
+#define NAME_INIT(_x) {                                                                                 \
+                .n_refs = C_REF_INIT,                                                                   \
+                .registry_node = C_RBNODE_INIT((_x).registry_node),                                     \
+                .sender_matches = MATCH_REGISTRY_INIT((_x).sender_matches),                             \
+                .name_owner_changed_matches = MATCH_REGISTRY_INIT((_x).name_owner_changed_matches),     \
+                .ownership_list = C_LIST_INIT((_x).ownership_list),                                     \
         }
 
 struct NameOwner {

@@ -70,13 +70,29 @@ struct Peer {
 
         PolicySnapshot *policy;
         NameOwner owned_names;
-        MatchRegistry matches;
+        MatchRegistry sender_matches;
+        MatchRegistry name_owner_changed_matches;
         MatchOwner owned_matches;
-        ReplyRegistry replies_outgoing;
+        ReplyRegistry replies;
         ReplyOwner owned_replies;
 
         uint64_t transaction_id;
 };
+
+#define PEER_INIT(_x) {                                                                                 \
+                .charges[0] = USER_CHARGE_INIT,                                                         \
+                .charges[1] = USER_CHARGE_INIT,                                                         \
+                .charges[2] = USER_CHARGE_INIT,                                                         \
+                .registry_node = C_RBNODE_INIT((_x).registry_node),                                     \
+                .listener_link = C_LIST_INIT((_x).listener_link),                                       \
+                .connection = CONNECTION_NULL((_x).connection),                                         \
+                .owned_names = NAME_OWNER_INIT,                                                         \
+                .sender_matches = MATCH_REGISTRY_INIT((_x).sender_matches),                             \
+                .name_owner_changed_matches = MATCH_REGISTRY_INIT((_x).name_owner_changed_matches),     \
+                .owned_matches = MATCH_OWNER_INIT,                                                      \
+                .replies = REPLY_REGISTRY_INIT,                                                         \
+                .owned_replies = REPLY_OWNER_INIT((_x).owned_replies),                                  \
+        }
 
 struct PeerRegistry {
         CRBTree peer_tree;
@@ -107,7 +123,7 @@ void peer_flush_matches(Peer *peer);
 
 int peer_queue_call(PolicySnapshot *sender_policy, NameSet *sender_names, MatchRegistry *sender_matches, ReplyOwner *sender_replies, User *sender_user, uint64_t sender_id, Peer *receiver, Message *message);
 int peer_queue_reply(Peer *sender, const char *destination, uint32_t reply_serial, Message *message);
-int peer_broadcast(PolicySnapshot *sender_policy, NameSet *sender_names, MatchRegistry *sender_matches, uint64_t sender_id, Peer *destination, Bus *bus, MatchFilter *filter, Message *message);
+int peer_broadcast(PolicySnapshot *sender_policy, NameSet *sender_names, MatchRegistry *matches, uint64_t sender_id, Peer *destination, Bus *bus, MatchFilter *filter, Message *message);
 
 void peer_registry_init(PeerRegistry *registry);
 void peer_registry_deinit(PeerRegistry *registry);

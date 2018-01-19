@@ -43,13 +43,15 @@ int bus_init(Bus *bus,
 }
 
 void bus_deinit(Bus *bus) {
+        bus->n_seclabel = 0;
+        bus->seclabel = c_free(bus->seclabel);
         bus->pid = 0;
         bus->user = user_unref(bus->user);
         metrics_deinit(&bus->metrics);
         peer_registry_deinit(&bus->peers);
         user_registry_deinit(&bus->users);
         name_registry_deinit(&bus->names);
-        match_registry_deinit(&bus->driver_matches);
+        match_registry_deinit(&bus->sender_matches);
         match_registry_deinit(&bus->wildcard_matches);
 }
 

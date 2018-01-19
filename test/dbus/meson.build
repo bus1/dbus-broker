@@ -15,6 +15,7 @@ libtest_private = static_library(
                 dep_csundry,
                 dep_libsystemd,
                 dep_thread,
+                libdbus_broker_dep,
         ],
         pic: true,
 )
@@ -44,10 +45,18 @@ test('Driver API', test_driver)
 test_fdstream = executable('test-fdstream', ['test-fdstream.c'], dependencies: [ libtest_dep ])
 test('FD Stream Constraints', test_fdstream)
 
+test_lifetime = executable('test-lifetime', ['test-lifetime.c'], dependencies: [ libtest_dep ])
+test('Client Lifetime', test_lifetime)
+
+test_matches = executable('test-matches', ['test-matches.c'], dependencies: [ libtest_dep ])
+test('Signals and Matches', test_matches)
+
 if use_reference_test
         dbus_bin = dep_dbus.get_pkgconfig_variable('bindir') + '/dbus-daemon'
 
         test('dbus-daemon(1): Broker API', test_broker, env: [ 'DBUS_BROKER_TEST_DAEMON=' + dbus_bin ])
         test('dbus-daemon(1): Driver API', test_driver, env: [ 'DBUS_BROKER_TEST_DAEMON=' + dbus_bin ])
         test('dbus-daemon(1): FD Stream Constraints', test_fdstream, env: [ 'DBUS_BROKER_TEST_DAEMON=' + dbus_bin ])
+        test('dbus-daemon(1): Client Lifetime', test_lifetime, env: [ 'DBUS_BROKER_TEST_DAEMON=' + dbus_bin ])
+        test('dbus-daemon(1): Signals and Matches', test_matches, env: [ 'DBUS_BROKER_TEST_DAEMON=' + dbus_bin ])
 endif
