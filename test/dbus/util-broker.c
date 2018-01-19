@@ -13,6 +13,7 @@
 #include <sys/un.h>
 #include <systemd/sd-bus.h>
 #include <systemd/sd-event.h>
+#include "dbus/protocol.h"
 #include "util-broker.h"
 
 void util_event_new(sd_event **eventp) {
@@ -32,8 +33,16 @@ void util_event_new(sd_event **eventp) {
 }
 
 static int util_event_sigchld(sd_event_source *source, const siginfo_t *si, void *userdata) {
-        return sd_event_exit(sd_event_source_get_event(source),
-                             (si->si_code == CLD_EXITED) ? si->si_status : EXIT_FAILURE);
+        int status;
+
+        if (si->si_code == CLD_EXITED)
+                status = si->si_status;
+        else if (si->si_code == CLD_KILLED && si->si_status == SIGTERM)
+                status = EXIT_SUCCESS;
+        else
+                status = EXIT_FAILURE;
+
+        return sd_event_exit(sd_event_source_get_event(source), status);
 }
 
 #define POLICY_T_BATCH                                                          \
@@ -548,6 +557,103 @@ void util_broker_connect(Broker *broker, sd_bus **busp) {
         r = sd_bus_start(bus);
         assert(r >= 0);
 
+        util_broker_consume_signal(bus, "org.freedesktop.DBus", "NameAcquired");
+
         *busp = bus;
         bus = NULL;
+}
+
+void util_broker_connect_monitor(Broker *broker, sd_bus **busp) {
+        _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+        int r;
+
+        util_broker_connect(broker, &bus);
+
+        r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus.Monitoring",
+                               "BecomeMonitor", NULL, NULL,
+                               "asu", 0, 0);
+        assert(r >= 0);
+
+        util_broker_consume_signal(bus, "org.freedesktop.DBus", "NameLost");
+
+        *busp = bus;
+        bus = NULL;
+}
+
+void util_broker_consume_method_call(sd_bus *bus, const char *interface, const char *member) {
+        _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *message = NULL;
+        int r;
+
+        for (;;) {
+                r = sd_bus_wait(bus, (uint64_t)-1);
+                assert(r >= 0);
+
+                r = sd_bus_process(bus, &message);
+                assert(r >= 0);
+
+                if (message)
+                        break;
+        }
+
+        r = sd_bus_message_is_method_call(message, interface, member);
+        assert(r > 0);
+}
+
+void util_broker_consume_method_return(sd_bus *bus) {
+        _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *message = NULL;
+        uint8_t type;
+        int r;
+
+        for (;;) {
+                r = sd_bus_wait(bus, (uint64_t)-1);
+                assert(r >= 0);
+
+                r = sd_bus_process(bus, &message);
+                assert(r >= 0);
+
+                if (message)
+                        break;
+        }
+
+        r = sd_bus_message_get_type(message, &type);
+        assert(r >= 0);
+        assert(type == DBUS_MESSAGE_TYPE_METHOD_RETURN);
+}
+
+void util_broker_consume_method_error(sd_bus *bus, const char *name) {
+        _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *message = NULL;
+        int r;
+
+        for (;;) {
+                r = sd_bus_wait(bus, (uint64_t)-1);
+                assert(r >= 0);
+
+                r = sd_bus_process(bus, &message);
+                assert(r >= 0);
+
+                if (message)
+                        break;
+        }
+
+        r = sd_bus_message_is_method_error(message, name);
+        assert(r > 0);
+}
+
+void util_broker_consume_signal(sd_bus *bus, const char *interface, const char *member) {
+        _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *message = NULL;
+        int r;
+
+        for (;;) {
+                r = sd_bus_wait(bus, (uint64_t)-1);
+                assert(r >= 0);
+
+                r = sd_bus_process(bus, &message);
+                assert(r >= 0);
+
+                if (message)
+                        break;
+        }
+
+        r = sd_bus_message_is_signal(message, interface, member);
+        assert(r > 0);
 }

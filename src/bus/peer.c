@@ -24,7 +24,6 @@
 #include "util/fdlist.h"
 #include "util/log.h"
 #include "util/metrics.h"
-#include "util/selinux.h"
 #include "util/sockopt.h"
 #include "util/user.h"
 

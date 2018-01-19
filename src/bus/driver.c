@@ -167,7 +167,7 @@ static const CDVarType driver_type_out_apsv[] = {
         )
 };
 
-static void driver_write_bytes(CDVar *var, char *bytes, size_t n_bytes) {
+static void driver_write_bytes(CDVar *var, const char *bytes, size_t n_bytes) {
         c_dvar_write(var, "[");
         for (size_t i = 0; i < n_bytes; ++i)
                 c_dvar_write(var, "y", bytes[i]);
@@ -827,10 +827,6 @@ static int driver_method_request_name(Peer *peer, CDVar *in_v, uint32_t serial, 
 
         c_dvar_write(out_v, "(u)", reply);
 
-        r = driver_send_reply(peer, out_v, serial);
-        if (r)
-                return error_trace(r);
-
         if (change.name) {
                 r = driver_name_owner_changed(peer->bus,
                                               change.name->name,
@@ -846,6 +842,10 @@ static int driver_method_request_name(Peer *peer, CDVar *in_v, uint32_t serial, 
         }
 
         name_change_deinit(&change);
+
+        r = driver_send_reply(peer, out_v, serial);
+        if (r)
+                return error_trace(r);
 
         return 0;
 }
@@ -881,10 +881,6 @@ static int driver_method_release_name(Peer *peer, CDVar *in_v, uint32_t serial, 
 
         c_dvar_write(out_v, "(u)", reply);
 
-        r = driver_send_reply(peer, out_v, serial);
-        if (r)
-                return error_trace(r);
-
         if (change.name) {
                 r = driver_name_owner_changed(peer->bus,
                                               change.name->name,
@@ -895,6 +891,10 @@ static int driver_method_release_name(Peer *peer, CDVar *in_v, uint32_t serial, 
         }
 
         name_change_deinit(&change);
+
+        r = driver_send_reply(peer, out_v, serial);
+        if (r)
+                return error_trace(r);
 
         return 0;
 }
@@ -1194,7 +1194,10 @@ static int driver_method_get_connection_unix_process_id(Peer *peer, CDVar *in_v,
 
 static int driver_method_get_connection_credentials(Peer *peer, CDVar *in_v, uint32_t serial, CDVar *out_v) {
         Peer *connection;
-        const char *name;
+        const char *name, *seclabel;
+        size_t n_seclabel;
+        uid_t uid;
+        pid_t pid;
         int r;
 
         c_dvar_read(in_v, "(s)", &name);
@@ -1203,15 +1206,27 @@ static int driver_method_get_connection_credentials(Peer *peer, CDVar *in_v, uin
         if (r)
                 return error_trace(r);
 
-        connection = bus_find_peer_by_name(peer->bus, NULL, name);
-        if (!connection)
-                return DRIVER_E_PEER_NOT_FOUND;
+        if (strcmp(name, "org.freedesktop.DBus") == 0) {
+                uid = peer->bus->user->uid;
+                pid = peer->bus->pid;
+                seclabel = peer->bus->seclabel;
+                n_seclabel = peer->bus->n_seclabel;
+        } else {
+                connection = bus_find_peer_by_name(peer->bus, NULL, name);
+                if (!connection)
+                        return DRIVER_E_PEER_NOT_FOUND;
+
+                uid = connection->user->uid;
+                pid = connection->pid;
+                seclabel = connection->seclabel;
+                n_seclabel = connection->n_seclabel;
+        }
 
         c_dvar_write(out_v, "([{s<u>}{s<u>}",
-                     "UnixUserID", c_dvar_type_u, connection->user->uid,
-                     "ProcessID", c_dvar_type_u, connection->pid);
+                     "UnixUserID", c_dvar_type_u, uid,
+                     "ProcessID", c_dvar_type_u, pid);
 
-        if (connection->n_seclabel) {
+        if (n_seclabel) {
                 /*
                  * The DBus specification says that the security-label is a
                  * byte array of non-0 values. The kernel disagrees.
@@ -1223,7 +1238,7 @@ static int driver_method_get_connection_credentials(Peer *peer, CDVar *in_v, uin
                  * so we can safely copy from it.
                  */
                 c_dvar_write(out_v, "{s<", "LinuxSecurityLabel", (const CDVarType[]){ C_DVAR_T_INIT(C_DVAR_T_ARRAY(C_DVAR_T_y)) });
-                driver_write_bytes(out_v, connection->seclabel, connection->n_seclabel + 1);
+                driver_write_bytes(out_v, seclabel, n_seclabel + 1);
                 c_dvar_write(out_v, ">}");
         }
 
@@ -1260,8 +1275,8 @@ static int driver_method_get_adt_audit_session_data(Peer *peer, CDVar *in_v, uin
 }
 
 static int driver_method_get_connection_selinux_security_context(Peer *peer, CDVar *in_v, uint32_t serial, CDVar *out_v) {
-        Peer *connection;
-        const char *name;
+        const char *name, *seclabel;
+        size_t n_seclabel;
         int r;
 
         c_dvar_read(in_v, "(s)", &name);
@@ -1270,9 +1285,19 @@ static int driver_method_get_connection_selinux_security_context(Peer *peer, CDV
         if (r)
                 return error_trace(r);
 
-        connection = bus_find_peer_by_name(peer->bus, NULL, name);
-        if (!connection)
-                return DRIVER_E_PEER_NOT_FOUND;
+        if (!strcmp(name, "org.freedesktop.DBus")) {
+                seclabel = peer->bus->seclabel;
+                n_seclabel = peer->bus->n_seclabel;
+        } else {
+                Peer *connection;
+
+                connection = bus_find_peer_by_name(peer->bus, NULL, name);
+                if (!connection)
+                        return DRIVER_E_PEER_NOT_FOUND;
+
+                seclabel = connection->seclabel;
+                n_seclabel = connection->n_seclabel;
+	}
 
         /*
          * Unlike "LinuxSecurityLabel" in GetConnectionCredentials(), this
@@ -1287,7 +1312,7 @@ static int driver_method_get_connection_selinux_security_context(Peer *peer, CDV
          * trailing 0-byte in the data blob.
          */
         c_dvar_write(out_v, "(");
-        driver_write_bytes(out_v, connection->seclabel, connection->n_seclabel);
+        driver_write_bytes(out_v, seclabel, n_seclabel);
         c_dvar_write(out_v, ")");
 
         r = driver_send_reply(peer, out_v, serial);

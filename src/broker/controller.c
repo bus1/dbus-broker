@@ -15,8 +15,6 @@
 #include "dbus/connection.h"
 #include "dbus/message.h"
 #include "util/error.h"
-#include "util/proc.h"
-#include "util/selinux.h"
 #include "util/sockopt.h"
 #include "util/user.h"
 
@@ -246,10 +244,6 @@ int controller_init(Controller *c, Broker *broker, int controller_fd) {
         *controller = (Controller)CONTROLLER_NULL(*controller);
         controller->broker = broker;
 
-        r = proc_get_seclabel(&controller->seclabel);
-        if (r)
-                return error_fold(r);
-
         r = connection_init_server(&controller->connection,
                                    &broker->dispatcher,
                                    controller_dispatch_connection,
@@ -277,7 +271,6 @@ void controller_deinit(Controller *controller) {
                 controller_listener_free(listener);
 
         connection_deinit(&controller->connection);
-        controller->seclabel = c_free(controller->seclabel);
         controller->broker = NULL;
 }
 
