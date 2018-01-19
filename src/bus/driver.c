@@ -536,7 +536,7 @@ static int driver_notify_name_lost(Peer *peer, const char *name) {
         return 0;
 }
 
-static int driver_notify_name_owner_changed(Bus *bus, const char *name, const char *old_owner, const char *new_owner) {
+static int driver_notify_name_owner_changed(Bus *bus, MatchRegistry *matches, const char *name, const char *old_owner, const char *new_owner) {
         MatchFilter filter = {
                 .type = DBUS_MESSAGE_TYPE_SIGNAL,
                 .destination = ADDRESS_ID_INVALID,
@@ -585,14 +585,14 @@ static int driver_notify_name_owner_changed(Bus *bus, const char *name, const ch
         if (r)
                 return error_fold(r);
 
-        r = peer_broadcast(NULL, NULL, NULL, ADDRESS_ID_INVALID, NULL, bus, &filter, message);
+        r = peer_broadcast(NULL, NULL, matches, ADDRESS_ID_INVALID, NULL, bus, &filter, message);
         if (r)
                 return error_fold(r);
 
         return 0;
 }
 
-static int driver_name_owner_changed(Bus *bus, const char *name, Peer *old_owner, Peer *new_owner) {
+static int driver_name_owner_changed(Bus *bus, MatchRegistry *matches, const char *name, Peer *old_owner, Peer *new_owner) {
         const char *old_owner_str, *new_owner_str;
         int r;
 
@@ -609,7 +609,7 @@ static int driver_name_owner_changed(Bus *bus, const char *name, Peer *old_owner
                         return error_trace(r);
         }
 
-        r = driver_notify_name_owner_changed(bus, name, old_owner_str, new_owner_str);
+        r = driver_notify_name_owner_changed(bus, matches, name, old_owner_str, new_owner_str);
         if (r)
                 return error_trace(r);
 
@@ -783,7 +783,7 @@ static int driver_method_hello(Peer *peer, CDVar *in_v, uint32_t serial, CDVar *
         if (r)
                 return error_trace(r);
 
-        r = driver_name_owner_changed(peer->bus, NULL, NULL, peer);
+        r = driver_name_owner_changed(peer->bus, &peer->name_owner_changed_matches, NULL, NULL, peer);
         if (r)
                 return error_trace(r);
 
@@ -829,6 +829,7 @@ static int driver_method_request_name(Peer *peer, CDVar *in_v, uint32_t serial, 
 
         if (change.name) {
                 r = driver_name_owner_changed(peer->bus,
+                                              &change.name->name_owner_changed_matches,
                                               change.name->name,
                                               c_container_of(change.old_owner, Peer, owned_names),
                                               c_container_of(change.new_owner, Peer, owned_names));
@@ -883,6 +884,7 @@ static int driver_method_release_name(Peer *peer, CDVar *in_v, uint32_t serial, 
 
         if (change.name) {
                 r = driver_name_owner_changed(peer->bus,
+                                              &change.name->name_owner_changed_matches,
                                               change.name->name,
                                               c_container_of(change.old_owner, Peer, owned_names),
                                               c_container_of(change.new_owner, Peer, owned_names));
@@ -1769,6 +1771,7 @@ int driver_goodbye(Peer *peer, bool silent) {
                 peer_release_name_ownership(peer, ownership, &change);
                 if (!silent && change.name)
                         r = driver_name_owner_changed(peer->bus,
+                                                      &change.name->name_owner_changed_matches,
                                                       change.name->name,
                                                       c_container_of(change.old_owner, Peer, owned_names),
                                                       c_container_of(change.new_owner, Peer, owned_names));
@@ -1781,12 +1784,15 @@ int driver_goodbye(Peer *peer, bool silent) {
 
         if (peer_is_registered(peer)) {
                 if (!silent) {
-                        r = driver_name_owner_changed(peer->bus, NULL, peer, NULL);
+                        r = driver_name_owner_changed(peer->bus, &peer->name_owner_changed_matches, NULL, peer, NULL);
                         if (r)
                                 return error_trace(r);
                 }
                 peer_unregister(peer);
         }
+
+        c_list_for_each_entry_safe(rule, rule_safe, &peer->name_owner_changed_matches.rule_list, registry_link)
+                match_rule_unlink(rule);
 
         c_rbtree_for_each_entry_safe_postorder_unlink(reply, reply_safe, &peer->replies.reply_tree, registry_node) {
                 Peer *sender = c_container_of(reply->owner, Peer, owned_replies);

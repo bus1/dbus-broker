@@ -179,11 +179,9 @@ int peer_new_with_fd(Peer **peerp,
         peer = calloc(1, sizeof(*peer));
         if (!peer)
                 return error_origin(-ENOMEM);
+        *peer = (Peer)PEER_INIT(*peer);
 
         peer->bus = bus;
-        peer->connection = (Connection)CONNECTION_NULL(peer->connection);
-        peer->registry_node = (CRBNode)C_RBNODE_INIT(peer->registry_node);
-        peer->listener_link = (CList)C_LIST_INIT(peer->listener_link);
         peer->user = user;
         user = NULL;
         peer->pid = ucred.pid;
@@ -193,14 +191,6 @@ int peer_new_with_fd(Peer **peerp,
         peer->seclabel = seclabel;
         seclabel = NULL;
         peer->n_seclabel = n_seclabel;
-        peer->charges[0] = (UserCharge)USER_CHARGE_INIT;
-        peer->charges[1] = (UserCharge)USER_CHARGE_INIT;
-        peer->charges[2] = (UserCharge)USER_CHARGE_INIT;
-        peer->owned_names = (NameOwner)NAME_OWNER_INIT;
-        peer->sender_matches = (MatchRegistry)MATCH_REGISTRY_INIT(peer->sender_matches);
-        peer->owned_matches = (MatchOwner)MATCH_OWNER_INIT;
-        peer->replies = (ReplyRegistry)REPLY_REGISTRY_INIT;
-        peer->owned_replies = (ReplyOwner)REPLY_OWNER_INIT(peer->owned_replies);
 
         r = user_charge(user, &peer->charges[0], NULL, USER_SLOT_BYTES, sizeof(Peer));
         r = r ?: user_charge(user, &peer->charges[1], NULL, USER_SLOT_FDS, 1);
@@ -258,6 +248,7 @@ Peer *peer_free(Peer *peer) {
         reply_owner_deinit(&peer->owned_replies);
         reply_registry_deinit(&peer->replies);
         match_owner_deinit(&peer->owned_matches);
+        match_registry_deinit(&peer->name_owner_changed_matches);
         match_registry_deinit(&peer->sender_matches);
         name_owner_deinit(&peer->owned_names);
         policy_snapshot_free(peer->policy);
@@ -676,7 +667,7 @@ static int peer_broadcast_to_matches(PolicySnapshot *sender_policy, NameSet *sen
         return 0;
 }
 
-int peer_broadcast(PolicySnapshot *sender_policy, NameSet *sender_names, MatchRegistry *sender_matches, uint64_t sender_id, Peer *destination, Bus *bus, MatchFilter *filter, Message *message) {
+int peer_broadcast(PolicySnapshot *sender_policy, NameSet *sender_names, MatchRegistry *matches, uint64_t sender_id, Peer *destination, Bus *bus, MatchFilter *filter, Message *message) {
         MatchFilter fallback_filter = MATCH_FILTER_INIT;
         int r;
 
@@ -707,8 +698,8 @@ int peer_broadcast(PolicySnapshot *sender_policy, NameSet *sender_names, MatchRe
         if (r)
                 return error_trace(r);
 
-        if (sender_matches) {
-                r = peer_broadcast_to_matches(sender_policy, sender_names, sender_matches, filter, bus->transaction_ids, message);
+        if (matches) {
+                r = peer_broadcast_to_matches(sender_policy, sender_names, matches, filter, bus->transaction_ids, message);
                 if (r)
                         return error_trace(r);
         }
