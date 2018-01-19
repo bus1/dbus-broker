@@ -568,7 +568,8 @@ static void test_name_has_owner(void) {
         {
                 _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
                 _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *reply = NULL;
-                const char *unique_name, *owned;
+                const char *unique_name;
+                int owned;
 
                 util_broker_connect(broker, &bus);
 
@@ -588,7 +589,7 @@ static void test_name_has_owner(void) {
         {
                 _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
                 _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *reply = NULL;
-                const char *owned;
+                int owned;
 
                 util_broker_connect(broker, &bus);
 
@@ -615,7 +616,7 @@ static void test_name_has_owner(void) {
         {
                 _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
                 _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *reply = NULL;
-                const char *owned;
+                int owned;
 
                 util_broker_connect(broker, &bus);
 
