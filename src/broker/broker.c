@@ -149,7 +149,7 @@ Broker *broker_free(Broker *broker) {
 
 int broker_run(Broker *broker) {
         sigset_t signew, sigold;
-        int r;
+        int r, k;
 
         sigemptyset(&signew);
         sigaddset(&signew, SIGTERM);
@@ -174,6 +174,10 @@ int broker_run(Broker *broker) {
         } while (!r);
 
         peer_registry_flush(&broker->bus.peers);
+
+        k = bus_log_commit_metrics(&broker->bus);
+        if (k)
+                r = error_fold(k);
 
         sigprocmask(SIG_SETMASK, &sigold, NULL);
 

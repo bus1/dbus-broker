@@ -185,3 +185,34 @@ int bus_log_commit_policy_send(Bus *bus, int policy_type, uint64_t sender_id, ui
 int bus_log_commit_policy_receive(Bus *bus, uint64_t receiver_id, uint64_t sender_id, NameSet *sender_names, NameSet *receiver_names, Message *message) {
         return bus_log_commit_policy(bus, "receive", "internal", sender_id, receiver_id, sender_names, receiver_names, NULL, NULL, message);
 }
+
+int bus_log_commit_metrics(Bus *bus) {
+        Metrics *metrics = &bus->metrics;
+        Log *log = bus->log;
+        double stddev;
+        int r;
+
+        stddev = metrics_read_standard_deviation(metrics);
+/* XXX: this makes the CI fail
+        log_appendf(log,
+                    "DBUS_BROKER_METRICS_DISPATCH_COUNT=%"PRIu64"\n"
+                    "DBUS_BROKER_METRICS_DISPATCH_MIN=%"PRIu64"\n"
+                    "DBUS_BROKER_METRICS_DISPATCH_MAX=%"PRIu64"\n"
+                    "DBUS_BROKER_METRICS_DISPATCH_AVG=%"PRIu64"\n"
+                    "DBUS_BROKER_METRICS_DISPATCH_STDDEV=%.0f\n",
+                    metrics->count,
+                    metrics->minimum,
+                    metrics->maximum,
+                    metrics->average,
+                    stddev);
+*/
+        r = log_commitf(log,
+                       "Dispatched %"PRIu64" messages @ %"PRIu64"(±%.0f)μs / message.",
+                       metrics->count,
+                       metrics->average / 1000,
+                       stddev / 1000);
+        if (r)
+                return error_fold(r);
+
+        return 0;
+}

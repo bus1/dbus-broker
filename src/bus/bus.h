@@ -72,3 +72,4 @@ Peer *bus_find_peer_by_name(Bus *bus, Name **namep, const char *name);
 
 int bus_log_commit_policy_send(Bus *bus, int policy_type, uint64_t sender_id, uint64_t receiver_id, NameSet *sender_names, NameSet *receiver_names, const char *sender_label, const char *receiver_label, Message *message);
 int bus_log_commit_policy_receive(Bus *bus, uint64_t sender_id, uint64_t receiver_id, NameSet *sender_names, NameSet *receievr_names, Message *message);
+int bus_log_commit_metrics(Bus *bus);
