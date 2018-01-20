@@ -105,7 +105,9 @@ int peer_dispatch(DispatchFile *file) {
 
         if (r) {
                 if (r == PEER_E_EOF) {
+                        metrics_sample_start(&peer->bus->metrics);
                         r = driver_goodbye(peer, false);
+                        metrics_sample_end(&peer->bus->metrics);
                         if (r)
                                 return error_fold(r);
 
@@ -113,7 +115,9 @@ int peer_dispatch(DispatchFile *file) {
                 } else if (r == PEER_E_PROTOCOL_VIOLATION) {
                         connection_close(&peer->connection);
 
+                        metrics_sample_start(&peer->bus->metrics);
                         r = driver_goodbye(peer, false);
+                        metrics_sample_end(&peer->bus->metrics);
                         if (r)
                                 return error_fold(r);
                 } else {
