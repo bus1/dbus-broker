@@ -51,7 +51,7 @@ struct Bus {
                 .wildcard_matches = MATCH_REGISTRY_INIT((_x).wildcard_matches), \
                 .sender_matches = MATCH_REGISTRY_INIT((_x).sender_matches),     \
                 .peers = PEER_REGISTRY_INIT,                                    \
-                .metrics = METRICS_INIT,                                        \
+                .metrics = METRICS_INIT(CLOCK_THREAD_CPUTIME_ID),               \
         }
 
 int bus_init(Bus *bus,

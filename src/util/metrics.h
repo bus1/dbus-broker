@@ -6,6 +6,7 @@
 
 #include <c-macro.h>
 #include <stdlib.h>
+#include <time.h>
 
 typedef struct Metrics Metrics;
 
@@ -17,18 +18,20 @@ struct Metrics {
         uint64_t average;
 
         /* internal state */
+        clockid_t id;
         uint64_t timestamp;
         uint64_t sum_of_squares;
 };
 
-#define METRICS_INIT {                          \
+#define METRICS_INIT(_id) {                     \
                 .minimum = (uint64_t) -1,       \
+                .id = (_id),                    \
         }
 
-void metrics_init(Metrics *metrics);
+void metrics_init(Metrics *metrics, clockid_t id);
 void metrics_deinit(Metrics *metrics);
 
-uint64_t metrics_get_time(void);
+uint64_t metrics_get_time(Metrics *metrics);
 void metrics_sample_add(Metrics *metrics, uint64_t timestamp);
 
 void metrics_sample_start(Metrics *metrics);

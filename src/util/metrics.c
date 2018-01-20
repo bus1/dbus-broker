@@ -21,13 +21,13 @@
 #include <time.h>
 #include "util/metrics.h"
 
-void metrics_init(Metrics *metrics) {
-        *metrics = (Metrics)METRICS_INIT;
+void metrics_init(Metrics *metrics, clockid_t id) {
+        *metrics = (Metrics)METRICS_INIT(id);
 }
 
 void metrics_deinit(Metrics *metrics) {
         assert(!metrics->timestamp);
-        metrics_init(metrics);
+        metrics_init(metrics, metrics->id);
 }
 
 /**
@@ -37,11 +37,11 @@ void metrics_deinit(Metrics *metrics) {
  *
  * Return: the timestamp in nano seconds.
  */
-uint64_t metrics_get_time(void) {
+uint64_t metrics_get_time(Metrics *metrics) {
         struct timespec ts;
         int r;
 
-        r = clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts);
+        r = clock_gettime(metrics->id, &ts);
         assert(r >= 0);
 
         return ts.tv_sec * UINT64_C(1000000000) + ts.tv_nsec;
@@ -58,7 +58,7 @@ uint64_t metrics_get_time(void) {
 void metrics_sample_add(Metrics *metrics, uint64_t timestamp) {
         uint64_t sample, average_old;
 
-        sample = metrics_get_time() - timestamp;
+        sample = metrics_get_time(metrics) - timestamp;
 
         metrics->count ++;
         metrics->sum += sample;
@@ -83,7 +83,7 @@ void metrics_sample_add(Metrics *metrics, uint64_t timestamp) {
  */
 void metrics_sample_start(Metrics *metrics) {
         assert(!metrics->timestamp);
-        metrics->timestamp = metrics_get_time();
+        metrics->timestamp = metrics_get_time(metrics);
 }
 
 /**
