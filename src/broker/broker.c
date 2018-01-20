@@ -155,9 +155,38 @@ Broker *broker_free(Broker *broker) {
         return NULL;
 }
 
+static int broker_log_metrics(Broker *broker) {
+        Metrics *metrics = &broker->bus.metrics;
+        double stddev;
+        int r;
+
+        stddev = metrics_read_standard_deviation(metrics);
+        log_appendf(broker->bus.log,
+                    "DBUS_BROKER_METRICS_DISPATCH_COUNT=%"PRIu64"\n"
+                    "DBUS_BROKER_METRICS_DISPATCH_MIN=%"PRIu64"\n"
+                    "DBUS_BROKER_METRICS_DISPATCH_MAX=%"PRIu64"\n"
+                    "DBUS_BROKER_METRICS_DISPATCH_AVG=%"PRIu64"\n"
+                    "DBUS_BROKER_METRICS_DISPATCH_STDDEV=%.0f\n",
+                    metrics->count,
+                    metrics->minimum,
+                    metrics->maximum,
+                    metrics->average,
+                    stddev);
+        log_append_here(broker->bus.log, LOG_INFO, 0);
+        r = log_commitf(broker->bus.log,
+                       "Dispatched %"PRIu64" messages @ %"PRIu64"(±%.0f)μs / message.",
+                       metrics->count,
+                       metrics->average / 1000,
+                       stddev / 1000);
+        if (r)
+                return error_fold(r);
+
+        return 0;
+}
+
 int broker_run(Broker *broker) {
         sigset_t signew, sigold;
-        int r;
+        int r, k;
 
         sigemptyset(&signew);
         sigaddset(&signew, SIGTERM);
@@ -182,6 +211,10 @@ int broker_run(Broker *broker) {
         } while (!r);
 
         peer_registry_flush(&broker->bus.peers);
+
+        k = broker_log_metrics(broker);
+        if (k)
+                r = error_fold(k);
 
         sigprocmask(SIG_SETMASK, &sigold, NULL);
 
