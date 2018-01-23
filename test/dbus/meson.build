@@ -15,6 +15,7 @@ libtest_private = static_library(
                 dep_csundry,
                 dep_libsystemd,
                 dep_thread,
+                libdbus_broker_dep,
         ],
         pic: true,
 )
