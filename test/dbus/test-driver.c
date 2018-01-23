@@ -30,7 +30,7 @@ static void test_hello(void) {
 
                 r = sd_bus_message_read(reply, "s", &unique_name);
                 assert(r >= 0);
-                assert(!strcmp(unique_name, ":1.0"));
+                assert(!strcmp(unique_name, ":1.1"));
 
                 /* calling Hello() again is not valid */
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
