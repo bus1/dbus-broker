@@ -337,6 +337,7 @@ Broker *util_broker_free(Broker *broker) {
         if (!broker)
                 return NULL;
 
+        assert(!broker->client);
         assert(broker->listener_fd < 0);
         assert(broker->pipe_fds[0] < 0);
         assert(broker->pipe_fds[1] < 0);
@@ -490,11 +491,29 @@ void util_broker_spawn(Broker *broker) {
         pthread_sigmask(SIG_SETMASK, &sigold, NULL);
 }
 
+void util_broker_spawn_and_settle(Broker *broker) {
+        int r;
+
+        util_broker_spawn(broker);
+
+        /*
+         * Do a barrier, by calling a method on the driver to make sure it is fully up
+         * and running.
+         */
+        util_broker_connect(broker, &broker->client);
+
+        r = sd_bus_call_method(broker->client, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus.Peer",
+                               "Ping", NULL, NULL, "");
+        assert(r >= 0);
+}
+
 void util_broker_terminate(Broker *broker) {
         void *value;
         int r;
 
         assert(broker->listener_fd >= 0 || broker->pipe_fds[0] >= 0);
+
+        broker->client = sd_bus_unref(broker->client);
 
         r = pthread_kill(broker->thread, SIGUSR1);
         assert(!r);
