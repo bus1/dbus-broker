@@ -374,6 +374,7 @@ static void *util_broker_thread(void *userdata) {
                 util_fork_broker(&bus, event, broker->listener_fd, &broker->child_pid);
                 /* dbus-broker reports its controller in GetConnectionUnixProcessID */
                 broker->pid = getpid();
+                broker->listener_fd = c_close(broker->listener_fd);
         } else {
                 assert(broker->listener_fd < 0);
                 util_fork_daemon(event, broker->pipe_fds[1], &broker->child_pid);
@@ -386,7 +387,6 @@ static void *util_broker_thread(void *userdata) {
         r = sd_event_loop(event);
         assert(r >= 0);
 
-        broker->listener_fd = -1;
         broker->pipe_fds[0] = c_close(broker->pipe_fds[0]);
         return (void *)(uintptr_t)r;
 }
