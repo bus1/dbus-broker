@@ -183,7 +183,6 @@ void util_fork_broker(sd_bus **busp, sd_event *event, int listener_fd, pid_t *pi
 
                 r = execl("./src/dbus-broker",
                           "./src/dbus-broker",
-                          "--verbose",
                           "--controller", fdstr,
                           (char *)NULL);
                 /* execl(2) only returns on error */
@@ -322,6 +321,7 @@ Broker *util_broker_free(Broker *broker) {
         if (!broker)
                 return NULL;
 
+        assert(!broker->client);
         assert(broker->listener_fd < 0);
         assert(broker->pipe_fds[0] < 0);
         assert(broker->pipe_fds[1] < 0);
@@ -473,6 +473,16 @@ void util_broker_spawn(Broker *broker) {
         assert(!r);
 
         pthread_sigmask(SIG_SETMASK, &sigold, NULL);
+
+        /*
+         * Do a barrier, by calling a method on the driver to make sure it is fully up
+         * and running.
+         */
+        util_broker_connect(broker, &broker->client);
+
+        r = sd_bus_call_method(broker->client, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                               "GetId", NULL, NULL, "");
+        assert(r >= 0);
 }
 
 void util_broker_terminate(Broker *broker) {
@@ -480,6 +490,8 @@ void util_broker_terminate(Broker *broker) {
         int r;
 
         assert(broker->listener_fd >= 0 || broker->pipe_fds[0] >= 0);
+
+        broker->client = sd_bus_unref(broker->client);
 
         r = pthread_kill(broker->thread, SIGUSR1);
         assert(!r);

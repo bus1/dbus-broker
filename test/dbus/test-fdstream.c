@@ -59,7 +59,7 @@ static void test_fd_stream_send(Connection *c, unsigned int unix_fds, unsigned i
                      DBUS_MESSAGE_TYPE_METHOD_CALL,
                      DBUS_HEADER_FLAG_NO_REPLY_EXPECTED,
                      1, 0, ++test_fd_stream_seq,
-                     DBUS_MESSAGE_FIELD_DESTINATION, c_dvar_type_s, ":1.0",
+                     DBUS_MESSAGE_FIELD_DESTINATION, c_dvar_type_s, ":1.1",
                      DBUS_MESSAGE_FIELD_PATH, c_dvar_type_o, "/",
                      DBUS_MESSAGE_FIELD_MEMBER, c_dvar_type_s, "Foobar",
                      DBUS_MESSAGE_FIELD_UNIX_FDS, c_dvar_type_u, unix_fds);
@@ -151,7 +151,7 @@ static int test_fd_stream_fn(DispatchFile *file) {
 
                         if (m->metadata.fields.reply_serial == 1) {
 
-                                assert(!strcmp(m->metadata.args[0].value, ":1.0"));
+                                assert(!strcmp(m->metadata.args[0].value, ":1.1"));
                                 assert(!m->metadata.fields.unix_fds);
                                 ++test_fd_stream_got;
 
