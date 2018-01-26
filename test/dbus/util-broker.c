@@ -200,6 +200,9 @@ void util_fork_broker(sd_bus **busp, sd_event *event, int listener_fd, pid_t *pi
                           "./src/dbus-broker",
                           "--controller", fdstr,
                           "--machine-id", "0123456789abcdef0123456789abcdef",
+                          "--max-matches", "1000000",
+                          "--max-objects", "1000000",
+                          "--max-bytes", "1000000000",
                           (char *)NULL);
                 /* execl(2) only returns on error */
                 assert(r >= 0);
@@ -267,6 +270,13 @@ void util_fork_daemon(sd_event *event, int pipe_fd, pid_t *pidp) {
                 "    <allow receive_sender=\"*\" eavesdrop=\"true\"/>\n"
                 "    <allow own=\"*\"/>\n"
                 "  </policy>\n"
+                "  <limit name=\"max_completed_connections\">1000000</limit>\n"
+                "  <limit name=\"max_incomplete_connections\">1000000</limit>\n"
+                "  <limit name=\"max_connections_per_user\">1000000</limit>\n"
+                "  <limit name=\"max_pending_service_starts\">1000000</limit>\n"
+                "  <limit name=\"max_names_per_connection\">1000000</limit>\n"
+                "  <limit name=\"max_match_rules_per_connection\">1000000</limit>\n"
+                "  <limit name=\"max_replies_per_connection\">1000000</limit>\n"
                 "</busconfig>\n";
         _c_cleanup_(c_freep) char *fdstr = NULL, *path = NULL;
         const char *bin;
