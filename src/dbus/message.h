@@ -56,6 +56,7 @@ struct MessageMetadata {
                 char element;
                 const void *value;
         } args[64];
+        size_t n_args;
 };
 
 struct Message {
