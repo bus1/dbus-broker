@@ -290,15 +290,6 @@ static bool match_string_prefix(const char *string, const char *prefix, char del
 }
 
 static bool match_keys_match_filter(MatchKeys *keys, MatchFilter *filter) {
-        if (keys->filter.type != DBUS_MESSAGE_TYPE_INVALID && keys->filter.type != filter->type)
-                return false;
-
-        if (keys->filter.destination != ADDRESS_ID_INVALID && keys->filter.destination != filter->destination)
-                return false;
-
-        if (keys->filter.sender != ADDRESS_ID_INVALID && keys->filter.sender != filter->sender)
-                return false;
-
         if (keys->filter.interface && !c_string_equal(keys->filter.interface, filter->interface))
                 return false;
 
@@ -325,6 +316,15 @@ static bool match_keys_match_filter(MatchKeys *keys, MatchFilter *filter) {
                                 return false;
                 }
         }
+
+        if (keys->filter.type != DBUS_MESSAGE_TYPE_INVALID && keys->filter.type != filter->type)
+                return false;
+
+        if (keys->filter.destination != ADDRESS_ID_INVALID && keys->filter.destination != filter->destination)
+                return false;
+
+        if (keys->filter.sender != ADDRESS_ID_INVALID && keys->filter.sender != filter->sender)
+                return false;
 
         return true;
 }
