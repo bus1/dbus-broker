@@ -34,7 +34,9 @@ struct MatchFilter {
         const char *member;
         const char *path;
         const char *args[64];
+        size_t n_args;
         const char *argpaths[64];
+        size_t n_argpaths;
 };
 
 #define MATCH_FILTER_INIT {                             \

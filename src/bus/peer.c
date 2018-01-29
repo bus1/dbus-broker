@@ -772,6 +772,8 @@ int peer_broadcast(PolicySnapshot *sender_policy, NameSet *sender_names, MatchRe
                 filter->interface = message->metadata.fields.interface;
                 filter->member = message->metadata.fields.member,
                 filter->path = message->metadata.fields.path;
+                filter->n_args = message->metadata.n_args;
+                filter->n_argpaths = message->metadata.n_args;
 
                 for (size_t i = 0; i < message->metadata.n_args; ++i) {
                         if (message->metadata.args[i].element == 's') {
