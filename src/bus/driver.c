@@ -320,6 +320,9 @@ static int driver_monitor(Bus *bus, Peer *sender, Message *message) {
         NameOwnership *ownership;
         int r;
 
+        if (!bus->n_monitors)
+                return 0;
+
         filter.type = message->metadata.header.type;
         filter.sender = sender ? sender->id : ADDRESS_ID_INVALID;
         filter.interface = message->metadata.fields.interface;
@@ -1789,6 +1792,8 @@ int driver_goodbye(Peer *peer, bool silent) {
                                 return error_trace(r);
                 }
                 peer_unregister(peer);
+        } else if (peer_is_monitor(peer)) {
+                peer_stop_monitor(peer);
         }
 
         c_list_for_each_entry_safe(rule, rule_safe, &peer->name_owner_changed_matches.rule_list, registry_link)

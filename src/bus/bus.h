@@ -39,6 +39,7 @@ struct Bus {
         MatchRegistry sender_matches;
         PeerRegistry peers;
 
+        uint64_t n_monitors;
         uint64_t transaction_ids;
         uint64_t listener_ids;
 
