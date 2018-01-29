@@ -328,6 +328,8 @@ static int driver_monitor(Bus *bus, Peer *sender, Message *message) {
         filter.interface = message->metadata.fields.interface;
         filter.member = message->metadata.fields.member,
         filter.path = message->metadata.fields.path;
+        filter.n_args = message->metadata.n_args;
+        filter.n_argpaths = message->metadata.n_args;
 
         for (size_t i = 0; i < message->metadata.n_args; ++i) {
                 if (message->metadata.args[i].element == 's') {
@@ -552,6 +554,8 @@ static int driver_notify_name_owner_changed(Bus *bus, MatchRegistry *matches, co
                 .argpaths[1] = old_owner,
                 .args[2] = new_owner,
                 .argpaths[2] = new_owner,
+                .n_args = 3,
+                .n_argpaths = 3,
         };
         static const CDVarType type[] = {
                 C_DVAR_T_INIT(

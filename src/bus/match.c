@@ -92,8 +92,12 @@ static int match_keys_assign(MatchKeys *keys, const char *key, size_t n_key, con
 
                 if (match_key_equal("", key, n_key)) {
                         keys->filter.args[i] = value;
+                        if (i + 1 > keys->filter.n_args)
+                                keys->filter.n_args = i + 1;
                 } else if (match_key_equal("path", key, n_key)) {
                         keys->filter.argpaths[i] = value;
+                        if (i + 1 > keys->filter.n_argpaths)
+                                keys->filter.n_argpaths = i + 1;
                 } else
                         return MATCH_E_INVALID;
         } else {
@@ -306,7 +310,10 @@ static bool match_keys_match_filter(MatchKeys *keys, MatchFilter *filter) {
         if (keys->arg0namespace && !match_string_prefix(filter->args[0], keys->arg0namespace, '.', false))
                 return false;
 
-        for (unsigned int i = 0; i < C_ARRAY_SIZE(filter->args); i ++) {
+        if (keys->filter.n_args > filter->n_args)
+                return false;
+
+        for (unsigned int i = 0; i < keys->filter.n_args || i < keys->filter.n_argpaths; i ++) {
                 if (keys->filter.args[i] && !c_string_equal(keys->filter.args[i], filter->args[i]))
                         return false;
 
@@ -348,7 +355,17 @@ static int match_rule_compare(CRBTree *tree, void *k, CRBNode *rb) {
         if (key1->filter.type < key2->filter.type)
                 return -1;
 
-        for (size_t i = 0; i < C_ARRAY_SIZE(key1->filter.args); i ++) {
+        if (key1->filter.n_args < key2->filter.n_args)
+                return -1;
+        if (key1->filter.n_args > key2->filter.n_args)
+                return 1;
+
+        if (key1->filter.n_argpaths < key2->filter.n_argpaths)
+                return -1;
+        if (key1->filter.n_argpaths > key2->filter.n_argpaths)
+                return 1;
+
+        for (size_t i = 0; i < key1->filter.n_args || i < key1->filter.n_argpaths; i ++) {
                 if ((r = c_string_compare(key1->filter.args[i], key2->filter.args[i])) ||
                     (r = c_string_compare(key1->filter.argpaths[i], key2->filter.argpaths[i])))
                         return r;

@@ -198,6 +198,7 @@ static void test_individual_matches(void) {
         filter = (MatchFilter)MATCH_FILTER_INIT;
         assert(!test_match("arg0=/com/example/foo/", &filter));
         filter.args[0] = "/com/example/foo/";
+        filter.n_args = 1;
         assert(test_match("arg0=/com/example/foo/", &filter));
         assert(!test_match("arg0=/com/example/foo/bar", &filter));
         assert(!test_match("arg0=/com/example/foobar", &filter));
@@ -219,6 +220,7 @@ static void test_individual_matches(void) {
         filter = (MatchFilter)MATCH_FILTER_INIT;
         assert(!test_match("arg0path=/com/example/foo/", &filter));
         filter.argpaths[0] = "/com/example/foo/";
+        filter.n_argpaths = 1;
         assert(test_match("arg0path=/com/example/foo/", &filter));
         assert(test_match("arg0path=/com/example/foo/bar", &filter));
         assert(!test_match("arg0path=/com/example/foobar", &filter));
@@ -229,6 +231,7 @@ static void test_individual_matches(void) {
         filter = (MatchFilter)MATCH_FILTER_INIT;
         assert(!test_match("arg0path=/com/example/foo", &filter));
         filter.argpaths[0] = "/com/example/foo";
+        filter.n_argpaths = 1;
         assert(test_match("arg0path=/com/example/foo", &filter));
         assert(!test_match("arg0path=/com/example/foo/bar", &filter));
         assert(!test_match("arg0path=/com/example/foobar", &filter));
@@ -239,6 +242,7 @@ static void test_individual_matches(void) {
         filter = (MatchFilter)MATCH_FILTER_INIT;
         assert(!test_match("arg0namespace=com.example.foo", &filter));
         filter.args[0] = "com.example.foo";
+        filter.n_args = 1;
         assert(test_match("arg0namespace=com.example.foo", &filter));
         assert(!test_match("arg0namespace=com.example.foo.bar", &filter));
         assert(!test_match("arg0namespace=com.example.foobar", &filter));
