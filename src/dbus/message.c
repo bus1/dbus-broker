@@ -385,6 +385,7 @@ static int message_parse_body(Message *message, MessageMetadata *metadata) {
                         if (i < C_ARRAY_SIZE(metadata->args)) {
                                 metadata->args[i].element = t->element;
                                 c_dvar_read(&v, (char[2]){ t->element, 0 }, &metadata->args[i].value);
+                                metadata->n_args = i + 1;
                                 break;
                         }
 
