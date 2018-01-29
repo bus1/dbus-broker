@@ -455,8 +455,7 @@ static int manager_start_unit_handler(sd_bus_message *message, void *userdata, s
                 /* unit started successfully */
                 return 1;
 
-        if (main_arg_verbose)
-                fprintf(stderr, "Activation request for '%s' failed: %s\n", service->name, error->message);
+        fprintf(stderr, "Activation request for '%s' failed: %s\n", service->name, error->message);
 
         /* unit failed, so reset pending activation requsets in the broker */
         r = asprintf(&object_path, "/org/bus1/DBus/Name/%s", service->id);
@@ -483,9 +482,6 @@ static int manager_start_unit(Manager *manager, Service *service) {
 
         service->slot = sd_bus_slot_unref(service->slot);
 
-        if (main_arg_verbose)
-                fprintf(stderr, "Activation request for '%s' -> '%s'\n", service->name, service->unit);
-
         r = sd_bus_message_new_method_call(manager->bus_regular, &method_call,
                                            "org.freedesktop.systemd1",
                                            "/org/freedesktop/systemd1",
@@ -511,9 +507,6 @@ static int manager_start_transient_unit(Manager *manager, Service *service) {
         int r;
 
         service->slot = sd_bus_slot_unref(service->slot);
-
-        if (main_arg_verbose)
-                fprintf(stderr, "Activation request for '%s'\n", service->name);
 
         r = asprintf(&unit, "dbus-%s@%"PRIu64".service", service->name, service->instance++);
         if (r < 0)
@@ -741,8 +734,7 @@ static int manager_set_environment_handler(sd_bus_message *message, void *userda
                 /* environment set successfully */
                 return 1;
 
-        if (main_arg_verbose)
-                fprintf(stderr, "Updating activation environment failed: %s\n", error->message);
+        fprintf(stderr, "Updating activation environment failed: %s\n", error->message);
 
         return 1;
 }
@@ -837,9 +829,6 @@ static int manager_load_service_file(Manager *manager, const char *path, NSSCach
          * Preferably, we'd not have the glib dependency here, but it does not
          * hurt much either. If anyone cares, feel free to provide `c-ini'.
          */
-
-        if (main_arg_verbose)
-                fprintf(stderr, "Loading service '%s'\n", path);
 
         f = g_key_file_new();
 
@@ -1550,9 +1539,6 @@ static int run(void) {
                 r = unlink(unlink_path);
                 if (r < 0)
                         return error_origin(-errno);
-
-                if (main_arg_verbose)
-                        fprintf(stderr, "Cleaned up listener socket '%s'\n", unlink_path);
         }
 
         return r;
