@@ -575,8 +575,18 @@ int peer_become_monitor(Peer *peer, MatchOwner *owned_matches) {
                 return poison;
 
         peer->monitor = true;
+        ++peer->bus->n_monitors;
 
         return 0;
+}
+
+void peer_stop_monitor(Peer *peer) {
+        assert(!peer->registered);
+        assert(peer->monitor);
+        assert(c_rbtree_is_empty(&peer->owned_matches.rule_tree));
+
+        peer->monitor = false;
+        --peer->bus->n_monitors;
 }
 
 void peer_flush_matches(Peer *peer) {
