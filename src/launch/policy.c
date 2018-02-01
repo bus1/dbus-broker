@@ -450,16 +450,18 @@ static int policy_import_send(Policy *policy, ConfigNode *cnode) {
         }
 
         if (cnode->allow_deny.send_type == DBUS_MESSAGE_TYPE_METHOD_RETURN ||
-            cnode->allow_deny.send_type == DBUS_MESSAGE_TYPE_ERROR) {
-                fprintf(stderr, "Reply/Error policy in %s +%lu: Explicit policies on replies and errors are deprecated and ignored\n",
-                        cnode->file, cnode->lineno);
-                return 0;
-        }
+            cnode->allow_deny.send_type == DBUS_MESSAGE_TYPE_ERROR ||
+            cnode->allow_deny.send_type == DBUS_MESSAGE_TYPE_INVALID) {
+                if (cnode->type == CONFIG_NODE_DENY && cnode->allow_deny.send_requested_reply == CONFIG_TRISTATE_YES)
+                        fprintf(stderr, "Policy to deny expected replies in %s +%lu: Explicit policies on replies and errors are deprecated and ignored\n",
+                                cnode->file, cnode->lineno);
+                else if (cnode->type == CONFIG_NODE_ALLOW && cnode->allow_deny.send_requested_reply == CONFIG_TRISTATE_NO)
+                        fprintf(stderr, "Policy to allow unexpected replies in %s +%lu: Explicit policies on replies and errors are deprecated and ignored\n",
+                                cnode->file, cnode->lineno);
 
-        if (cnode->allow_deny.send_error ||
-            cnode->allow_deny.send_requested_reply)
-                fprintf(stderr, "Expected-reply/Error policy match in %s +%lu: Those attributes are deprecated and ignored\n",
-                        cnode->file, cnode->lineno);
+                if (cnode->allow_deny.send_type != DBUS_MESSAGE_TYPE_INVALID)
+                        return 0;
+        }
 
         r = policy_record_new_xmit(&record);
         if (r)
@@ -532,16 +534,18 @@ static int policy_import_recv(Policy *policy, ConfigNode *cnode) {
         }
 
         if (cnode->allow_deny.recv_type == DBUS_MESSAGE_TYPE_METHOD_RETURN ||
-            cnode->allow_deny.recv_type == DBUS_MESSAGE_TYPE_ERROR) {
-                fprintf(stderr, "Reply/Error policy in %s +%lu: Explicit policies on replies and errors are deprecated and ignored\n",
-                        cnode->file, cnode->lineno);
-                return 0;
-        }
+            cnode->allow_deny.recv_type == DBUS_MESSAGE_TYPE_ERROR ||
+            cnode->allow_deny.recv_type == DBUS_MESSAGE_TYPE_INVALID) {
+                if (cnode->type == CONFIG_NODE_DENY && cnode->allow_deny.recv_requested_reply == CONFIG_TRISTATE_YES)
+                        fprintf(stderr, "Policy to deny expected replies in %s +%lu: Explicit policies on replies and errors are deprecated and ignored\n",
+                                cnode->file, cnode->lineno);
+                else if (cnode->type == CONFIG_NODE_ALLOW && cnode->allow_deny.recv_requested_reply == CONFIG_TRISTATE_NO)
+                        fprintf(stderr, "Policy to allow unexpected replies in %s +%lu: Explicit policies on replies and errors are deprecated and ignored\n",
+                                cnode->file, cnode->lineno);
 
-        if (cnode->allow_deny.recv_error ||
-            cnode->allow_deny.recv_requested_reply)
-                fprintf(stderr, "Expected-reply/Error policy match in %s +%lu: Those attributes are deprecated and ignored\n",
-                        cnode->file, cnode->lineno);
+                if (cnode->allow_deny.recv_type != DBUS_MESSAGE_TYPE_INVALID)
+                        return 0;
+        }
 
         r = policy_record_new_xmit(&record);
         if (r)
