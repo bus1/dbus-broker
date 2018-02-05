@@ -633,7 +633,7 @@ int peer_queue_call(PolicySnapshot *sender_policy, NameSet *sender_names, MatchR
         if (r) {
                 if (r == POLICY_E_ACCESS_DENIED) {
                         log_append_here(receiver->bus->log, LOG_WARNING, 0);
-                        r = bus_log_commit_policy_receive(receiver->bus, receiver->id, sender_id, message);
+                        r = bus_log_commit_policy_receive(receiver->bus, receiver->id, sender_id, sender_names, &receiver_names, message);
                         if (r)
                                 return error_fold(r);
 
@@ -653,7 +653,7 @@ int peer_queue_call(PolicySnapshot *sender_policy, NameSet *sender_names, MatchR
         if (r) {
                 if (r == POLICY_E_ACCESS_DENIED) {
                         log_append_here(receiver->bus->log, LOG_WARNING, 0);
-                        r = bus_log_commit_policy_send(receiver->bus, sender_id, receiver->id, message);
+                        r = bus_log_commit_policy_send(receiver->bus, sender_id, receiver->id, sender_names, &receiver_names, message);
                         if (r)
                                 return error_fold(r);
 

@@ -81,7 +81,7 @@ Peer *bus_find_peer_by_name(Bus *bus, Name **namep, const char *name_str) {
         return peer;
 }
 
-static int bus_log_commit_policy(Bus *bus, const char *action, uint64_t sender_id, uint64_t receiver_id, Message *message) {
+static int bus_log_commit_policy(Bus *bus, const char *action, uint64_t sender_id, uint64_t receiver_id, NameSet *sender_names, NameSet *receiver_names, Message *message) {
         Log *log = bus->log;
         int r;
 
@@ -107,6 +107,44 @@ static int bus_log_commit_policy(Bus *bus, const char *action, uint64_t sender_i
                             receiver_id);
         }
 
+        if (sender_names) {
+                if (sender_names->type == NAME_SET_TYPE_OWNER) {
+                        NameOwnership *ownership;
+                        size_t i = 0;
+
+                        c_rbtree_for_each_entry(ownership,
+                                                &sender_names->owner->ownership_tree,
+                                                owner_node)
+                                log_appendf(log,
+                                            "DBUS_BROKER_SENDER_WELL_KNOWN_NAME_%zu=%s\n",
+                                            i++, ownership->name->name);
+                } else if (sender_names->type == NAME_SET_TYPE_SNAPSHOT) {
+                        for (size_t i = 0; i < sender_names->snapshot->n_names; ++i)
+                                log_appendf(log,
+                                            "DBUS_BROKER_SENDER_WELL_KNOWN_NAME_%zu=%s\n",
+                                            i, sender_names->snapshot->names[i]->name);
+                }
+        }
+
+        if (receiver_names) {
+                if (receiver_names->type == NAME_SET_TYPE_OWNER) {
+                        NameOwnership *ownership;
+                        size_t i = 0;
+
+                        c_rbtree_for_each_entry(ownership,
+                                                &receiver_names->owner->ownership_tree,
+                                                owner_node)
+                                log_appendf(log,
+                                            "DBUS_BROKER_RECEIVER_WELL_KNOWN_NAME_%zu=%s\n",
+                                            i++, ownership->name->name);
+                } else if (receiver_names->type == NAME_SET_TYPE_SNAPSHOT) {
+                        for (size_t i = 0; i < receiver_names->snapshot->n_names; ++i)
+                                log_appendf(log,
+                                            "DBUS_BROKER_RECEIVER_WELL_KNOWN_NAME_%zu=%s\n",
+                                            i, receiver_names->snapshot->names[i]->name);
+                }
+        }
+
         r = log_commitf(log, ":1.%llu failed to %s message, due to policy.", sender_id, action);
         if (r)
                 return error_fold(r);
@@ -114,10 +152,10 @@ static int bus_log_commit_policy(Bus *bus, const char *action, uint64_t sender_i
         return 0;
 }
 
-int bus_log_commit_policy_send(Bus *bus, uint64_t sender_id, uint64_t receiver_id, Message *message) {
-        return bus_log_commit_policy(bus, "send", sender_id, receiver_id, message);
+int bus_log_commit_policy_send(Bus *bus, uint64_t sender_id, uint64_t receiver_id, NameSet *sender_names, NameSet *receiver_names, Message *message) {
+        return bus_log_commit_policy(bus, "send", sender_id, receiver_id, sender_names, receiver_names, message);
 }
 
-int bus_log_commit_policy_receive(Bus *bus, uint64_t receiver_id, uint64_t sender_id, Message *message) {
-        return bus_log_commit_policy(bus, "receive", sender_id, receiver_id, message);
+int bus_log_commit_policy_receive(Bus *bus, uint64_t receiver_id, uint64_t sender_id, NameSet *sender_names, NameSet *receiver_names, Message *message) {
+        return bus_log_commit_policy(bus, "receive", sender_id, receiver_id, sender_names, receiver_names, message);
 }
