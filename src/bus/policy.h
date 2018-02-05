@@ -28,6 +28,7 @@ enum {
 
         POLICY_E_INVALID,
         POLICY_E_ACCESS_DENIED,
+        POLICY_E_SELINUX_ACCESS_DENIED,
 };
 
 struct PolicyVerdict {

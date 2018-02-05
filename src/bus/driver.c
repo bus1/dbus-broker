@@ -1729,11 +1729,13 @@ static int driver_dispatch_interface(Peer *peer, uint32_t serial, const char *in
 
         r = policy_snapshot_check_send(peer->policy, NULL, NULL, interface, member, path, message->header->type);
         if (r) {
-                if (r == POLICY_E_ACCESS_DENIED) {
+                if (r == POLICY_E_ACCESS_DENIED || r == POLICY_E_SELINUX_ACCESS_DENIED) {
                         NameSet names = NAME_SET_INIT_FROM_OWNER(&peer->owned_names);
 
                         log_append_here(peer->bus->log, LOG_WARNING, 0);
-                        r = bus_log_commit_policy_send(peer->bus, peer->id, ADDRESS_ID_INVALID, &names, NULL, message);
+                        r = bus_log_commit_policy_send(peer->bus,
+                                                       (r == POLICY_E_ACCESS_DENIED ? BUS_LOG_POLICY_TYPE_INTERNAL : BUS_LOG_POLICY_TYPE_SELINUX),
+                                                       peer->id, ADDRESS_ID_INVALID, &names, NULL, peer->policy->seclabel, NULL, message);
                         if (r)
                                 return error_fold(r);
 

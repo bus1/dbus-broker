@@ -708,7 +708,7 @@ int policy_snapshot_check_own(PolicySnapshot *snapshot, const char *name_str) {
         r = bus_selinux_check_own(snapshot->selinux, snapshot->seclabel, name_str);
         if (r) {
                 if (r == SELINUX_E_DENIED)
-                        return POLICY_E_ACCESS_DENIED;
+                        return POLICY_E_SELINUX_ACCESS_DENIED;
 
                 return error_fold(r);
         }
@@ -888,7 +888,7 @@ int policy_snapshot_check_send(PolicySnapshot *snapshot,
         r = bus_selinux_check_send(snapshot->selinux, snapshot->seclabel, subject_seclabel);
         if (r) {
                 if (r == SELINUX_E_DENIED)
-                        return POLICY_E_ACCESS_DENIED;
+                        return POLICY_E_SELINUX_ACCESS_DENIED;
 
                 return error_fold(r);
         }
