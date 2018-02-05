@@ -463,6 +463,16 @@ static int policy_import_send(Policy *policy, ConfigNode *cnode) {
                         return 0;
         }
 
+        if (cnode->allow_deny.eavesdrop == CONFIG_TRISTATE_YES) {
+                if (cnode->type == CONFIG_NODE_ALLOW)
+                        /* Ignore the attribute, but keep the rule, it also applies when not eavesdropping. */
+                        fprintf(stderr, "Policy to allow eavesdropping in %s +%lu: Eavesdropping is deprecated and ignored\n",
+                                cnode->file, cnode->lineno);
+                else if (cnode->type == CONFIG_NODE_DENY)
+                        /* The rule applies only when eavesdropping, drop it. */
+                        return 0;
+        }
+
         r = policy_record_new_xmit(&record);
         if (r)
                 return error_trace(r);
@@ -474,7 +484,6 @@ static int policy_import_send(Policy *policy, ConfigNode *cnode) {
         record->xmit.interface = cnode->allow_deny.send_interface;
         record->xmit.member = cnode->allow_deny.send_member;
         record->xmit.type = cnode->allow_deny.send_type;
-        record->xmit.eavesdrop = (cnode->allow_deny.eavesdrop == CONFIG_TRISTATE_YES);
         policy_record_xmit_trim(record);
 
         if (cnode->parent->policy.context == CONFIG_POLICY_USER) {
@@ -547,6 +556,16 @@ static int policy_import_recv(Policy *policy, ConfigNode *cnode) {
                         return 0;
         }
 
+        if (cnode->allow_deny.eavesdrop == CONFIG_TRISTATE_YES) {
+                if (cnode->type == CONFIG_NODE_ALLOW)
+                        /* Ignore the attribute, but keep the rule, it also applies when not eavesdropping. */
+                        fprintf(stderr, "Policy to allow eavesdropping in %s +%lu: Eavesdropping is deprecated and ignored\n",
+                                cnode->file, cnode->lineno);
+                else if (cnode->type == CONFIG_NODE_DENY)
+                        /* The rule applies only when eavesdropping, drop it. */
+                        return 0;
+        }
+
         r = policy_record_new_xmit(&record);
         if (r)
                 return error_trace(r);
@@ -558,7 +577,6 @@ static int policy_import_recv(Policy *policy, ConfigNode *cnode) {
         record->xmit.interface = cnode->allow_deny.recv_interface;
         record->xmit.member = cnode->allow_deny.recv_member;
         record->xmit.type = cnode->allow_deny.recv_type;
-        record->xmit.eavesdrop = (cnode->allow_deny.eavesdrop == CONFIG_TRISTATE_YES);
         policy_record_xmit_trim(record);
 
         if (cnode->parent->policy.context == CONFIG_POLICY_USER) {
@@ -856,22 +874,21 @@ static int policy_export_xmit(Policy *policy, CList *list1, CList *list2, sd_bus
         PolicyRecord *i_record;
         int r;
 
-        r = sd_bus_message_open_container(m, 'a', "(btssssub)");
+        r = sd_bus_message_open_container(m, 'a', "(btssssu)");
         if (r < 0)
                 return error_origin(r);
 
         if (list1) {
                 c_list_for_each_entry(i_record, list1, link) {
                         r = sd_bus_message_append(m,
-                                                  "(btssssub)",
+                                                  "(btssssu)",
                                                   i_record->verdict,
                                                   i_record->priority,
                                                   i_record->xmit.name,
                                                   i_record->xmit.path,
                                                   i_record->xmit.interface,
                                                   i_record->xmit.member,
-                                                  i_record->xmit.type,
-                                                  i_record->xmit.eavesdrop);
+                                                  i_record->xmit.type);
                         if (r < 0)
                                 return error_origin(r);
                 }
@@ -880,15 +897,14 @@ static int policy_export_xmit(Policy *policy, CList *list1, CList *list2, sd_bus
         if (list2) {
                 c_list_for_each_entry(i_record, list2, link) {
                         r = sd_bus_message_append(m,
-                                                  "(btssssub)",
+                                                  "(btssssu)",
                                                   i_record->verdict,
                                                   i_record->priority,
                                                   i_record->xmit.name,
                                                   i_record->xmit.path,
                                                   i_record->xmit.interface,
                                                   i_record->xmit.member,
-                                                  i_record->xmit.type,
-                                                  i_record->xmit.eavesdrop);
+                                                  i_record->xmit.type);
                         if (r < 0)
                                 return error_origin(r);
                 }
@@ -904,8 +920,8 @@ static int policy_export_xmit(Policy *policy, CList *list1, CList *list2, sd_bus
 #define POLICY_T_BATCH                                                          \
                 "bt"                                                            \
                 "a(btbs)"                                                       \
-                "a(btssssub)"                                                   \
-                "a(btssssub)"
+                "a(btssssu)"                                                   \
+                "a(btssssu)"
 
 #define POLICY_T                                                                \
                 "(" POLICY_T_BATCH ")"                                          \

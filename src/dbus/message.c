@@ -432,8 +432,7 @@ int message_parse_metadata(Message *message) {
         /*
          * Now that the header is validated, we read through the message body.
          * Again, this is required for compatibility with dbus-daemon(1), but
-         * also to fetch the arguments for match-filters used by eavesdropping
-         * and common broadcasts.
+         * also to fetch the arguments for match-filters used by broadcasts.
          */
         r = message_parse_body(message, &message->metadata);
         if (r)

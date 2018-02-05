@@ -450,15 +450,14 @@ static int policy_registry_import_batch(PolicyRegistry *registry,
         c_dvar_read(v, "][");
 
         while (c_dvar_more(v)) {
-                c_dvar_read(v, "(btssssub)",
+                c_dvar_read(v, "(btssssu)",
                             &verdict.verdict,
                             &verdict.priority,
                             &name_str,
                             &path,
                             &interface,
                             &member,
-                            &type,
-                            NULL);
+                            &type);
 
                 r = policy_batch_add_send(batch,
                                           name_str,
@@ -474,15 +473,14 @@ static int policy_registry_import_batch(PolicyRegistry *registry,
         c_dvar_read(v, "][");
 
         while (c_dvar_more(v)) {
-                c_dvar_read(v, "(btssssub)",
+                c_dvar_read(v, "(btssssu)",
                             &verdict.verdict,
                             &verdict.priority,
                             &name_str,
                             &path,
                             &interface,
                             &member,
-                            &type,
-                            NULL);
+                            &type);
 
                 r = policy_batch_add_recv(batch,
                                           name_str,
