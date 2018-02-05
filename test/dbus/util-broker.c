@@ -48,8 +48,8 @@ static int util_event_sigchld(sd_event_source *source, const siginfo_t *si, void
 #define POLICY_T_BATCH                                                          \
                 "bt"                                                            \
                 "a(btbs)"                                                       \
-                "a(btssssub)"                                                   \
-                "a(btssssub)"
+                "a(btssssu)"                                                   \
+                "a(btssssu)"
 
 #define POLICY_T                                                                \
                 "(" POLICY_T_BATCH ")"                                          \
@@ -79,11 +79,11 @@ static int util_append_policy(sd_bus_message *m) {
                  *  - allow all recvs
                  */
                 r = sd_bus_message_append(m,
-                                          "bt" "a(btbs)" "a(btssssub)" "a(btssssub)",
+                                          "bt" "a(btbs)" "a(btssssu)" "a(btssssu)",
                                           true, UINT64_C(1),
                                           1, true, UINT64_C(1), true, "",
-                                          1, true, UINT64_C(1), "", "", "", "", 0, false,
-                                          1, true, UINT64_C(1), "", "", "", "", 0, false);
+                                          1, true, UINT64_C(1), "", "", "", "", 0,
+                                          1, true, UINT64_C(1), "", "", "", "", 0);
 
                 r = sd_bus_message_close_container(m);
                 assert(r >= 0);

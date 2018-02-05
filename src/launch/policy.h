@@ -34,7 +34,6 @@ struct PolicyRecord {
                         const char *interface;
                         const char *member;
                         unsigned int type;
-                        bool eavesdrop;
                 } xmit;
 
                 struct {
