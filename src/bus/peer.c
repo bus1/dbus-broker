@@ -651,9 +651,12 @@ int peer_queue_call(PolicySnapshot *sender_policy, NameSet *sender_names, MatchR
                                        message->metadata.fields.path,
                                        message->header->type);
         if (r) {
-                if (r == POLICY_E_ACCESS_DENIED) {
+                if (r == POLICY_E_ACCESS_DENIED || r == POLICY_E_SELINUX_ACCESS_DENIED) {
                         log_append_here(receiver->bus->log, LOG_WARNING, 0);
-                        r = bus_log_commit_policy_send(receiver->bus, sender_id, receiver->id, sender_names, &receiver_names, message);
+                        r = bus_log_commit_policy_send(receiver->bus,
+                                                       (r == POLICY_E_ACCESS_DENIED ? BUS_LOG_POLICY_TYPE_INTERNAL : BUS_LOG_POLICY_TYPE_SELINUX),
+                                                       sender_id, receiver->id, sender_names, &receiver_names,
+                                                       sender_policy->seclabel, receiver->policy->seclabel, message);
                         if (r)
                                 return error_fold(r);
 
@@ -727,7 +730,7 @@ static int peer_broadcast_to_matches(PolicySnapshot *sender_policy, NameSet *sen
                                                        message->metadata.fields.path,
                                                        message->header->type);
                         if (r) {
-                                if (r == POLICY_E_ACCESS_DENIED)
+                                if (r == POLICY_E_ACCESS_DENIED || r == POLICY_E_SELINUX_ACCESS_DENIED)
                                         continue;
 
                                 return error_fold(r);

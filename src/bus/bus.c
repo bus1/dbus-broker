@@ -81,13 +81,26 @@ Peer *bus_find_peer_by_name(Bus *bus, Name **namep, const char *name_str) {
         return peer;
 }
 
-static int bus_log_commit_policy(Bus *bus, const char *action, uint64_t sender_id, uint64_t receiver_id, NameSet *sender_names, NameSet *receiver_names, Message *message) {
+static int bus_log_commit_policy(Bus *bus, const char *action, const char *policy_type, uint64_t sender_id, uint64_t receiver_id,
+                                 NameSet *sender_names, NameSet *receiver_names, const char *sender_label, const char *receiver_label,
+                                 Message *message) {
         Log *log = bus->log;
         int r;
 
         message_log_append(message, log);
 
         log_appendf(log, "DBUS_BROKER_TRANSMIT_ACTION=%s\n", action);
+
+        if (policy_type)
+                log_appendf(log, "DBUS_BROKER_POLICY_TYPE=%s\n", policy_type);
+
+        if (sender_label)
+                log_appendf(log, "DBUS_BROKER_SENDER_SECURITY_LABEL=%s\n",
+                            sender_label);
+
+        if (receiver_label)
+                log_appendf(log, "DBUS_BROKER_RECEIVER_SECURITY_LABEL=%s\n",
+                            receiver_label);
 
         if (sender_id == ADDRESS_ID_INVALID) {
                 log_appendf(log,
@@ -152,10 +165,23 @@ static int bus_log_commit_policy(Bus *bus, const char *action, uint64_t sender_i
         return 0;
 }
 
-int bus_log_commit_policy_send(Bus *bus, uint64_t sender_id, uint64_t receiver_id, NameSet *sender_names, NameSet *receiver_names, Message *message) {
-        return bus_log_commit_policy(bus, "send", sender_id, receiver_id, sender_names, receiver_names, message);
+int bus_log_commit_policy_send(Bus *bus, int policy_type, uint64_t sender_id, uint64_t receiver_id, NameSet *sender_names, NameSet *receiver_names, const char *sender_label, const char *receiver_label, Message *message) {
+        const char *policy_type_str;
+
+        switch (policy_type) {
+        case BUS_LOG_POLICY_TYPE_INTERNAL:
+                policy_type_str = "internal";
+                break;
+        case BUS_LOG_POLICY_TYPE_SELINUX:
+                policy_type_str = "selinux";
+                break;
+        default:
+                assert(0);
+        }
+
+        return bus_log_commit_policy(bus, "send", policy_type_str, sender_id, receiver_id, sender_names, receiver_names, sender_label, receiver_label, message);
 }
 
 int bus_log_commit_policy_receive(Bus *bus, uint64_t receiver_id, uint64_t sender_id, NameSet *sender_names, NameSet *receiver_names, Message *message) {
-        return bus_log_commit_policy(bus, "receive", sender_id, receiver_id, sender_names, receiver_names, message);
+        return bus_log_commit_policy(bus, "receive", "internal", sender_id, receiver_id, sender_names, receiver_names, NULL, NULL, message);
 }
