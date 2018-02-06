@@ -12,6 +12,7 @@
 #include "launch/config.h"
 
 typedef struct Policy Policy;
+typedef struct PolicyEntries PolicyEntries;
 typedef struct PolicyNode PolicyNode;
 typedef struct PolicyNodeIndex PolicyNodeIndex;
 typedef struct PolicyRecord PolicyRecord;
@@ -59,6 +60,20 @@ struct PolicyRecord {
                 .link = C_LIST_INIT((_x).link),                                 \
         }
 
+struct PolicyEntries {
+        CList connect_list;
+        CList own_list;
+        CList send_list;
+        CList recv_list;
+};
+
+#define POLICY_ENTRIES_NULL(_x) {                                               \
+                .connect_list = C_LIST_INIT((_x).connect_list),                 \
+                .own_list = C_LIST_INIT((_x).own_list),                         \
+                .send_list = C_LIST_INIT((_x).send_list),                       \
+                .recv_list = C_LIST_INIT((_x).recv_list),                       \
+        }
+
 struct PolicyNodeIndex {
         uint32_t uidgid_start;
         uint32_t uidgid_end;
@@ -73,28 +88,19 @@ struct PolicyNode {
         PolicyNodeIndex index;
         CRBNode policy_node;
 
-        CList connect_list;
-        CList own_list;
-        CList send_list;
-        CList recv_list;
+        PolicyEntries entries;
 };
 
 #define POLICY_NODE_NULL(_x) {                                                  \
                 .index = POLICY_NODE_INDEX_NULL,                                \
                 .policy_node = C_RBNODE_INIT((_x).policy_node),                 \
-                .connect_list = C_LIST_INIT((_x).connect_list),                 \
-                .own_list = C_LIST_INIT((_x).own_list),                         \
-                .send_list = C_LIST_INIT((_x).send_list),                       \
-                .recv_list = C_LIST_INIT((_x).recv_list),                       \
+                .entries = POLICY_ENTRIES_NULL((_x).entries),                   \
         }
 
 struct Policy {
         uint64_t i_priority;
 
-        CList connect_default;
-        CList own_default;
-        CList send_default;
-        CList recv_default;
+        PolicyEntries default_entries;
 
         CRBTree uid_tree;
         CRBTree gid_tree;
@@ -103,10 +109,7 @@ struct Policy {
 };
 
 #define POLICY_INIT(_x) {                                                       \
-                .connect_default = C_LIST_INIT((_x).connect_default),           \
-                .own_default = C_LIST_INIT((_x).own_default),                   \
-                .send_default = C_LIST_INIT((_x).send_default),                 \
-                .recv_default = C_LIST_INIT((_x).recv_default),                 \
+                .default_entries = POLICY_ENTRIES_NULL((_x).default_entries),   \
                 .uid_tree = C_RBTREE_INIT,                                      \
                 .gid_tree = C_RBTREE_INIT,                                      \
                 .selinux_list = C_LIST_INIT((_x).selinux_list)                  \
