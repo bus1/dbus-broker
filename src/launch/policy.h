@@ -14,7 +14,6 @@
 typedef struct Policy Policy;
 typedef struct PolicyEntries PolicyEntries;
 typedef struct PolicyNode PolicyNode;
-typedef struct PolicyNodeIndex PolicyNodeIndex;
 typedef struct PolicyRecord PolicyRecord;
 
 struct PolicyRecord {
@@ -74,25 +73,15 @@ struct PolicyEntries {
                 .recv_list = C_LIST_INIT((_x).recv_list),                       \
         }
 
-struct PolicyNodeIndex {
-        uint32_t uidgid_start;
-        uint32_t uidgid_end;
-};
-
-#define POLICY_NODE_INDEX_NULL {                                                \
-                .uidgid_start = (uint32_t)-1,                                   \
-                .uidgid_end = (uint32_t)-1,                                     \
-        }                                                                       \
-
 struct PolicyNode {
-        PolicyNodeIndex index;
+        uint32_t uidgid;
         CRBNode policy_node;
 
         PolicyEntries entries;
 };
 
 #define POLICY_NODE_NULL(_x) {                                                  \
-                .index = POLICY_NODE_INDEX_NULL,                                \
+                .uidgid = -1,                                                   \
                 .policy_node = C_RBNODE_INIT((_x).policy_node),                 \
                 .entries = POLICY_ENTRIES_NULL((_x).entries),                   \
         }
