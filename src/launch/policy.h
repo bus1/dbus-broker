@@ -101,6 +101,8 @@ struct Policy {
         uint64_t i_priority;
 
         PolicyEntries default_entries;
+        PolicyEntries at_console_entries;
+        PolicyEntries no_console_entries;
 
         CRBTree uid_tree;
         CRBTree gid_tree;
@@ -108,11 +110,13 @@ struct Policy {
         CList selinux_list;
 };
 
-#define POLICY_INIT(_x) {                                                       \
-                .default_entries = POLICY_ENTRIES_NULL((_x).default_entries),   \
-                .uid_tree = C_RBTREE_INIT,                                      \
-                .gid_tree = C_RBTREE_INIT,                                      \
-                .selinux_list = C_LIST_INIT((_x).selinux_list)                  \
+#define POLICY_INIT(_x) {                                                               \
+                .default_entries = POLICY_ENTRIES_NULL((_x).default_entries),           \
+                .at_console_entries = POLICY_ENTRIES_NULL((_x).at_console_entries),     \
+                .no_console_entries = POLICY_ENTRIES_NULL((_x).no_console_entries),     \
+                .uid_tree = C_RBTREE_INIT,                                              \
+                .gid_tree = C_RBTREE_INIT,                                              \
+                .selinux_list = C_LIST_INIT((_x).selinux_list)                          \
         }
 
 /* records */
