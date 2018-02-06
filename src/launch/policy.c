@@ -104,6 +104,19 @@ static void policy_record_xmit_trim(PolicyRecord *record) {
                 record->xmit.member = NULL;
 }
 
+static void policy_entries_deinit(PolicyEntries *entries) {
+        PolicyRecord *record;
+
+        while ((record = c_list_first_entry(&entries->recv_list, PolicyRecord, link)))
+                policy_record_free(record);
+        while ((record = c_list_first_entry(&entries->send_list, PolicyRecord, link)))
+                policy_record_free(record);
+        while ((record = c_list_first_entry(&entries->own_list, PolicyRecord, link)))
+                policy_record_free(record);
+        while ((record = c_list_first_entry(&entries->connect_list, PolicyRecord, link)))
+                policy_record_free(record);
+}
+
 static int policy_node_compare(CRBTree *t, void *k, CRBNode *n) {
         PolicyNode *node = c_container_of(n, PolicyNode, policy_node);
         PolicyNodeIndex *index = k;
@@ -121,19 +134,10 @@ static int policy_node_compare(CRBTree *t, void *k, CRBNode *n) {
 }
 
 static PolicyNode *policy_node_free(PolicyNode *node) {
-        PolicyRecord *record;
-
         if (!node)
                 return NULL;
 
-        while ((record = c_list_first_entry(&node->recv_list, PolicyRecord, link)))
-                policy_record_free(record);
-        while ((record = c_list_first_entry(&node->send_list, PolicyRecord, link)))
-                policy_record_free(record);
-        while ((record = c_list_first_entry(&node->own_list, PolicyRecord, link)))
-                policy_record_free(record);
-        while ((record = c_list_first_entry(&node->connect_list, PolicyRecord, link)))
-                policy_record_free(record);
+        policy_entries_deinit(&node->entries);
 
         c_rbnode_unlink(&node->policy_node);
         free(node);
@@ -181,14 +185,7 @@ void policy_deinit(Policy *policy) {
         c_rbtree_for_each_entry_safe_postorder_unlink(node, t_node, &policy->uid_tree, policy_node)
                 policy_node_free(node);
 
-        while ((record = c_list_first_entry(&policy->recv_default, PolicyRecord, link)))
-                policy_record_free(record);
-        while ((record = c_list_first_entry(&policy->send_default, PolicyRecord, link)))
-                policy_record_free(record);
-        while ((record = c_list_first_entry(&policy->own_default, PolicyRecord, link)))
-                policy_record_free(record);
-        while ((record = c_list_first_entry(&policy->connect_default, PolicyRecord, link)))
-                policy_record_free(record);
+        policy_entries_deinit(&policy->default_entries);
 }
 
 static int policy_at_uidgid(CRBTree *tree, PolicyNode **nodep, uint32_t uidgid_start, uint32_t uidgid_end) {
@@ -273,7 +270,7 @@ static int policy_import_connect_self(Policy *policy) {
         if (r)
                 return error_trace(r);
 
-        c_list_link_tail(&node->connect_list, &record->link);
+        c_list_link_tail(&node->entries.connect_list, &record->link);
 
         record = NULL;
         return 0;
@@ -328,15 +325,15 @@ static int policy_import_connect(Policy *policy, ConfigNode *cnode) {
                 if (r)
                         return error_trace(r);
 
-                c_list_link_tail(&node->connect_list, &record->link);
+                c_list_link_tail(&node->entries.connect_list, &record->link);
         } else if (cnode->allow_deny.group && cnode->allow_deny.gid != (uint32_t)-1) {
                 r = policy_at_gid(policy, &node, cnode->allow_deny.uid);
                 if (r)
                         return error_trace(r);
 
-                c_list_link_tail(&node->connect_list, &record->link);
+                c_list_link_tail(&node->entries.connect_list, &record->link);
         } else {
-                c_list_link_tail(&policy->connect_default, &record->link);
+                c_list_link_tail(&policy->default_entries.connect_list, &record->link);
         }
 
         record = NULL;
@@ -398,27 +395,27 @@ static int policy_import_own(Policy *policy, ConfigNode *cnode) {
                 if (r)
                         return error_trace(r);
 
-                c_list_link_tail(&node->own_list, &record->link);
+                c_list_link_tail(&node->entries.own_list, &record->link);
         } else if (cnode->parent->policy.context == CONFIG_POLICY_NO_CONSOLE) {
                 r = policy_at_systemuid(policy, &node);
                 if (r)
                         return error_trace(r);
 
-                c_list_link_tail(&node->own_list, &record->link);
+                c_list_link_tail(&node->entries.own_list, &record->link);
         } else if (cnode->parent->policy.context == CONFIG_POLICY_AT_CONSOLE) {
                 r = policy_at_nonsystemuid(policy, &node);
                 if (r)
                         return error_trace(r);
 
-                c_list_link_tail(&node->own_list, &record->link);
+                c_list_link_tail(&node->entries.own_list, &record->link);
         } else if (cnode->parent->policy.context == CONFIG_POLICY_GROUP) {
                 r = policy_at_gid(policy, &node, cnode->parent->policy.id);
                 if (r)
                         return error_trace(r);
 
-                c_list_link_tail(&node->own_list, &record->link);
+                c_list_link_tail(&node->entries.own_list, &record->link);
         } else {
-                c_list_link_tail(&policy->own_default, &record->link);
+                c_list_link_tail(&policy->default_entries.own_list, &record->link);
         }
 
         record = NULL;
@@ -491,27 +488,27 @@ static int policy_import_send(Policy *policy, ConfigNode *cnode) {
                 if (r)
                         return error_trace(r);
 
-                c_list_link_tail(&node->send_list, &record->link);
+                c_list_link_tail(&node->entries.send_list, &record->link);
         } else if (cnode->parent->policy.context == CONFIG_POLICY_NO_CONSOLE) {
                 r = policy_at_systemuid(policy, &node);
                 if (r)
                         return error_trace(r);
 
-                c_list_link_tail(&node->send_list, &record->link);
+                c_list_link_tail(&node->entries.send_list, &record->link);
         } else if (cnode->parent->policy.context == CONFIG_POLICY_AT_CONSOLE) {
                 r = policy_at_nonsystemuid(policy, &node);
                 if (r)
                         return error_trace(r);
 
-                c_list_link_tail(&node->send_list, &record->link);
+                c_list_link_tail(&node->entries.send_list, &record->link);
         } else if (cnode->parent->policy.context == CONFIG_POLICY_GROUP) {
                 r = policy_at_gid(policy, &node, cnode->parent->policy.id);
                 if (r)
                         return error_trace(r);
 
-                c_list_link_tail(&node->send_list, &record->link);
+                c_list_link_tail(&node->entries.send_list, &record->link);
         } else {
-                c_list_link_tail(&policy->send_default, &record->link);
+                c_list_link_tail(&policy->default_entries.send_list, &record->link);
         }
 
         record = NULL;
@@ -584,27 +581,27 @@ static int policy_import_recv(Policy *policy, ConfigNode *cnode) {
                 if (r)
                         return error_trace(r);
 
-                c_list_link_tail(&node->recv_list, &record->link);
+                c_list_link_tail(&node->entries.recv_list, &record->link);
         } else if (cnode->parent->policy.context == CONFIG_POLICY_NO_CONSOLE) {
                 r = policy_at_systemuid(policy, &node);
                 if (r)
                         return error_trace(r);
 
-                c_list_link_tail(&node->recv_list, &record->link);
+                c_list_link_tail(&node->entries.recv_list, &record->link);
         } else if (cnode->parent->policy.context == CONFIG_POLICY_AT_CONSOLE) {
                 r = policy_at_nonsystemuid(policy, &node);
                 if (r)
                         return error_trace(r);
 
-                c_list_link_tail(&node->recv_list, &record->link);
+                c_list_link_tail(&node->entries.recv_list, &record->link);
         } else if (cnode->parent->policy.context == CONFIG_POLICY_GROUP) {
                 r = policy_at_gid(policy, &node, cnode->parent->policy.id);
                 if (r)
                         return error_trace(r);
 
-                c_list_link_tail(&node->recv_list, &record->link);
+                c_list_link_tail(&node->entries.recv_list, &record->link);
         } else {
-                c_list_link_tail(&policy->recv_default, &record->link);
+                c_list_link_tail(&policy->default_entries.recv_list, &record->link);
         }
 
         record = NULL;
@@ -746,23 +743,23 @@ static void policy_optimize_connect(Policy *policy) {
          */
 
         /* shrink @connect_default down to 1 entry */
-        top_default = policy_list_find_top(&policy->connect_default);
-        policy_list_shrink(&policy->connect_default, top_default);
+        top_default = policy_list_find_top(&policy->default_entries.connect_list);
+        policy_list_shrink(&policy->default_entries.connect_list, top_default);
 
         /* shrink each uid-map down to 1 entry (or 0 if below @top_default) */
         c_rbtree_for_each_entry(i_node, &policy->uid_tree, policy_node) {
-                top = policy_list_find_top(&i_node->connect_list);
+                top = policy_list_find_top(&i_node->entries.connect_list);
                 if (top && top_default && top->priority <= top_default->priority)
                         top = NULL;
-                policy_list_shrink(&i_node->connect_list, top);
+                policy_list_shrink(&i_node->entries.connect_list, top);
         }
 
         /* shrink each gid-map down to 1 entry (or 0 if below @top_default) */
         c_rbtree_for_each_entry(i_node, &policy->gid_tree, policy_node) {
-                top = policy_list_find_top(&i_node->connect_list);
+                top = policy_list_find_top(&i_node->entries.connect_list);
                 if (top && top_default && top->priority <= top_default->priority)
                         top = NULL;
-                policy_list_shrink(&i_node->connect_list, top);
+                policy_list_shrink(&i_node->entries.connect_list, top);
         }
 }
 
@@ -776,17 +773,17 @@ static void policy_optimize_trim(Policy *policy) {
          */
 
         c_rbtree_for_each_entry_safe(node, t_node, &policy->uid_tree, policy_node)
-                if (c_list_is_empty(&node->connect_list) &&
-                    c_list_is_empty(&node->own_list) &&
-                    c_list_is_empty(&node->send_list) &&
-                    c_list_is_empty(&node->recv_list))
+                if (c_list_is_empty(&node->entries.connect_list) &&
+                    c_list_is_empty(&node->entries.own_list) &&
+                    c_list_is_empty(&node->entries.send_list) &&
+                    c_list_is_empty(&node->entries.recv_list))
                         policy_node_free(node);
 
         c_rbtree_for_each_entry_safe(node, t_node, &policy->gid_tree, policy_node)
-                if (c_list_is_empty(&node->connect_list) &&
-                    c_list_is_empty(&node->own_list) &&
-                    c_list_is_empty(&node->send_list) &&
-                    c_list_is_empty(&node->recv_list))
+                if (c_list_is_empty(&node->entries.connect_list) &&
+                    c_list_is_empty(&node->entries.own_list) &&
+                    c_list_is_empty(&node->entries.send_list) &&
+                    c_list_is_empty(&node->entries.recv_list))
                         policy_node_free(node);
 }
 
@@ -920,7 +917,7 @@ static int policy_export_xmit(Policy *policy, CList *list1, CList *list2, sd_bus
 #define POLICY_T_BATCH                                                          \
                 "bt"                                                            \
                 "a(btbs)"                                                       \
-                "a(btssssu)"                                                   \
+                "a(btssssu)"                                                    \
                 "a(btssssu)"
 
 #define POLICY_T                                                                \
@@ -949,10 +946,10 @@ int policy_export(Policy *policy, sd_bus_message *m) {
         if (r < 0)
                 return error_origin(r);
 
-        r = policy_export_connect(policy, &policy->connect_default, NULL, m);
-        r = r ?: policy_export_own(policy, &policy->own_default, NULL, m);
-        r = r ?: policy_export_xmit(policy, &policy->send_default, NULL, m);
-        r = r ?: policy_export_xmit(policy, &policy->recv_default, NULL, m);
+        r = policy_export_connect(policy, &policy->default_entries.connect_list, NULL, m);
+        r = r ?: policy_export_own(policy, &policy->default_entries.own_list, NULL, m);
+        r = r ?: policy_export_xmit(policy, &policy->default_entries.send_list, NULL, m);
+        r = r ?: policy_export_xmit(policy, &policy->default_entries.recv_list, NULL, m);
         if (r)
                 return error_trace(r);
 
@@ -982,10 +979,10 @@ int policy_export(Policy *policy, sd_bus_message *m) {
                 if (node->index.uidgid_start != node->index.uidgid_end)
                         range = true;
 
-                r = policy_export_connect(policy, range ? NULL : &policy->connect_default, &node->connect_list, m);
-                r = r ?: policy_export_own(policy, range ? NULL : &policy->own_default, &node->own_list, m);
-                r = r ?: policy_export_xmit(policy, range ? NULL : &policy->send_default, &node->send_list, m);
-                r = r ?: policy_export_xmit(policy, range ? NULL : &policy->recv_default, &node->recv_list, m);
+                r = policy_export_connect(policy, range ? NULL : &policy->default_entries.connect_list, &node->entries.connect_list, m);
+                r = r ?: policy_export_own(policy, range ? NULL : &policy->default_entries.own_list, &node->entries.own_list, m);
+                r = r ?: policy_export_xmit(policy, range ? NULL : &policy->default_entries.send_list, &node->entries.send_list, m);
+                r = r ?: policy_export_xmit(policy, range ? NULL : &policy->default_entries.recv_list, &node->entries.recv_list, m);
                 if (r)
                         return error_trace(r);
 
@@ -1021,10 +1018,10 @@ int policy_export(Policy *policy, sd_bus_message *m) {
                 if (r < 0)
                         return error_origin(r);
 
-                r = policy_export_connect(policy, &policy->connect_default, &node->connect_list, m);
-                r = r ?: policy_export_own(policy, NULL, &node->own_list, m);
-                r = r ?: policy_export_xmit(policy, NULL, &node->send_list, m);
-                r = r ?: policy_export_xmit(policy, NULL, &node->recv_list, m);
+                r = policy_export_connect(policy, &policy->default_entries.connect_list, &node->entries.connect_list, m);
+                r = r ?: policy_export_own(policy, NULL, &node->entries.own_list, m);
+                r = r ?: policy_export_xmit(policy, NULL, &node->entries.send_list, m);
+                r = r ?: policy_export_xmit(policy, NULL, &node->entries.recv_list, m);
                 if (r)
                         return error_trace(r);
 
