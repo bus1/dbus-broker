@@ -185,6 +185,8 @@ void policy_deinit(Policy *policy) {
         c_rbtree_for_each_entry_safe_postorder_unlink(node, t_node, &policy->uid_tree, policy_node)
                 policy_node_free(node);
 
+        policy_entries_deinit(&policy->no_console_entries);
+        policy_entries_deinit(&policy->at_console_entries);
         policy_entries_deinit(&policy->default_entries);
 }
 
@@ -214,14 +216,6 @@ static int policy_at_uidgid(CRBTree *tree, PolicyNode **nodep, uint32_t uidgid_s
         *nodep = node;
         node = NULL;
         return 0;
-}
-
-static int policy_at_systemuid(Policy *policy, PolicyNode **nodep) {
-        return policy_at_uidgid(&policy->uid_tree, nodep, 0, SYSTEMUIDMAX);
-}
-
-static int policy_at_nonsystemuid(Policy *policy, PolicyNode **nodep) {
-        return policy_at_uidgid(&policy->uid_tree, nodep, SYSTEMUIDMAX + 1, -1);
 }
 
 static int policy_at_uid(Policy *policy, PolicyNode **nodep, uint32_t uid) {
@@ -397,17 +391,9 @@ static int policy_import_own(Policy *policy, ConfigNode *cnode) {
 
                 c_list_link_tail(&node->entries.own_list, &record->link);
         } else if (cnode->parent->policy.context == CONFIG_POLICY_NO_CONSOLE) {
-                r = policy_at_systemuid(policy, &node);
-                if (r)
-                        return error_trace(r);
-
-                c_list_link_tail(&node->entries.own_list, &record->link);
+                c_list_link_tail(&policy->no_console_entries.own_list, &record->link);
         } else if (cnode->parent->policy.context == CONFIG_POLICY_AT_CONSOLE) {
-                r = policy_at_nonsystemuid(policy, &node);
-                if (r)
-                        return error_trace(r);
-
-                c_list_link_tail(&node->entries.own_list, &record->link);
+                c_list_link_tail(&policy->at_console_entries.own_list, &record->link);
         } else if (cnode->parent->policy.context == CONFIG_POLICY_GROUP) {
                 r = policy_at_gid(policy, &node, cnode->parent->policy.id);
                 if (r)
@@ -490,17 +476,9 @@ static int policy_import_send(Policy *policy, ConfigNode *cnode) {
 
                 c_list_link_tail(&node->entries.send_list, &record->link);
         } else if (cnode->parent->policy.context == CONFIG_POLICY_NO_CONSOLE) {
-                r = policy_at_systemuid(policy, &node);
-                if (r)
-                        return error_trace(r);
-
-                c_list_link_tail(&node->entries.send_list, &record->link);
+                c_list_link_tail(&policy->no_console_entries.send_list, &record->link);
         } else if (cnode->parent->policy.context == CONFIG_POLICY_AT_CONSOLE) {
-                r = policy_at_nonsystemuid(policy, &node);
-                if (r)
-                        return error_trace(r);
-
-                c_list_link_tail(&node->entries.send_list, &record->link);
+                c_list_link_tail(&policy->at_console_entries.send_list, &record->link);
         } else if (cnode->parent->policy.context == CONFIG_POLICY_GROUP) {
                 r = policy_at_gid(policy, &node, cnode->parent->policy.id);
                 if (r)
@@ -583,17 +561,9 @@ static int policy_import_recv(Policy *policy, ConfigNode *cnode) {
 
                 c_list_link_tail(&node->entries.recv_list, &record->link);
         } else if (cnode->parent->policy.context == CONFIG_POLICY_NO_CONSOLE) {
-                r = policy_at_systemuid(policy, &node);
-                if (r)
-                        return error_trace(r);
-
-                c_list_link_tail(&node->entries.recv_list, &record->link);
+                c_list_link_tail(&policy->no_console_entries.recv_list, &record->link);
         } else if (cnode->parent->policy.context == CONFIG_POLICY_AT_CONSOLE) {
-                r = policy_at_nonsystemuid(policy, &node);
-                if (r)
-                        return error_trace(r);
-
-                c_list_link_tail(&node->entries.recv_list, &record->link);
+                c_list_link_tail(&policy->at_console_entries.recv_list, &record->link);
         } else if (cnode->parent->policy.context == CONFIG_POLICY_GROUP) {
                 r = policy_at_gid(policy, &node, cnode->parent->policy.id);
                 if (r)
@@ -962,11 +932,11 @@ int policy_export(Policy *policy, sd_bus_message *m) {
                 return error_origin(r);
 
         c_rbtree_for_each_entry(node, &policy->uid_tree, policy_node) {
-                bool range = false;
-
                 r = sd_bus_message_open_container(m, 'r', "uu(" POLICY_T_BATCH ")");
                 if (r < 0)
                         return error_origin(r);
+
+                assert(node->index.uidgid_start == node->index.uidgid_end);
 
                 r = sd_bus_message_append(m, "uu", node->index.uidgid_start, node->index.uidgid_end);
                 if (r < 0)
@@ -976,13 +946,10 @@ int policy_export(Policy *policy, sd_bus_message *m) {
                 if (r < 0)
                         return error_origin(r);
 
-                if (node->index.uidgid_start != node->index.uidgid_end)
-                        range = true;
-
-                r = policy_export_connect(policy, range ? NULL : &policy->default_entries.connect_list, &node->entries.connect_list, m);
-                r = r ?: policy_export_own(policy, range ? NULL : &policy->default_entries.own_list, &node->entries.own_list, m);
-                r = r ?: policy_export_xmit(policy, range ? NULL : &policy->default_entries.send_list, &node->entries.send_list, m);
-                r = r ?: policy_export_xmit(policy, range ? NULL : &policy->default_entries.recv_list, &node->entries.recv_list, m);
+                r = policy_export_connect(policy, &policy->default_entries.connect_list, &node->entries.connect_list, m);
+                r = r ?: policy_export_own(policy, &policy->default_entries.own_list, &node->entries.own_list, m);
+                r = r ?: policy_export_xmit(policy, &policy->default_entries.send_list, &node->entries.send_list, m);
+                r = r ?: policy_export_xmit(policy, &policy->default_entries.recv_list, &node->entries.recv_list, m);
                 if (r)
                         return error_trace(r);
 
@@ -994,6 +961,60 @@ int policy_export(Policy *policy, sd_bus_message *m) {
                 if (r < 0)
                         return error_origin(r);
         }
+
+        r = sd_bus_message_open_container(m, 'r', "uu(" POLICY_T_BATCH ")");
+        if (r < 0)
+                return error_origin(r);
+
+        r = sd_bus_message_append(m, "uu", UINT32_C(0), (uint32_t)SYSTEMUIDMAX);
+        if (r < 0)
+                return error_origin(r);
+
+        r = sd_bus_message_open_container(m, 'r', POLICY_T_BATCH);
+        if (r < 0)
+                return error_origin(r);
+
+        r = policy_export_connect(policy, NULL, &policy->no_console_entries.connect_list, m);
+        r = r ?: policy_export_own(policy, NULL, &policy->no_console_entries.own_list, m);
+        r = r ?: policy_export_xmit(policy, NULL, &policy->no_console_entries.send_list, m);
+        r = r ?: policy_export_xmit(policy, NULL, &policy->no_console_entries.recv_list, m);
+        if (r)
+                return error_trace(r);
+
+        r = sd_bus_message_close_container(m);
+        if (r < 0)
+                return error_origin(r);
+
+        r = sd_bus_message_close_container(m);
+        if (r < 0)
+                return error_origin(r);
+
+        r = sd_bus_message_open_container(m, 'r', "uu(" POLICY_T_BATCH ")");
+        if (r < 0)
+                return error_origin(r);
+
+        r = sd_bus_message_append(m, "uu", (uint32_t)(SYSTEMUIDMAX + 1), UINT32_C(-1));
+        if (r < 0)
+                return error_origin(r);
+
+        r = sd_bus_message_open_container(m, 'r', POLICY_T_BATCH);
+        if (r < 0)
+                return error_origin(r);
+
+        r = policy_export_connect(policy, NULL, &policy->at_console_entries.connect_list, m);
+        r = r ?: policy_export_own(policy, NULL, &policy->at_console_entries.own_list, m);
+        r = r ?: policy_export_xmit(policy, NULL, &policy->at_console_entries.send_list, m);
+        r = r ?: policy_export_xmit(policy, NULL, &policy->at_console_entries.recv_list, m);
+        if (r)
+                return error_trace(r);
+
+        r = sd_bus_message_close_container(m);
+        if (r < 0)
+                return error_origin(r);
+
+        r = sd_bus_message_close_container(m);
+        if (r < 0)
+                return error_origin(r);
 
         r = sd_bus_message_close_container(m);
         if (r < 0)
