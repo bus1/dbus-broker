@@ -1,5 +1,16 @@
 dbus-broker - Linux D-Bus Message Broker
 
+CHANGES WITH 10:
+
+        * Fix RequestName() / ReleaseName() to send signals before their reply,
+          to match dbus-daemon behavior.
+
+        * Several bug-fixes, cleanups, and performance improvements.
+
+        Contributions from: David Herrmann, Tom Gundersen
+
+        - Tübingen, 2018-02-07
+
 CHANGES WITH 9:
 
         * A configuration reload of the launcher can now be triggered via its

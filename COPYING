@@ -12,10 +12,13 @@ LICENSE:
         limitations under the License.
 
 COPYRIGHT: (ordered alphabetically)
-        Copyright (C) 2016-2017 Red Hat, Inc.
+        Copyright (C) 2016-2018 Red Hat, Inc.
 
 AUTHORS: (ordered alphabetically)
         David Herrmann <dh.herrmann@gmail.com>
         Georg Müller <georgmueller@gmx.net>
+        Laurent Bigonville <bigon@bigon.be>
         Marc-Antoine Perennou <Marc-Antoine@Perennou.com>
+        Michal Schmidt <mschmidt@redhat.com>
+        Mike Gilbert <floppym@gentoo.org>
         Tom Gundersen <teg@jklm.no>
