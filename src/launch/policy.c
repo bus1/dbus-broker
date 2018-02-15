@@ -883,8 +883,8 @@ static int policy_export_xmit(Policy *policy, CList *list1, CList *list2, sd_bus
 
 #define POLICY_T                                                                \
                 "(" POLICY_T_BATCH ")"                                          \
-                "a(uu(" POLICY_T_BATCH "))"                                     \
                 "a(u(" POLICY_T_BATCH "))"                                      \
+                "a(buu(" POLICY_T_BATCH "))"                                    \
                 "a(ss)"
 
 /**
@@ -918,16 +918,16 @@ int policy_export(Policy *policy, sd_bus_message *m) {
         if (r < 0)
                 return error_origin(r);
 
-        r = sd_bus_message_open_container(m, 'a', "(uu(" POLICY_T_BATCH "))");
+        r = sd_bus_message_open_container(m, 'a', "(u(" POLICY_T_BATCH "))");
         if (r < 0)
                 return error_origin(r);
 
         c_rbtree_for_each_entry(node, &policy->uid_tree, policy_node) {
-                r = sd_bus_message_open_container(m, 'r', "uu(" POLICY_T_BATCH ")");
+                r = sd_bus_message_open_container(m, 'r', "u(" POLICY_T_BATCH ")");
                 if (r < 0)
                         return error_origin(r);
 
-                r = sd_bus_message_append(m, "uu", node->uidgid, node->uidgid);
+                r = sd_bus_message_append(m, "u", node->uidgid);
                 if (r < 0)
                         return error_origin(r);
 
@@ -951,74 +951,20 @@ int policy_export(Policy *policy, sd_bus_message *m) {
                         return error_origin(r);
         }
 
-        r = sd_bus_message_open_container(m, 'r', "uu(" POLICY_T_BATCH ")");
-        if (r < 0)
-                return error_origin(r);
-
-        r = sd_bus_message_append(m, "uu", UINT32_C(0), (uint32_t)SYSTEMUIDMAX);
-        if (r < 0)
-                return error_origin(r);
-
-        r = sd_bus_message_open_container(m, 'r', POLICY_T_BATCH);
-        if (r < 0)
-                return error_origin(r);
-
-        r = policy_export_connect(policy, NULL, &policy->no_console_entries.connect_list, m);
-        r = r ?: policy_export_own(policy, NULL, &policy->no_console_entries.own_list, m);
-        r = r ?: policy_export_xmit(policy, NULL, &policy->no_console_entries.send_list, m);
-        r = r ?: policy_export_xmit(policy, NULL, &policy->no_console_entries.recv_list, m);
-        if (r)
-                return error_trace(r);
-
         r = sd_bus_message_close_container(m);
         if (r < 0)
                 return error_origin(r);
 
-        r = sd_bus_message_close_container(m);
-        if (r < 0)
-                return error_origin(r);
-
-        r = sd_bus_message_open_container(m, 'r', "uu(" POLICY_T_BATCH ")");
-        if (r < 0)
-                return error_origin(r);
-
-        r = sd_bus_message_append(m, "uu", (uint32_t)(SYSTEMUIDMAX + 1), UINT32_C(-1));
-        if (r < 0)
-                return error_origin(r);
-
-        r = sd_bus_message_open_container(m, 'r', POLICY_T_BATCH);
-        if (r < 0)
-                return error_origin(r);
-
-        r = policy_export_connect(policy, NULL, &policy->at_console_entries.connect_list, m);
-        r = r ?: policy_export_own(policy, NULL, &policy->at_console_entries.own_list, m);
-        r = r ?: policy_export_xmit(policy, NULL, &policy->at_console_entries.send_list, m);
-        r = r ?: policy_export_xmit(policy, NULL, &policy->at_console_entries.recv_list, m);
-        if (r)
-                return error_trace(r);
-
-        r = sd_bus_message_close_container(m);
-        if (r < 0)
-                return error_origin(r);
-
-        r = sd_bus_message_close_container(m);
-        if (r < 0)
-                return error_origin(r);
-
-        r = sd_bus_message_close_container(m);
-        if (r < 0)
-                return error_origin(r);
-
-        r = sd_bus_message_open_container(m, 'a', "(u(" POLICY_T_BATCH "))");
+        r = sd_bus_message_open_container(m, 'a', "(buu(" POLICY_T_BATCH "))");
         if (r < 0)
                 return error_origin(r);
 
         c_rbtree_for_each_entry(node, &policy->gid_tree, policy_node) {
-                r = sd_bus_message_open_container(m, 'r', "u(" POLICY_T_BATCH ")");
+                r = sd_bus_message_open_container(m, 'r', "buu(" POLICY_T_BATCH ")");
                 if (r < 0)
                         return error_origin(r);
 
-                r = sd_bus_message_append(m, "u", node->uidgid);
+                r = sd_bus_message_append(m, "buu", true, node->uidgid, node->uidgid);
                 if (r < 0)
                         return error_origin(r);
 
@@ -1041,6 +987,60 @@ int policy_export(Policy *policy, sd_bus_message *m) {
                 if (r < 0)
                         return error_origin(r);
         }
+
+        r = sd_bus_message_open_container(m, 'r', "buu(" POLICY_T_BATCH ")");
+        if (r < 0)
+                return error_origin(r);
+
+        r = sd_bus_message_append(m, "buu", false, UINT32_C(0), (uint32_t)SYSTEMUIDMAX);
+        if (r < 0)
+                return error_origin(r);
+
+        r = sd_bus_message_open_container(m, 'r', POLICY_T_BATCH);
+        if (r < 0)
+                return error_origin(r);
+
+        r = policy_export_connect(policy, NULL, &policy->no_console_entries.connect_list, m);
+        r = r ?: policy_export_own(policy, NULL, &policy->no_console_entries.own_list, m);
+        r = r ?: policy_export_xmit(policy, NULL, &policy->no_console_entries.send_list, m);
+        r = r ?: policy_export_xmit(policy, NULL, &policy->no_console_entries.recv_list, m);
+        if (r)
+                return error_trace(r);
+
+        r = sd_bus_message_close_container(m);
+        if (r < 0)
+                return error_origin(r);
+
+        r = sd_bus_message_close_container(m);
+        if (r < 0)
+                return error_origin(r);
+
+        r = sd_bus_message_open_container(m, 'r', "buu(" POLICY_T_BATCH ")");
+        if (r < 0)
+                return error_origin(r);
+
+        r = sd_bus_message_append(m, "buu", false, (uint32_t)(SYSTEMUIDMAX + 1), UINT32_C(-1));
+        if (r < 0)
+                return error_origin(r);
+
+        r = sd_bus_message_open_container(m, 'r', POLICY_T_BATCH);
+        if (r < 0)
+                return error_origin(r);
+
+        r = policy_export_connect(policy, NULL, &policy->at_console_entries.connect_list, m);
+        r = r ?: policy_export_own(policy, NULL, &policy->at_console_entries.own_list, m);
+        r = r ?: policy_export_xmit(policy, NULL, &policy->at_console_entries.send_list, m);
+        r = r ?: policy_export_xmit(policy, NULL, &policy->at_console_entries.recv_list, m);
+        if (r)
+                return error_trace(r);
+
+        r = sd_bus_message_close_container(m);
+        if (r < 0)
+                return error_origin(r);
+
+        r = sd_bus_message_close_container(m);
+        if (r < 0)
+                return error_origin(r);
 
         r = sd_bus_message_close_container(m);
         if (r < 0)

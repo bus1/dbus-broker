@@ -48,13 +48,13 @@ static int util_event_sigchld(sd_event_source *source, const siginfo_t *si, void
 #define POLICY_T_BATCH                                                          \
                 "bt"                                                            \
                 "a(btbs)"                                                       \
-                "a(btssssu)"                                                   \
+                "a(btssssu)"                                                    \
                 "a(btssssu)"
 
 #define POLICY_T                                                                \
                 "(" POLICY_T_BATCH ")"                                          \
                 "a(u(" POLICY_T_BATCH "))"                                      \
-                "a(u(" POLICY_T_BATCH "))"                                      \
+                "a(buu(" POLICY_T_BATCH "))"                                    \
                 "a(ss)"
 
 static int util_append_policy(sd_bus_message *m) {
@@ -100,7 +100,7 @@ static int util_append_policy(sd_bus_message *m) {
 
         /* per-gid batches */
         {
-                r = sd_bus_message_open_container(m, 'a', "(u(" POLICY_T_BATCH "))");
+                r = sd_bus_message_open_container(m, 'a', "(buu(" POLICY_T_BATCH "))");
                 assert(r >= 0);
 
                 r = sd_bus_message_close_container(m);
