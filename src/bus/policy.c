@@ -515,19 +515,13 @@ int policy_registry_import(PolicyRegistry *registry, CDVar *v) {
         c_dvar_read(v, "[");
 
         while (c_dvar_more(v)) {
-                uint32_t uid_start, uid_end;
+                uint32_t uid;
 
-                c_dvar_read(v, "(uu", &uid_start, &uid_end);
+                c_dvar_read(v, "(u", &uid);
 
-                if (uid_start == uid_end) {
-                        r = policy_registry_at_uid(registry, &node, uid_start);
-                        if (r)
-                                return error_trace(r);
-                } else {
-                        r = policy_registry_at_uid_range(registry, &node, uid_start, uid_end);
-                        if (r)
-                                return error_trace(r);
-                }
+                r = policy_registry_at_uid(registry, &node, uid);
+                if (r)
+                        return error_trace(r);
 
                 r = policy_registry_import_batch(registry, node->batch, v);
                 if (r)
@@ -539,13 +533,23 @@ int policy_registry_import(PolicyRegistry *registry, CDVar *v) {
         c_dvar_read(v, "][");
 
         while (c_dvar_more(v)) {
-                uint32_t gid;
+                bool group;
+                uint32_t uidgid_start, uidgid_end;
 
-                c_dvar_read(v, "(u", &gid);
+                c_dvar_read(v, "(buu", &group, &uidgid_start, &uidgid_end);
 
-                r = policy_registry_at_gid(registry, &node, gid);
-                if (r)
-                        return error_trace(r);
+                if (group) {
+                        if (uidgid_start != uidgid_end)
+                                return POLICY_E_INVALID;
+
+                        r = policy_registry_at_gid(registry, &node, uidgid_start);
+                        if (r)
+                                return error_trace(r);
+                } else {
+                        r = policy_registry_at_uid_range(registry, &node, uidgid_start, uidgid_end);
+                        if (r)
+                                return error_trace(r);
+                }
 
                 r = policy_registry_import_batch(registry, node->batch, v);
                 if (r)
