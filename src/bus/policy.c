@@ -508,10 +508,6 @@ int policy_registry_import(PolicyRegistry *registry, CDVar *v) {
         /* XXX: provide the type */
         c_dvar_read(v, "<(", NULL);
 
-        r = policy_registry_import_batch(registry, registry->default_batch, v);
-        if (r)
-                return error_trace(r);
-
         c_dvar_read(v, "[");
 
         while (c_dvar_more(v)) {
@@ -519,13 +515,19 @@ int policy_registry_import(PolicyRegistry *registry, CDVar *v) {
 
                 c_dvar_read(v, "(u", &uid);
 
-                r = policy_registry_at_uid(registry, &node, uid);
-                if (r)
-                        return error_trace(r);
+                if (uid == (uint32_t)-1) {
+                        r = policy_registry_import_batch(registry, registry->default_batch, v);
+                        if (r)
+                                return error_trace(r);
+                } else {
+                        r = policy_registry_at_uid(registry, &node, uid);
+                        if (r)
+                                return error_trace(r);
 
-                r = policy_registry_import_batch(registry, node->batch, v);
-                if (r)
-                        return error_trace(r);
+                        r = policy_registry_import_batch(registry, node->batch, v);
+                        if (r)
+                                return error_trace(r);
+                }
 
                 c_dvar_read(v, ")");
         }
