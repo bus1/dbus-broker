@@ -1159,7 +1159,7 @@ static int manager_add_listener(Manager *manager, Policy *policy) {
         if (r < 0)
                 return error_origin(r);
 
-        r = policy_export(policy, m);
+        r = policy_export(policy, m, NULL, 0);
         if (r)
                 return error_fold(r);
 
@@ -1183,7 +1183,7 @@ static int manager_set_policy(Manager *manager, Policy *policy) {
         if (r < 0)
                 return error_origin(r);
 
-        r = policy_export(policy, m);
+        r = policy_export(policy, m, NULL, 0);
         if (r)
                 return error_fold(r);
 
