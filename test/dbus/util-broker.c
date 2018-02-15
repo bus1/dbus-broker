@@ -52,7 +52,6 @@ static int util_event_sigchld(sd_event_source *source, const siginfo_t *si, void
                 "a(btssssu)"
 
 #define POLICY_T                                                                \
-                "(" POLICY_T_BATCH ")"                                          \
                 "a(u(" POLICY_T_BATCH "))"                                      \
                 "a(buu(" POLICY_T_BATCH "))"                                    \
                 "a(ss)"
@@ -66,8 +65,18 @@ static int util_append_policy(sd_bus_message *m) {
         r = sd_bus_message_open_container(m, 'r', POLICY_T);
         assert(r >= 0);
 
-        /* default batch */
+        /* per-uid batches */
         {
+                r = sd_bus_message_open_container(m, 'a', "(u(" POLICY_T_BATCH "))");
+                assert(r >= 0);
+
+                r = sd_bus_message_open_container(m, 'r', "u(" POLICY_T_BATCH ")");
+                assert(r >= 0);
+
+                /* Fall-back UID */
+                r = sd_bus_message_append(m, "u", (uint32_t)-1);
+                assert(r >= 0);
+
                 r = sd_bus_message_open_container(m, 'r', POLICY_T_BATCH);
                 assert(r >= 0);
 
@@ -84,21 +93,19 @@ static int util_append_policy(sd_bus_message *m) {
                                           1, true, UINT64_C(1), true, "",
                                           1, true, UINT64_C(1), "", "", "", "", 0,
                                           1, true, UINT64_C(1), "", "", "", "", 0);
+                assert(r >= 0);
+
+                r = sd_bus_message_close_container(m);
+                assert(r >= 0);
+
+                r = sd_bus_message_close_container(m);
+                assert(r >= 0);
 
                 r = sd_bus_message_close_container(m);
                 assert(r >= 0);
         }
 
-        /* per-uid batches */
-        {
-                r = sd_bus_message_open_container(m, 'a', "(u(" POLICY_T_BATCH "))");
-                assert(r >= 0);
-
-                r = sd_bus_message_close_container(m);
-                assert(r >= 0);
-        }
-
-        /* per-gid batches */
+        /* per-gid and uid-range batches */
         {
                 r = sd_bus_message_open_container(m, 'a', "(buu(" POLICY_T_BATCH "))");
                 assert(r >= 0);
