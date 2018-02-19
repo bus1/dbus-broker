@@ -67,8 +67,6 @@ struct Manager {
 
 static bool             main_arg_audit = false;
 static const char *     main_arg_broker = BINDIR "/dbus-broker";
-static bool             main_arg_force = false;
-static const char *     main_arg_listen = NULL;
 static const char *     main_arg_configfile = NULL;
 static bool             main_arg_user_scope = false;
 static bool             main_arg_verbose = false;
@@ -311,46 +309,6 @@ static int manager_listen_inherit(Manager *manager) {
                 return error_origin(-errno);
 
         r = fcntl(s, F_SETFL, r | O_NONBLOCK);
-        if (r < 0)
-                return error_origin(-errno);
-
-        manager->fd_listen = s;
-        s = -1;
-        return 0;
-}
-
-static int manager_listen_path(Manager *manager, const char *path) {
-        _c_cleanup_(c_closep) int s = -1;
-        struct sockaddr_un addr = {};
-        int r;
-
-        assert(manager->fd_listen < 0);
-
-        s = socket(PF_UNIX, SOCK_STREAM | SOCK_CLOEXEC | SOCK_NONBLOCK, 0);
-        if (s < 0)
-                return error_origin(-errno);
-
-        addr.sun_family = AF_UNIX;
-        memcpy(addr.sun_path, path, strlen(path));
-        r = bind(s, (struct sockaddr *)&addr, offsetof(struct sockaddr_un, sun_path) + strlen(path) + 1);
-        if (r < 0)
-                return error_origin(-errno);
-
-        /*
-         * The backlog parameter selects the maximum number of pending
-         * connections on a listener socket. Unfortunately, there is no fair
-         * queue sharing available, so any malicious peer can easily exhaust
-         * this limit.
-         *
-         * On linux, this limit is capped to `net/core/somaxconn` sysctl, which
-         * is 1024 by default. We simply use the same default value due to lack
-         * of any other reasonable choice.
-         *
-         * Preferably, we would tie this to our quota-infrastructure somehow.
-         * Unfortunately, there is still no mechanism to control this. Hence,
-         * we simply stick to the same limits everyone else uses on AF_UNIX.
-         */
-        r = listen(s, 1024);
         if (r < 0)
                 return error_origin(-errno);
 
@@ -1440,8 +1398,6 @@ static void help(void) {
                "  -v --verbose          Print progress to terminal\n"
                "     --audit            Enable audit support\n"
                "     --config-file PATH Specify path to configuration file\n"
-               "     --listen PATH      Specify path of listener socket\n"
-               "  -f --force            Ignore existing listener sockets\n"
                "     --scope SCOPE      Scope of message bus\n"
                , program_invocation_short_name);
 }
@@ -1451,7 +1407,6 @@ static int parse_argv(int argc, char *argv[]) {
                 ARG_VERSION = 0x100,
                 ARG_AUDIT,
                 ARG_CONFIG,
-                ARG_LISTEN,
                 ARG_SCOPE,
         };
         static const struct option options[] = {
@@ -1460,8 +1415,6 @@ static int parse_argv(int argc, char *argv[]) {
                 { "verbose",            no_argument,            NULL,   'v'                     },
                 { "audit",              no_argument,            NULL,   ARG_AUDIT               },
                 { "config-file",        required_argument,      NULL,   ARG_CONFIG,             },
-                { "listen",             required_argument,      NULL,   ARG_LISTEN              },
-                { "force",              no_argument,            NULL,   'f'                     },
                 { "scope",              required_argument,      NULL,   ARG_SCOPE               },
                 {}
         };
@@ -1487,14 +1440,6 @@ static int parse_argv(int argc, char *argv[]) {
 
                 case ARG_CONFIG:
                         main_arg_configfile = optarg;
-                        break;
-
-                case ARG_LISTEN:
-                        main_arg_listen = optarg;
-                        break;
-
-                case 'f':
-                        main_arg_force = true;
                         break;
 
                 case ARG_SCOPE:
@@ -1527,71 +1472,18 @@ static int parse_argv(int argc, char *argv[]) {
 
 static int run(void) {
         _c_cleanup_(manager_freep) Manager *manager = NULL;
-        _c_cleanup_(c_freep) char *listen_path = NULL;
-        const char *t, *path = NULL, *unlink_path = NULL;
         int r;
 
         r = manager_new(&manager);
         if (r)
                 return error_trace(r);
 
-        if (main_arg_listen) {
-                path = main_arg_listen;
-        } else if (main_arg_user_scope) {
-                t = getenv("XDG_RUNTIME_DIR");
-                if (t)
-                        r = asprintf(&listen_path, "%s/bus", t);
-                else
-                        r = asprintf(&listen_path, "/var/run/user/%u/bus", getuid());
-                if (r < 0)
-                        return error_origin(-ENOMEM);
-
-                path = listen_path;
-        } else {
-                path = "/var/run/dbus/system_bus_socket";
-        }
-
-        if (!strcmp(path, "inherit")) {
-                r = manager_listen_inherit(manager);
-                if (r)
-                        return error_trace(r);
-
-                if (main_arg_verbose)
-                        fprintf(stderr, "Listening on inherited socket\n");
-        } else if (path[0] == '/') {
-                if (main_arg_force) {
-                        r = unlink(path);
-                        if (r < 0) {
-                                if (errno != ENOENT)
-                                        return error_origin(-errno);
-                                else if (main_arg_verbose)
-                                        fprintf(stderr, "No conflict on socket '%s'\n", path);
-                        } else if (main_arg_verbose) {
-                                fprintf(stderr, "Forcibly removed conflicting socket '%s'\n", path);
-                        }
-                }
-
-                r = manager_listen_path(manager, path);
-                if (r)
-                        return error_trace(r);
-
-                unlink_path = path;
-
-                if (main_arg_verbose)
-                        fprintf(stderr, "Listening on socket '%s'\n", path);
-        } else {
-                fprintf(stderr, "Invalid listener socket '%s'\n", path);
-                return MAIN_FAILED;
-        }
+        r = manager_listen_inherit(manager);
+        if (r)
+                return error_trace(r);
 
         r = manager_run(manager);
         r = error_trace(r);
-
-        if (unlink_path) {
-                r = unlink(unlink_path);
-                if (r < 0)
-                        return error_origin(-errno);
-        }
 
         return r;
 
