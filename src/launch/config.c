@@ -1022,7 +1022,7 @@ static void config_parser_end_fn(void *userdata, const XML_Char *name) {
                                     state->file,
                                     state->current->include.selinux_root_relative ?
                                         bus_selinux_policy_root() :
-                                        state->file->path,
+                                        NULL,
                                     state->current->cdata);
                 if (r) {
                         state->error = error_trace(r);
