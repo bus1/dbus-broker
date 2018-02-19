@@ -6,6 +6,7 @@
 #include <c-macro.h>
 #include <expat.h>
 #include <stdlib.h>
+#include <sys/stat.h>
 #include "dbus/protocol.h"
 #include "launch/config.h"
 #include "launch/nss-cache.h"
@@ -38,7 +39,15 @@ int config_path_new(ConfigPath **filep, ConfigPath *parent, const char *prefix, 
         /* prepend parent-path if @path is relative */
         if (path[0] != '/') {
                 if (prefix) {
-                        n_prefix = strlen(prefix);
+			n_prefix = strlen(prefix);
+			struct stat st;
+			stat(prefix, &st);
+			if (!S_ISDIR(st.st_mode)) {
+                                t = strrchr(prefix, '/');
+                                if (t) {
+                                        n_prefix = t - prefix;
+                                }
+                        }
                 } else if (parent) {
                         if (parent->is_dir) {
                                 prefix = parent->path;
