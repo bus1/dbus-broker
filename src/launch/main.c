@@ -1110,7 +1110,7 @@ static int manager_load_services(Manager *manager, NSSCache *nss_cache) {
         return 0;
 }
 
-static int manager_load_policy(Manager *manager, ConfigRoot **rootp, Policy *policy, NSSCache *nss_cache) {
+static int manager_parse_config(Manager *manager, ConfigRoot **rootp, NSSCache *nss_cache) {
         _c_cleanup_(config_parser_deinit) ConfigParser parser = CONFIG_PARSER_NULL(parser);
         const char *configfile;
         int r;
@@ -1128,7 +1128,13 @@ static int manager_load_policy(Manager *manager, ConfigRoot **rootp, Policy *pol
         if (r)
                 return error_fold(r);
 
-        r = policy_import(policy, *rootp);
+        return 0;
+}
+
+static int manager_load_policy(Manager *manager, ConfigRoot *root, Policy *policy) {
+        int r;
+
+        r = policy_import(policy, root);
         if (r)
                 return error_fold(r);
 
@@ -1201,11 +1207,15 @@ static int manager_reload_config(Manager *manager) {
         c_rbtree_for_each_entry(service, &manager->services, rb)
                 service->state = SERVICE_STATE_DEFUNCT;
 
+        r = manager_parse_config(manager, &root, &nss_cache);
+        if (r)
+                return error_trace(r);
+
         r = manager_load_services(manager, &nss_cache);
         if (r)
                 return error_trace(r);
 
-        r = manager_load_policy(manager, &root, &policy, &nss_cache);
+        r = manager_load_policy(manager, root, &policy);
         if (r)
                 return error_trace(r);
 
@@ -1267,17 +1277,21 @@ static int manager_run(Manager *manager) {
         _c_cleanup_(nss_cache_deinit) NSSCache nss_cache = NSS_CACHE_INIT;
         int r, controller[2];
 
-        r = manager_load_services(manager, &nss_cache);
+        r = manager_parse_config(manager, &root, &nss_cache);
         if (r)
                 return error_trace(r);
 
-        r = manager_load_policy(manager, &root, &policy, &nss_cache);
+        r = manager_load_services(manager, &nss_cache);
         if (r)
                 return error_trace(r);
 
         r = sd_notify(false, "READY=1");
         if (r < 0)
                 return error_origin(r);
+
+        r = manager_load_policy(manager, root, &policy);
+        if (r)
+                return error_trace(r);
 
         assert(manager->fd_listen >= 0);
 
