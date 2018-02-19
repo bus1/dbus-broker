@@ -1225,46 +1225,20 @@ static int manager_reload_config(Manager *manager) {
 }
 
 static int manager_connect(Manager *manager) {
-        _c_cleanup_(bus_close_unrefp) sd_bus *b = NULL;
-        _c_cleanup_(c_closep) int s = -1;
-        struct sockaddr_un addr;
-        socklen_t n_addr = sizeof(addr);
         int r;
 
         assert(!manager->bus_regular);
 
-        s = socket(PF_UNIX, SOCK_STREAM | SOCK_CLOEXEC | SOCK_NONBLOCK, 0);
-        if (s < 0)
-                return error_origin(-errno);
+        if (main_arg_user_scope) {
+                r = sd_bus_open_user(&manager->bus_regular);
+                if (r < 0)
+                        return error_origin(r);
+        } else {
+                r = sd_bus_open_system(&manager->bus_regular);
+                if (r < 0)
+                        return error_origin(r);
+        }
 
-        r = getsockname(manager->fd_listen, (struct sockaddr *)&addr, &n_addr);
-        if (r < 0)
-                return error_origin(-r);
-
-        r = connect(s, (struct sockaddr *)&addr, n_addr);
-        if (r < 0)
-                return error_origin(-r);
-
-        r = sd_bus_new(&b);
-        if (r < 0)
-                return error_origin(r);
-
-        r = sd_bus_set_fd(b, s, s);
-        if (r < 0)
-                return error_origin(r);
-
-        s = -1;
-
-        r = sd_bus_set_bus_client(b, true);
-        if (r < 0)
-                return error_origin(r);
-
-        r = sd_bus_start(b);
-        if (r < 0)
-                return error_origin(r);
-
-        manager->bus_regular = b;
-        b = NULL;
         return 0;
 }
 
