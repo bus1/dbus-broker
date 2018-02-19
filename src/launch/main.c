@@ -906,20 +906,15 @@ exit:
         return r;
 }
 
-static int manager_load_service_dir(Manager *manager, const char *dirpath, const char *subdir, NSSCache *nss_cache) {
+static int manager_load_service_dir(Manager *manager, const char *dirpath, NSSCache *nss_cache) {
         const char suffix[] = ".service";
-        _c_cleanup_(c_freep) char *full_dir = NULL;
         _c_cleanup_(c_closedirp) DIR *dir = NULL;
         struct dirent *de;
         char *path;
         size_t n;
         int r;
 
-        r = asprintf(&full_dir, "%s/%s", dirpath, subdir);
-        if (r < 0)
-                return error_origin(-ENOMEM);
-
-        dir = opendir(full_dir);
+        dir = opendir(dirpath);
         if (!dir) {
                 if (errno == ENOENT || errno == ENOTDIR)
                         return 0;
@@ -939,7 +934,7 @@ static int manager_load_service_dir(Manager *manager, const char *dirpath, const
                 if (strcmp(de->d_name + n - strlen(suffix), suffix))
                         continue;
 
-                r = asprintf(&path, "%s/%s", full_dir, de->d_name);
+                r = asprintf(&path, "%s/%s", dirpath, de->d_name);
                 if (r < 0)
                         return error_origin(-ENOMEM);
 
@@ -1019,90 +1014,85 @@ static int manager_remove_services(Manager *manager) {
         return 0;
 }
 
-static int manager_load_services(Manager *manager, NSSCache *nss_cache) {
-        static const char *default_data_dirs[] = {
-                "/usr/local/share",
-                "/usr/share",
-                NULL,
-        };
+static const char *default_data_dirs[] = {
+        "/usr/local/share",
+        "/usr/share",
+        NULL,
+};
+
+static int manager_load_standard_session_services(Manager *manager, NSSCache *nss_cache) {
         _c_cleanup_(c_freep) char *data_home_dir = NULL;
-        const char **dirs, *dir, *suffix, *runtime_dir = NULL;
+        const char *dir, *suffix = "dbus-1/services", *runtime_dir = NULL;
         struct passwd *passwd;
         size_t i;
         int r;
 
-        if (main_arg_user_scope) {
-                /*
-                 * dbus-daemon(1) allows the default search path to be modified
-                 * via the XDG_DATA_DIRS env-variable. We do not implement this
-                 * so far. If there is need, we can add it later.
-                 */
-                suffix = "dbus-1/services";
-                dirs = default_data_dirs;
+        /*
+         * dbus-daemon(1) allows the default search path to be modified
+         * via the XDG_DATA_DIRS env-variable. We do not implement this
+         * so far. If there is need, we can add it later.
+         *
+         * The order in which the directories are parsed follows the order
+         * of dbus-daemon(1).
+         */
 
-                /*
-                 * $HOME/.local/share/dbus-1/services is used for user buses
-                 * additionally to the above mentioned directories. Note that
-                 * it can be modified via the XDG_DATA_HOME env-variable.
-                 */
-                dir = secure_getenv("XDG_DATA_HOME");
-                if (dir) {
-                        data_home_dir = strdup(dir);
-                        if (!data_home_dir)
-                                return error_origin(-ENOMEM);
-                } else {
-                        passwd = getpwuid(getuid());
-                        if (passwd && passwd->pw_dir) {
-                                r = asprintf(&data_home_dir, "%s/.local/share", passwd->pw_dir);
-                                if (r < 0)
-                                        return error_origin(-ENOMEM);
-                        }
-                }
-                if (!data_home_dir)
-                        fprintf(stderr, "Cannot figure out service home directory\n");
-
-                /*
-                 * $XDG_RUNTIME_DIR/dbus-1/services is used in user-scope to
-                 * load transient units. dbus-daemon(1) actually creates this
-                 * path, we don't. It is incompatible with socket-activation of
-                 * dbus-daemon(1), so you must already be able to deal with
-                 * creating the directory yourself. But if the directory is
-                 * there, we load units from it.
-                 */
-                runtime_dir = secure_getenv("XDG_RUNTIME_DIR");
-                if (!runtime_dir)
-                        fprintf(stderr, "Cannot figure out service runtime directory\n");
+        /*
+         * $XDG_RUNTIME_DIR/dbus-1/services is used in user-scope to
+         * load transient units. dbus-daemon(1) actually creates this
+         * path, we don't. It is incompatible with socket-activation of
+         * dbus-daemon(1), so you must already be able to deal with
+         * creating the directory yourself. But if the directory is
+         * there, we load units from it.
+         */
+        runtime_dir = secure_getenv("XDG_RUNTIME_DIR");
+        if (!runtime_dir) {
+                fprintf(stderr, "Cannot figure out service runtime directory\n");
         } else {
-                /*
-                 * In system scope, the default data directories are used. They
-                 * cannot be modified via env-variables!
-                 *
-                 * dbus-daemon(1) also supports /lib, which we don't. If there
-                 * is need, add it later.
-                 */
-                suffix = "dbus-1/system-services";
-                dirs = default_data_dirs;
+                _c_cleanup_(c_freep) char *dirpath = NULL;
+
+                r = asprintf(&dirpath, "%s/%s", runtime_dir, suffix);
+                if (r < 0)
+                        return error_origin(-ENOMEM);
+
+                r = manager_load_service_dir(manager, dirpath, nss_cache);
+                if (r)
+                        return error_trace(r);
         }
 
         /*
-         * Now parse all the directories and read the stored service files. The
-         * order in which these are parsed follows the order of dbus-daemon(1).
+         * $HOME/.local/share/dbus-1/services is used for user buses
+         * additionally to the above mentioned directories. Note that
+         * it can be modified via the XDG_DATA_HOME env-variable.
          */
-
-        if (runtime_dir) {
-                r = manager_load_service_dir(manager, runtime_dir, suffix, nss_cache);
+        dir = secure_getenv("XDG_DATA_HOME");
+        if (dir) {
+                r = asprintf(&data_home_dir, "%s/%s", dir, suffix);
+                if (r < 0)
+                        return error_origin(-ENOMEM);
+        } else {
+                passwd = getpwuid(getuid());
+                if (passwd && passwd->pw_dir) {
+                        r = asprintf(&data_home_dir, "%s/.local/share/%s", passwd->pw_dir, suffix);
+                        if (r < 0)
+                                return error_origin(-ENOMEM);
+                }
+        }
+        if (!data_home_dir) {
+                fprintf(stderr, "Cannot figure out service home directory\n");
+        } else {
+                r = manager_load_service_dir(manager, data_home_dir, nss_cache);
                 if (r)
                         return error_trace(r);
         }
 
-        if (data_home_dir) {
-                r = manager_load_service_dir(manager, data_home_dir, suffix, nss_cache);
-                if (r)
-                        return error_trace(r);
-        }
+        for (i = 0; default_data_dirs[i]; ++i) {
+                _c_cleanup_(c_freep) char *dirpath = NULL;
 
-        for (i = 0; dirs[i]; ++i) {
-                r = manager_load_service_dir(manager, dirs[i], suffix, nss_cache);
+                r = asprintf(&dirpath, "%s/%s", default_data_dirs[i], suffix);
+                if (r < 0)
+                        return error_origin(-ENOMEM);
+
+                r = manager_load_service_dir(manager, dirpath, nss_cache);
                 if (r)
                         return error_trace(r);
         }
@@ -1110,6 +1100,70 @@ static int manager_load_services(Manager *manager, NSSCache *nss_cache) {
         return 0;
 }
 
+static int manager_load_standard_system_services(Manager *manager, NSSCache *nss_cache) {
+        const char *suffix = "dbus-1/system-services";
+        size_t i;
+        int r;
+
+        /*
+         * In system scope, the default data directories are used. They
+         * cannot be modified via env-variables!
+         *
+         * dbus-daemon(1) also supports /lib, which we don't. If there
+         * is need, add it later.
+         *
+         * The order in which the directories are parsed follows the order
+         * of dbus-daemon(1).
+         */
+
+        for (i = 0; default_data_dirs[i]; ++i) {
+                _c_cleanup_(c_freep) char *dirpath = NULL;
+
+                r = asprintf(&dirpath, "%s/%s", default_data_dirs[i], suffix);
+                if (r < 0)
+                        return error_origin(-ENOMEM);
+
+                r = manager_load_service_dir(manager, dirpath, nss_cache);
+                if (r)
+                        return error_trace(r);
+        }
+
+        return 0;
+}
+
+static int manager_load_services(Manager *manager, ConfigRoot *config, NSSCache *nss_cache) {
+        ConfigNode *cnode;
+        int r;
+
+        c_list_for_each_entry(cnode, &config->node_list, root_link) {
+                switch (cnode->type) {
+                case CONFIG_NODE_STANDARD_SESSION_SERVICEDIRS:
+                        r = manager_load_standard_session_services(manager, nss_cache);
+                        if (r)
+                                return error_trace(r);
+
+                        break;
+                case CONFIG_NODE_STANDARD_SYSTEM_SERVICEDIRS:
+                        r = manager_load_standard_system_services(manager, nss_cache);
+                        if (r)
+                                return error_trace(r);
+
+                        break;
+                case CONFIG_NODE_SERVICEDIR:
+                        r = manager_load_service_dir(manager, cnode->servicedir.path, nss_cache);
+                        if (r)
+                                return error_trace(r);
+
+                        break;
+                default:
+                        /* ignored */
+                        break;
+                }
+
+        }
+
+        return 0;
+}
 static int manager_parse_config(Manager *manager, ConfigRoot **rootp, NSSCache *nss_cache) {
         _c_cleanup_(config_parser_deinit) ConfigParser parser = CONFIG_PARSER_NULL(parser);
         const char *configfile;
@@ -1211,7 +1265,7 @@ static int manager_reload_config(Manager *manager) {
         if (r)
                 return error_trace(r);
 
-        r = manager_load_services(manager, &nss_cache);
+        r = manager_load_services(manager, root, &nss_cache);
         if (r)
                 return error_trace(r);
 
@@ -1281,7 +1335,7 @@ static int manager_run(Manager *manager) {
         if (r)
                 return error_trace(r);
 
-        r = manager_load_services(manager, &nss_cache);
+        r = manager_load_services(manager, root, &nss_cache);
         if (r)
                 return error_trace(r);
 
