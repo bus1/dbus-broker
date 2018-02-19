@@ -65,6 +65,7 @@ struct Manager {
         uint64_t service_ids;
 };
 
+static bool             main_arg_audit = false;
 static const char *     main_arg_broker = BINDIR "/dbus-broker";
 static bool             main_arg_force = false;
 static const char *     main_arg_listen = NULL;
@@ -358,7 +359,7 @@ static int manager_listen_path(Manager *manager, const char *path) {
         return 0;
 }
 
-static noreturn void manager_run_child(Manager *manager, int fd_log, int fd_controller, bool audit) {
+static noreturn void manager_run_child(Manager *manager, int fd_log, int fd_controller) {
         char str_log[C_DECIMAL_MAX(int) + 1], str_controller[C_DECIMAL_MAX(int) + 1];
         const char * const argv[] = {
                 "dbus-broker",
@@ -367,7 +368,7 @@ static noreturn void manager_run_child(Manager *manager, int fd_log, int fd_cont
                 str_log,
                 "--controller",
                 str_controller,
-                audit ? "--audit" : NULL, /* note that this needs to be the last argument to work */
+                main_arg_audit ? "--audit" : NULL, /* note that this needs to be the last argument to work */
                 NULL,
         };
         int r;
@@ -423,7 +424,7 @@ static int manager_on_child_exit(sd_event_source *source, const siginfo_t *si, v
                              (si->si_code == CLD_EXITED) ? si->si_status : EXIT_FAILURE);
 }
 
-static int manager_fork(Manager *manager, int fd_controller, bool audit) {
+static int manager_fork(Manager *manager, int fd_controller) {
         pid_t pid;
         int r;
 
@@ -432,7 +433,7 @@ static int manager_fork(Manager *manager, int fd_controller, bool audit) {
                 return error_origin(-errno);
 
         if (!pid)
-                manager_run_child(manager, log_get_fd(&main_log), fd_controller, audit);
+                manager_run_child(manager, log_get_fd(&main_log), fd_controller);
 
         r = sd_event_add_child(manager->event, NULL, pid, WEXITED, manager_on_child_exit, manager);
         if (r < 0)
@@ -1290,7 +1291,7 @@ const sd_bus_vtable manager_vtable[] = {
         SD_BUS_VTABLE_END
 };
 
-static int manager_run(Manager *manager, bool audit) {
+static int manager_run(Manager *manager) {
         _c_cleanup_(config_root_freep) ConfigRoot *root = NULL;
         _c_cleanup_(policy_deinit) Policy policy = POLICY_INIT(policy);
         _c_cleanup_(nss_cache_deinit) NSSCache nss_cache = NSS_CACHE_INIT;
@@ -1323,7 +1324,7 @@ static int manager_run(Manager *manager, bool audit) {
         }
 
         /* consumes FD controller[1] */
-        r = manager_fork(manager, controller[1], audit);
+        r = manager_fork(manager, controller[1]);
         if (r) {
                 close(controller[1]);
                 return error_trace(r);
@@ -1399,6 +1400,7 @@ static void help(void) {
                "  -h --help             Show this help\n"
                "     --version          Show package version\n"
                "  -v --verbose          Print progress to terminal\n"
+               "     --audit            Enable audit support\n"
                "     --listen PATH      Specify path of listener socket\n"
                "  -f --force            Ignore existing listener sockets\n"
                "     --scope SCOPE      Scope of message bus\n"
@@ -1408,6 +1410,7 @@ static void help(void) {
 static int parse_argv(int argc, char *argv[]) {
         enum {
                 ARG_VERSION = 0x100,
+                ARG_AUDIT,
                 ARG_LISTEN,
                 ARG_SCOPE,
         };
@@ -1415,6 +1418,7 @@ static int parse_argv(int argc, char *argv[]) {
                 { "help",               no_argument,            NULL,   'h'                     },
                 { "version",            no_argument,            NULL,   ARG_VERSION             },
                 { "verbose",            no_argument,            NULL,   'v'                     },
+                { "audit",              no_argument,            NULL,   ARG_AUDIT               },
                 { "listen",             required_argument,      NULL,   ARG_LISTEN              },
                 { "force",              no_argument,            NULL,   'f'                     },
                 { "scope",              required_argument,      NULL,   ARG_SCOPE               },
@@ -1434,6 +1438,10 @@ static int parse_argv(int argc, char *argv[]) {
 
                 case 'v':
                         main_arg_verbose = true;
+                        break;
+
+                case ARG_AUDIT:
+                        main_arg_audit = true;
                         break;
 
                 case ARG_LISTEN:
@@ -1532,7 +1540,7 @@ static int run(void) {
                 return MAIN_FAILED;
         }
 
-        r = manager_run(manager, !strcmp(main_arg_scope, "system"));
+        r = manager_run(manager);
         r = error_trace(r);
 
         if (unlink_path) {
