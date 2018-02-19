@@ -69,8 +69,8 @@ static bool             main_arg_audit = false;
 static const char *     main_arg_broker = BINDIR "/dbus-broker";
 static bool             main_arg_force = false;
 static const char *     main_arg_listen = NULL;
-static const char *     main_arg_scope = "system";
 static const char *     main_arg_policypath = NULL;
+static bool             main_arg_user_scope = false;
 static bool             main_arg_verbose = false;
 static Log              main_log = LOG_NULL;
 
@@ -1031,7 +1031,7 @@ static int manager_load_services(Manager *manager, NSSCache *nss_cache) {
         size_t i;
         int r;
 
-        if (!strcmp(main_arg_scope, "user")) {
+        if (main_arg_user_scope) {
                 /*
                  * dbus-daemon(1) allows the default search path to be modified
                  * via the XDG_DATA_DIRS env-variable. We do not implement this
@@ -1072,7 +1072,7 @@ static int manager_load_services(Manager *manager, NSSCache *nss_cache) {
                 runtime_dir = secure_getenv("XDG_RUNTIME_DIR");
                 if (!runtime_dir)
                         fprintf(stderr, "Cannot figure out service runtime directory\n");
-        } else if (!strcmp(main_arg_scope, "system")) {
+        } else {
                 /*
                  * In system scope, the default data directories are used. They
                  * cannot be modified via env-variables!
@@ -1082,8 +1082,6 @@ static int manager_load_services(Manager *manager, NSSCache *nss_cache) {
                  */
                 suffix = "dbus-1/system-services";
                 dirs = default_data_dirs;
-        } else {
-                return error_origin(-ENOTRECOVERABLE);
         }
 
         /*
@@ -1119,12 +1117,10 @@ static int manager_load_policy(Manager *manager, ConfigRoot **rootp, Policy *pol
 
         if (main_arg_policypath)
                 policypath = main_arg_policypath;
-        else if (!strcmp(main_arg_scope, "user"))
+        else if (main_arg_user_scope)
                 policypath = "/usr/share/dbus-1/session.conf";
-        else if (!strcmp(main_arg_scope, "system"))
-                policypath = "/usr/share/dbus-1/system.conf";
         else
-                return error_origin(-ENOTRECOVERABLE);
+                policypath = "/usr/share/dbus-1/system.conf";
 
         config_parser_init(&parser);
 
@@ -1453,13 +1449,14 @@ static int parse_argv(int argc, char *argv[]) {
                         break;
 
                 case ARG_SCOPE:
-                        if (strcmp(optarg, "system") &&
-                            strcmp(optarg, "user")) {
+                        if (!strcmp(optarg, "system")) {
+                                main_arg_user_scope = false;
+                        } else if (!strcmp(optarg, "user")) {
+                                main_arg_user_scope = true;
+                        } else {
                                 fprintf(stderr, "%s: invalid message bus scope -- '%s'\n", program_invocation_name, optarg);
                                 return MAIN_FAILED;
                         }
-
-                        main_arg_scope = optarg;
                         break;
 
                 case '?':
@@ -1491,7 +1488,7 @@ static int run(void) {
 
         if (main_arg_listen) {
                 path = main_arg_listen;
-        } else if (!strcmp(main_arg_scope, "user")) {
+        } else if (main_arg_user_scope) {
                 t = getenv("XDG_RUNTIME_DIR");
                 if (t)
                         r = asprintf(&listen_path, "%s/bus", t);
@@ -1501,10 +1498,8 @@ static int run(void) {
                         return error_origin(-ENOMEM);
 
                 path = listen_path;
-        } else if (!strcmp(main_arg_scope, "system")) {
-                path = "/var/run/dbus/system_bus_socket";
         } else {
-                return error_origin(-ENOTRECOVERABLE);
+                path = "/var/run/dbus/system_bus_socket";
         }
 
         if (!strcmp(path, "inherit")) {
