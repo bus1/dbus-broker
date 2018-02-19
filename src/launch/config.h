@@ -117,6 +117,10 @@ struct ConfigNode {
                 } include;
 
                 struct {
+                        char *path;
+                } servicedir;
+
+                struct {
                         unsigned int context;
                         uint32_t id;
                 } policy;
