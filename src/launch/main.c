@@ -69,7 +69,7 @@ static bool             main_arg_audit = false;
 static const char *     main_arg_broker = BINDIR "/dbus-broker";
 static bool             main_arg_force = false;
 static const char *     main_arg_listen = NULL;
-static const char *     main_arg_policypath = NULL;
+static const char *     main_arg_configfile = NULL;
 static bool             main_arg_user_scope = false;
 static bool             main_arg_verbose = false;
 static Log              main_log = LOG_NULL;
@@ -1112,19 +1112,19 @@ static int manager_load_services(Manager *manager, NSSCache *nss_cache) {
 
 static int manager_load_policy(Manager *manager, ConfigRoot **rootp, Policy *policy, NSSCache *nss_cache) {
         _c_cleanup_(config_parser_deinit) ConfigParser parser = CONFIG_PARSER_NULL(parser);
-        const char *policypath;
+        const char *configfile;
         int r;
 
-        if (main_arg_policypath)
-                policypath = main_arg_policypath;
+        if (main_arg_configfile)
+                configfile = main_arg_configfile;
         else if (main_arg_user_scope)
-                policypath = "/usr/share/dbus-1/session.conf";
+                configfile = "/usr/share/dbus-1/session.conf";
         else
-                policypath = "/usr/share/dbus-1/system.conf";
+                configfile = "/usr/share/dbus-1/system.conf";
 
         config_parser_init(&parser);
 
-        r = config_parser_read(&parser, rootp, policypath, nss_cache);
+        r = config_parser_read(&parser, rootp, configfile, nss_cache);
         if (r)
                 return error_fold(r);
 
@@ -1371,6 +1371,7 @@ static void help(void) {
                "     --version          Show package version\n"
                "  -v --verbose          Print progress to terminal\n"
                "     --audit            Enable audit support\n"
+               "     --config-file PATH Specify path to configuration file\n"
                "     --listen PATH      Specify path of listener socket\n"
                "  -f --force            Ignore existing listener sockets\n"
                "     --scope SCOPE      Scope of message bus\n"
@@ -1381,6 +1382,7 @@ static int parse_argv(int argc, char *argv[]) {
         enum {
                 ARG_VERSION = 0x100,
                 ARG_AUDIT,
+                ARG_CONFIG,
                 ARG_LISTEN,
                 ARG_SCOPE,
         };
@@ -1389,6 +1391,7 @@ static int parse_argv(int argc, char *argv[]) {
                 { "version",            no_argument,            NULL,   ARG_VERSION             },
                 { "verbose",            no_argument,            NULL,   'v'                     },
                 { "audit",              no_argument,            NULL,   ARG_AUDIT               },
+                { "config-file",        required_argument,      NULL,   ARG_CONFIG,             },
                 { "listen",             required_argument,      NULL,   ARG_LISTEN              },
                 { "force",              no_argument,            NULL,   'f'                     },
                 { "scope",              required_argument,      NULL,   ARG_SCOPE               },
@@ -1412,6 +1415,10 @@ static int parse_argv(int argc, char *argv[]) {
 
                 case ARG_AUDIT:
                         main_arg_audit = true;
+                        break;
+
+                case ARG_CONFIG:
+                        main_arg_configfile = optarg;
                         break;
 
                 case ARG_LISTEN:
