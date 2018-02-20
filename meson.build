@@ -1,3 +1,7 @@
+#
+# Global Project Setup
+#
+
 project(
         'dbus-broker',
         'c',
@@ -15,6 +19,11 @@ add_project_arguments('-DBINDIR="' + join_paths(get_option('prefix'), get_option
 cc = meson.get_compiler('c')
 conf = configuration_data()
 mod_pkgconfig = import('pkgconfig')
+
+#
+# Mandatory Dependencies
+#
+
 prog_rst2man = find_program('rst2man', 'rst2man.py')
 
 sub_cdvar = subproject('c-dvar', version: '>=1')
@@ -30,10 +39,18 @@ dep_math = cc.find_library('m')
 dep_thread = dependency('threads')
 dep_expat = dependency('expat')
 
+#
+# Config: audit
+#
+
 use_audit = get_option('audit')
 if use_audit
         dep_libaudit = dependency('audit', version: '>=2.7')
 endif
+
+#
+# Config: launcher
+#
 
 use_launcher = get_option('launcher')
 if use_launcher
@@ -47,14 +64,30 @@ if use_launcher
         conf.set('userunitdir', dep_systemd.get_pkgconfig_variable('systemduserunitdir'))
 endif
 
+#
+# Config: reference_test
+#
+
 use_reference_test = get_option('reference_test')
+
+#
+# Config: selinux
+#
 
 use_selinux = get_option('selinux')
 if use_selinux
         dep_libselinux = dependency('libselinux', version: '>=2.5')
 endif
 
+#
+# Global Parameters
+#
+
 conf.set('bindir', join_paths(get_option('prefix'), get_option('bindir')))
+
+#
+# Subdirs
+#
 
 subdir('docs')
 subdir('src')
