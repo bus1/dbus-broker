@@ -58,7 +58,6 @@ int sockopt_get_peersec(int fd, char **labelp, size_t *lenp) {
 
 int sockopt_get_peergroups(int fd, uid_t uid, gid_t gid, gid_t **gidsp, size_t *n_gidsp) {
         _c_cleanup_(c_freep) gid_t *gids = NULL;
-        struct passwd *passwd;
         int r, n_gids = 64;
         void *tmp;
 
@@ -76,17 +75,7 @@ int sockopt_get_peergroups(int fd, uid_t uid, gid_t gid, gid_t **gidsp, size_t *
          *
          *         net: introduce SO_PEERGROUPS getsockopt
          *
-         * You are highly recommended to run >=linux-4.13. Otherwise,
-         * SO_PEERGROUPS will not be available, and we have to use the NSS
-         * fallback. This requires calling into NSS modules via
-         * getgrouplist(3p) and as such might trigger other IPC (or even call
-         * back into D-Bus). To avoid any recursion issues, you are really
-         * strongly recommended to use SO_PEERGROUPS!
-         *
-         * XXX: Rather than warning about this, we should really make this
-         *      mandatory once linux-4.13 is released. Lets defer the decision
-         *      until then, but right now I see little reason to keep the
-         *      fallback.
+         * You are highly recommended to run >=linux-4.13.
          */
         #ifdef SO_PEERGROUPS
         {
@@ -118,9 +107,16 @@ int sockopt_get_peergroups(int fd, uid_t uid, gid_t gid, gid_t **gidsp, size_t *
                                 *n_gidsp = 1 + socklen / sizeof(*gids);
                         return 0;
                 }
+
+                /* fallthrough */
         }
         #endif
 
+        /*
+         * If we end up here, then SO_PEERGROUPS did not work. This is not safe
+         * and you really better update your kernel to support SO_PEERGROUPS.
+         * Warn loudly before continuing with the fallback.
+         */
         {
                 static bool warned;
 
@@ -132,29 +128,44 @@ int sockopt_get_peergroups(int fd, uid_t uid, gid_t gid, gid_t **gidsp, size_t *
                 }
         }
 
-        passwd = getpwuid(uid);
-        if (!passwd)
-                return error_origin(-errno);
+        /*
+         * If SO_PEERGROUPS is not available, we fall back to getgrouplist(3),
+         * which queries the user database. This is racy, incomplete, and in no
+         * way consistent with the credentials associated with the used
+         * resources. However, it is what was historically used, so we will
+         * keep it for some more time.
+         *
+         * XXX: At what point can we drop this? We keep it for now, but we
+         *      should at some point make a specific kernel version a
+         *      hard-requirement.
+         */
+        {
+                struct passwd *passwd;
+                int n_gids_previous;
 
-        do {
-                int n_gids_previous = n_gids;
+                passwd = getpwuid(uid);
+                if (!passwd)
+                        return error_origin(-errno);
 
-                tmp = realloc(gids, sizeof(*gids) * n_gids);
-                if (!tmp)
-                        return error_origin(-ENOMEM);
+                do {
+                        n_gids_previous = n_gids;
+                        tmp = realloc(gids, sizeof(*gids) * n_gids);
+                        if (!tmp)
+                                return error_origin(-ENOMEM);
 
-                gids = tmp;
-                r = getgrouplist(passwd->pw_name, passwd->pw_gid, gids, &n_gids);
-                if (r == -1 && n_gids <= n_gids_previous)
-                        return error_origin(-ENOTRECOVERABLE);
-        } while (r == -1);
+                        gids = tmp;
+                        r = getgrouplist(passwd->pw_name, passwd->pw_gid, gids, &n_gids);
+                        if (r == -1 && n_gids <= n_gids_previous)
+                                return error_origin(-ENOTRECOVERABLE);
+                } while (r == -1);
 
-        if (gidsp) {
-                *gidsp = gids;
-                gids = NULL;
+                if (gidsp) {
+                        *gidsp = gids;
+                        gids = NULL;
+                }
+                if (n_gidsp)
+                        *n_gidsp = n_gids;
         }
-        if (n_gidsp)
-                *n_gidsp = n_gids;
+
         return 0;
 }
-
