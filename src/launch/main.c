@@ -1162,6 +1162,12 @@ static int manager_load_system_console_users(Manager *manager, NSSCache *nss_cac
         uid_t uid;
         int r;
 
+        if (!C_ARRAY_SIZE(usernames)) {
+                *uidsp = NULL;
+                *n_uidsp = 0;
+                return 0;
+        }
+
         uids = calloc(C_ARRAY_SIZE(usernames), sizeof(*uids));
         if (!uids)
                 return error_origin(-ENOMEM);
