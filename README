@@ -53,9 +53,11 @@ INSTALL:
         documentation for detailed help. In most situations the following
         commands are sufficient to build and install dbus-broker from source:
 
-            $ meson build/
-            $ ninja -C build
-            $ ninja -C build test
-            # ninja -C build install
+            $ mkdir build
+            $ cd build
+            $ meson setup . ..
+            $ ninja
+            $ ninja test
+            # ninja install
 
         For custom configuration options see meson_options.txt.
