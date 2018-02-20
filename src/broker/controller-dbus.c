@@ -204,7 +204,7 @@ static int controller_method_add_name(Controller *controller, const char *_path,
 
         if (strncmp(path, "/org/bus1/DBus/Name/", strlen("/org/bus1/DBus/Name/")) != 0)
                 return CONTROLLER_E_UNEXPECTED_PATH;
-        if (!dbus_validate_name(name_str, strlen(name_str)))
+        if (!dbus_validate_name(name_str, strlen(name_str)) || name_str[0] == ':')
                 return CONTROLLER_E_NAME_INVALID;
 
         r = controller_add_name(controller, &name, path, name_str, uid);
