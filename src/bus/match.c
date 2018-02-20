@@ -2,6 +2,7 @@
  * D-Bus Match Rules
  */
 
+#include <c-dvar.h>
 #include <c-list.h>
 #include <c-macro.h>
 #include <c-rbtree.h>
@@ -52,9 +53,13 @@ static int match_keys_assign(MatchKeys *keys, const char *key, size_t n_key, con
         } else if (match_key_equal("path", key, n_key)) {
                 if (keys->filter.path || keys->path_namespace)
                         return MATCH_E_INVALID;
+                if (!c_dvar_is_path(value, strlen(value)))
+                        return MATCH_E_INVALID;
                 keys->filter.path = value;
         } else if (match_key_equal("path_namespace", key, n_key)) {
                 if (keys->path_namespace || keys->filter.path)
+                        return MATCH_E_INVALID;
+                if (!c_dvar_is_path(value, strlen(value)))
                         return MATCH_E_INVALID;
                 keys->path_namespace = value;
         } else if (match_key_equal("arg0namespace", key, n_key)) {
