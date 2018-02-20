@@ -77,7 +77,6 @@ int sockopt_get_peergroups(int fd, uid_t uid, gid_t gid, gid_t **gidsp, size_t *
          *
          * You are highly recommended to run >=linux-4.13.
          */
-        #ifdef SO_PEERGROUPS
         {
                 socklen_t socklen = n_gids * sizeof(*gids);
 
@@ -110,7 +109,6 @@ int sockopt_get_peergroups(int fd, uid_t uid, gid_t gid, gid_t **gidsp, size_t *
 
                 /* fallthrough */
         }
-        #endif
 
         /*
          * If we end up here, then SO_PEERGROUPS did not work. This is not safe
