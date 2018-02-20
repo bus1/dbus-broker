@@ -28,8 +28,10 @@ LICENSE:
 REQUIREMENTS:
         The requirements for dbus-broker are:
 
-            Linux kernel >= 4.10
+            Linux kernel >= 4.14        (>=4.10 works, but lacks important
+                                         security-related AF_UNIX patches)
             glibc >= 2.16
+            libaudit >= 2.7             (optional)
             libselinux >= 2.5           (optional)
 
         Additionally, the compatibility launcher requires:
