@@ -16,11 +16,17 @@
  * Return: True if @name is a valid well-known name, false otherwise.
  */
 bool dbus_validate_name(const char *name, size_t n_name) {
-        bool has_dot = false, dot = true;
+        bool has_dot = false, dot = true, unique = false;
         size_t i;
 
         if (n_name > 255)
                 return false;
+
+        if (n_name > 0 && name[0] == ':') {
+                ++name;
+                --n_name;
+                unique = true;
+        }
 
         for (i = 0; i < n_name; ++i) {
                 if (name[i] == '.') {
@@ -31,7 +37,7 @@ bool dbus_validate_name(const char *name, size_t n_name) {
                         dot = true;
                 } else if (_c_unlikely_(!((name[i] >= 'a' && name[i] <= 'z') ||
                                           (name[i] >= 'A' && name[i] <= 'Z') ||
-                                          (name[i] >= '0' && name[i] <= '9' && !dot) ||
+                                          (name[i] >= '0' && name[i] <= '9' && (!dot || unique)) ||
                                           name[i] == '_' ||
                                           name[i] == '-'))) {
                         return false;
