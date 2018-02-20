@@ -37,7 +37,6 @@ dep_crbtree = sub_crbtree.get_variable('libcrbtree_dep')
 dep_csundry = sub_csundry.get_variable('libcsundry_dep')
 dep_math = cc.find_library('m')
 dep_thread = dependency('threads')
-dep_expat = dependency('expat')
 
 #
 # Config: audit
@@ -55,6 +54,7 @@ endif
 use_launcher = get_option('launcher')
 if use_launcher
         dep_dbus = dependency('dbus-1', version: '>=1.10')
+        dep_expat = dependency('expat', version: '>=2.2')
         dep_glib = dependency('glib-2.0', version: '>=2.50')
         dep_libsystemd = dependency('libsystemd', version: '>=230')
         dep_systemd = dependency('systemd', version: '>=230')
