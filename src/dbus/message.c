@@ -239,36 +239,48 @@ static int message_parse_header(Message *message, MessageMetadata *metadata) {
                         if (!strcmp(metadata->fields.interface, "org.freedesktop.DBus.Local"))
                                 return MESSAGE_E_INVALID_HEADER;
 
-                        /* XXX: invalid interfaces are rejected */
+                        if (!dbus_validate_interface(metadata->fields.interface, strlen(metadata->fields.interface)))
+                                return MESSAGE_E_INVALID_HEADER;
 
                         break;
 
                 case DBUS_MESSAGE_FIELD_MEMBER:
                         c_dvar_read(&v, "<s>)", c_dvar_type_s, &metadata->fields.member);
 
-                        /* XXX: invalid members are rejected */
+                        if (!dbus_validate_member(metadata->fields.member, strlen(metadata->fields.member)))
+                                return MESSAGE_E_INVALID_HEADER;
 
                         break;
 
                 case DBUS_MESSAGE_FIELD_ERROR_NAME:
                         c_dvar_read(&v, "<s>)", c_dvar_type_s, &metadata->fields.error_name);
-                        /* XXX: Invalid error-names are rejected */
+
+                        if (!dbus_validate_error_name(metadata->fields.error_name, strlen(metadata->fields.error_name)))
+                                return MESSAGE_E_INVALID_HEADER;
+
                         break;
 
                 case DBUS_MESSAGE_FIELD_REPLY_SERIAL:
                         c_dvar_read(&v, "<u>)", c_dvar_type_u, &metadata->fields.reply_serial);
+
                         if (!metadata->fields.reply_serial)
                                 return MESSAGE_E_INVALID_HEADER;
+
                         break;
 
                 case DBUS_MESSAGE_FIELD_DESTINATION:
                         c_dvar_read(&v, "<s>)", c_dvar_type_s, &metadata->fields.destination);
-                        /* XXX: Invalid bus-names are rejected */
+
+                        if (!dbus_validate_name(metadata->fields.destination, strlen(metadata->fields.destination)))
+                                return MESSAGE_E_INVALID_HEADER;
+
                         break;
 
                 case DBUS_MESSAGE_FIELD_SENDER:
                         c_dvar_read(&v, "<s>)", c_dvar_type_s, &metadata->fields.sender);
-                        /* XXX: Invalid bus-names are rejected */
+
+                        if (!dbus_validate_name(metadata->fields.sender, strlen(metadata->fields.sender)))
+                                return MESSAGE_E_INVALID_HEADER;
 
                         /* cache sender in case it needs to be stitched out */
                         message->original_sender = (void *)metadata->fields.sender;
