@@ -61,3 +61,7 @@ enum {
 };
 
 bool dbus_validate_name(const char *name, size_t n_name);
+bool dbus_validate_namespace(const char *namespace, size_t n_namespace);
+bool dbus_validate_interface(const char *interface, size_t n_interface);
+bool dbus_validate_member(const char *memebr, size_t n_member);
+bool dbus_validate_error_name(const char *name, size_t n_name);
