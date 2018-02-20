@@ -89,7 +89,6 @@ acc_sysusers = ''
 foreach user : use_system_console_users
         acc_sysusers += '"' + user + '",'
 endforeach
-acc_sysusers += 'NULL'
 
 add_project_arguments('-DSYSTEM_CONSOLE_USERS=' + acc_sysusers, language: 'c')
 
