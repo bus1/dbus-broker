@@ -307,8 +307,6 @@ int peer_request_name(Peer *peer, const char *name, uint32_t flags, NameChange *
         if (name[0] == ':')
                 return PEER_E_NAME_UNIQUE;
 
-        /* XXX: refuse invalid names */
-
         r = policy_snapshot_check_own(peer->policy, name);
         if (r) {
                 if (r == POLICY_E_ACCESS_DENIED)
@@ -345,8 +343,6 @@ int peer_release_name(Peer *peer, const char *name, NameChange *change) {
 
         if (name[0] == ':')
                 return PEER_E_NAME_UNIQUE;
-
-        /* XXX: refuse invalid names */
 
         r = name_registry_release_name(&peer->bus->names, &peer->owned_names, name, change);
         if (r == NAME_E_NOT_FOUND)
