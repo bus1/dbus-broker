@@ -1,4 +1,13 @@
 #
+# target: subdirs
+#
+
+if use_launcher
+        subdir('units/system')
+        subdir('units/user')
+endif
+
+#
 # target: libdbus-broker.so
 #
 

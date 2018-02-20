@@ -61,6 +61,4 @@ subdir('src')
 
 if use_launcher
         subdir('test/dbus')
-        subdir('units/system')
-        subdir('units/user')
 endif
