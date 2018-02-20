@@ -615,6 +615,14 @@ int policy_snapshot_new(PolicySnapshot **snapshotp,
         if (!snapshot->seclabel)
                 return error_origin(-ENOMEM);
 
+        /* fetch matching uid policy */
+        node = policy_registry_find_uid(registry, uid);
+        if (node)
+                snapshot->batches[snapshot->n_batches++] = policy_batch_ref(node->batch);
+        else
+                snapshot->batches[snapshot->n_batches++] = policy_batch_ref(registry->default_batch);
+
+        /* fetch all matching uid-range policies */
         c_rbtree_for_each_entry(node, &registry->uid_range_tree, registry_node) {
                 if (node->index.uidgid_start > uid)
                         continue;
@@ -624,12 +632,7 @@ int policy_snapshot_new(PolicySnapshot **snapshotp,
                 snapshot->batches[snapshot->n_batches++] = policy_batch_ref(node->batch);
         }
 
-        node = policy_registry_find_uid(registry, uid);
-        if (node)
-                snapshot->batches[snapshot->n_batches++] = policy_batch_ref(node->batch);
-        else
-                snapshot->batches[snapshot->n_batches++] = policy_batch_ref(registry->default_batch);
-
+        /* fetch all matching gid policies */
         while (n_gids-- > 0) {
                 node = policy_registry_find_gid(registry, gids[n_gids]);
                 if (node)
