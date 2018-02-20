@@ -16,6 +16,8 @@ typedef struct PolicyEntries PolicyEntries;
 typedef struct PolicyNode PolicyNode;
 typedef struct PolicyRecord PolicyRecord;
 
+#define POLICY_PRIORITY_DEFAULT (UINT64_C(1))
+
 struct PolicyRecord {
         CList link;
 
@@ -100,6 +102,7 @@ struct Policy {
 };
 
 #define POLICY_INIT(_x) {                                                               \
+                .i_priority = POLICY_PRIORITY_DEFAULT,                                  \
                 .default_entries = POLICY_ENTRIES_NULL((_x).default_entries),           \
                 .at_console_entries = POLICY_ENTRIES_NULL((_x).at_console_entries),     \
                 .no_console_entries = POLICY_ENTRIES_NULL((_x).no_console_entries),     \

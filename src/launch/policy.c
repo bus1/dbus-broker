@@ -781,7 +781,7 @@ static int policy_export_connect(Policy *policy, CList *default_list, CList *spe
         if (top)
                 r = sd_bus_message_append(m, "bt", top->verdict, top->priority);
         else
-                r = sd_bus_message_append(m, "bt", false, UINT64_C(1));
+                r = sd_bus_message_append(m, "bt", false, POLICY_PRIORITY_DEFAULT);
         if (r < 0)
                 return error_origin(r);
 
