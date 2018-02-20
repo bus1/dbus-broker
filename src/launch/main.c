@@ -1157,7 +1157,7 @@ static int manager_load_policy(Manager *manager, ConfigRoot *root, Policy *polic
 
 static int manager_load_system_console_users(Manager *manager, NSSCache *nss_cache, uint32_t **uidsp, size_t *n_uidsp) {
         static const char * const usernames[] = { SYSTEM_CONSOLE_USERS };
-        _c_cleanup_(c_free) uint32_t *uids = NULL;
+        _c_cleanup_(c_freep) uint32_t *uids = NULL;
         size_t i, n_uids = 0;
         uid_t uid;
         int r;
