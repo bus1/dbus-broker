@@ -23,7 +23,7 @@ GITWEB:
 
 LICENSE:
         Apache Software License 2.0
-        See COPYING for details.
+        See AUTHORS for details.
 
 REQUIREMENTS:
         The requirements for dbus-broker are:
