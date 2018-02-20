@@ -807,6 +807,10 @@ static int socket_dispatch_write(Socket *socket) {
                          * ETOOMANYREFS should never occur, unless you
                          * misconfigured your broker. Hence, we treat this as
                          * fatal error.
+                         *
+                         * XXX: At one point in the future, we should remove
+                         *      this switch-case. We leave it here purely for
+                         *      documenting the history of this error-code.
                          */
                         break;
                 case ECOMM:
