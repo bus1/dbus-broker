@@ -80,6 +80,20 @@ if use_selinux
 endif
 
 #
+# Config: system-console-users
+#
+
+use_system_console_users = get_option('system-console-users')
+
+acc_sysusers = ''
+foreach user : use_system_console_users
+        acc_sysusers += '"' + user + '",'
+endforeach
+acc_sysusers += 'NULL'
+
+add_project_arguments('-DSYSTEM_CONSOLE_USERS=' + acc_sysusers, language: 'c')
+
+#
 # Global Parameters
 #
 
