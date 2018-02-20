@@ -1306,7 +1306,7 @@ static int driver_method_get_connection_selinux_security_context(Peer *peer, CDV
 
                 seclabel = connection->seclabel;
                 n_seclabel = connection->n_seclabel;
-	}
+        }
 
         /*
          * Unlike "LinuxSecurityLabel" in GetConnectionCredentials(), this

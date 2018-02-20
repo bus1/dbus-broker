@@ -1427,7 +1427,7 @@ static void test_get_connection_credentials(void) {
         /* get connection credentials of well-known name */
         {
                 _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
-		_c_cleanup_(sd_bus_message_unrefp) sd_bus_message *reply = NULL;
+                _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *reply = NULL;
 
                 util_broker_connect(broker, &bus);
 
@@ -1452,14 +1452,14 @@ static void test_get_connection_credentials(void) {
         /* get connection credentials of driver */
         {
                 _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
-		_c_cleanup_(sd_bus_message_unrefp) sd_bus_message *reply = NULL;
+                _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *reply = NULL;
 
                 util_broker_connect(broker, &bus);
 
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "GetConnectionCredentials", NULL, &reply,
                                        "s", "org.freedesktop.DBus");
-		assert(r >= 0);
+                assert(r >= 0);
 
                 test_verify_credentials(reply);
         }
@@ -1467,7 +1467,7 @@ static void test_get_connection_credentials(void) {
         /* get connection credentials of unique name */
         {
                 _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
-		_c_cleanup_(sd_bus_message_unrefp) sd_bus_message *reply = NULL;
+                _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *reply = NULL;
                 const char *unique_name;
 
                 util_broker_connect(broker, &bus);
@@ -1527,7 +1527,7 @@ static void test_get_connection_selinux_security_context(void) {
         {
                 _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
                 _c_cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
-		_c_cleanup_(sd_bus_message_unrefp) sd_bus_message *reply = NULL;
+                _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *reply = NULL;
 
                 util_broker_connect(broker, &bus);
 
@@ -1540,11 +1540,11 @@ static void test_get_connection_selinux_security_context(void) {
                                        "GetConnectionSELinuxSecurityContext", &error, &reply,
                                        "s", "com.example.foo");
                 if (bus_selinux_is_enabled()) {
-			test_verify_selinux_context(reply);
-		} else {
-			assert(r < 0);
-	                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.SELinuxSecurityContextUnknown"));
-		}
+                        test_verify_selinux_context(reply);
+                } else {
+                        assert(r < 0);
+                        assert(!strcmp(error.name, "org.freedesktop.DBus.Error.SELinuxSecurityContextUnknown"));
+                }
 
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "ReleaseName", NULL, NULL,
@@ -1556,7 +1556,7 @@ static void test_get_connection_selinux_security_context(void) {
         {
                 _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
                 _c_cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
-		_c_cleanup_(sd_bus_message_unrefp) sd_bus_message *reply = NULL;
+                _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *reply = NULL;
 
                 util_broker_connect(broker, &bus);
 
@@ -1564,19 +1564,19 @@ static void test_get_connection_selinux_security_context(void) {
                                        "GetConnectionSELinuxSecurityContext", &error, &reply,
                                        "s", "org.freedesktop.DBus");
                 if (bus_selinux_is_enabled()) {
-			/* XXX: figure out how to get the expected context */
-			//test_verify_selinux_context(reply);
-		} else {
-			assert(r < 0);
-	                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.SELinuxSecurityContextUnknown"));
-		}
+                        /* XXX: figure out how to get the expected context */
+                        //test_verify_selinux_context(reply);
+                } else {
+                        assert(r < 0);
+                        assert(!strcmp(error.name, "org.freedesktop.DBus.Error.SELinuxSecurityContextUnknown"));
+                }
         }
 
         /* get selinux security context of unique name */
         {
                 _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
                 _c_cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
-		_c_cleanup_(sd_bus_message_unrefp) sd_bus_message *reply = NULL;
+                _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *reply = NULL;
                 const char *unique_name;
 
                 util_broker_connect(broker, &bus);
@@ -1588,11 +1588,11 @@ static void test_get_connection_selinux_security_context(void) {
                                        "GetConnectionSELinuxSecurityContext", &error, &reply,
                                        "s", unique_name);
                 if (bus_selinux_is_enabled()) {
-			test_verify_selinux_context(reply);
-		} else {
-			assert(r < 0);
-	                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.SELinuxSecurityContextUnknown"));
-		}
+                        test_verify_selinux_context(reply);
+                } else {
+                        assert(r < 0);
+                        assert(!strcmp(error.name, "org.freedesktop.DBus.Error.SELinuxSecurityContextUnknown"));
+        }
 
         }
 
