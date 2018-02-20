@@ -65,11 +65,10 @@ struct Manager {
         uint64_t service_ids;
 };
 
+static bool             main_arg_audit = false;
 static const char *     main_arg_broker = BINDIR "/dbus-broker";
-static bool             main_arg_force = false;
-static const char *     main_arg_listen = NULL;
-static const char *     main_arg_scope = "system";
-static const char *     main_arg_policypath = NULL;
+static const char *     main_arg_configfile = NULL;
+static bool             main_arg_user_scope = false;
 static bool             main_arg_verbose = false;
 static Log              main_log = LOG_NULL;
 
@@ -318,47 +317,7 @@ static int manager_listen_inherit(Manager *manager) {
         return 0;
 }
 
-static int manager_listen_path(Manager *manager, const char *path) {
-        _c_cleanup_(c_closep) int s = -1;
-        struct sockaddr_un addr = {};
-        int r;
-
-        assert(manager->fd_listen < 0);
-
-        s = socket(PF_UNIX, SOCK_STREAM | SOCK_CLOEXEC | SOCK_NONBLOCK, 0);
-        if (s < 0)
-                return error_origin(-errno);
-
-        addr.sun_family = AF_UNIX;
-        memcpy(addr.sun_path, path, strlen(path));
-        r = bind(s, (struct sockaddr *)&addr, offsetof(struct sockaddr_un, sun_path) + strlen(path) + 1);
-        if (r < 0)
-                return error_origin(-errno);
-
-        /*
-         * The backlog parameter selects the maximum number of pending
-         * connections on a listener socket. Unfortunately, there is no fair
-         * queue sharing available, so any malicious peer can easily exhaust
-         * this limit.
-         *
-         * On linux, this limit is capped to `net/core/somaxconn` sysctl, which
-         * is 1024 by default. We simply use the same default value due to lack
-         * of any other reasonable choice.
-         *
-         * Preferably, we would tie this to our quota-infrastructure somehow.
-         * Unfortunately, there is still no mechanism to control this. Hence,
-         * we simply stick to the same limits everyone else uses on AF_UNIX.
-         */
-        r = listen(s, 1024);
-        if (r < 0)
-                return error_origin(-errno);
-
-        manager->fd_listen = s;
-        s = -1;
-        return 0;
-}
-
-static noreturn void manager_run_child(Manager *manager, int fd_log, int fd_controller, bool audit) {
+static noreturn void manager_run_child(Manager *manager, int fd_log, int fd_controller) {
         char str_log[C_DECIMAL_MAX(int) + 1], str_controller[C_DECIMAL_MAX(int) + 1];
         const char * const argv[] = {
                 "dbus-broker",
@@ -367,7 +326,7 @@ static noreturn void manager_run_child(Manager *manager, int fd_log, int fd_cont
                 str_log,
                 "--controller",
                 str_controller,
-                audit ? "--audit" : NULL, /* note that this needs to be the last argument to work */
+                main_arg_audit ? "--audit" : NULL, /* note that this needs to be the last argument to work */
                 NULL,
         };
         int r;
@@ -423,7 +382,7 @@ static int manager_on_child_exit(sd_event_source *source, const siginfo_t *si, v
                              (si->si_code == CLD_EXITED) ? si->si_status : EXIT_FAILURE);
 }
 
-static int manager_fork(Manager *manager, int fd_controller, bool audit) {
+static int manager_fork(Manager *manager, int fd_controller) {
         pid_t pid;
         int r;
 
@@ -432,7 +391,7 @@ static int manager_fork(Manager *manager, int fd_controller, bool audit) {
                 return error_origin(-errno);
 
         if (!pid)
-                manager_run_child(manager, log_get_fd(&main_log), fd_controller, audit);
+                manager_run_child(manager, log_get_fd(&main_log), fd_controller);
 
         r = sd_event_add_child(manager->event, NULL, pid, WEXITED, manager_on_child_exit, manager);
         if (r < 0)
@@ -905,20 +864,15 @@ exit:
         return r;
 }
 
-static int manager_load_service_dir(Manager *manager, const char *dirpath, const char *subdir, NSSCache *nss_cache) {
+static int manager_load_service_dir(Manager *manager, const char *dirpath, NSSCache *nss_cache) {
         const char suffix[] = ".service";
-        _c_cleanup_(c_freep) char *full_dir = NULL;
         _c_cleanup_(c_closedirp) DIR *dir = NULL;
         struct dirent *de;
         char *path;
         size_t n;
         int r;
 
-        r = asprintf(&full_dir, "%s/%s", dirpath, subdir);
-        if (r < 0)
-                return error_origin(-ENOMEM);
-
-        dir = opendir(full_dir);
+        dir = opendir(dirpath);
         if (!dir) {
                 if (errno == ENOENT || errno == ENOTDIR)
                         return 0;
@@ -938,7 +892,7 @@ static int manager_load_service_dir(Manager *manager, const char *dirpath, const
                 if (strcmp(de->d_name + n - strlen(suffix), suffix))
                         continue;
 
-                r = asprintf(&path, "%s/%s", full_dir, de->d_name);
+                r = asprintf(&path, "%s/%s", dirpath, de->d_name);
                 if (r < 0)
                         return error_origin(-ENOMEM);
 
@@ -1018,92 +972,85 @@ static int manager_remove_services(Manager *manager) {
         return 0;
 }
 
-static int manager_load_services(Manager *manager, NSSCache *nss_cache) {
-        static const char *default_data_dirs[] = {
-                "/usr/local/share",
-                "/usr/share",
-                NULL,
-        };
+static const char *default_data_dirs[] = {
+        "/usr/local/share",
+        "/usr/share",
+        NULL,
+};
+
+static int manager_load_standard_session_services(Manager *manager, NSSCache *nss_cache) {
         _c_cleanup_(c_freep) char *data_home_dir = NULL;
-        const char **dirs, *dir, *suffix, *runtime_dir = NULL;
+        const char *dir, *suffix = "dbus-1/services", *runtime_dir = NULL;
         struct passwd *passwd;
         size_t i;
         int r;
 
-        if (!strcmp(main_arg_scope, "user")) {
-                /*
-                 * dbus-daemon(1) allows the default search path to be modified
-                 * via the XDG_DATA_DIRS env-variable. We do not implement this
-                 * so far. If there is need, we can add it later.
-                 */
-                suffix = "dbus-1/services";
-                dirs = default_data_dirs;
+        /*
+         * dbus-daemon(1) allows the default search path to be modified
+         * via the XDG_DATA_DIRS env-variable. We do not implement this
+         * so far. If there is need, we can add it later.
+         *
+         * The order in which the directories are parsed follows the order
+         * of dbus-daemon(1).
+         */
 
-                /*
-                 * $HOME/.local/share/dbus-1/services is used for user buses
-                 * additionally to the above mentioned directories. Note that
-                 * it can be modified via the XDG_DATA_HOME env-variable.
-                 */
-                dir = secure_getenv("XDG_DATA_HOME");
-                if (dir) {
-                        data_home_dir = strdup(dir);
-                        if (!data_home_dir)
-                                return error_origin(-ENOMEM);
-                } else {
-                        passwd = getpwuid(getuid());
-                        if (passwd && passwd->pw_dir) {
-                                r = asprintf(&data_home_dir, "%s/.local/share", passwd->pw_dir);
-                                if (r < 0)
-                                        return error_origin(-ENOMEM);
-                        }
-                }
-                if (!data_home_dir)
-                        fprintf(stderr, "Cannot figure out service home directory\n");
-
-                /*
-                 * $XDG_RUNTIME_DIR/dbus-1/services is used in user-scope to
-                 * load transient units. dbus-daemon(1) actually creates this
-                 * path, we don't. It is incompatible with socket-activation of
-                 * dbus-daemon(1), so you must already be able to deal with
-                 * creating the directory yourself. But if the directory is
-                 * there, we load units from it.
-                 */
-                runtime_dir = secure_getenv("XDG_RUNTIME_DIR");
-                if (!runtime_dir)
-                        fprintf(stderr, "Cannot figure out service runtime directory\n");
-        } else if (!strcmp(main_arg_scope, "system")) {
-                /*
-                 * In system scope, the default data directories are used. They
-                 * cannot be modified via env-variables!
-                 *
-                 * dbus-daemon(1) also supports /lib, which we don't. If there
-                 * is need, add it later.
-                 */
-                suffix = "dbus-1/system-services";
-                dirs = default_data_dirs;
+        /*
+         * $XDG_RUNTIME_DIR/dbus-1/services is used in user-scope to
+         * load transient units. dbus-daemon(1) actually creates this
+         * path, we don't. It is incompatible with socket-activation of
+         * dbus-daemon(1), so you must already be able to deal with
+         * creating the directory yourself. But if the directory is
+         * there, we load units from it.
+         */
+        runtime_dir = secure_getenv("XDG_RUNTIME_DIR");
+        if (!runtime_dir) {
+                fprintf(stderr, "Cannot figure out service runtime directory\n");
         } else {
-                return error_origin(-ENOTRECOVERABLE);
+                _c_cleanup_(c_freep) char *dirpath = NULL;
+
+                r = asprintf(&dirpath, "%s/%s", runtime_dir, suffix);
+                if (r < 0)
+                        return error_origin(-ENOMEM);
+
+                r = manager_load_service_dir(manager, dirpath, nss_cache);
+                if (r)
+                        return error_trace(r);
         }
 
         /*
-         * Now parse all the directories and read the stored service files. The
-         * order in which these are parsed follows the order of dbus-daemon(1).
+         * $HOME/.local/share/dbus-1/services is used for user buses
+         * additionally to the above mentioned directories. Note that
+         * it can be modified via the XDG_DATA_HOME env-variable.
          */
-
-        if (runtime_dir) {
-                r = manager_load_service_dir(manager, runtime_dir, suffix, nss_cache);
+        dir = secure_getenv("XDG_DATA_HOME");
+        if (dir) {
+                r = asprintf(&data_home_dir, "%s/%s", dir, suffix);
+                if (r < 0)
+                        return error_origin(-ENOMEM);
+        } else {
+                passwd = getpwuid(getuid());
+                if (passwd && passwd->pw_dir) {
+                        r = asprintf(&data_home_dir, "%s/.local/share/%s", passwd->pw_dir, suffix);
+                        if (r < 0)
+                                return error_origin(-ENOMEM);
+                }
+        }
+        if (!data_home_dir) {
+                fprintf(stderr, "Cannot figure out service home directory\n");
+        } else {
+                r = manager_load_service_dir(manager, data_home_dir, nss_cache);
                 if (r)
                         return error_trace(r);
         }
 
-        if (data_home_dir) {
-                r = manager_load_service_dir(manager, data_home_dir, suffix, nss_cache);
-                if (r)
-                        return error_trace(r);
-        }
+        for (i = 0; default_data_dirs[i]; ++i) {
+                _c_cleanup_(c_freep) char *dirpath = NULL;
 
-        for (i = 0; dirs[i]; ++i) {
-                r = manager_load_service_dir(manager, dirs[i], suffix, nss_cache);
+                r = asprintf(&dirpath, "%s/%s", default_data_dirs[i], suffix);
+                if (r < 0)
+                        return error_origin(-ENOMEM);
+
+                r = manager_load_service_dir(manager, dirpath, nss_cache);
                 if (r)
                         return error_trace(r);
         }
@@ -1111,27 +1058,95 @@ static int manager_load_services(Manager *manager, NSSCache *nss_cache) {
         return 0;
 }
 
-static int manager_load_policy(Manager *manager, ConfigRoot **rootp, Policy *policy, NSSCache *nss_cache) {
-        _c_cleanup_(config_parser_deinit) ConfigParser parser = CONFIG_PARSER_NULL(parser);
-        const char *policypath;
+static int manager_load_standard_system_services(Manager *manager, NSSCache *nss_cache) {
+        const char *suffix = "dbus-1/system-services";
+        size_t i;
         int r;
 
-        if (main_arg_policypath)
-                policypath = main_arg_policypath;
-        else if (!strcmp(main_arg_scope, "user"))
-                policypath = "/usr/share/dbus-1/session.conf";
-        else if (!strcmp(main_arg_scope, "system"))
-                policypath = "/usr/share/dbus-1/system.conf";
+        /*
+         * In system scope, the default data directories are used. They
+         * cannot be modified via env-variables!
+         *
+         * dbus-daemon(1) also supports /lib, which we don't. If there
+         * is need, add it later.
+         *
+         * The order in which the directories are parsed follows the order
+         * of dbus-daemon(1).
+         */
+
+        for (i = 0; default_data_dirs[i]; ++i) {
+                _c_cleanup_(c_freep) char *dirpath = NULL;
+
+                r = asprintf(&dirpath, "%s/%s", default_data_dirs[i], suffix);
+                if (r < 0)
+                        return error_origin(-ENOMEM);
+
+                r = manager_load_service_dir(manager, dirpath, nss_cache);
+                if (r)
+                        return error_trace(r);
+        }
+
+        return 0;
+}
+
+static int manager_load_services(Manager *manager, ConfigRoot *config, NSSCache *nss_cache) {
+        ConfigNode *cnode;
+        int r;
+
+        c_list_for_each_entry(cnode, &config->node_list, root_link) {
+                switch (cnode->type) {
+                case CONFIG_NODE_STANDARD_SESSION_SERVICEDIRS:
+                        r = manager_load_standard_session_services(manager, nss_cache);
+                        if (r)
+                                return error_trace(r);
+
+                        break;
+                case CONFIG_NODE_STANDARD_SYSTEM_SERVICEDIRS:
+                        r = manager_load_standard_system_services(manager, nss_cache);
+                        if (r)
+                                return error_trace(r);
+
+                        break;
+                case CONFIG_NODE_SERVICEDIR:
+                        r = manager_load_service_dir(manager, cnode->servicedir.path, nss_cache);
+                        if (r)
+                                return error_trace(r);
+
+                        break;
+                default:
+                        /* ignored */
+                        break;
+                }
+
+        }
+
+        return 0;
+}
+static int manager_parse_config(Manager *manager, ConfigRoot **rootp, NSSCache *nss_cache) {
+        _c_cleanup_(config_parser_deinit) ConfigParser parser = CONFIG_PARSER_NULL(parser);
+        const char *configfile;
+        int r;
+
+        if (main_arg_configfile)
+                configfile = main_arg_configfile;
+        else if (main_arg_user_scope)
+                configfile = "/usr/share/dbus-1/session.conf";
         else
-                return error_origin(-ENOTRECOVERABLE);
+                configfile = "/usr/share/dbus-1/system.conf";
 
         config_parser_init(&parser);
 
-        r = config_parser_read(&parser, rootp, policypath, nss_cache);
+        r = config_parser_read(&parser, rootp, configfile, nss_cache);
         if (r)
                 return error_fold(r);
 
-        r = policy_import(policy, *rootp);
+        return 0;
+}
+
+static int manager_load_policy(Manager *manager, ConfigRoot *root, Policy *policy) {
+        int r;
+
+        r = policy_import(policy, root);
         if (r)
                 return error_fold(r);
 
@@ -1204,11 +1219,15 @@ static int manager_reload_config(Manager *manager) {
         c_rbtree_for_each_entry(service, &manager->services, rb)
                 service->state = SERVICE_STATE_DEFUNCT;
 
-        r = manager_load_services(manager, &nss_cache);
+        r = manager_parse_config(manager, &root, &nss_cache);
         if (r)
                 return error_trace(r);
 
-        r = manager_load_policy(manager, &root, &policy, &nss_cache);
+        r = manager_load_services(manager, root, &nss_cache);
+        if (r)
+                return error_trace(r);
+
+        r = manager_load_policy(manager, root, &policy);
         if (r)
                 return error_trace(r);
 
@@ -1228,46 +1247,20 @@ static int manager_reload_config(Manager *manager) {
 }
 
 static int manager_connect(Manager *manager) {
-        _c_cleanup_(bus_close_unrefp) sd_bus *b = NULL;
-        _c_cleanup_(c_closep) int s = -1;
-        struct sockaddr_un addr;
-        socklen_t n_addr = sizeof(addr);
         int r;
 
         assert(!manager->bus_regular);
 
-        s = socket(PF_UNIX, SOCK_STREAM | SOCK_CLOEXEC | SOCK_NONBLOCK, 0);
-        if (s < 0)
-                return error_origin(-errno);
+        if (main_arg_user_scope) {
+                r = sd_bus_open_user(&manager->bus_regular);
+                if (r < 0)
+                        return error_origin(r);
+        } else {
+                r = sd_bus_open_system(&manager->bus_regular);
+                if (r < 0)
+                        return error_origin(r);
+        }
 
-        r = getsockname(manager->fd_listen, (struct sockaddr *)&addr, &n_addr);
-        if (r < 0)
-                return error_origin(-r);
-
-        r = connect(s, (struct sockaddr *)&addr, n_addr);
-        if (r < 0)
-                return error_origin(-r);
-
-        r = sd_bus_new(&b);
-        if (r < 0)
-                return error_origin(r);
-
-        r = sd_bus_set_fd(b, s, s);
-        if (r < 0)
-                return error_origin(r);
-
-        s = -1;
-
-        r = sd_bus_set_bus_client(b, true);
-        if (r < 0)
-                return error_origin(r);
-
-        r = sd_bus_start(b);
-        if (r < 0)
-                return error_origin(r);
-
-        manager->bus_regular = b;
-        b = NULL;
         return 0;
 }
 
@@ -1290,23 +1283,27 @@ const sd_bus_vtable manager_vtable[] = {
         SD_BUS_VTABLE_END
 };
 
-static int manager_run(Manager *manager, bool audit) {
+static int manager_run(Manager *manager) {
         _c_cleanup_(config_root_freep) ConfigRoot *root = NULL;
         _c_cleanup_(policy_deinit) Policy policy = POLICY_INIT(policy);
         _c_cleanup_(nss_cache_deinit) NSSCache nss_cache = NSS_CACHE_INIT;
         int r, controller[2];
 
-        r = manager_load_services(manager, &nss_cache);
+        r = manager_parse_config(manager, &root, &nss_cache);
         if (r)
                 return error_trace(r);
 
-        r = manager_load_policy(manager, &root, &policy, &nss_cache);
+        r = manager_load_services(manager, root, &nss_cache);
         if (r)
                 return error_trace(r);
 
         r = sd_notify(false, "READY=1");
         if (r < 0)
                 return error_origin(r);
+
+        r = manager_load_policy(manager, root, &policy);
+        if (r)
+                return error_trace(r);
 
         assert(manager->fd_listen >= 0);
 
@@ -1323,7 +1320,7 @@ static int manager_run(Manager *manager, bool audit) {
         }
 
         /* consumes FD controller[1] */
-        r = manager_fork(manager, controller[1], audit);
+        r = manager_fork(manager, controller[1]);
         if (r) {
                 close(controller[1]);
                 return error_trace(r);
@@ -1399,8 +1396,8 @@ static void help(void) {
                "  -h --help             Show this help\n"
                "     --version          Show package version\n"
                "  -v --verbose          Print progress to terminal\n"
-               "     --listen PATH      Specify path of listener socket\n"
-               "  -f --force            Ignore existing listener sockets\n"
+               "     --audit            Enable audit support\n"
+               "     --config-file PATH Specify path to configuration file\n"
                "     --scope SCOPE      Scope of message bus\n"
                , program_invocation_short_name);
 }
@@ -1408,15 +1405,16 @@ static void help(void) {
 static int parse_argv(int argc, char *argv[]) {
         enum {
                 ARG_VERSION = 0x100,
-                ARG_LISTEN,
+                ARG_AUDIT,
+                ARG_CONFIG,
                 ARG_SCOPE,
         };
         static const struct option options[] = {
                 { "help",               no_argument,            NULL,   'h'                     },
                 { "version",            no_argument,            NULL,   ARG_VERSION             },
                 { "verbose",            no_argument,            NULL,   'v'                     },
-                { "listen",             required_argument,      NULL,   ARG_LISTEN              },
-                { "force",              no_argument,            NULL,   'f'                     },
+                { "audit",              no_argument,            NULL,   ARG_AUDIT               },
+                { "config-file",        required_argument,      NULL,   ARG_CONFIG,             },
                 { "scope",              required_argument,      NULL,   ARG_SCOPE               },
                 {}
         };
@@ -1436,22 +1434,23 @@ static int parse_argv(int argc, char *argv[]) {
                         main_arg_verbose = true;
                         break;
 
-                case ARG_LISTEN:
-                        main_arg_listen = optarg;
+                case ARG_AUDIT:
+                        main_arg_audit = true;
                         break;
 
-                case 'f':
-                        main_arg_force = true;
+                case ARG_CONFIG:
+                        main_arg_configfile = optarg;
                         break;
 
                 case ARG_SCOPE:
-                        if (strcmp(optarg, "system") &&
-                            strcmp(optarg, "user")) {
+                        if (!strcmp(optarg, "system")) {
+                                main_arg_user_scope = false;
+                        } else if (!strcmp(optarg, "user")) {
+                                main_arg_user_scope = true;
+                        } else {
                                 fprintf(stderr, "%s: invalid message bus scope -- '%s'\n", program_invocation_name, optarg);
                                 return MAIN_FAILED;
                         }
-
-                        main_arg_scope = optarg;
                         break;
 
                 case '?':
@@ -1473,73 +1472,18 @@ static int parse_argv(int argc, char *argv[]) {
 
 static int run(void) {
         _c_cleanup_(manager_freep) Manager *manager = NULL;
-        _c_cleanup_(c_freep) char *listen_path = NULL;
-        const char *t, *path = NULL, *unlink_path = NULL;
         int r;
 
         r = manager_new(&manager);
         if (r)
                 return error_trace(r);
 
-        if (main_arg_listen) {
-                path = main_arg_listen;
-        } else if (!strcmp(main_arg_scope, "user")) {
-                t = getenv("XDG_RUNTIME_DIR");
-                if (t)
-                        r = asprintf(&listen_path, "%s/bus", t);
-                else
-                        r = asprintf(&listen_path, "/var/run/user/%u/bus", getuid());
-                if (r < 0)
-                        return error_origin(-ENOMEM);
+        r = manager_listen_inherit(manager);
+        if (r)
+                return error_trace(r);
 
-                path = listen_path;
-        } else if (!strcmp(main_arg_scope, "system")) {
-                path = "/var/run/dbus/system_bus_socket";
-        } else {
-                return error_origin(-ENOTRECOVERABLE);
-        }
-
-        if (!strcmp(path, "inherit")) {
-                r = manager_listen_inherit(manager);
-                if (r)
-                        return error_trace(r);
-
-                if (main_arg_verbose)
-                        fprintf(stderr, "Listening on inherited socket\n");
-        } else if (path[0] == '/') {
-                if (main_arg_force) {
-                        r = unlink(path);
-                        if (r < 0) {
-                                if (errno != ENOENT)
-                                        return error_origin(-errno);
-                                else if (main_arg_verbose)
-                                        fprintf(stderr, "No conflict on socket '%s'\n", path);
-                        } else if (main_arg_verbose) {
-                                fprintf(stderr, "Forcibly removed conflicting socket '%s'\n", path);
-                        }
-                }
-
-                r = manager_listen_path(manager, path);
-                if (r)
-                        return error_trace(r);
-
-                unlink_path = path;
-
-                if (main_arg_verbose)
-                        fprintf(stderr, "Listening on socket '%s'\n", path);
-        } else {
-                fprintf(stderr, "Invalid listener socket '%s'\n", path);
-                return MAIN_FAILED;
-        }
-
-        r = manager_run(manager, !strcmp(main_arg_scope, "system"));
+        r = manager_run(manager);
         r = error_trace(r);
-
-        if (unlink_path) {
-                r = unlink(unlink_path);
-                if (r < 0)
-                        return error_origin(-errno);
-        }
 
         return r;
 

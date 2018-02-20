@@ -142,6 +142,9 @@ ConfigNode *config_node_free(ConfigNode *node) {
         case CONFIG_NODE_INCLUDE:
                 config_path_unref(node->include.file);
                 break;
+        case CONFIG_NODE_SERVICEDIR:
+                free(node->servicedir.path);
+                break;
         case CONFIG_NODE_LIMIT:
                 free(node->limit.name);
                 break;
@@ -1033,11 +1036,20 @@ static void config_parser_end_fn(void *userdata, const XML_Char *name) {
                 break;
         }
 
+        case CONFIG_NODE_SERVICEDIR: {
+                state->current->servicedir.path = strdup(state->current->cdata);
+                if (!state->current->servicedir.path) {
+                        state->error = error_origin(-ENOMEM);
+                        return;
+                }
+
+                break;
+        }
+
         case CONFIG_NODE_USER:
         case CONFIG_NODE_TYPE:
         case CONFIG_NODE_LISTEN:
         case CONFIG_NODE_PIDFILE:
-        case CONFIG_NODE_SERVICEDIR:
         case CONFIG_NODE_SERVICEHELPER:
         case CONFIG_NODE_AUTH:
         case CONFIG_NODE_LIMIT:

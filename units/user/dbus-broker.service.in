@@ -8,7 +8,7 @@ Conflicts=shutdown.target
 [Service]
 Type=notify
 Sockets=dbus.socket
-ExecStart=@bindir@/dbus-broker-launch -v --scope user --listen inherit
+ExecStart=@bindir@/dbus-broker-launch --scope user --verbose
 ExecReload=@bindir@/busctl --user call org.freedesktop.DBus /org/freedesktop/DBus org.freedesktop.DBus ReloadConfig
 
 [Install]
