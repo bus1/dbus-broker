@@ -3,10 +3,10 @@
  */
 
 #include <c-macro.h>
-#include <stdlib.h>
-#include <sys/socket.h>
 #include <grp.h>
 #include <pwd.h>
+#include <stdlib.h>
+#include <sys/socket.h>
 #include "util/error.h"
 #include "util/sockopt.h"
 
