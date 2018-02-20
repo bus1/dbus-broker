@@ -37,17 +37,25 @@ static int match_keys_assign(MatchKeys *keys, const char *key, size_t n_key, con
         } else if (match_key_equal("sender", key, n_key)) {
                 if (keys->sender)
                         return MATCH_E_INVALID;
+                if (!dbus_validate_name(value, strlen(value)))
+                        return MATCH_E_INVALID;
                 keys->sender = value;
         } else if (match_key_equal("destination", key, n_key)) {
                 if (keys->destination)
+                        return MATCH_E_INVALID;
+                if (!dbus_validate_name(value, strlen(value)))
                         return MATCH_E_INVALID;
                 keys->destination = value;
         } else if (match_key_equal("interface", key, n_key)) {
                 if (keys->filter.interface)
                         return MATCH_E_INVALID;
+                if (!dbus_validate_interface(value, strlen(value)))
+                        return MATCH_E_INVALID;
                 keys->filter.interface = value;
         } else if (match_key_equal("member", key, n_key)) {
                 if (keys->filter.member)
+                        return MATCH_E_INVALID;
+                if (!dbus_validate_member(value, strlen(value)))
                         return MATCH_E_INVALID;
                 keys->filter.member = value;
         } else if (match_key_equal("path", key, n_key)) {
@@ -64,6 +72,8 @@ static int match_keys_assign(MatchKeys *keys, const char *key, size_t n_key, con
                 keys->path_namespace = value;
         } else if (match_key_equal("arg0namespace", key, n_key)) {
                 if (keys->arg0namespace || keys->filter.args[0] || keys->filter.argpaths[0])
+                        return MATCH_E_INVALID;
+                if (!dbus_validate_namespace(value, strlen(value)))
                         return MATCH_E_INVALID;
                 keys->arg0namespace = value;
         } else if (n_key >= strlen("arg") && match_key_equal("arg", key, strlen("arg"))) {
@@ -303,7 +313,6 @@ static bool match_keys_match_filter(MatchKeys *keys, MatchFilter *filter) {
         if (keys->path_namespace && !match_string_prefix(filter->path, keys->path_namespace, '/', false))
                 return false;
 
-        /* XXX: verify that arg0 is a (potentially single-label) bus name */
         if (keys->arg0namespace && !match_string_prefix(filter->args[0], keys->arg0namespace, '.', false))
                 return false;
 

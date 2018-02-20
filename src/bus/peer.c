@@ -455,12 +455,6 @@ static int peer_link_match(Peer *peer, MatchRule *rule, bool monitor) {
                 }
                 case ADDRESS_TYPE_NAME:
                 case ADDRESS_TYPE_OTHER: {
-                        /*
-                         * XXX: dbus-daemon rejects any match on invalid names.
-                         *      However, we cannot do this here as our caller
-                         *      does not expect this. This needs some further
-                         *      restructuring.
-                         */
                         _c_cleanup_(name_unrefp) Name *name = NULL;
 
                         r = name_registry_ref_name(&peer->bus->names, &name, rule->keys.sender);
