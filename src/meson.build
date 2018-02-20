@@ -8,10 +8,10 @@ if use_launcher
 endif
 
 #
-# target: libdbus-broker.so
+# target: libbus.so
 #
 
-libdbus_broker_sources = [
+sources_bus = [
         'bus/activation.c',
         'bus/bus.c',
         'bus/driver.c',
@@ -38,61 +38,67 @@ libdbus_broker_sources = [
         'util/user.c',
 ]
 
-libdbus_broker_dependencies = [
+deps_bus = [
         dep_cdvar,
         dep_clist,
         dep_crbtree,
         dep_csundry,
-        dep_expat,
+        dep_math,
 ]
 
 if use_audit
-        libdbus_broker_sources += [
+        sources_bus += [
                 'util/audit.c',
         ]
-        libdbus_broker_dependencies += [
+        deps_bus += [
                 dep_libaudit,
         ]
 else
-        libdbus_broker_sources += [
+        sources_bus += [
                 'util/audit-fallback.c',
         ]
 endif
 
+if use_launcher
+        sources_bus += [
+                'launch/config.c',
+                'launch/nss-cache.c',
+                'launch/policy.c',
+        ]
+        deps_bus += [
+                dep_expat,
+                dep_libsystemd,
+        ]
+endif
+
 if use_selinux
-        libdbus_broker_sources += [
+        sources_bus += [
                 'util/selinux.c',
         ]
-        libdbus_broker_dependencies += [
+        deps_bus += [
                 dep_libselinux,
         ]
 else
-        libdbus_broker_sources += [
+        sources_bus += [
                 'util/selinux-fallback.c',
         ]
 endif
 
-libdbus_broker_private = static_library(
-        'dbus-broker-private',
-        libdbus_broker_sources,
+static_bus = static_library(
+        'bus-static',
+        sources_bus,
         c_args: [
                 '-fvisibility=hidden',
                 '-fno-common',
         ],
-        dependencies: libdbus_broker_dependencies,
+        dependencies: deps_bus,
         pic: true,
 )
 
-libdbus_broker_dep = declare_dependency(
+dep_bus = declare_dependency(
         include_directories: include_directories('.'),
-        link_with: libdbus_broker_private,
-        dependencies: [
-                dep_cdvar,
-                dep_clist,
-                dep_crbtree,
-                dep_csundry,
-                dep_math,
-        ],
+        link_with: static_bus,
+        dependencies: deps_bus,
         version: meson.project_version(),
 )
 
@@ -109,9 +115,9 @@ exe_dbus_broker = executable(
                 'broker/main.c',
         ],
         dependencies: [
-                dep_clist,
+                dep_bus,
+                dep_cdvar,
                 dep_csundry,
-                libdbus_broker_dep,
         ],
         install: true,
 )
@@ -124,17 +130,14 @@ if use_launcher
         exe_dbus_broker_launch = executable(
                 'dbus-broker-launch',
                 [
-                        'launch/config.c',
                         'launch/main.c',
-                        'launch/nss-cache.c',
-                        'launch/policy.c',
                 ],
                 dependencies: [
+                        dep_bus,
                         dep_crbtree,
                         dep_csundry,
                         dep_glib,
                         dep_libsystemd,
-                        libdbus_broker_dep,
                 ],
                 install: true,
         )
@@ -144,44 +147,44 @@ endif
 # target: test-*
 #
 
-test_address = executable('test-address', ['dbus/test-address.c'], dependencies: libdbus_broker_dep)
+test_address = executable('test-address', ['dbus/test-address.c'], dependencies: dep_bus)
 test('Address Handling', test_address)
 
-test_config = executable('test-config', ['launch/test-config.c', 'launch/config.c', 'launch/nss-cache.c'], dependencies: libdbus_broker_dep)
+test_config = executable('test-config', ['launch/test-config.c'], dependencies: dep_bus)
 test('Configuration Parser', test_config)
 
-test_dispatch = executable('test-dispatch', ['util/test-dispatch.c'], dependencies: libdbus_broker_dep)
+test_dispatch = executable('test-dispatch', ['util/test-dispatch.c'], dependencies: dep_bus)
 test('Event Dispatcher', test_dispatch)
 
-test_error = executable('test-error', ['util/test-error.c'], dependencies: libdbus_broker_dep)
+test_error = executable('test-error', ['util/test-error.c'], dependencies: dep_bus)
 test('Error Handling', test_error)
 
-test_fdlist = executable('test-fdlist', ['util/test-fdlist.c'], dependencies: libdbus_broker_dep)
+test_fdlist = executable('test-fdlist', ['util/test-fdlist.c'], dependencies: dep_bus)
 test('Utility File-Desciptor Lists', test_fdlist)
 
-test_match = executable('test-match', ['bus/test-match.c'], dependencies: libdbus_broker_dep)
+test_match = executable('test-match', ['bus/test-match.c'], dependencies: dep_bus)
 test('D-Bus Match Handling', test_match)
 
-test_message = executable('test-message', ['dbus/test-message.c'], dependencies: libdbus_broker_dep)
+test_message = executable('test-message', ['dbus/test-message.c'], dependencies: dep_bus)
 test('D-Bus Message Abstraction', test_message)
 
-test_name = executable('test-name', ['bus/test-name.c'], dependencies: libdbus_broker_dep)
+test_name = executable('test-name', ['bus/test-name.c'], dependencies: dep_bus)
 test('Name Registry', test_name)
 
-test_queue = executable('test-queue', ['dbus/test-queue.c'], dependencies: libdbus_broker_dep)
+test_queue = executable('test-queue', ['dbus/test-queue.c'], dependencies: dep_bus)
 test('D-Bus I/O Queues', test_queue)
 
-test_reply = executable('test-reply', ['bus/test-reply.c'], dependencies: libdbus_broker_dep)
+test_reply = executable('test-reply', ['bus/test-reply.c'], dependencies: dep_bus)
 test('Reply Tracking', test_reply)
 
-test_sasl = executable('test-sasl', ['dbus/test-sasl.c'], dependencies: libdbus_broker_dep)
+test_sasl = executable('test-sasl', ['dbus/test-sasl.c'], dependencies: dep_bus)
 test('D-Bus SASL Parser', test_sasl)
 
-test_socket = executable('test-socket', ['dbus/test-socket.c'], dependencies: libdbus_broker_dep)
+test_socket = executable('test-socket', ['dbus/test-socket.c'], dependencies: dep_bus)
 test('D-Bus Socket Abstraction', test_socket)
 
-test_stitching = executable('test-stitching', ['dbus/test-stitching.c'], dependencies: libdbus_broker_dep)
+test_stitching = executable('test-stitching', ['dbus/test-stitching.c'], dependencies: dep_bus)
 test('Message Sender Stitching', test_stitching)
 
-test_user = executable('test-user', ['util/test-user.c'], dependencies: libdbus_broker_dep)
+test_user = executable('test-user', ['util/test-user.c'], dependencies: dep_bus)
 test('User Accounting', test_user)
