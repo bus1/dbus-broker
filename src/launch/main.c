@@ -91,8 +91,6 @@ static sd_bus *bus_close_unref(sd_bus *bus) {
         return sd_bus_unref(bus);
 }
 
-C_DEFINE_CLEANUP(sd_bus *, bus_close_unref);
-
 static int service_compare(CRBTree *t, void *k, CRBNode *n) {
         Service *service = c_container_of(n, Service, rb);
 
