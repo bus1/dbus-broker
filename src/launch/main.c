@@ -1036,28 +1036,31 @@ static int manager_load_standard_session_services(Manager *manager, NSSCache *ns
          * As last step, XDG_DATA_DIRS (or its default) are searched for
          * service files. ./dbus-1/services/ is appended to each path found in
          * XDG_DATA_DIRS.
-         *
-         * XXX: We only support the default, so far. We should actuall read
-         *      XDG_DATA_DIRS and use it.
          */
         {
-                static const char *default_data_dirs[] = {
-                        "/usr/local/share",
-                        "/usr/share",
-                        NULL,
-                };
-                size_t i;
+                const char *data_dirs, *sep;
+                size_t n;
 
-                for (i = 0; default_data_dirs[i]; ++i) {
-                        _c_cleanup_(c_freep) char *dirpath = NULL;
+                data_dirs = secure_getenv("XDG_DATA_DIRS") ?:
+                            "/usr/local/share:/usr/share";
 
-                        r = asprintf(&dirpath, "%s/%s", default_data_dirs[i], suffix);
-                        if (r < 0)
-                                return error_origin(-ENOMEM);
+                while (*data_dirs) {
+                        sep = strchr(data_dirs, ':');
+                        n = sep ? (sep - data_dirs) : strlen(data_dirs);
 
-                        r = manager_load_service_dir(manager, dirpath, nss_cache);
-                        if (r)
-                                return error_trace(r);
+                        if (n) {
+                                _c_cleanup_(c_freep) char *dirpath = NULL;
+
+                                r = asprintf(&dirpath, "%.*s/%s", (int)n, data_dirs, suffix);
+                                if (r < 0)
+                                        return error_origin(-ENOMEM);
+
+                                r = manager_load_service_dir(manager, dirpath, nss_cache);
+                                if (r)
+                                        return error_trace(r);
+                        }
+
+                        data_dirs += n + !!sep;
                 }
         }
 
