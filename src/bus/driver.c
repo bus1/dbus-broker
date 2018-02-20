@@ -544,7 +544,6 @@ static int driver_notify_name_lost(Peer *peer, const char *name) {
 static int driver_notify_name_owner_changed(Bus *bus, MatchRegistry *matches, const char *name, const char *old_owner, const char *new_owner) {
         MatchFilter filter = {
                 .type = DBUS_MESSAGE_TYPE_SIGNAL,
-                .destination = ADDRESS_ID_INVALID,
                 .interface = "org.freedesktop.DBus",
                 .member = "NameOwnerChanged",
                 .path = "/org/freedesktop/DBus",
