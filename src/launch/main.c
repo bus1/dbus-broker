@@ -970,12 +970,6 @@ static int manager_remove_services(Manager *manager) {
         return 0;
 }
 
-static const char *default_data_dirs[] = {
-        "/usr/local/share",
-        "/usr/share",
-        NULL,
-};
-
 static int manager_load_standard_session_services(Manager *manager, NSSCache *nss_cache) {
         const char *suffix = "dbus-1/services";
         int r;
@@ -1047,6 +1041,11 @@ static int manager_load_standard_session_services(Manager *manager, NSSCache *ns
          *      XDG_DATA_DIRS and use it.
          */
         {
+                static const char *default_data_dirs[] = {
+                        "/usr/local/share",
+                        "/usr/share",
+                        NULL,
+                };
                 size_t i;
 
                 for (i = 0; default_data_dirs[i]; ++i) {
@@ -1066,6 +1065,12 @@ static int manager_load_standard_session_services(Manager *manager, NSSCache *ns
 }
 
 static int manager_load_standard_system_services(Manager *manager, NSSCache *nss_cache) {
+        static const char *default_data_dirs[] = {
+                "/usr/local/share",
+                "/usr/share",
+                "/lib",
+                NULL,
+        };
         const char *suffix = "dbus-1/system-services";
         size_t i;
         int r;
