@@ -176,7 +176,7 @@ int peer_new_with_fd(Peer **peerp,
         if (r < 0)
                 return error_trace(r);
 
-        r = sockopt_get_peergroups(fd, ucred.uid, ucred.gid, &gids, &n_gids);
+        r = sockopt_get_peergroups(fd, bus->log, ucred.uid, ucred.gid, &gids, &n_gids);
         if (r)
                 return error_trace(r);
 

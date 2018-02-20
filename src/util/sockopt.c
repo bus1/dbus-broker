@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <sys/socket.h>
 #include "util/error.h"
+#include "util/log.h"
 #include "util/sockopt.h"
 
 int sockopt_get_peersec(int fd, char **labelp, size_t *lenp) {
@@ -56,7 +57,7 @@ int sockopt_get_peersec(int fd, char **labelp, size_t *lenp) {
         return 0;
 }
 
-int sockopt_get_peergroups(int fd, uid_t uid, gid_t gid, gid_t **gidsp, size_t *n_gidsp) {
+int sockopt_get_peergroups(int fd, Log *log, uid_t uid, gid_t gid, gid_t **gidsp, size_t *n_gidsp) {
         _c_cleanup_(c_freep) gid_t *gids = NULL;
         int r, n_gids = 64;
         void *tmp;
@@ -120,9 +121,12 @@ int sockopt_get_peergroups(int fd, uid_t uid, gid_t gid, gid_t **gidsp, size_t *
 
                 if (!warned) {
                         warned = true;
-                        fprintf(stderr, "Falling back to resolving auxillary groups using nss, "
-                                        "this is racy and may cause deadlocks. Update to a kernel with "
-                                        "SO_PEERGROUPS support.\n");
+                        log_append_here(log, LOG_ERR, 0);
+                        log_commitf(log, "Falling back to resolving auxillary "
+                                         "groups using nss, this is racy and "
+                                         "may cause deadlocks. Update to a "
+                                         "kernel with SO_PEERGROUPS "
+                                         "support.\n");
                 }
         }
 
