@@ -65,10 +65,10 @@ if use_launcher
 endif
 
 #
-# Config: reference_test
+# Config: reference-test
 #
 
-use_reference_test = get_option('reference_test')
+use_reference_test = get_option('reference-test')
 
 #
 # Config: selinux
