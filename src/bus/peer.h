@@ -122,7 +122,7 @@ int peer_become_monitor(Peer *peer, MatchOwner *owner);
 void peer_stop_monitor(Peer *peer);
 void peer_flush_matches(Peer *peer);
 
-int peer_queue_call(PolicySnapshot *sender_policy, NameSet *sender_names, MatchRegistry *sender_matches, ReplyOwner *sender_replies, User *sender_user, uint64_t sender_id, Peer *receiver, Message *message);
+int peer_queue_call(PolicySnapshot *sender_policy, NameSet *sender_names, ReplyOwner *sender_replies, User *sender_user, uint64_t sender_id, Peer *receiver, Message *message);
 int peer_queue_reply(Peer *sender, const char *destination, uint32_t reply_serial, Message *message);
 int peer_broadcast(PolicySnapshot *sender_policy, NameSet *sender_names, MatchRegistry *matches, uint64_t sender_id, Peer *destination, Bus *bus, MatchFilter *filter, Message *message);
 
