@@ -1,5 +1,67 @@
 dbus-broker - Linux D-Bus Message Broker
 
+CHANGES WITH 11:
+
+        * Building now requires linux-api-headers>=4.13. We expect the
+          SO_PEERGROUPS socket-option to be defined in the kernel headers.
+          Older kernels are still supported at runtime, but at build-time you
+          need to provide recent headers.
+
+        * The build-system now supports a new meson configuration option,
+          called 'system-console-users'. It takes an array of user-names which
+          should be considered 'at-console' by dbus-broker-launch. These extend
+          the existing range based on [SYSTEMUIDMAX+1..-1[ with a list of
+          statically provided usernames.
+
+          This allows distributions to provide special system-users that need
+          to be considered as 'at-console'. Right now, this should be used for
+          users like 'gdm', which are system-users, but need static access to
+          the console. Note that these usernames must be reserved by the
+          distribution, but don't have to be present at runtime. The launcher
+          dynamically picks the usernames that it can resolve, and retries on
+          every reload.
+
+        * The policy-type of the dbus-broker API has been simplified. It is now
+          reduced to a policy-batch indexed by uids, in combination with a
+          policy-batch indexed either by gid or uid-range. Per peer, the broker
+          will only ever select one uid-batch, and all matching gid/uid-range
+          batches. Note that anything but the per-uid-batch is deprecated, and
+          exclusively meant for backwards compatibility.
+
+          This change only affects dbus-broker. The compatibility launcher was
+          adapted to use this new API. It still converts the policy as given by
+          the XML configuration in a compatible way to the simplified internal
+          representation.
+
+        * The launcher now requires an explicit --audit commandline option to
+          enable auditing. Before, it was deduced based on the passed scope.
+          You now have to pass it explicitly.
+
+        * The launcher now supports a `--config-file PATH` commandline option
+          to override the root configuration file, which is still deduced based
+          on the passed scope parameter.
+
+        * A path miscomputation in the XML <include> tags was fixed. They should
+          work as expected now.
+
+        * The <servicedir> XML tags are now properly supported. Before, they
+          were correctly parsed, but never actually sourced for input.
+
+        * The XDG_DATA_DIRS environment variable is now supported by the
+          launcher, according to the related xdg spec. Note that this only
+          affects the user-scope!
+
+        * The --listen parameter was dropped from the launcher. Only
+          socket-activation is supported now. If required, any parent process
+          should now create the listener socket themselves, and pass it in like
+          socket activation.
+
+        * As usual, a bunch of fixes and small improvements!
+
+        Contributions from: David Herrmann, Tom Gundersen
+
+        - Tübingen, 2018-02-21
+
 CHANGES WITH 10:
 
         * Fix RequestName() / ReleaseName() to send signals before their reply,
