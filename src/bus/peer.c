@@ -731,6 +731,20 @@ int peer_broadcast(PolicySnapshot *sender_policy, NameSet *sender_names, MatchRe
         return 0;
 }
 
+static bool peer_signal_is_solicited(Peer *destination, uint64_t sender_id, Message *message) {
+        MatchFilter filter = MATCH_FILTER_INIT;
+        MatchRule *rule;
+
+        peer_match_filter_from_message(&filter, sender_id, message);
+
+        c_rbtree_for_each_entry(rule, &destination->owned_matches.rule_tree, owner_node) {
+                if (match_rule_match_filter(rule, &filter))
+                        return true;
+        }
+
+        return false;
+}
+
 int peer_queue_call(PolicySnapshot *sender_policy, NameSet *sender_names, ReplyOwner *sender_replies, User *sender_user, uint64_t sender_id, Peer *receiver, Message *message) {
         _c_cleanup_(reply_slot_freep) ReplySlot *slot = NULL;
         NameSet receiver_names = NAME_SET_INIT_FROM_OWNER(&receiver->owned_names);
@@ -794,10 +808,16 @@ int peer_queue_call(PolicySnapshot *sender_policy, NameSet *sender_names, ReplyO
 
         r = connection_queue(&receiver->connection, sender_user, message);
         if (r) {
-                if (CONNECTION_E_QUOTA)
-                        return PEER_E_QUOTA;
-                else
+                if (CONNECTION_E_QUOTA) {
+                        if (message->header->type == DBUS_MESSAGE_TYPE_SIGNAL &&
+                            peer_signal_is_solicited(receiver, sender_id, message)) {
+                                connection_shutdown(&receiver->connection);
+                        } else {
+                                return PEER_E_QUOTA;
+                        }
+                } else {
                         return error_fold(r);
+                }
         }
 
         slot = NULL;
