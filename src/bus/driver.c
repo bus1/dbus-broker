@@ -377,10 +377,13 @@ static int driver_send_unicast(Peer *receiver, Message *message) {
         if (r)
                 return error_fold(r);
 
-        /* XXX: handle quota */
         r = connection_queue(&receiver->connection, NULL, message);
-        if (r)
-                return error_fold(r);
+        if (r) {
+                if (r != CONNECTION_E_QUOTA)
+                        return error_fold(r);
+
+                connection_shutdown(&receiver->connection);
+        }
 
         return 0;
 }
