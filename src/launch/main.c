@@ -1046,7 +1046,7 @@ static int manager_load_standard_session_services(Manager *manager, NSSCache *ns
 
                 while (*data_dirs) {
                         sep = strchr(data_dirs, ':');
-                        n = sep ? (sep - data_dirs) : strlen(data_dirs);
+                        n = sep ? (size_t)(sep - data_dirs) : strlen(data_dirs);
 
                         if (n) {
                                 _c_cleanup_(c_freep) char *dirpath = NULL;
