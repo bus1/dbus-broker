@@ -595,106 +595,6 @@ void peer_flush_matches(Peer *peer) {
         }
 }
 
-int peer_queue_call(PolicySnapshot *sender_policy, NameSet *sender_names, ReplyOwner *sender_replies, User *sender_user, uint64_t sender_id, Peer *receiver, Message *message) {
-        _c_cleanup_(reply_slot_freep) ReplySlot *slot = NULL;
-        NameSet receiver_names = NAME_SET_INIT_FROM_OWNER(&receiver->owned_names);
-        uint32_t serial;
-        int r;
-
-        serial = message_read_serial(message);
-
-        if (sender_replies && serial) {
-                r = reply_slot_new(&slot, &receiver->replies, sender_replies,
-                                   receiver->user, sender_user, sender_id, serial);
-                if (r == REPLY_E_EXISTS)
-                        return PEER_E_EXPECTED_REPLY_EXISTS;
-                else if (r == REPLY_E_QUOTA)
-                        return PEER_E_QUOTA;
-                else if (r)
-                        return error_fold(r);
-        }
-
-        r = policy_snapshot_check_receive(receiver->policy,
-                                          sender_names,
-                                          message->metadata.fields.interface,
-                                          message->metadata.fields.member,
-                                          message->metadata.fields.path,
-                                          message->header->type);
-        if (r) {
-                if (r == POLICY_E_ACCESS_DENIED) {
-                        log_append_here(receiver->bus->log, LOG_WARNING, 0);
-                        r = bus_log_commit_policy_receive(receiver->bus, receiver->id, sender_id, sender_names, &receiver_names, message);
-                        if (r)
-                                return error_fold(r);
-
-                        return PEER_E_RECEIVE_DENIED;
-                }
-
-                return error_fold(r);
-        }
-
-        r = policy_snapshot_check_send(sender_policy,
-                                       receiver->seclabel,
-                                       &receiver_names,
-                                       message->metadata.fields.interface,
-                                       message->metadata.fields.member,
-                                       message->metadata.fields.path,
-                                       message->header->type);
-        if (r) {
-                if (r == POLICY_E_ACCESS_DENIED || r == POLICY_E_SELINUX_ACCESS_DENIED) {
-                        log_append_here(receiver->bus->log, LOG_WARNING, 0);
-                        r = bus_log_commit_policy_send(receiver->bus,
-                                                       (r == POLICY_E_ACCESS_DENIED ? BUS_LOG_POLICY_TYPE_INTERNAL : BUS_LOG_POLICY_TYPE_SELINUX),
-                                                       sender_id, receiver->id, sender_names, &receiver_names,
-                                                       sender_policy->seclabel, receiver->policy->seclabel, message);
-                        if (r)
-                                return error_fold(r);
-
-                        return PEER_E_SEND_DENIED;
-                }
-
-                return error_fold(r);
-        }
-
-        r = connection_queue(&receiver->connection, sender_user, message);
-        if (r) {
-                if (CONNECTION_E_QUOTA)
-                        return PEER_E_QUOTA;
-                else
-                        return error_fold(r);
-        }
-
-        slot = NULL;
-        return 0;
-}
-
-int peer_queue_reply(Peer *sender, const char *destination, uint32_t reply_serial, Message *message) {
-        _c_cleanup_(reply_slot_freep) ReplySlot *slot = NULL;
-        Peer *receiver;
-        Address addr;
-        int r;
-
-        address_from_string(&addr, destination);
-        if (addr.type != ADDRESS_TYPE_ID)
-                return PEER_E_UNEXPECTED_REPLY;
-
-        slot = reply_slot_get_by_id(&sender->replies, addr.id, reply_serial);
-        if (!slot)
-                return PEER_E_UNEXPECTED_REPLY;
-
-        receiver = c_container_of(slot->owner, Peer, owned_replies);
-
-        r = connection_queue(&receiver->connection, NULL, message);
-        if (r) {
-                if (r == CONNECTION_E_QUOTA)
-                        connection_shutdown(&receiver->connection);
-                else
-                        return error_fold(r);
-        }
-
-        return 0;
-}
-
 static int peer_broadcast_to_matches(PolicySnapshot *sender_policy, NameSet *sender_names, MatchRegistry *matches, MatchFilter *filter, uint64_t transaction_id, Message *message) {
         MatchRule *rule;
         int r;
@@ -822,6 +722,106 @@ int peer_broadcast(PolicySnapshot *sender_policy, NameSet *sender_names, MatchRe
                 r = peer_broadcast_to_matches(NULL, NULL, &bus->sender_matches, filter, bus->transaction_ids, message);
                 if (r)
                         return error_trace(r);
+        }
+
+        return 0;
+}
+
+int peer_queue_call(PolicySnapshot *sender_policy, NameSet *sender_names, ReplyOwner *sender_replies, User *sender_user, uint64_t sender_id, Peer *receiver, Message *message) {
+        _c_cleanup_(reply_slot_freep) ReplySlot *slot = NULL;
+        NameSet receiver_names = NAME_SET_INIT_FROM_OWNER(&receiver->owned_names);
+        uint32_t serial;
+        int r;
+
+        serial = message_read_serial(message);
+
+        if (sender_replies && serial) {
+                r = reply_slot_new(&slot, &receiver->replies, sender_replies,
+                                   receiver->user, sender_user, sender_id, serial);
+                if (r == REPLY_E_EXISTS)
+                        return PEER_E_EXPECTED_REPLY_EXISTS;
+                else if (r == REPLY_E_QUOTA)
+                        return PEER_E_QUOTA;
+                else if (r)
+                        return error_fold(r);
+        }
+
+        r = policy_snapshot_check_receive(receiver->policy,
+                                          sender_names,
+                                          message->metadata.fields.interface,
+                                          message->metadata.fields.member,
+                                          message->metadata.fields.path,
+                                          message->header->type);
+        if (r) {
+                if (r == POLICY_E_ACCESS_DENIED) {
+                        log_append_here(receiver->bus->log, LOG_WARNING, 0);
+                        r = bus_log_commit_policy_receive(receiver->bus, receiver->id, sender_id, sender_names, &receiver_names, message);
+                        if (r)
+                                return error_fold(r);
+
+                        return PEER_E_RECEIVE_DENIED;
+                }
+
+                return error_fold(r);
+        }
+
+        r = policy_snapshot_check_send(sender_policy,
+                                       receiver->seclabel,
+                                       &receiver_names,
+                                       message->metadata.fields.interface,
+                                       message->metadata.fields.member,
+                                       message->metadata.fields.path,
+                                       message->header->type);
+        if (r) {
+                if (r == POLICY_E_ACCESS_DENIED || r == POLICY_E_SELINUX_ACCESS_DENIED) {
+                        log_append_here(receiver->bus->log, LOG_WARNING, 0);
+                        r = bus_log_commit_policy_send(receiver->bus,
+                                                       (r == POLICY_E_ACCESS_DENIED ? BUS_LOG_POLICY_TYPE_INTERNAL : BUS_LOG_POLICY_TYPE_SELINUX),
+                                                       sender_id, receiver->id, sender_names, &receiver_names,
+                                                       sender_policy->seclabel, receiver->policy->seclabel, message);
+                        if (r)
+                                return error_fold(r);
+
+                        return PEER_E_SEND_DENIED;
+                }
+
+                return error_fold(r);
+        }
+
+        r = connection_queue(&receiver->connection, sender_user, message);
+        if (r) {
+                if (CONNECTION_E_QUOTA)
+                        return PEER_E_QUOTA;
+                else
+                        return error_fold(r);
+        }
+
+        slot = NULL;
+        return 0;
+}
+
+int peer_queue_reply(Peer *sender, const char *destination, uint32_t reply_serial, Message *message) {
+        _c_cleanup_(reply_slot_freep) ReplySlot *slot = NULL;
+        Peer *receiver;
+        Address addr;
+        int r;
+
+        address_from_string(&addr, destination);
+        if (addr.type != ADDRESS_TYPE_ID)
+                return PEER_E_UNEXPECTED_REPLY;
+
+        slot = reply_slot_get_by_id(&sender->replies, addr.id, reply_serial);
+        if (!slot)
+                return PEER_E_UNEXPECTED_REPLY;
+
+        receiver = c_container_of(slot->owner, Peer, owned_replies);
+
+        r = connection_queue(&receiver->connection, NULL, message);
+        if (r) {
+                if (r == CONNECTION_E_QUOTA)
+                        connection_shutdown(&receiver->connection);
+                else
+                        return error_fold(r);
         }
 
         return 0;
