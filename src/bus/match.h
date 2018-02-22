@@ -102,6 +102,8 @@ MatchRule *match_rule_user_unref(MatchRule *rule);
 void match_rule_link(MatchRule *rule, MatchRegistry *registry, bool monitor);
 void match_rule_unlink(MatchRule *rule);
 
+bool match_rule_match_filter(MatchRule *rule, MatchFilter *filter);
+
 MatchRule *match_rule_next_match(MatchRegistry *registry, MatchRule *rule, MatchFilter *filter);
 MatchRule *match_rule_next_monitor_match(MatchRegistry *registry, MatchRule *rule, MatchFilter *filter);
 

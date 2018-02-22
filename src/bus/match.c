@@ -482,6 +482,10 @@ void match_rule_unlink(MatchRule *rule) {
         }
 }
 
+bool match_rule_match_filter(MatchRule *rule, MatchFilter *filter) {
+        return match_keys_match_filter(&rule->keys, filter);
+}
+
 static MatchRule *match_rule_next_match_internal(CList *rules, MatchRule *rule, MatchFilter *filter) {
         CList *entry;
 
@@ -490,7 +494,7 @@ static MatchRule *match_rule_next_match_internal(CList *rules, MatchRule *rule, 
              entry = entry->next) {
                 rule = c_list_entry(entry, MatchRule, registry_link);
 
-                if (match_keys_match_filter(&rule->keys, filter))
+                if (match_rule_match_filter(rule, filter))
                         return rule;
         }
 
