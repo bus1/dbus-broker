@@ -808,7 +808,7 @@ int peer_queue_call(PolicySnapshot *sender_policy, NameSet *sender_names, ReplyO
 
         r = connection_queue(&receiver->connection, sender_user, message);
         if (r) {
-                if (CONNECTION_E_QUOTA) {
+                if (r == CONNECTION_E_QUOTA) {
                         if (message->header->type == DBUS_MESSAGE_TYPE_SIGNAL &&
                             peer_signal_is_solicited(receiver, sender_id, message)) {
                                 connection_shutdown(&receiver->connection);
