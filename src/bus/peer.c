@@ -731,9 +731,18 @@ int peer_broadcast(PolicySnapshot *sender_policy, NameSet *sender_names, MatchRe
         return 0;
 }
 
-static bool peer_signal_is_solicited(Peer *destination, uint64_t sender_id, Message *message) {
+static bool peer_message_is_solicited(Peer *destination, uint64_t sender_id, Message *message) {
         MatchFilter filter = MATCH_FILTER_INIT;
         MatchRule *rule;
+
+        /*
+         * This checks whether @message is solicited by @destination. Note that
+         * only signals can be solicited, and they are considered so if, and
+         * only if, there is a match installed for them.
+         */
+
+        if (message->header->type != DBUS_MESSAGE_TYPE_SIGNAL)
+                return false;
 
         peer_match_filter_from_message(&filter, sender_id, message);
 
@@ -809,12 +818,11 @@ int peer_queue_call(PolicySnapshot *sender_policy, NameSet *sender_names, ReplyO
         r = connection_queue(&receiver->connection, sender_user, message);
         if (r) {
                 if (r == CONNECTION_E_QUOTA) {
-                        if (message->header->type == DBUS_MESSAGE_TYPE_SIGNAL &&
-                            peer_signal_is_solicited(receiver, sender_id, message)) {
-                                connection_shutdown(&receiver->connection);
-                        } else {
+                        if (!peer_message_is_solicited(receiver, sender_id, message))
                                 return PEER_E_QUOTA;
-                        }
+
+                        connection_shutdown(&receiver->connection);
+                        /* fallthrough */
                 } else {
                         return error_fold(r);
                 }
