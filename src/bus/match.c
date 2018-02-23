@@ -486,27 +486,20 @@ bool match_rule_match_filter(MatchRule *rule, MatchFilter *filter) {
         return match_keys_match_filter(&rule->keys, filter);
 }
 
-static MatchRule *match_rule_next_match_internal(CList *rules, MatchRule *rule, MatchFilter *filter) {
-        CList *entry;
-
-        for (entry = rule ? rule->registry_link.next : rules->next;
-             entry != rules;
-             entry = entry->next) {
-                rule = c_list_entry(entry, MatchRule, registry_link);
-
+MatchRule *match_rule_next_match(MatchRegistry *registry, MatchRule *rule, MatchFilter *filter) {
+        c_list_for_each_entry_continue(rule, &registry->rule_list, registry_link)
                 if (match_rule_match_filter(rule, filter))
                         return rule;
-        }
 
         return NULL;
 }
 
-MatchRule *match_rule_next_match(MatchRegistry *registry, MatchRule *rule, MatchFilter *filter) {
-        return match_rule_next_match_internal(&registry->rule_list, rule, filter);
-}
-
 MatchRule *match_rule_next_monitor_match(MatchRegistry *registry, MatchRule *rule, MatchFilter *filter) {
-        return match_rule_next_match_internal(&registry->monitor_list, rule, filter);
+        c_list_for_each_entry_continue(rule, &registry->monitor_list, registry_link)
+                if (match_rule_match_filter(rule, filter))
+                        return rule;
+
+        return NULL;
 }
 
 /**
