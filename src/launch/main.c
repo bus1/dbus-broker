@@ -461,11 +461,16 @@ static int manager_start_unit(Manager *manager, Service *service) {
 static int manager_start_transient_unit(Manager *manager, Service *service) {
         _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *method_call = NULL;
         _c_cleanup_(c_freep) char *unit = NULL;
+        const char *unique_name;
         int r;
 
         service->slot = sd_bus_slot_unref(service->slot);
 
-        r = asprintf(&unit, "dbus-%s@%"PRIu64".service", service->name, service->instance++);
+        r = sd_bus_get_unique_name(manager->bus_regular, &unique_name);
+        if (r < 0)
+                return error_origin(r);
+
+        r = asprintf(&unit, "dbus-%s-%s@%"PRIu64".service", unique_name, service->name, service->instance++);
         if (r < 0)
                 return error_origin(-errno);
 
