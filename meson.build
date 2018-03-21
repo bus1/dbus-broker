@@ -24,8 +24,6 @@ mod_pkgconfig = import('pkgconfig')
 # Mandatory Dependencies
 #
 
-prog_rst2man = find_program('rst2man', 'rst2man.py')
-
 sub_cdvar = subproject('c-dvar', version: '>=1')
 sub_clist = subproject('c-list', version: '>=3')
 sub_crbtree = subproject('c-rbtree', version: '>=3')
@@ -45,6 +43,15 @@ dep_thread = dependency('threads')
 use_audit = get_option('audit')
 if use_audit
         dep_libaudit = dependency('audit', version: '>=2.7')
+endif
+
+#
+# Config: docs
+#
+
+use_docs = get_option('docs')
+if use_docs
+        prog_rst2man = find_program('rst2man', 'rst2man.py')
 endif
 
 #
@@ -102,8 +109,11 @@ conf.set('bindir', join_paths(get_option('prefix'), get_option('bindir')))
 # Subdirs
 #
 
-subdir('docs')
 subdir('src')
+
+if use_docs
+        subdir('docs')
+endif
 
 if use_launcher
         subdir('test/dbus')
