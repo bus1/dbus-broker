@@ -122,7 +122,7 @@ int sockopt_get_peergroups(int fd, Log *log, uid_t uid, gid_t gid, gid_t **gidsp
                 if (!warned) {
                         warned = true;
                         log_append_here(log, LOG_ERR, 0);
-                        log_commitf(log, "Falling back to resolving auxillary "
+                        log_commitf(log, "Falling back to resolving auxiliary "
                                          "groups using nss, this is racy and "
                                          "may cause deadlocks. Update to a "
                                          "kernel with SO_PEERGROUPS "
