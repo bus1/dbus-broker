@@ -1,5 +1,24 @@
 dbus-broker - Linux D-Bus Message Broker
 
+CHANGES WITH 12:
+
+        * Building documentation is now optional. Use -Ddocs=true with meson
+          to build documentation. It is disabled by default.
+
+        * The compatibility launcher now namespaces transient systemd units
+          based on its own name on the scope-bus (i.e., the bus
+          dbus-broker-launch uses to ask systemd for activation of units). This
+          allows running private dbus-broker instances, while using transient
+          systemd-units on the scope-bus for activation. For instance, at-spi2
+          can use activated units that clash with the namespace of the session
+          or system bus.
+
+        * Several bug-fixes.
+
+        Contributions from: Daniele Nicolodi, David Herrmann, Tom Gundersen
+
+        - Tübingen, 2018-04-17
+
 CHANGES WITH 11:
 
         * Building now requires linux-api-headers>=4.13. We expect the
