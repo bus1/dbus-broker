@@ -29,7 +29,6 @@ message bus.
 OPTIONS
 =======
 
--v, --verbose   print extra debug output
 --listen PATH   install a listening socket at PATH
 -f, --force     overwrite any existing listening socket
 --scope SCOPE   the scope of the message bus, one of ``system`` or ``user``

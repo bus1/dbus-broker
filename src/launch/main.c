@@ -69,7 +69,6 @@ static bool             main_arg_audit = false;
 static const char *     main_arg_broker = BINDIR "/dbus-broker";
 static const char *     main_arg_configfile = NULL;
 static bool             main_arg_user_scope = false;
-static bool             main_arg_verbose = false;
 static Log              main_log = LOG_NULL;
 
 static sd_bus *bus_close_unref(sd_bus *bus) {
@@ -227,8 +226,7 @@ static int manager_on_sighup(sd_event_source *s, const struct signalfd_siginfo *
         Manager *manager = userdata;
         int r;
 
-        if (main_arg_verbose)
-                fprintf(stderr, "Caught SIGHUP\n");
+        fprintf(stderr, "Caught SIGHUP\n");
 
         r = manager_reload_config(manager);
         if (r)
@@ -372,8 +370,7 @@ exit:
 }
 
 static int manager_on_child_exit(sd_event_source *source, const siginfo_t *si, void *userdata) {
-        if (main_arg_verbose)
-                fprintf(stderr, "Caught SIGCHLD of broker\n");
+        fprintf(stderr, "Caught SIGCHLD of broker\n");
 
         return sd_event_exit(sd_event_source_get_event(source),
                              (si->si_code == CLD_EXITED) ? si->si_status : EXIT_FAILURE);
@@ -1475,7 +1472,6 @@ static void help(void) {
                "Linux D-Bus Message Broker Launcher\n\n"
                "  -h --help             Show this help\n"
                "     --version          Show package version\n"
-               "  -v --verbose          Print progress to terminal\n"
                "     --audit            Enable audit support\n"
                "     --config-file PATH Specify path to configuration file\n"
                "     --scope SCOPE      Scope of message bus\n"
@@ -1492,7 +1488,6 @@ static int parse_argv(int argc, char *argv[]) {
         static const struct option options[] = {
                 { "help",               no_argument,            NULL,   'h'                     },
                 { "version",            no_argument,            NULL,   ARG_VERSION             },
-                { "verbose",            no_argument,            NULL,   'v'                     },
                 { "audit",              no_argument,            NULL,   ARG_AUDIT               },
                 { "config-file",        required_argument,      NULL,   ARG_CONFIG,             },
                 { "scope",              required_argument,      NULL,   ARG_SCOPE               },
@@ -1500,7 +1495,7 @@ static int parse_argv(int argc, char *argv[]) {
         };
         int c;
 
-        while ((c = getopt_long(argc, argv, "hvf", options, NULL)) >= 0) {
+        while ((c = getopt_long(argc, argv, "h", options, NULL)) >= 0) {
                 switch (c) {
                 case 'h':
                         help();
@@ -1509,10 +1504,6 @@ static int parse_argv(int argc, char *argv[]) {
                 case ARG_VERSION:
                         printf("dbus-broker-launch %d\n", PACKAGE_VERSION);
                         return MAIN_EXIT;
-
-                case 'v':
-                        main_arg_verbose = true;
-                        break;
 
                 case ARG_AUDIT:
                         main_arg_audit = true;
@@ -1593,7 +1584,7 @@ int main(int argc, char **argv) {
 
 exit:
         r = error_trace(r);
-        if (r < 0 && main_arg_verbose)
+        if (r < 0)
                 fprintf(stderr, "Exiting due to fatal error: %d\n", r);
         return (r == 0 || r == MAIN_EXIT) ? 0 : 1;
 }
