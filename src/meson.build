@@ -171,6 +171,9 @@ test('D-Bus Message Abstraction', test_message)
 test_name = executable('test-name', ['bus/test-name.c'], dependencies: dep_bus)
 test('Name Registry', test_name)
 
+test_peersec = executable('test-peersec', ['util/test-peersec.c'], dependencies: dep_bus)
+test('SO_PEERSEC Queries', test_peersec)
+
 test_queue = executable('test-queue', ['dbus/test-queue.c'], dependencies: dep_bus)
 test('D-Bus I/O Queues', test_queue)
 
