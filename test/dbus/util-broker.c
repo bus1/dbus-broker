@@ -190,7 +190,6 @@ void util_fork_broker(sd_bus **busp, sd_event *event, int listener_fd, pid_t *pi
 
                 r = execl("./src/dbus-broker",
                           "./src/dbus-broker",
-                          "--verbose",
                           "--controller", fdstr,
                           (char *)NULL);
                 /* execl(2) only returns on error */

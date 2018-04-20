@@ -35,13 +35,6 @@ static int broker_dispatch_signals(DispatchFile *file) {
 
         assert(l == sizeof(si));
 
-        if (main_arg_verbose)
-                fprintf(stderr,
-                        "Caught %s, exiting\n",
-                        (si.ssi_signo == SIGTERM ? "SIGTERM" :
-                         si.ssi_signo == SIGINT ? "SIGINT" :
-                         "SIG?"));
-
         return DISPATCH_E_EXIT;
 }
 
