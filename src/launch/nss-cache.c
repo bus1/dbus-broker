@@ -87,9 +87,13 @@ int nss_cache_get_uid(NSSCache *cache, uid_t *uidp, const char *user) {
         } else {
                 struct passwd *pw;
 
+                fprintf(stderr, "Looking up UID for user '%s' over NSS...\n", user);
+
                 pw = getpwnam(user);
                 if (!pw)
                         return NSS_CACHE_E_INVALID_NAME;
+
+                fprintf(stderr, "NSS returned UID %u for user '%s'\n", pw->pw_uid, user);
 
                 r = nss_cache_node_new(&node, user, pw->pw_uid);
                 if (r)
@@ -129,9 +133,13 @@ int nss_cache_get_gid(NSSCache *cache, gid_t *gidp, const char *group) {
         } else {
                 struct group *gr;
 
+                fprintf(stderr, "Looking up GID for group '%s' over NSS...\n", group);
+
                 gr = getgrnam(group);
                 if (!gr)
                         return NSS_CACHE_E_INVALID_NAME;
+
+                fprintf(stderr, "NSS returned GID %u for group '%s'\n", gr->gr_gid, group);
 
                 r = nss_cache_node_new(&node, group, gr->gr_gid);
                 if (r)
