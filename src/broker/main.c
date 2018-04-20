@@ -21,14 +21,12 @@ uint64_t main_arg_max_bytes = 16 * 1024 * 1024;
 uint64_t main_arg_max_fds = 64;
 uint64_t main_arg_max_matches = 10 * 1024;
 uint64_t main_arg_max_objects = 10 * 1024;
-bool main_arg_verbose = false;
 
 static void help(void) {
         printf("%s [GLOBALS...] ...\n\n"
                "Linux D-Bus Message Broker\n\n"
                "  -h --help                     Show this help\n"
                "     --version                  Show package version\n"
-               "  -v --verbose                  Print progress to terminal\n"
                "     --audit                    Log to the audit subsystem\n"
                "     --log FD                   Change log socket\n"
                "     --controller FD            Change controller file-descriptor\n"
@@ -53,7 +51,6 @@ static int parse_argv(int argc, char *argv[]) {
         static const struct option options[] = {
                 { "help",               no_argument,            NULL,   'h'                     },
                 { "version",            no_argument,            NULL,   ARG_VERSION             },
-                { "verbose",            no_argument,            NULL,   'v'                     },
                 { "audit",              no_argument,            NULL,   ARG_AUDIT               },
                 { "log",                required_argument,      NULL,   ARG_LOG                 },
                 { "controller",         required_argument,      NULL,   ARG_CONTROLLER          },
@@ -65,7 +62,7 @@ static int parse_argv(int argc, char *argv[]) {
         };
         int r, c;
 
-        while ((c = getopt_long(argc, argv, "hv", options, NULL)) >= 0) {
+        while ((c = getopt_long(argc, argv, "h", options, NULL)) >= 0) {
                 switch (c) {
                 case 'h':
                         help();
@@ -74,10 +71,6 @@ static int parse_argv(int argc, char *argv[]) {
                 case ARG_VERSION:
                         printf("dbus-broker %d\n", PACKAGE_VERSION);
                         return MAIN_EXIT;
-
-                case 'v':
-                        main_arg_verbose = true;
-                        break;
 
                 case ARG_AUDIT:
                         main_arg_audit = true;
@@ -276,8 +269,5 @@ exit:
         util_audit_deinit_global();
 
         r = error_trace(r);
-        if (r < 0 && main_arg_verbose)
-                fprintf(stderr, "Exiting due to fatal error: %d\n", r);
-
         return (r == 0 || r == MAIN_EXIT) ? 0 : 1;
 }

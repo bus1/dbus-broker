@@ -319,7 +319,6 @@ static noreturn void manager_run_child(Manager *manager, int fd_log, int fd_cont
         char str_log[C_DECIMAL_MAX(int) + 1], str_controller[C_DECIMAL_MAX(int) + 1];
         const char * const argv[] = {
                 "dbus-broker",
-                "-v",
                 "--log",
                 str_log,
                 "--controller",

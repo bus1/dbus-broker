@@ -32,7 +32,6 @@ interact with the environment, appart from through the controller socket.
 OPTIONS
 =======
 
--v, --verbose              print extra debug output
 --controller FD            use the given file descriptor number as the controlling socket
 --max-bytes BYTES          the maximum number of bytes each user may own in the broker
 --max-fds FDS              the maximum number of file descriptors each user may own in the broker
