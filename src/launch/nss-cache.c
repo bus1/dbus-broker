@@ -114,11 +114,6 @@ int nss_cache_get_gid(NSSCache *cache, gid_t *gidp, const char *group) {
         unsigned long long int gid;
         int r;
 
-        if (!strcmp(group, "root")) {
-                *gidp = 0;
-                return 0;
-        }
-
         static_assert(sizeof(gid_t) == sizeof(uint32_t), "gid_t is not 32 bits");
         errno = 0;
         gid = strtoull(group, &end, 10);
