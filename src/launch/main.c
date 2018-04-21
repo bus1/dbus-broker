@@ -1267,7 +1267,7 @@ static int manager_set_policy(Manager *manager, Policy *policy, uint32_t *system
 static int manager_reload_config(Manager *manager) {
         _c_cleanup_(config_root_freep) ConfigRoot *root = NULL;
         _c_cleanup_(policy_deinit) Policy policy = POLICY_INIT(policy);
-        _c_cleanup_(nss_cache_deinit) NSSCache nss_cache = (NSSCache)NSS_CACHE_INIT;
+        _c_cleanup_(nss_cache_deinit) NSSCache nss_cache = NSS_CACHE_INIT;
         _c_cleanup_(c_freep) uint32_t *system_console_users = NULL;
         size_t n_system_console_users;
         Service *service;
@@ -1275,6 +1275,10 @@ static int manager_reload_config(Manager *manager) {
 
         c_rbtree_for_each_entry(service, &manager->services, rb)
                 service->state = SERVICE_STATE_DEFUNCT;
+
+        r = nss_cache_populate(&nss_cache);
+        if (r)
+                return error_fold(r);
 
         r = manager_parse_config(manager, &root, &nss_cache);
         if (r)
@@ -1354,6 +1358,10 @@ static int manager_run(Manager *manager) {
         _c_cleanup_(c_freep) uint32_t *system_console_users = NULL;
         size_t n_system_console_users;
         int r, controller[2];
+
+        r = nss_cache_populate(&nss_cache);
+        if (r)
+                return error_fold(r);
 
         r = manager_parse_config(manager, &root, &nss_cache);
         if (r)
