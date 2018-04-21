@@ -1,5 +1,15 @@
 /*
  * NSS Cache
+ *
+ * Calling out to NSS is potentially slow and prone to deadlocks, so we
+ * maintain a cache to only call out when necessary. This cache does no
+ * invalidation, so should not be long-living.
+ *
+ * The cache can be populated from /etc/{passwd,group}, which means NSS
+ * will be invoked only for users/groups that do not appear in these
+ * files, which should not happen on a well-configured system.
+ *
+ * The root user is hardcoded to always return UID 0, see passwd(5).
  */
 
 #include <c-macro.h>
@@ -59,6 +69,104 @@ static int nss_cache_node_compare(CRBTree *t, void *k, CRBNode *rb) {
         NSSCacheNode *node = c_rbnode_entry(rb, NSSCacheNode, rb);
 
         return strcmp(name, node->name);
+}
+
+static int nss_cache_add_user(NSSCache *cache, const char *user, uid_t uid) {
+        NSSCacheNode *node;
+        CRBNode **slot, *parent;
+        int r;
+
+        slot = c_rbtree_find_slot(&cache->user_tree, nss_cache_node_compare, user, &parent);
+        if (!slot) {
+                node = c_rbnode_entry(parent, NSSCacheNode, rb);
+                node->uidgid = uid;
+        } else {
+                r = nss_cache_node_new(&node, user, uid);
+                if (r)
+                        return error_trace(r);
+
+                c_rbtree_add(&cache->user_tree, parent, slot, &node->rb);
+        }
+
+        return 0;
+}
+
+static int nss_cache_add_group(NSSCache *cache, const char *group, gid_t gid) {
+        NSSCacheNode *node;
+        CRBNode **slot, *parent;
+        int r;
+
+        slot = c_rbtree_find_slot(&cache->group_tree, nss_cache_node_compare, group, &parent);
+        if (!slot) {
+                node = c_rbnode_entry(parent, NSSCacheNode, rb);
+                node->uidgid = gid;
+        } else {
+                r = nss_cache_node_new(&node, group, gid);
+                if (r)
+                        return error_trace(r);
+
+                c_rbtree_add(&cache->group_tree, parent, slot, &node->rb);
+        }
+
+        return 0;
+}
+
+static int nss_cache_populate_users(NSSCache *cache) {
+        FILE *passwd;
+        struct passwd *pw;
+        int r;
+
+        passwd = fopen("/etc/passwd", "r");
+        if (!passwd) {
+                if (errno == ENOENT)
+                        return 0;
+
+                return error_origin(-errno);
+        }
+
+        while ((pw = fgetpwent(passwd))) {
+                r = nss_cache_add_user(cache, pw->pw_name, pw->pw_uid);
+                if (r)
+                        return error_trace(r);
+        }
+
+        return 0;
+}
+
+static int nss_cache_populate_groups(NSSCache *cache) {
+        FILE *group;
+        struct group *gr;
+        int r;
+
+        group = fopen("/etc/group", "r");
+        if (!group) {
+                if (errno == ENOENT)
+                        return 0;
+
+                return error_origin(-errno);
+        }
+
+        while ((gr = fgetgrent(group))) {
+                r = nss_cache_add_group(cache, gr->gr_name, gr->gr_gid);
+                if (r)
+                        return error_trace(r);
+        }
+
+        return 0;
+}
+
+int nss_cache_populate(NSSCache *cache) {
+        int r;
+
+        r = nss_cache_populate_users(cache);
+        if (r)
+                return error_trace(r);
+
+        r = nss_cache_populate_groups(cache);
+        if (r)
+                return error_trace(r);
+
+        return 0;
 }
 
 int nss_cache_get_uid(NSSCache *cache, uid_t *uidp, const char *user) {

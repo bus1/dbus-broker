@@ -32,5 +32,7 @@ struct NSSCache {
 void nss_cache_init(NSSCache *cache);
 void nss_cache_deinit(NSSCache *cache);
 
+int nss_cache_populate(NSSCache *cache);
+
 int nss_cache_get_uid(NSSCache *cache, uid_t *uidp, const char *user);
 int nss_cache_get_gid(NSSCache *cache, gid_t *gidp, const char *group);
