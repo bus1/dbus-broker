@@ -116,7 +116,7 @@ static int nss_cache_populate_users(NSSCache *cache) {
         struct passwd *pw;
         int r;
 
-        passwd = fopen("/etc/passwd", "rme");
+        passwd = fopen("/etc/passwd", "re");
         if (!passwd) {
                 if (errno == ENOENT)
                         return 0;
@@ -138,7 +138,7 @@ static int nss_cache_populate_groups(NSSCache *cache) {
         struct group *gr;
         int r;
 
-        group = fopen("/etc/group", "rme");
+        group = fopen("/etc/group", "re");
         if (!group) {
                 if (errno == ENOENT)
                         return 0;
