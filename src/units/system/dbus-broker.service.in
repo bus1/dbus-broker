@@ -4,6 +4,8 @@ Documentation=man:dbus-broker-launch(1)
 DefaultDependencies=false
 Before=basic.target shutdown.target
 Conflicts=shutdown.target
+# See https://github.com/systemd/systemd/commit/fd63e712b2025d235ce4bfbb512fada10e2690b5
+Environment=SYSTEMD_NSS_BYPASS_BUS=1
 
 [Service]
 Type=notify
