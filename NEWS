@@ -1,5 +1,30 @@
 dbus-broker - Linux D-Bus Message Broker
 
+CHANGES WITH 13:
+
+        * The --verbose command-line switch was dropped from both the broker
+          and the launcher. Its behavior is now the default.
+
+        * Fix a startup dead-lock with systemd NSS plugins. This requires
+          setting the SYSTEMD_NSS_BYPASS_BUS environment variable, so
+          libnss_systemd.so will skip recursive bus-calls.
+
+        * Read /etc/{passwd,groups} early on from the launcher to
+          pre-initialize the nss-cache. This allows startup on properly
+          configured systems without ever calling into NSS. Furthermore, in
+          case this does not resolve all required usernames, the launcher will
+          loudly log any call into NSS, to better debug early dead-locks in bus
+          startup code.
+          Note that this new mechanic overrules /etc/nsswitch.conf for the
+          launcher. However, this is only made based on the assumption that
+          if an entry is present in /etc/{passwd,groups}, it better be a valid
+          entry. If an entry is not present, the launcher will still correctly
+          call into NSS.
+
+        Contributions from: David Herrmann, Tom Gundersen
+
+        - Tübingen, 2018-04-23
+
 CHANGES WITH 12:
 
         * Building documentation is now optional. Use -Ddocs=true with meson
