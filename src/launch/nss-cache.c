@@ -112,11 +112,11 @@ static int nss_cache_add_group(NSSCache *cache, const char *group, gid_t gid) {
 }
 
 static int nss_cache_populate_users(NSSCache *cache) {
-        FILE *passwd;
+        _c_cleanup_(c_fclosep) FILE *passwd = NULL;
         struct passwd *pw;
         int r;
 
-        passwd = fopen("/etc/passwd", "r");
+        passwd = fopen("/etc/passwd", "rme");
         if (!passwd) {
                 if (errno == ENOENT)
                         return 0;
@@ -134,11 +134,11 @@ static int nss_cache_populate_users(NSSCache *cache) {
 }
 
 static int nss_cache_populate_groups(NSSCache *cache) {
-        FILE *group;
+        _c_cleanup_(c_fclosep) FILE *group = NULL;
         struct group *gr;
         int r;
 
-        group = fopen("/etc/group", "r");
+        group = fopen("/etc/group", "rme");
         if (!group) {
                 if (errno == ENOENT)
                         return 0;
