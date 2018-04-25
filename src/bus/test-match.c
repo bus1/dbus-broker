@@ -126,7 +126,8 @@ static bool test_match(const char *match_string, MatchFilter *filter) {
         r = match_owner_ref_rule(&owner, &rule, NULL, match_string);
         assert(!r);
 
-        match_rule_link(rule, &registry, false);
+        r = match_rule_link(rule, &registry, false);
+        assert(!r);
 
         rule1 = match_rule_next_match(&registry, NULL, filter);
         assert(!rule1 || rule1 == rule);
@@ -261,22 +262,26 @@ static void test_iterator(void) {
         r = match_owner_ref_rule(&owner1, &rule1, NULL, "");
         assert(!r);
 
-        match_rule_link(rule1, &registry, false);
+        r = match_rule_link(rule1, &registry, false);
+        assert(!r);
 
         r = match_owner_ref_rule(&owner1, &rule2, NULL, "");
         assert(!r);
 
-        match_rule_link(rule2, &registry, false);
+        r = match_rule_link(rule2, &registry, false);
+        assert(!r);
 
         r = match_owner_ref_rule(&owner2, &rule3, NULL, "");
         assert(!r);
 
-        match_rule_link(rule3, &registry, false);
+        r = match_rule_link(rule3, &registry, false);
+        assert(!r);
 
         r = match_owner_ref_rule(&owner2, &rule4, NULL, "");
         assert(!r);
 
-        match_rule_link(rule4, &registry, false);
+        r = match_rule_link(rule4, &registry, false);
+        assert(!r);
 
         rule = match_rule_next_match(&registry, NULL, &filter);
         assert(rule == rule1);

@@ -99,7 +99,7 @@ struct MatchRegistry {
 MatchRule *match_rule_user_ref(MatchRule *rule);
 MatchRule *match_rule_user_unref(MatchRule *rule);
 
-void match_rule_link(MatchRule *rule, MatchRegistry *registry, bool monitor);
+int match_rule_link(MatchRule *rule, MatchRegistry *registry, bool monitor);
 void match_rule_unlink(MatchRule *rule);
 
 bool match_rule_match_filter(MatchRule *rule, MatchFilter *filter);

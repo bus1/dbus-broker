@@ -459,7 +459,7 @@ MatchRule *match_rule_user_unref(MatchRule *rule) {
 /**
  * match_rule_link() - XXX
  */
-void match_rule_link(MatchRule *rule, MatchRegistry *registry, bool monitor) {
+int match_rule_link(MatchRule *rule, MatchRegistry *registry, bool monitor) {
         if (rule->registry) {
                 assert(registry == rule->registry);
                 assert(c_list_is_linked(&rule->registry_link));
@@ -470,6 +470,8 @@ void match_rule_link(MatchRule *rule, MatchRegistry *registry, bool monitor) {
                 else
                         c_list_link_tail(&registry->rule_list, &rule->registry_link);
         }
+
+        return 0;
 }
 
 /**
