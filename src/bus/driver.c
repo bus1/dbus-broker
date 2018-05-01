@@ -2004,7 +2004,7 @@ int driver_goodbye(Peer *peer, bool silent) {
         c_list_for_each_entry_safe(reply, reply_safe, &peer->owned_replies.reply_list, owner_link)
                 reply_slot_free(reply);
 
-        c_list_for_each_entry_safe(rule, rule_safe, &peer->sender_matches.rule_list, registry_link)
+        c_list_for_each_entry_safe(rule, rule_safe, &peer->sender_matches.subscription_list, registry_link)
                 match_rule_unlink(rule);
 
         c_rbtree_for_each_entry_safe_postorder_unlink(ownership, ownership_safe, &peer->owned_names.ownership_tree, owner_node) {
@@ -2036,7 +2036,7 @@ int driver_goodbye(Peer *peer, bool silent) {
                 peer_stop_monitor(peer);
         }
 
-        c_list_for_each_entry_safe(rule, rule_safe, &peer->name_owner_changed_matches.rule_list, registry_link)
+        c_list_for_each_entry_safe(rule, rule_safe, &peer->name_owner_changed_matches.subscription_list, registry_link)
                 match_rule_unlink(rule);
 
         c_rbtree_for_each_entry_safe_postorder_unlink(reply, reply_safe, &peer->replies.reply_tree, registry_node) {

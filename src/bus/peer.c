@@ -613,7 +613,7 @@ static int peer_broadcast_to_matches(PolicySnapshot *sender_policy, NameSet *sen
         MatchRule *rule;
         int r;
 
-        for (rule = match_rule_next_match(matches, NULL, filter); rule; rule = match_rule_next_match(matches, rule, filter)) {
+        for (rule = match_rule_next_subscription_match(matches, NULL, filter); rule; rule = match_rule_next_subscription_match(matches, rule, filter)) {
                 Peer *receiver = c_container_of(rule->owner, Peer, owned_matches);
                 NameSet receiver_names = NAME_SET_INIT_FROM_OWNER(&receiver->owned_names);
 

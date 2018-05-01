@@ -129,7 +129,7 @@ static bool test_match(const char *match_string, MatchFilter *filter) {
         r = match_rule_link(rule, &registry, false);
         assert(!r);
 
-        rule1 = match_rule_next_match(&registry, NULL, filter);
+        rule1 = match_rule_next_subscription_match(&registry, NULL, filter);
         assert(!rule1 || rule1 == rule);
 
         match_rule_user_unref(rule);
@@ -283,13 +283,13 @@ static void test_iterator(void) {
         r = match_rule_link(rule4, &registry, false);
         assert(!r);
 
-        rule = match_rule_next_match(&registry, NULL, &filter);
+        rule = match_rule_next_subscription_match(&registry, NULL, &filter);
         assert(rule == rule1);
 
-        rule = match_rule_next_match(&registry, rule, &filter);
+        rule = match_rule_next_subscription_match(&registry, rule, &filter);
         assert(rule == rule3);
 
-        rule = match_rule_next_match(&registry, rule, &filter);
+        rule = match_rule_next_subscription_match(&registry, rule, &filter);
         assert(!rule);
 
         match_rule_user_unref(rule4);

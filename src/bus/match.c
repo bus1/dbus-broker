@@ -468,7 +468,7 @@ int match_rule_link(MatchRule *rule, MatchRegistry *registry, bool monitor) {
                 if (monitor)
                         c_list_link_tail(&registry->monitor_list, &rule->registry_link);
                 else
-                        c_list_link_tail(&registry->rule_list, &rule->registry_link);
+                        c_list_link_tail(&registry->subscription_list, &rule->registry_link);
         }
 
         return 0;
@@ -488,8 +488,8 @@ bool match_rule_match_filter(MatchRule *rule, MatchFilter *filter) {
         return match_keys_match_filter(&rule->keys, filter);
 }
 
-MatchRule *match_rule_next_match(MatchRegistry *registry, MatchRule *rule, MatchFilter *filter) {
-        c_list_for_each_entry_continue(rule, &registry->rule_list, registry_link)
+MatchRule *match_rule_next_subscription_match(MatchRegistry *registry, MatchRule *rule, MatchFilter *filter) {
+        c_list_for_each_entry_continue(rule, &registry->subscription_list, registry_link)
                 if (match_rule_match_filter(rule, filter))
                         return rule;
 
@@ -580,6 +580,6 @@ void match_registry_init(MatchRegistry *registry) {
  * match_registry_deinit() - XXX
  */
 void match_registry_deinit(MatchRegistry *registry) {
-        assert(c_list_is_empty(&registry->rule_list));
+        assert(c_list_is_empty(&registry->subscription_list));
         assert(c_list_is_empty(&registry->monitor_list));
 }

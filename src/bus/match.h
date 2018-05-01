@@ -85,13 +85,13 @@ struct MatchOwner {
         }
 
 struct MatchRegistry {
-        CList rule_list;
+        CList subscription_list;
         CList monitor_list;
 };
 
-#define MATCH_REGISTRY_INIT(_x) {                                               \
-                .rule_list = (CList)C_LIST_INIT((_x).rule_list),                \
-                .monitor_list = (CList)C_LIST_INIT((_x).monitor_list),          \
+#define MATCH_REGISTRY_INIT(_x) {                                                       \
+                .subscription_list = (CList)C_LIST_INIT((_x).subscription_list),        \
+                .monitor_list = (CList)C_LIST_INIT((_x).monitor_list),                  \
         }
 
 /* rules */
@@ -104,7 +104,7 @@ void match_rule_unlink(MatchRule *rule);
 
 bool match_rule_match_filter(MatchRule *rule, MatchFilter *filter);
 
-MatchRule *match_rule_next_match(MatchRegistry *registry, MatchRule *rule, MatchFilter *filter);
+MatchRule *match_rule_next_subscription_match(MatchRegistry *registry, MatchRule *rule, MatchFilter *filter);
 MatchRule *match_rule_next_monitor_match(MatchRegistry *registry, MatchRule *rule, MatchFilter *filter);
 
 C_DEFINE_CLEANUP(MatchRule *, match_rule_user_unref);
