@@ -583,3 +583,13 @@ void match_registry_deinit(MatchRegistry *registry) {
         assert(c_list_is_empty(&registry->subscription_list));
         assert(c_list_is_empty(&registry->monitor_list));
 }
+
+/**
+ * mach_registry_flush() - XXX
+ */
+void match_registry_flush(MatchRegistry *registry) {
+        MatchRule *rule, *rule_safe;
+
+        c_list_for_each_entry_safe(rule, rule_safe, &registry->subscription_list, registry_link)
+                match_rule_unlink(rule);
+}
