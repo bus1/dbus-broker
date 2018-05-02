@@ -1802,6 +1802,7 @@ static void test_reload_config(void) {
 
         util_broker_terminate(broker);
 }
+
 static void test_become_monitor(void) {
         _c_cleanup_(util_broker_freep) Broker *broker = NULL;
         int r;
@@ -1830,6 +1831,60 @@ static void test_become_monitor(void) {
         util_broker_terminate(broker);
 }
 
+static void test_ping(void) {
+        _c_cleanup_(util_broker_freep) Broker *broker = NULL;
+        int r;
+
+        util_broker_new(&broker);
+        util_broker_spawn(broker);
+
+        /* ping-pong */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+
+                util_broker_connect(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus.Peer",
+                                       "Ping", NULL, NULL,
+                                       "");
+                assert(r >= 0);
+        }
+
+        util_broker_terminate(broker);
+}
+
+static void test_get_machine_id(void) {
+        _c_cleanup_(util_broker_freep) Broker *broker = NULL;
+        int r;
+
+        util_broker_new(&broker);
+        util_broker_spawn(broker);
+
+        /* get the machine id and verify that it is on the right format */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *reply = NULL;
+                const char *id;
+
+                util_broker_connect(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus.Peer",
+                                       "GetMachineId", NULL, &reply,
+                                       "");
+                assert(r >= 0);
+
+                r = sd_bus_message_read(reply, "s", &id);
+                assert(r >= 0);
+                assert(strlen(id) == 32);
+
+                for (size_t i = 0; i < strlen(id); ++i)
+                        assert((id[i] >= '0' && id[i] <= '9') ||
+                               (id[i] >= 'a' && id[i] <= 'f'));
+        }
+
+        util_broker_terminate(broker);
+}
+
 int main(int argc, char **argv) {
         test_hello();
         test_request_name();
@@ -1852,6 +1907,8 @@ int main(int argc, char **argv) {
         test_reload_config();
         test_introspect();
         test_become_monitor();
+        test_ping();
+        test_get_machine_id();
 
         return 0;
 }

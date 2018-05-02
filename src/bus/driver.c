@@ -1552,6 +1552,13 @@ static int driver_method_introspect(Peer *peer, CDVar *in_v, uint32_t serial, CD
                 "      <arg direction=\"in\" type=\"u\"/>\n"
                 "    </method>\n"
                 "  </interface>\n"
+                "  <interface name=\"org.freedesktop.DBus.Peer\">\n"
+                "    <method name=\"Ping\">\n"
+                "    </method>\n"
+                "    <method name=\"GetMachineId\">\n"
+                "      <arg direction=\"out\" type=\"s\"/>\n"
+                "    </method>\n"
+                "  </interface>\n"
                 "</node>\n";
         int r;
 
@@ -1648,6 +1655,43 @@ error:
         return r;
 }
 
+static int driver_method_ping(Peer *peer, CDVar *in_v, uint32_t serial, CDVar *out_v) {
+        int r;
+
+        c_dvar_read(in_v, "()");
+
+        r = driver_end_read(in_v);
+        if (r)
+                return error_trace(r);
+
+        c_dvar_write(out_v, "()");
+
+        r = driver_send_reply(peer, out_v, serial);
+        if (r)
+                return error_trace(r);
+
+        return 0;
+}
+
+static int driver_method_get_machine_id(Peer *peer, CDVar *in_v, uint32_t serial, CDVar *out_v) {
+        int r;
+
+        /* verify the input argument */
+        c_dvar_read(in_v, "()");
+
+        r = driver_end_read(in_v);
+        if (r)
+                return error_trace(r);
+
+        /* write the output message */
+        c_dvar_write(out_v, "(s)", peer->bus->machine_id);
+
+        r = driver_send_reply(peer, out_v, serial);
+        if (r)
+                return error_trace(r);
+
+        return 0;
+}
 static int driver_handle_method(const DriverMethod *method, Peer *peer, const char *path, uint32_t serial, const char *signature_in, Message *message_in) {
         _c_cleanup_(c_dvar_deinit) CDVar var_in = C_DVAR_INIT, var_out = C_DVAR_INIT;
         int r;
@@ -1707,6 +1751,8 @@ static int driver_dispatch_method(Peer *peer, uint32_t serial, const char *metho
                 { "GetId",                                      NULL,                           driver_method_get_id,                                           c_dvar_type_unit,       driver_type_out_s },
                 { "Introspect",                                 NULL,                           driver_method_introspect,                                       c_dvar_type_unit,       driver_type_out_s },
                 { "BecomeMonitor",                              "/org/freedesktop/DBus",        driver_method_become_monitor,                                   driver_type_in_asu,     driver_type_out_unit },
+                { "Ping",                                       NULL,                           driver_method_ping,                                             c_dvar_type_unit,       driver_type_out_unit },
+                { "GetMachineId",                               NULL,                           driver_method_get_machine_id,                                   c_dvar_type_unit,       driver_type_out_s },
         };
 
         if (_c_unlikely_(!peer_is_registered(peer)) && strcmp(method, "Hello") != 0)
@@ -1724,6 +1770,7 @@ static int driver_dispatch_method(Peer *peer, uint32_t serial, const char *metho
 
 static int driver_dispatch_interface(Peer *peer, uint32_t serial, const char *interface, const char *member, const char *path, const char *signature, Message *message) {
         int r;
+
         if (message->header->type != DBUS_MESSAGE_TYPE_METHOD_CALL)
                 /* ignore */
                 return 0;
@@ -1747,7 +1794,13 @@ static int driver_dispatch_interface(Peer *peer, uint32_t serial, const char *in
         }
 
         if (interface) {
-                if (_c_unlikely_(strcmp(member, "Introspect") == 0)) {
+                if (_c_unlikely_(strcmp(member, "Ping") == 0)) {
+                        if (strcmp(interface, "org.freedesktop.DBus.Peer") != 0)
+                                return DRIVER_E_UNEXPECTED_INTERFACE;
+                } else if (_c_unlikely_(strcmp(member, "GetMachineId") == 0)) {
+                        if (strcmp(interface, "org.freedesktop.DBus.Peer") != 0)
+                                return DRIVER_E_UNEXPECTED_INTERFACE;
+                } else if (_c_unlikely_(strcmp(member, "Introspect") == 0)) {
                         if (strcmp(interface, "org.freedesktop.DBus.Introspectable") != 0)
                                 return DRIVER_E_UNEXPECTED_INTERFACE;
                 } else if (_c_unlikely_(strcmp(member, "BecomeMonitor") == 0)) {
