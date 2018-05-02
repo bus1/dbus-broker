@@ -1885,6 +1885,31 @@ static void test_get_machine_id(void) {
         util_broker_terminate(broker);
 }
 
+static void test_no_destination(void) {
+        _c_cleanup_(util_broker_freep) Broker *broker = NULL;
+        int r;
+
+        util_broker_new(&broker);
+        util_broker_spawn(broker);
+
+        /* don't provide a destination, verify that the driver answers regardless */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *message = NULL;
+
+                util_broker_connect(broker, &bus);
+
+                r = sd_bus_message_new_method_call(bus, &message, NULL, "/org/freedestkop/DBus",
+                                                   "org.freedesktop.DBus.Peer", "Ping");
+                assert(r >= 0);
+
+                r = sd_bus_call(bus, message, 0, NULL, NULL);
+                assert(r >= 0);
+        }
+
+        util_broker_terminate(broker);
+}
+
 int main(int argc, char **argv) {
         test_hello();
         test_request_name();
@@ -1909,6 +1934,7 @@ int main(int argc, char **argv) {
         test_become_monitor();
         test_ping();
         test_get_machine_id();
+        test_no_destination();
 
         return 0;
 }
