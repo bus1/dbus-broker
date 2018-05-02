@@ -13,6 +13,7 @@
 typedef struct MatchFilter MatchFilter;
 typedef struct MatchKeys MatchKeys;
 typedef struct MatchOwner MatchOwner;
+typedef struct MatchRegistryByInterface MatchRegistryByInterface;
 typedef struct MatchRegistryByPath MatchRegistryByPath;
 typedef struct MatchRegistry MatchRegistry;
 typedef struct MatchRule MatchRule;
@@ -60,7 +61,7 @@ struct MatchKeys {
 
 struct MatchRule {
         unsigned long int n_user_refs;
-        MatchRegistryByPath *registry_by_path;
+        MatchRegistryByInterface *registry_by_interface;
         CList registry_link;
         MatchRegistry *registry;
         MatchOwner *owner;
@@ -86,16 +87,30 @@ struct MatchOwner {
                 .rule_tree = C_RBTREE_INIT,     \
         }
 
-struct MatchRegistryByPath {
+struct MatchRegistryByInterface {
         unsigned long n_refs;
         CList rule_list;
+        MatchRegistryByPath *registry_by_path;
+        CRBNode registry_node;
+        char interface[];
+};
+
+#define MATCH_REGISTRY_BY_INTERFACE_INIT(_x) {                          \
+                .n_refs = 1,                                            \
+                .rule_list = C_LIST_INIT((_x).rule_list),               \
+                .registry_node = C_RBNODE_INIT((_x).registry_node),     \
+        }
+
+struct MatchRegistryByPath {
+        unsigned long n_refs;
+        CRBTree interface_tree;
         CRBNode registry_node;
         char path[];
 };
 
 #define MATCH_REGISTRY_BY_PATH_INIT(_x) {                               \
                 .n_refs = 1,                                            \
-                .rule_list = C_LIST_INIT((_x).rule_list),               \
+                .interface_tree = C_RBTREE_INIT,                        \
                 .registry_node = C_RBNODE_INIT((_x).registry_node),     \
         }
 
