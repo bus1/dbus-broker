@@ -381,7 +381,7 @@ static MatchRegistryByPath *match_registry_by_path_unref(MatchRegistryByPath *re
         if (!registry || --registry->n_refs > 0)
                 return NULL;
 
-        assert(c_list_is_empty(&registry->rule_list));
+        assert(c_rbtree_is_empty(&registry->interface_tree));
 
         c_rbnode_unlink(&registry->registry_node);
         free(registry);
@@ -393,6 +393,64 @@ C_DEFINE_CLEANUP(MatchRegistryByPath *, match_registry_by_path_unref);
 
 static void match_registry_by_path_link(MatchRegistryByPath *registry, CRBTree *tree, CRBNode *parent, CRBNode **slot) {
         c_rbtree_add(tree, parent, slot, &registry->registry_node);
+}
+
+static int match_registry_by_interface_compare(CRBTree *tree, void *k, CRBNode *rb) {
+        MatchRegistryByInterface *registry = c_container_of(rb, MatchRegistryByInterface, registry_node);
+        const char *interface1 = k ?: "", *interface2 = registry->interface;
+
+        return strcmp(interface1, interface2);
+}
+
+static int match_registry_by_interface_new(MatchRegistryByInterface **registryp, const char *interface) {
+        MatchRegistryByInterface *registry;
+        size_t n_interface;
+
+        if (!interface)
+                interface = "";
+
+        n_interface = strlen(interface);
+
+        registry = malloc(sizeof(*registry) + n_interface + 1);
+        if (!registry)
+                return error_origin(-ENOMEM);
+
+        *registry = (MatchRegistryByInterface)MATCH_REGISTRY_BY_INTERFACE_INIT(*registry);
+        strcpy(registry->interface, interface);
+
+        *registryp = registry;
+        return 0;
+}
+
+static MatchRegistryByInterface *match_registry_by_interface_ref(MatchRegistryByInterface *registry) {
+        if (!registry)
+                return NULL;
+
+        assert(registry->n_refs > 0);
+
+        ++registry->n_refs;
+
+        return registry;
+}
+
+static MatchRegistryByInterface *match_registry_by_interface_unref(MatchRegistryByInterface *registry) {
+        if (!registry || --registry->n_refs > 0)
+                return NULL;
+
+        assert(c_list_is_empty(&registry->rule_list));
+
+        c_rbnode_unlink(&registry->registry_node);
+        match_registry_by_path_unref(registry->registry_by_path);
+        free(registry);
+
+        return NULL;
+}
+
+C_DEFINE_CLEANUP(MatchRegistryByInterface *, match_registry_by_interface_unref);
+
+static void match_registry_by_interface_link(MatchRegistryByInterface *registry, MatchRegistryByPath *registry_by_path, CRBNode *parent, CRBNode **slot) {
+        c_rbtree_add(&registry_by_path->interface_tree, parent, slot, &registry->registry_node);
+        registry->registry_by_path = match_registry_by_path_ref(registry_by_path);
 }
 
 static int match_rule_compare(CRBTree *tree, void *k, CRBNode *rb) {
@@ -512,9 +570,32 @@ MatchRule *match_rule_user_unref(MatchRule *rule) {
         return NULL;
 }
 
-static int match_rule_link_by_path(MatchRule *rule, MatchRegistryByPath *registry) {
+static int match_rule_link_by_interface(MatchRule *rule, MatchRegistryByInterface *registry) {
         c_list_link_tail(&registry->rule_list, &rule->registry_link);
-        rule->registry_by_path = match_registry_by_path_ref(registry);
+        rule->registry_by_interface = match_registry_by_interface_ref(registry);
+
+        return 0;
+}
+
+static int match_rule_link_by_path(MatchRule *rule, MatchRegistryByPath *registry) {
+        _c_cleanup_(match_registry_by_interface_unrefp) MatchRegistryByInterface *registry_by_interface = NULL;
+        CRBNode **slot, *parent;
+        int r;
+
+        slot = c_rbtree_find_slot(&registry->interface_tree, match_registry_by_interface_compare, rule->keys.filter.interface, &parent);
+        if (!slot) {
+                registry_by_interface = match_registry_by_interface_ref(c_rbnode_entry(parent, MatchRegistryByInterface, registry_node));
+        } else {
+                r = match_registry_by_interface_new(&registry_by_interface, rule->keys.filter.interface);
+                if (r)
+                        return error_trace(r);
+
+                match_registry_by_interface_link(registry_by_interface, registry, parent, slot);
+        }
+
+        r = match_rule_link_by_interface(rule, registry_by_interface);
+        if (r)
+                return error_trace(r);
 
         return 0;
 }
@@ -565,7 +646,7 @@ int match_rule_link(MatchRule *rule, MatchRegistry *registry, bool monitor) {
 void match_rule_unlink(MatchRule *rule) {
         if (rule->registry) {
                 c_list_unlink(&rule->registry_link);
-                rule->registry_by_path = match_registry_by_path_unref(rule->registry_by_path);
+                rule->registry_by_interface = match_registry_by_interface_unref(rule->registry_by_interface);
                 rule->registry = NULL;
         }
 }
@@ -574,7 +655,7 @@ bool match_rule_match_filter(MatchRule *rule, MatchFilter *filter) {
         return match_keys_match_filter(&rule->keys, filter);
 }
 
-static MatchRule *match_rule_next_match_by_path(MatchRegistryByPath *registry, MatchRule *rule, MatchFilter *filter) {
+MatchRule *match_rule_next_match_by_interface(MatchRegistryByInterface *registry, MatchRule *rule, MatchFilter *filter) {
         if (!registry)
                 return NULL;
 
@@ -585,12 +666,39 @@ static MatchRule *match_rule_next_match_by_path(MatchRegistryByPath *registry, M
         return NULL;
 }
 
+static MatchRule *match_rule_next_match_by_path(MatchRegistryByPath *registry, MatchRule *rule, MatchFilter *filter) {
+        MatchRegistryByInterface *registry_by_interface;
+        bool wildcard;
+
+        if (!registry)
+                return NULL;
+
+        if (rule) {
+                registry_by_interface = rule->registry_by_interface;
+                if (registry_by_interface->interface[0] == '\0')
+                        wildcard = true;
+                else
+                        wildcard = false;
+        } else {
+                registry_by_interface = c_rbtree_find_entry(&registry->interface_tree, match_registry_by_interface_compare, NULL, MatchRegistryByInterface, registry_node);
+                wildcard = true;
+        }
+
+        rule = match_rule_next_match_by_interface(registry_by_interface, rule, filter);
+        if (!rule && wildcard && filter->interface) {
+                registry_by_interface = c_rbtree_find_entry(&registry->interface_tree, match_registry_by_interface_compare, filter->interface, MatchRegistryByInterface, registry_node);
+                rule = match_rule_next_match_by_interface(registry_by_interface, NULL, filter);
+        }
+
+        return rule;
+}
+
 static MatchRule *match_rule_next_match(CRBTree *tree, MatchRule *rule, MatchFilter *filter) {
         MatchRegistryByPath *registry_by_path;
         bool wildcard;
 
         if (rule) {
-                registry_by_path = rule->registry_by_path;
+                registry_by_path = rule->registry_by_interface->registry_by_path;
                 if (registry_by_path->path[0] == '\0')
                         wildcard = true;
                 else
@@ -697,11 +805,21 @@ void match_registry_deinit(MatchRegistry *registry) {
         assert(c_rbtree_is_empty(&registry->monitor_tree));
 }
 
-static void match_registry_by_path_flush(MatchRegistryByPath *registry) {
+static void match_registry_by_interface_flush(MatchRegistryByInterface *registry) {
         MatchRule *rule, *rule_safe;
 
         c_list_for_each_entry_safe(rule, rule_safe, &registry->rule_list, registry_link)
                 match_rule_unlink(rule);
+}
+
+static void match_registry_by_path_flush(MatchRegistryByPath *registry) {
+        MatchRegistryByInterface *registry_by_interface, *registry_by_interface_safe;
+
+        c_rbtree_for_each_entry_safe_postorder(registry_by_interface, registry_by_interface_safe, &registry->interface_tree, registry_node) {
+                match_registry_by_interface_ref(registry_by_interface);
+                match_registry_by_interface_flush(registry_by_interface);
+                match_registry_by_interface_unref(registry_by_interface);
+        }
 }
 
 /**
