@@ -1867,7 +1867,13 @@ static int driver_dispatch_internal(Peer *peer, Message *message) {
         if (r)
                 return error_trace(r);
 
-        if (_c_unlikely_(c_string_equal(message->metadata.fields.destination, "org.freedesktop.DBus"))) {
+        if (_c_unlikely_(c_string_equal(message->metadata.fields.destination, "org.freedesktop.DBus") ||
+                         (message->metadata.header.type == DBUS_MESSAGE_TYPE_METHOD_CALL &&
+                          !message->metadata.fields.destination))) {
+                /*
+                 * Method calls without a destination are implicitly treated as if they were destined for
+                 * the driver.
+                 */
                 return error_trace(driver_dispatch_interface(peer,
                                                              message_read_serial(message),
                                                              message->metadata.fields.interface,
