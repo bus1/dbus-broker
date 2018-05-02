@@ -13,6 +13,7 @@
 typedef struct MatchFilter MatchFilter;
 typedef struct MatchKeys MatchKeys;
 typedef struct MatchOwner MatchOwner;
+typedef struct MatchRegistryByPath MatchRegistryByPath;
 typedef struct MatchRegistry MatchRegistry;
 typedef struct MatchRule MatchRule;
 
@@ -59,9 +60,10 @@ struct MatchKeys {
 
 struct MatchRule {
         unsigned long int n_user_refs;
+        MatchRegistryByPath *registry_by_path;
+        CList registry_link;
         MatchRegistry *registry;
         MatchOwner *owner;
-        CList registry_link;
         CRBNode owner_node;
 
         UserCharge charge[2];
@@ -84,14 +86,27 @@ struct MatchOwner {
                 .rule_tree = C_RBTREE_INIT,     \
         }
 
-struct MatchRegistry {
-        CList subscription_list;
-        CList monitor_list;
+struct MatchRegistryByPath {
+        unsigned long n_refs;
+        CList rule_list;
+        CRBNode registry_node;
+        char path[];
 };
 
-#define MATCH_REGISTRY_INIT(_x) {                                                       \
-                .subscription_list = (CList)C_LIST_INIT((_x).subscription_list),        \
-                .monitor_list = (CList)C_LIST_INIT((_x).monitor_list),                  \
+#define MATCH_REGISTRY_BY_PATH_INIT(_x) {                               \
+                .n_refs = 1,                                            \
+                .rule_list = C_LIST_INIT((_x).rule_list),               \
+                .registry_node = C_RBNODE_INIT((_x).registry_node),     \
+        }
+
+struct MatchRegistry {
+        CRBTree subscription_tree;
+        CRBTree monitor_tree;
+};
+
+#define MATCH_REGISTRY_INIT(_x) {                       \
+                .subscription_tree = C_RBTREE_INIT,     \
+                .monitor_tree = C_RBTREE_INIT,          \
         }
 
 /* rules */

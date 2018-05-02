@@ -339,6 +339,62 @@ static bool match_keys_match_filter(MatchKeys *keys, MatchFilter *filter) {
         return true;
 }
 
+static int match_registry_by_path_compare(CRBTree *tree, void *k, CRBNode *rb) {
+        MatchRegistryByPath *registry = c_container_of(rb, MatchRegistryByPath, registry_node);
+        const char *path1 = k ?: "", *path2 = registry->path;
+
+        return strcmp(path1, path2);
+}
+
+static int match_registry_by_path_new(MatchRegistryByPath **registryp, const char *path) {
+        MatchRegistryByPath *registry;
+        size_t n_path;
+
+        if (!path)
+                path = "";
+
+        n_path = strlen(path);
+
+        registry = malloc(sizeof(*registry) + n_path + 1);
+        if (!registry)
+                return error_origin(-ENOMEM);
+
+        *registry = (MatchRegistryByPath)MATCH_REGISTRY_BY_PATH_INIT(*registry);
+        strcpy(registry->path, path);
+
+        *registryp = registry;
+        return 0;
+}
+
+static MatchRegistryByPath *match_registry_by_path_ref(MatchRegistryByPath *registry) {
+        if (!registry)
+                return NULL;
+
+        assert(registry->n_refs > 0);
+
+        ++registry->n_refs;
+
+        return registry;
+}
+
+static MatchRegistryByPath *match_registry_by_path_unref(MatchRegistryByPath *registry) {
+        if (!registry || --registry->n_refs > 0)
+                return NULL;
+
+        assert(c_list_is_empty(&registry->rule_list));
+
+        c_rbnode_unlink(&registry->registry_node);
+        free(registry);
+
+        return NULL;
+}
+
+C_DEFINE_CLEANUP(MatchRegistryByPath *, match_registry_by_path_unref);
+
+static void match_registry_by_path_link(MatchRegistryByPath *registry, CRBTree *tree, CRBNode *parent, CRBNode **slot) {
+        c_rbtree_add(tree, parent, slot, &registry->registry_node);
+}
+
 static int match_rule_compare(CRBTree *tree, void *k, CRBNode *rb) {
         MatchRule *rule = c_container_of(rb, MatchRule, owner_node);
         MatchKeys *key1 = k, *key2 = &rule->keys;
@@ -456,20 +512,49 @@ MatchRule *match_rule_user_unref(MatchRule *rule) {
         return NULL;
 }
 
+static int match_rule_link_by_path(MatchRule *rule, MatchRegistryByPath *registry) {
+        c_list_link_tail(&registry->rule_list, &rule->registry_link);
+        rule->registry_by_path = match_registry_by_path_ref(registry);
+
+        return 0;
+}
+
 /**
  * match_rule_link() - XXX
  */
 int match_rule_link(MatchRule *rule, MatchRegistry *registry, bool monitor) {
+        _c_cleanup_(match_registry_by_path_unrefp) MatchRegistryByPath *registry_by_path = NULL;
+        CRBTree *tree;
+        CRBNode **slot, *parent;
+        int r;
+
         if (rule->registry) {
                 assert(registry == rule->registry);
                 assert(c_list_is_linked(&rule->registry_link));
-        } else {
-                rule->registry = registry;
-                if (monitor)
-                        c_list_link_tail(&registry->monitor_list, &rule->registry_link);
-                else
-                        c_list_link_tail(&registry->subscription_list, &rule->registry_link);
+
+                return 0;
         }
+
+        if (monitor)
+                tree = &registry->monitor_tree;
+        else
+                tree = &registry->subscription_tree;
+
+        slot = c_rbtree_find_slot(tree, match_registry_by_path_compare, rule->keys.filter.path, &parent);
+        if (!slot) {
+                registry_by_path = match_registry_by_path_ref(c_rbnode_entry(parent, MatchRegistryByPath, registry_node));
+        } else {
+                r = match_registry_by_path_new(&registry_by_path, rule->keys.filter.path);
+                if (r)
+                        return error_trace(r);
+
+                match_registry_by_path_link(registry_by_path, tree, parent, slot);
+        }
+
+        r = match_rule_link_by_path(rule, registry_by_path);
+        if (r)
+                return error_trace(r);
+        rule->registry = registry;
 
         return 0;
 }
@@ -480,6 +565,7 @@ int match_rule_link(MatchRule *rule, MatchRegistry *registry, bool monitor) {
 void match_rule_unlink(MatchRule *rule) {
         if (rule->registry) {
                 c_list_unlink(&rule->registry_link);
+                rule->registry_by_path = match_registry_by_path_unref(rule->registry_by_path);
                 rule->registry = NULL;
         }
 }
@@ -488,20 +574,47 @@ bool match_rule_match_filter(MatchRule *rule, MatchFilter *filter) {
         return match_keys_match_filter(&rule->keys, filter);
 }
 
-MatchRule *match_rule_next_subscription_match(MatchRegistry *registry, MatchRule *rule, MatchFilter *filter) {
-        c_list_for_each_entry_continue(rule, &registry->subscription_list, registry_link)
+static MatchRule *match_rule_next_match_by_path(MatchRegistryByPath *registry, MatchRule *rule, MatchFilter *filter) {
+        if (!registry)
+                return NULL;
+
+        c_list_for_each_entry_continue(rule, &registry->rule_list, registry_link)
                 if (match_rule_match_filter(rule, filter))
                         return rule;
 
         return NULL;
 }
 
-MatchRule *match_rule_next_monitor_match(MatchRegistry *registry, MatchRule *rule, MatchFilter *filter) {
-        c_list_for_each_entry_continue(rule, &registry->monitor_list, registry_link)
-                if (match_rule_match_filter(rule, filter))
-                        return rule;
+static MatchRule *match_rule_next_match(CRBTree *tree, MatchRule *rule, MatchFilter *filter) {
+        MatchRegistryByPath *registry_by_path;
+        bool wildcard;
 
-        return NULL;
+        if (rule) {
+                registry_by_path = rule->registry_by_path;
+                if (registry_by_path->path[0] == '\0')
+                        wildcard = true;
+                else
+                        wildcard = false;
+        } else {
+                registry_by_path = c_rbtree_find_entry(tree, match_registry_by_path_compare, NULL, MatchRegistryByPath, registry_node);
+                wildcard = true;
+        }
+
+        rule = match_rule_next_match_by_path(registry_by_path, rule, filter);
+        if (!rule && wildcard && filter->path) {
+                registry_by_path = c_rbtree_find_entry(tree, match_registry_by_path_compare, filter->path, MatchRegistryByPath, registry_node);
+                rule = match_rule_next_match_by_path(registry_by_path, NULL, filter);
+        }
+
+        return rule;
+}
+
+MatchRule *match_rule_next_subscription_match(MatchRegistry *registry, MatchRule *rule, MatchFilter *filter) {
+        return match_rule_next_match(&registry->subscription_tree, rule, filter);
+}
+
+MatchRule *match_rule_next_monitor_match(MatchRegistry *registry, MatchRule *rule, MatchFilter *filter) {
+        return match_rule_next_match(&registry->monitor_tree, rule, filter);
 }
 
 /**
@@ -580,16 +693,26 @@ void match_registry_init(MatchRegistry *registry) {
  * match_registry_deinit() - XXX
  */
 void match_registry_deinit(MatchRegistry *registry) {
-        assert(c_list_is_empty(&registry->subscription_list));
-        assert(c_list_is_empty(&registry->monitor_list));
+        assert(c_rbtree_is_empty(&registry->subscription_tree));
+        assert(c_rbtree_is_empty(&registry->monitor_tree));
+}
+
+static void match_registry_by_path_flush(MatchRegistryByPath *registry) {
+        MatchRule *rule, *rule_safe;
+
+        c_list_for_each_entry_safe(rule, rule_safe, &registry->rule_list, registry_link)
+                match_rule_unlink(rule);
 }
 
 /**
  * mach_registry_flush() - XXX
  */
 void match_registry_flush(MatchRegistry *registry) {
-        MatchRule *rule, *rule_safe;
+        MatchRegistryByPath *registry_by_path, *registry_by_path_safe;
 
-        c_list_for_each_entry_safe(rule, rule_safe, &registry->subscription_list, registry_link)
-                match_rule_unlink(rule);
+        c_rbtree_for_each_entry_safe_postorder(registry_by_path, registry_by_path_safe, &registry->subscription_tree, registry_node) {
+                match_registry_by_path_ref(registry_by_path);
+                match_registry_by_path_flush(registry_by_path);
+                match_registry_by_path_unref(registry_by_path);
+        }
 }
