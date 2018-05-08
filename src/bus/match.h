@@ -13,6 +13,7 @@
 typedef struct MatchFilter MatchFilter;
 typedef struct MatchKeys MatchKeys;
 typedef struct MatchOwner MatchOwner;
+typedef struct MatchRegistryByKeys MatchRegistryByKeys;
 typedef struct MatchRegistryByMember MatchRegistryByMember;
 typedef struct MatchRegistryByInterface MatchRegistryByInterface;
 typedef struct MatchRegistryByPath MatchRegistryByPath;
@@ -53,6 +54,7 @@ struct MatchKeys {
         const char *path_namespace;
         const char *arg0namespace;
 
+        size_t n_buffer;
         char buffer[];
 };
 
@@ -62,7 +64,7 @@ struct MatchKeys {
 
 struct MatchRule {
         unsigned long int n_user_refs;
-        MatchRegistryByMember *registry_by_member;
+        MatchRegistryByKeys *registry_by_keys;
         CList registry_link;
         MatchRegistry *registry;
         MatchOwner *owner;
@@ -88,9 +90,25 @@ struct MatchOwner {
                 .rule_tree = C_RBTREE_INIT,     \
         }
 
-struct MatchRegistryByMember {
+struct MatchRegistryByKeys {
         unsigned long n_refs;
         CList rule_list;
+        MatchRegistryByMember *registry_by_member;
+        CRBNode registry_node;
+        MatchKeys keys;
+        /* @keys must be last, as it contains a VLA */
+};
+
+#define MATCH_REGISTRY_BY_KEYS_INIT(_x) {                               \
+                .n_refs = 1,                                            \
+                .rule_list = C_LIST_INIT((_x).rule_list),               \
+                .registry_node = C_RBNODE_INIT((_x).registry_node),     \
+                .keys = MATCH_KEYS_NULL,                                \
+        }
+
+struct MatchRegistryByMember {
+        unsigned long n_refs;
+        CRBTree keys_tree;
         MatchRegistryByInterface *registry_by_interface;
         CRBNode registry_node;
         char member[];
@@ -98,7 +116,7 @@ struct MatchRegistryByMember {
 
 #define MATCH_REGISTRY_BY_MEMBER_INIT(_x) {                             \
                 .n_refs = 1,                                            \
-                .rule_list = C_LIST_INIT((_x).rule_list),               \
+                .keys_tree = C_RBTREE_INIT,                             \
                 .registry_node = C_RBNODE_INIT((_x).registry_node),     \
         }
 
