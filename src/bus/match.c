@@ -189,7 +189,7 @@ static int match_parse_key(const char **match, const char **keyp, size_t *n_keyp
 
 static int match_keys_parse(MatchKeys *keys, const char *string) {
         const char *key, *value;
-        size_t n_key;
+        size_t n_key, n_buffer;
         char *p;
         int r;
 
@@ -218,6 +218,12 @@ static int match_keys_parse(MatchKeys *keys, const char *string) {
                         break;
         }
 
+        n_buffer = p - keys->buffer;
+
+        assert(n_buffer <= keys->n_buffer);
+
+        keys->n_buffer = p - keys->buffer;
+
         return (r == MATCH_E_EOF) ? 0 : error_trace(r);
 }
 
@@ -235,10 +241,86 @@ static int match_keys_init(MatchKeys *k, const char *string, size_t n_string) {
         assert(n_string - 1 <= MATCH_RULE_LENGTH_MAX);
 
         *keys = (MatchKeys)MATCH_KEYS_NULL;
+        keys->n_buffer = n_string;
 
         r = match_keys_parse(keys, string);
         if (r)
                 return error_trace(r);
+
+        keys = NULL;
+        return 0;
+}
+
+static int match_keys_clone(MatchKeys *k, MatchKeys *old) {
+        _c_cleanup_(match_keys_deinitp) MatchKeys *keys = k;
+        size_t n_buffer;
+        char *p;
+
+        *keys = (MatchKeys)MATCH_KEYS_NULL;
+        keys->n_buffer = old->n_buffer;
+
+        keys->filter.type = old->filter.type;
+        keys->filter.sender = old->filter.sender;
+
+        p = keys->buffer;
+
+        if (old->filter.interface) {
+                keys->filter.interface = p;
+                p = stpcpy(p, old->filter.interface) + 1;
+        }
+
+        if (old->filter.member) {
+                keys->filter.member = p;
+                p = stpcpy(p, old->filter.member) + 1;
+        }
+
+        if (old->filter.path) {
+                keys->filter.path = p;
+                p = stpcpy(p, old->filter.path) + 1;
+        }
+
+        for (size_t i = 0; i < old->filter.n_args; ++i) {
+                if (old->filter.args[i]) {
+                        keys->filter.args[i] = p;
+                        p = stpcpy(p, old->filter.args[i]) + 1;
+                }
+        }
+        keys->filter.n_args = old->filter.n_args;
+
+        for (size_t i = 0; i < old->filter.n_argpaths; ++i) {
+                if (old->filter.argpaths[i]) {
+                        keys->filter.argpaths[i] = p;
+                        p = stpcpy(p, old->filter.argpaths[i]) + 1;
+                }
+        }
+        keys->filter.n_argpaths = old->filter.n_argpaths;
+
+        if (old->destination) {
+                keys->destination = p;
+                p = stpcpy(p, old->destination) + 1;
+        }
+
+        if (old->sender) {
+                keys->sender = p;
+                p = stpcpy(p, old->sender) + 1;
+        }
+
+        if (old->path_namespace) {
+                keys->path_namespace = p;
+                p = stpcpy(p, old->path_namespace) + 1;
+        }
+
+        if (old->arg0namespace) {
+                keys->arg0namespace = p;
+                p = stpcpy(p, old->arg0namespace) + 1;
+        }
+
+        n_buffer = p - keys->buffer;
+
+        assert(n_buffer <= keys->n_buffer);
+
+        keys->n_buffer = p - keys->buffer;
+
 
         keys = NULL;
         return 0;
@@ -495,7 +577,7 @@ static MatchRegistryByMember *match_registry_by_member_unref(MatchRegistryByMemb
         if (!registry || --registry->n_refs > 0)
                 return NULL;
 
-        assert(c_list_is_empty(&registry->rule_list));
+        assert(c_rbtree_is_empty(&registry->keys_tree));
 
         c_rbnode_unlink(&registry->registry_node);
         match_registry_by_interface_unref(registry->registry_by_interface);
@@ -511,9 +593,7 @@ static void match_registry_by_member_link(MatchRegistryByMember *registry, Match
         registry->registry_by_interface = match_registry_by_interface_ref(registry_by_interface);
 }
 
-static int match_rule_compare(CRBTree *tree, void *k, CRBNode *rb) {
-        MatchRule *rule = c_container_of(rb, MatchRule, owner_node);
-        MatchKeys *key1 = k, *key2 = &rule->keys;
+static int match_keys_compare(MatchKeys *key1, MatchKeys *key2) {
         int r;
 
         if ((r = c_string_compare(key1->sender, key2->sender)) ||
@@ -547,6 +627,65 @@ static int match_rule_compare(CRBTree *tree, void *k, CRBNode *rb) {
         }
 
         return 0;
+}
+
+static int match_registry_by_keys_compare(CRBTree *tree, void *k, CRBNode *rb) {
+        MatchRegistryByKeys *registry = c_container_of(rb, MatchRegistryByKeys, registry_node);
+        MatchKeys *keys1 = k, *keys2 = &registry->keys;
+
+        return match_keys_compare(keys1, keys2);
+}
+
+static int match_registry_by_keys_new(MatchRegistryByKeys **registryp, MatchKeys *keys) {
+        MatchRegistryByKeys *registry;
+
+        registry = malloc(sizeof(*registry) + keys->n_buffer);
+        if (!registry)
+                return error_origin(-ENOMEM);
+
+        *registry = (MatchRegistryByKeys)MATCH_REGISTRY_BY_KEYS_INIT(*registry);
+        match_keys_clone(&registry->keys, keys);
+
+        *registryp = registry;
+        return 0;
+}
+
+static MatchRegistryByKeys *match_registry_by_keys_ref(MatchRegistryByKeys *registry) {
+        if (!registry)
+                return NULL;
+
+        assert(registry->n_refs > 0);
+
+        ++registry->n_refs;
+
+        return registry;
+}
+
+static MatchRegistryByKeys *match_registry_by_keys_unref(MatchRegistryByKeys *registry) {
+        if (!registry || --registry->n_refs > 0)
+                return NULL;
+
+        assert(c_list_is_empty(&registry->rule_list));
+
+        c_rbnode_unlink(&registry->registry_node);
+        match_registry_by_member_unref(registry->registry_by_member);
+        free(registry);
+
+        return NULL;
+}
+
+C_DEFINE_CLEANUP(MatchRegistryByKeys *, match_registry_by_keys_unref);
+
+static void match_registry_by_keys_link(MatchRegistryByKeys *registry, MatchRegistryByMember *registry_by_member, CRBNode *parent, CRBNode **slot) {
+        c_rbtree_add(&registry_by_member->keys_tree, parent, slot, &registry->registry_node);
+        registry->registry_by_member = match_registry_by_member_ref(registry_by_member);
+}
+
+static int match_rule_compare(CRBTree *tree, void *k, CRBNode *rb) {
+        MatchRule *rule = c_container_of(rb, MatchRule, owner_node);
+        MatchKeys *key1 = k, *key2 = &rule->keys;
+
+        return match_keys_compare(key1, key2);
 }
 
 static MatchRule *match_rule_free(MatchRule *rule) {
@@ -628,9 +767,28 @@ MatchRule *match_rule_user_unref(MatchRule *rule) {
         return NULL;
 }
 
-static int match_rule_link_by_member(MatchRule *rule, MatchRegistryByMember *registry) {
+static void match_rule_link_by_keys(MatchRule *rule, MatchRegistryByKeys *registry) {
         c_list_link_tail(&registry->rule_list, &rule->registry_link);
-        rule->registry_by_member = match_registry_by_member_ref(registry);
+        rule->registry_by_keys = match_registry_by_keys_ref(registry);
+}
+
+static int match_rule_link_by_member(MatchRule *rule, MatchRegistryByMember *registry) {
+        _c_cleanup_(match_registry_by_keys_unrefp) MatchRegistryByKeys *registry_by_keys = NULL;
+        CRBNode **slot, *parent;
+        int r;
+
+        slot = c_rbtree_find_slot(&registry->keys_tree, match_registry_by_keys_compare, &rule->keys, &parent);
+        if (!slot) {
+                registry_by_keys = match_registry_by_keys_ref(c_rbnode_entry(parent, MatchRegistryByKeys, registry_node));
+        } else {
+                r = match_registry_by_keys_new(&registry_by_keys, &rule->keys);
+                if (r)
+                        return error_trace(r);
+
+                match_registry_by_keys_link(registry_by_keys, registry, parent, slot);
+        }
+
+        match_rule_link_by_keys(rule, registry_by_keys);
 
         return 0;
 }
@@ -727,7 +885,7 @@ int match_rule_link(MatchRule *rule, MatchRegistry *registry, bool monitor) {
 void match_rule_unlink(MatchRule *rule) {
         if (rule->registry) {
                 c_list_unlink(&rule->registry_link);
-                rule->registry_by_member = match_registry_by_member_unref(rule->registry_by_member);
+                rule->registry_by_keys = match_registry_by_keys_unref(rule->registry_by_keys);
                 rule->registry = NULL;
         }
 }
@@ -736,13 +894,37 @@ bool match_rule_match_filter(MatchRule *rule, MatchFilter *filter) {
         return match_keys_match_filter(&rule->keys, filter);
 }
 
+static MatchRule *match_rule_next_match_by_keys(MatchRegistryByKeys *registry, MatchRule *rule, MatchFilter *filter) {
+        c_list_for_each_entry_continue(rule, &registry->rule_list, registry_link)
+                return rule;
+
+        return NULL;
+}
+
 static MatchRule *match_rule_next_match_by_member(MatchRegistryByMember *registry, MatchRule *rule, MatchFilter *filter) {
+        MatchRegistryByKeys *registry_by_keys;
+
         if (!registry)
                 return NULL;
 
-        c_list_for_each_entry_continue(rule, &registry->rule_list, registry_link)
-                if (match_rule_match_filter(rule, filter))
+        if (rule) {
+                registry_by_keys = rule->registry_by_keys;
+
+                rule = match_rule_next_match_by_keys(registry_by_keys, rule, filter);
+                if (rule)
                         return rule;
+
+                registry_by_keys = c_rbnode_entry(c_rbnode_next(&registry_by_keys->registry_node), MatchRegistryByKeys, registry_node);
+        } else {
+                registry_by_keys = c_rbnode_entry(c_rbtree_first(&registry->keys_tree), MatchRegistryByKeys, registry_node);
+        }
+
+        for (; registry_by_keys; registry_by_keys = c_rbnode_entry(c_rbnode_next(&registry_by_keys->registry_node), MatchRegistryByKeys, registry_node)) {
+                if (!match_keys_match_filter(&registry_by_keys->keys, filter))
+                        continue;
+
+                return match_rule_next_match_by_keys(registry_by_keys, NULL, filter);
+        }
 
         return NULL;
 }
@@ -755,7 +937,7 @@ static MatchRule *match_rule_next_match_by_interface(MatchRegistryByInterface *r
                 return NULL;
 
         if (rule) {
-                registry_by_member = rule->registry_by_member;
+                registry_by_member = rule->registry_by_keys->registry_by_member;
                 if (registry_by_member->member[0] == '\0')
                         wildcard = true;
                 else
@@ -782,7 +964,7 @@ static MatchRule *match_rule_next_match_by_path(MatchRegistryByPath *registry, M
                 return NULL;
 
         if (rule) {
-                registry_by_interface = rule->registry_by_member->registry_by_interface;
+                registry_by_interface = rule->registry_by_keys->registry_by_member->registry_by_interface;
                 if (registry_by_interface->interface[0] == '\0')
                         wildcard = true;
                 else
@@ -806,7 +988,7 @@ static MatchRule *match_rule_next_match(CRBTree *tree, MatchRule *rule, MatchFil
         bool wildcard;
 
         if (rule) {
-                registry_by_path = rule->registry_by_member->registry_by_interface->registry_by_path;
+                registry_by_path = rule->registry_by_keys->registry_by_member->registry_by_interface->registry_by_path;
                 if (registry_by_path->path[0] == '\0')
                         wildcard = true;
                 else
@@ -913,11 +1095,21 @@ void match_registry_deinit(MatchRegistry *registry) {
         assert(c_rbtree_is_empty(&registry->monitor_tree));
 }
 
-static void match_registry_by_member_flush(MatchRegistryByMember *registry) {
+static void match_registry_by_keys_flush(MatchRegistryByKeys *registry) {
         MatchRule *rule, *rule_safe;
 
         c_list_for_each_entry_safe(rule, rule_safe, &registry->rule_list, registry_link)
                 match_rule_unlink(rule);
+}
+
+static void match_registry_by_member_flush(MatchRegistryByMember *registry) {
+        MatchRegistryByKeys *registry_by_keys, *registry_by_keys_safe;
+
+        c_rbtree_for_each_entry_safe_postorder(registry_by_keys, registry_by_keys_safe, &registry->keys_tree, registry_node) {
+                match_registry_by_keys_ref(registry_by_keys);
+                match_registry_by_keys_flush(registry_by_keys);
+                match_registry_by_keys_unref(registry_by_keys);
+        }
 }
 
 static void match_registry_by_interface_flush(MatchRegistryByInterface *registry) {
