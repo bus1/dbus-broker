@@ -18,6 +18,7 @@
 #include <systemd/sd-bus.h>
 #include <systemd/sd-daemon.h>
 #include <systemd/sd-event.h>
+#include <systemd/sd-id128.h>
 #include "launch/config.h"
 #include "launch/nss-cache.h"
 #include "launch/policy.h"
@@ -314,13 +315,16 @@ static int manager_listen_inherit(Manager *manager) {
 }
 
 static noreturn void manager_run_child(Manager *manager, int fd_log, int fd_controller) {
-        char str_log[C_DECIMAL_MAX(int) + 1], str_controller[C_DECIMAL_MAX(int) + 1];
+        sd_id128_t machine_id;
+        char str_log[C_DECIMAL_MAX(int) + 1], str_controller[C_DECIMAL_MAX(int) + 1], str_machine_id[33];
         const char * const argv[] = {
                 "dbus-broker",
                 "--log",
                 str_log,
                 "--controller",
                 str_controller,
+                "--machine-id",
+                str_machine_id,
                 main_arg_audit ? "--audit" : NULL, /* note that this needs to be the last argument to work */
                 NULL,
         };
@@ -355,6 +359,14 @@ static noreturn void manager_run_child(Manager *manager, int fd_log, int fd_cont
                 r = error_origin(-errno);
                 goto exit;
         }
+
+        r = sd_id128_get_machine(&machine_id);
+        if (r < 0) {
+                r = error_origin(r);
+                goto exit;
+        }
+
+        sd_id128_to_string(machine_id, str_machine_id);
 
         r = snprintf(str_log, sizeof(str_log), "%d", fd_log);
         assert(r < (ssize_t)sizeof(str_log));

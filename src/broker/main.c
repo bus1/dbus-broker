@@ -21,6 +21,7 @@ uint64_t main_arg_max_bytes = 16 * 1024 * 1024;
 uint64_t main_arg_max_fds = 64;
 uint64_t main_arg_max_matches = 10 * 1024;
 uint64_t main_arg_max_objects = 10 * 1024;
+const char *main_arg_machine_id = NULL;
 
 static void help(void) {
         printf("%s [GLOBALS...] ...\n\n"
@@ -34,6 +35,7 @@ static void help(void) {
                "     --max-fds FDS              The maximum number of file descriptors each user may own in the broker\n"
                "     --max-matches MATCHES      The maximum number of match rules each user may own in the broker\n"
                "     --max-objects OBJECTS      The maximum total number of names, peers, pending replies, etc each user may own in the broker\n"
+               "     --machine-id MACHINE_ID    The machine ID of the current machine\n"
                , program_invocation_short_name);
 }
 
@@ -47,6 +49,7 @@ static int parse_argv(int argc, char *argv[]) {
                 ARG_MAX_FDS,
                 ARG_MAX_MATCHES,
                 ARG_MAX_OBJECTS,
+                ARG_MACHINE_ID,
         };
         static const struct option options[] = {
                 { "help",               no_argument,            NULL,   'h'                     },
@@ -58,6 +61,7 @@ static int parse_argv(int argc, char *argv[]) {
                 { "max-fds",            required_argument,      NULL,   ARG_MAX_FDS             },
                 { "max-matches",        required_argument,      NULL,   ARG_MAX_MATCHES         },
                 { "max-objects",        required_argument,      NULL,   ARG_MAX_OBJECTS         },
+                { "machine-id",         required_argument,      NULL,   ARG_MACHINE_ID          },
                 {}
         };
         int r, c;
@@ -166,6 +170,16 @@ static int parse_argv(int argc, char *argv[]) {
                         break;
                 }
 
+                case ARG_MACHINE_ID: {
+                        if (strlen(optarg) != 32) {
+                                fprintf(stderr, "%s: invalid machine ID -- '%s'\n", program_invocation_name, optarg);
+                                return MAIN_FAILED;
+                        }
+
+                        main_arg_machine_id = optarg;
+                        break;
+                }
+
                 case '?':
                         /* getopt_long() prints warning */
                         return MAIN_FAILED;
@@ -231,6 +245,14 @@ static int parse_argv(int argc, char *argv[]) {
                 }
         }
 
+        /* verify that a machine ID was passed */
+        {
+                if (!main_arg_machine_id) {
+                        fprintf(stderr, "%s: the machine ID argument is mandatory\n", program_invocation_name);
+                        return MAIN_FAILED;
+                }
+        }
+
         return 0;
 }
 
@@ -238,7 +260,7 @@ static int run(void) {
         _c_cleanup_(broker_freep) Broker *broker = NULL;
         int r;
 
-        r = broker_new(&broker, main_arg_log, main_arg_controller, main_arg_max_bytes, main_arg_max_fds, main_arg_max_matches, main_arg_max_objects);
+        r = broker_new(&broker, main_arg_machine_id, main_arg_log, main_arg_controller, main_arg_max_bytes, main_arg_max_fds, main_arg_max_matches, main_arg_max_objects);
         if (!r)
                 r = broker_run(broker);
 
