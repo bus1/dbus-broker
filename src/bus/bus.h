@@ -36,6 +36,7 @@ struct Bus {
         pid_t pid;
         char *seclabel;
         size_t n_seclabel;
+        char machine_id[33];
         char guid[16];
 
         UserRegistry users;
@@ -62,6 +63,7 @@ struct Bus {
 
 int bus_init(Bus *bus,
              Log *log,
+             const char *machine_id,
              unsigned int max_bytes,
              unsigned int max_fds,
              unsigned int max_matches,

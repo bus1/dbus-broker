@@ -17,6 +17,7 @@
 
 int bus_init(Bus *bus,
              Log *log,
+             const char *machine_id,
              unsigned int max_bytes,
              unsigned int max_fds,
              unsigned int max_matches,
@@ -25,8 +26,13 @@ int bus_init(Bus *bus,
         void *random;
         int r;
 
+        if (strlen(machine_id) + 1 != sizeof(bus->machine_id))
+                return error_origin(-EINVAL);
+
         *bus = (Bus)BUS_NULL(*bus);
         bus->log = log;
+
+        memcpy(bus->machine_id, machine_id, sizeof(bus->machine_id));
 
         random = (void *)getauxval(AT_RANDOM);
         assert(random);

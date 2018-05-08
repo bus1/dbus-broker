@@ -191,6 +191,7 @@ void util_fork_broker(sd_bus **busp, sd_event *event, int listener_fd, pid_t *pi
                 r = execl("./src/dbus-broker",
                           "./src/dbus-broker",
                           "--controller", fdstr,
+                          "--machine-id", "0123456789abcdef0123456789abcdef",
                           (char *)NULL);
                 /* execl(2) only returns on error */
                 assert(r >= 0);
