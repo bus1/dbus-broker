@@ -81,6 +81,23 @@ static const CDVarType driver_type_in_su[] = {
                 )
         )
 };
+static const CDVarType driver_type_in_ss[] = {
+        C_DVAR_T_INIT(
+                C_DVAR_T_TUPLE2(
+                        C_DVAR_T_s,
+                        C_DVAR_T_s
+                )
+        )
+};
+static const CDVarType driver_type_in_ssv[] = {
+        C_DVAR_T_INIT(
+                C_DVAR_T_TUPLE3(
+                        C_DVAR_T_s,
+                        C_DVAR_T_s,
+                        C_DVAR_T_v
+                )
+        )
+};
 static const CDVarType driver_type_in_apss[] = {
         C_DVAR_T_INIT(
                 C_DVAR_T_TUPLE1(
@@ -133,6 +150,15 @@ static const CDVarType driver_type_out_u[] = {
                 DRIVER_T_MESSAGE(
                         C_DVAR_T_TUPLE1(
                                 C_DVAR_T_u
+                        )
+                )
+        )
+};
+static const CDVarType driver_type_out_v[] = {
+        C_DVAR_T_INIT(
+                DRIVER_T_MESSAGE(
+                        C_DVAR_T_TUPLE1(
+                                C_DVAR_T_v
                         )
                 )
         )
@@ -271,6 +297,8 @@ static const char *driver_error_to_string(int r) {
                 [DRIVER_E_UNEXPECTED_PATH]                      = "Invalid object path",
                 [DRIVER_E_UNEXPECTED_INTERFACE]                 = "Invalid interface",
                 [DRIVER_E_UNEXPECTED_METHOD]                    = "Invalid method call",
+                [DRIVER_E_UNEXPECTED_PROPERTY]                  = "Invalid property",
+                [DRIVER_E_READONLY_PROPERTY]                    = "Cannot set read-only property",
                 [DRIVER_E_UNEXPECTED_SIGNATURE]                 = "Invalid signature for method",
                 [DRIVER_E_UNEXPECTED_REPLY]                     = "No pending reply with that serial",
                 [DRIVER_E_FORWARD_FAILED]                       = "Request could not be forwarded to the parent process",
@@ -1537,6 +1565,12 @@ static int driver_method_introspect(Peer *peer, CDVar *in_v, uint32_t serial, CD
                 "      <arg direction=\"in\" type=\"s\"/>\n"
                 "      <arg direction=\"out\" type=\"a{sv}\"/>\n"
                 "    </method>\n"
+                "    <property name=\"Features\" type=\"as\" access=\"read\">\n"
+                "      <annotation name=\"org.freedesktop.DBus.Property.EmitsChangedSignal\" value=\"const\"/>\n"
+                "    </property>\n"
+                "    <property name=\"Interfaces\" type=\"as\" access=\"read\">\n"
+                "      <annotation name=\"org.freedesktop.DBus.Property.EmitsChangedSignal\" value=\"const\"/>\n"
+                "    </property>\n"
                 "    <signal name=\"NameOwnerChanged\">\n"
                 "      <arg type=\"s\"/>\n"
                 "      <arg type=\"s\"/>\n"
@@ -1700,6 +1734,116 @@ static int driver_method_get_machine_id(Peer *peer, CDVar *in_v, uint32_t serial
 
         return 0;
 }
+
+static void driver_append_property_features(CDVar *v) {
+        static const CDVarType variant_type[] = {
+                C_DVAR_T_INIT(
+                        C_DVAR_T_ARRAY(
+                                C_DVAR_T_s
+                        )
+                )
+        };
+
+        c_dvar_write(v, "<[", variant_type);
+        if (bus_selinux_is_enabled())
+                c_dvar_write(v, "s", "SELinux");
+        c_dvar_write(v, "]>");
+}
+
+static void driver_append_property_interfaces(CDVar *v) {
+        static const CDVarType variant_type[] = {
+                C_DVAR_T_INIT(
+                        C_DVAR_T_ARRAY(
+                                C_DVAR_T_s
+                        )
+                )
+        };
+
+        c_dvar_write(v, "<[s]>", variant_type, "org.freedesktop.DBus.Monitoring");
+}
+
+static int driver_method_get(Peer *peer, CDVar *in_v, uint32_t serial, CDVar *out_v) {
+        const char *interface, *property;
+        int r;
+
+        /* verify the input argument */
+        c_dvar_read(in_v, "(ss)", &interface, &property);
+
+        r = driver_end_read(in_v);
+        if (r)
+                return error_trace(r);
+
+        /* only one interface is supported */
+        if (strcmp(interface, "org.freedesktop.DBus") != 0)
+                return DRIVER_E_UNEXPECTED_INTERFACE;
+
+        c_dvar_write(out_v, "(");
+        /* append the right property */
+        if (strcmp(property, "Features") == 0)
+                driver_append_property_features(out_v);
+        else if (strcmp(property, "Interfaces") == 0)
+                driver_append_property_interfaces(out_v);
+        else
+                return DRIVER_E_UNEXPECTED_PROPERTY;
+        c_dvar_write(out_v, ")");
+
+        r = driver_send_reply(peer, out_v, serial);
+        if (r)
+                return error_trace(r);
+
+        return 0;
+}
+
+static int driver_method_set(Peer *peer, CDVar *in_v, uint32_t serial, CDVar *out_v) {
+        const char *interface, *property;
+        int r;
+
+        c_dvar_read(in_v, "(ss", &interface, &property);
+        c_dvar_skip(in_v, "<*>)", NULL);
+
+        r = driver_end_read(in_v);
+        if (r)
+                return error_trace(r);
+
+        /* only one interface is supported */
+        if (strcmp(interface, "org.freedesktop.DBus") != 0)
+                return DRIVER_E_UNEXPECTED_INTERFACE;
+
+        if (strcmp(property, "Features") != 0 && strcmp(property, "Interfaces") != 0)
+                return DRIVER_E_UNEXPECTED_PROPERTY;
+
+        return DRIVER_E_READONLY_PROPERTY;
+}
+
+static int driver_method_get_all(Peer *peer, CDVar *in_v, uint32_t serial, CDVar *out_v) {
+        const char *interface;
+        int r;
+
+        /* verify the input argument */
+        c_dvar_read(in_v, "(s)", &interface);
+
+        r = driver_end_read(in_v);
+        if (r)
+                return error_trace(r);
+
+        /* only one interfaces is supported */
+        if (strcmp(interface, "org.freedesktop.DBus") != 0)
+                return DRIVER_E_UNEXPECTED_INTERFACE;
+
+        /* append both supported properties */
+        c_dvar_write(out_v, "([{s", "Features");
+        driver_append_property_features(out_v);
+        c_dvar_write(out_v, "}{s", "Interfaces");
+        driver_append_property_interfaces(out_v);
+        c_dvar_write(out_v, "}])");
+
+        r = driver_send_reply(peer, out_v, serial);
+        if (r)
+                return error_trace(r);
+
+        return 0;
+}
+
 static int driver_handle_method(const DriverMethod *method, Peer *peer, const char *path, uint32_t serial, const char *signature_in, Message *message_in) {
         _c_cleanup_(c_dvar_deinit) CDVar var_in = C_DVAR_INIT, var_out = C_DVAR_INIT;
         int r;
@@ -1773,9 +1917,15 @@ static const DriverMethod introspectable_methods[] = {
 };
 
 static const DriverMethod peer_methods[] = {
-        { "Ping",                                       true,  NULL,                           driver_method_ping,                                             c_dvar_type_unit,       driver_type_out_unit },
-        { "GetMachineId",                               true,  NULL,                           driver_method_get_machine_id,                                   c_dvar_type_unit,       driver_type_out_s },
+        { "Ping",                                       true,   NULL,                           driver_method_ping,                                             c_dvar_type_unit,       driver_type_out_unit },
+        { "GetMachineId",                               true,   NULL,                           driver_method_get_machine_id,                                   c_dvar_type_unit,       driver_type_out_s },
         { },
+};
+
+static const DriverMethod properties_methods[] = {
+        { "Get",                                        true,   "/org/freedesktop/DBus",        driver_method_get,                                              driver_type_in_ss,      driver_type_out_v },
+        { "Set",                                        true,   "/org/freedesktop/DBus",        driver_method_set,                                              driver_type_in_ssv,     driver_type_out_unit },
+        { "GetAll",                                     true,   "/org/freedesktop/DBus",        driver_method_get_all,                                          driver_type_in_s,       driver_type_out_apsv },
 };
 
 static int driver_dispatch_method(Peer *peer, const DriverMethod *methods, uint32_t serial, const char *method, const char *path, const char *signature, Message *message) {
@@ -1795,6 +1945,7 @@ static int driver_dispatch_interface(Peer *peer, uint32_t serial, const char *in
                 { "org.freedesktop.DBus.Monitoring", monitoring_methods },
                 { "org.freedesktop.DBus.Introspectable", introspectable_methods },
                 { "org.freedesktop.DBus.Peer", peer_methods },
+                { "org.freedesktop.DBus.Properties", properties_methods },
         };
         int r;
 
@@ -2053,6 +2204,12 @@ int driver_dispatch(Peer *peer, Message *message) {
                 break;
         case DRIVER_E_UNEXPECTED_METHOD:
                 r = driver_send_error(peer, message_read_serial(message), "org.freedesktop.DBus.Error.UnknownMethod", driver_error_to_string(r));
+                break;
+        case DRIVER_E_UNEXPECTED_PROPERTY:
+                r = driver_send_error(peer, message_read_serial(message), "org.freedesktop.DBus.Error.UnkonwnProperty", driver_error_to_string(r));
+                break;
+        case DRIVER_E_READONLY_PROPERTY:
+                r = driver_send_error(peer, message_read_serial(message), "org.freedesktop.DBus.Error.PropertyReadOnly", driver_error_to_string(r));
                 break;
         case DRIVER_E_UNEXPECTED_SIGNATURE:
         case DRIVER_E_UNEXPECTED_FLAGS:
