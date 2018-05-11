@@ -2168,6 +2168,176 @@ static void test_get_machine_id(void) {
         util_broker_terminate(broker);
 }
 
+static void test_verify_property_features(sd_bus_message *message) {
+        bool selinux = false;
+        int r;
+
+        r = sd_bus_message_enter_container(message, 'v', "as");
+        assert(r >= 0);
+
+        r = sd_bus_message_enter_container(message, 'a', "s");
+        assert(r >= 0);
+
+        while (!sd_bus_message_at_end(message, false)) {
+                const char *feature;
+
+                r = sd_bus_message_read(message, "s", &feature);
+                assert(r >= 0);
+
+                if (strcmp(feature, "SELinux") == 0)
+                        selinux = true;
+        }
+
+        r = sd_bus_message_exit_container(message);
+        assert(r >= 0);
+
+        r = sd_bus_message_exit_container(message);
+        assert(r >= 0);
+
+        assert(selinux == bus_selinux_is_enabled());
+}
+
+static void test_verify_property_interfaces(sd_bus_message *message) {
+        bool monitoring = false;
+        int r;
+
+        r = sd_bus_message_enter_container(message, 'v', "as");
+        assert(r >= 0);
+
+        r = sd_bus_message_enter_container(message, 'a', "s");
+        assert(r >= 0);
+
+        while (!sd_bus_message_at_end(message, false)) {
+                const char *interface;
+
+                r = sd_bus_message_read(message, "s", &interface);
+                assert(r >= 0);
+
+                if (strcmp(interface, "org.freedesktop.DBus.Monitoring") == 0)
+                        monitoring = true;
+        }
+
+        r = sd_bus_message_exit_container(message);
+        assert(r >= 0);
+
+        r = sd_bus_message_exit_container(message);
+        assert(r >= 0);
+
+        assert(monitoring);
+}
+
+static void test_properties(void) {
+        _c_cleanup_(util_broker_freep) Broker *broker = NULL;
+        int r;
+
+        util_broker_new(&broker);
+        util_broker_spawn(broker);
+
+        /* get features */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *reply = NULL;
+
+                util_broker_connect(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus.Properties",
+                                       "Get", NULL, &reply,
+                                       "ss", "org.freedesktop.DBus", "Features");
+                assert(r >= 0);
+
+                test_verify_property_features(reply);
+        }
+
+        /* get interfaces */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *reply = NULL;
+
+                util_broker_connect(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus.Properties",
+                                       "Get", NULL, &reply,
+                                       "ss", "org.freedesktop.DBus", "Interfaces");
+                assert(r >= 0);
+
+                test_verify_property_interfaces(reply);
+        }
+
+        /* set features */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
+
+                util_broker_connect(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus.Properties",
+                                       "Set", &error, NULL,
+                                       "ssv", "org.freedesktop.DBus", "Features", "as", 1, "Foo");
+                assert(r < 0);
+                fprintf(stderr, "%s: %s\n", error.name, error.message);
+                assert(strcmp(error.name, "org.freedesktop.DBus.Error.PropertyReadOnly") == 0);
+        }
+
+        /* set interfaces */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
+
+                util_broker_connect(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus.Properties",
+                                       "Set", &error, NULL,
+                                       "ssv", "org.freedesktop.DBus", "Interfaces", "as", 1, "Foo");
+                assert(r < 0);
+                assert(strcmp(error.name, "org.freedesktop.DBus.Error.PropertyReadOnly") == 0);
+        }
+
+        /* get all */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *reply = NULL;
+                bool features = false, interfaces = false;
+
+                util_broker_connect(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus.Properties",
+                                       "GetAll", NULL, &reply,
+                                       "s", "org.freedesktop.DBus");
+                assert(r >= 0);
+
+                r = sd_bus_message_enter_container(reply, 'a', "{sv}");
+                assert(r >= 0);
+
+                while ((r = sd_bus_message_enter_container(reply, 'e', "sv")) > 0) {
+                        const char *property;
+
+                        r = sd_bus_message_read(reply, "s", &property);
+                        assert(r >= 0);
+
+                        if (strcmp(property, "Features") == 0) {
+                                test_verify_property_features(reply);
+                                features = true;
+                        } else if (strcmp(property, "Interfaces") == 0) {
+                                test_verify_property_interfaces(reply);
+                                interfaces = true;
+                        } else {
+                                r = sd_bus_message_skip(reply, "v");
+                                assert(r >= 0);
+                        }
+
+                        r = sd_bus_message_exit_container(reply);
+                        assert(r >= 0);
+                }
+
+                r = sd_bus_message_exit_container(reply);
+                assert(r >= 0);
+
+                assert(features && interfaces);
+        }
+
+        util_broker_terminate(broker);
+}
+
 static void test_no_destination(void) {
         _c_cleanup_(util_broker_freep) Broker *broker = NULL;
         int r;
@@ -2234,6 +2404,7 @@ int main(int argc, char **argv) {
         test_become_monitor();
         test_ping();
         test_get_machine_id();
+        test_properties();
         test_no_destination();
 
         return 0;
