@@ -42,27 +42,24 @@ static void test_hello(void) {
                 assert(!strcmp(error.name, "org.freedesktop.DBus.Error.Failed"));
         }
 
-        /* call something else before Hello(), see that it fails and the client is disconnected */
+        /* try to send a message on the bus before Hello(), see that it fails and the client is disconnected */
         {
                 _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
                 _c_cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
 
                 util_broker_connect_raw(broker, &bus);
 
-                /* call something other than Hello() */
-                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
-                                       "RequestName", &error, NULL,
-                                       "su", "com.example.foo", 0);
-                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
+                /* try to make a method call on a (fictional) other client (not on the driver) */
+                r = sd_bus_call_method(bus, "com.example.foobar", "/com/example/foo", "com.example.Foo",
+                                       "Bar", &error, NULL,
+                                       "");
+                assert(r == -ECONNRESET);
 
                 /* now try to call Hello() (or anything else), to verify that the client was disconnected */
-                if (!getenv("DBUS_BROKER_TEST_DAEMON")) {
-                        /* XXX: the dbus daemon does not work according to spec here, as far as I can tell, let's skip it for now */
-                        r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
-                                               "Hello", NULL, NULL,
-                                               "");
-                        assert(r == -ECONNRESET);
-                }
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "Hello", NULL, NULL,
+                                       "");
+                assert(r == -ENOTCONN);
         }
 
         util_broker_terminate(broker);
@@ -76,6 +73,19 @@ static void test_request_name(void) {
         util_broker_spawn(broker);
 
         /* XXX: test invalid flags? */
+
+        /* request name before registering */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
+
+                util_broker_connect_raw(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "RequestName", &error, NULL,
+                                       "su", "com.example.foo", 0);
+                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
+        }
 
         /* request valid well-known name and release it again */
         {
@@ -312,6 +322,19 @@ static void test_release_name(void) {
         util_broker_new(&broker);
         util_broker_spawn(broker);
 
+        /* release name before registering */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
+
+                util_broker_connect_raw(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "ReleaseName", &error, NULL,
+                                       "s", "com.example.foo");
+                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
+        }
+
         /* release valid well-known name that does not exist on the bus */
         {
                 _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
@@ -447,6 +470,19 @@ static void test_get_name_owner(void) {
         util_broker_new(&broker);
         util_broker_spawn(broker);
 
+        /* get name-owner before registering */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
+
+                util_broker_connect_raw(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "GetNameOwner", &error, NULL,
+                                       "s", "com.example.foo");
+                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
+        }
+
         /* get non-existent name */
         {
                 _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
@@ -548,6 +584,19 @@ static void test_name_has_owner(void) {
 
         util_broker_new(&broker);
         util_broker_spawn(broker);
+
+        /* check if name has owner before registering */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
+
+                util_broker_connect_raw(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "NameHasOwner", &error, NULL,
+                                       "s", "com.example.foo");
+                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
+        }
 
         /* check non-existent name */
         {
@@ -660,6 +709,19 @@ static void test_start_service_by_name(void) {
 
         /* XXX: test invalid flags? */
 
+        /* start service by name before registering */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
+
+                util_broker_connect_raw(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "StartServiceByName", &error, NULL,
+                                       "su", "com.example.foo", 0);
+                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
+        }
+
         /* start non-existent name */
         {
                 _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
@@ -732,6 +794,19 @@ static void test_update_activation_environment(void) {
         util_broker_new(&broker);
         util_broker_spawn(broker);
 
+        /* update activation environment before registering */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
+
+                util_broker_connect_raw(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "UpdateActivationEnvironment", &error, NULL,
+                                       "a{ss}", 0);
+                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
+        }
+
         {
                 _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
 
@@ -752,6 +827,19 @@ static void test_list_names(void) {
 
         util_broker_new(&broker);
         util_broker_spawn(broker);
+
+        /* list names before registering */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
+
+                util_broker_connect_raw(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "ListNames", &error, NULL,
+                                       "");
+                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
+        }
 
         {
                 _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
@@ -817,6 +905,19 @@ static void test_list_activatable_names(void) {
         util_broker_new(&broker);
         util_broker_spawn(broker);
 
+        /* list activatable names before registering */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
+
+                util_broker_connect_raw(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "ListActivatableNames", &error, NULL,
+                                       "");
+                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
+        }
+
         {
                 _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
                 _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *reply = NULL;
@@ -863,6 +964,19 @@ static void test_add_match(void) {
         util_broker_new(&broker);
         util_broker_spawn(broker);
 
+        /* add match before registering */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
+
+                util_broker_connect_raw(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "AddMatch", &error, NULL,
+                                       "s", "");
+                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
+        }
+
         /* add invalid match */
         {
                 _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
@@ -903,6 +1017,19 @@ static void test_remove_match(void) {
 
         util_broker_new(&broker);
         util_broker_spawn(broker);
+
+        /* remove match before registering */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
+
+                util_broker_connect_raw(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "RemoveMatch", &error, NULL,
+                                       "s", "");
+                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
+        }
 
         /* remove invalid match */
         {
@@ -1015,6 +1142,19 @@ static void test_list_queued_owners(void) {
 
         util_broker_new(&broker);
         util_broker_spawn(broker);
+
+        /* list name owners before registering */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
+
+                util_broker_connect_raw(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "ListQueuedOwners", &error, NULL,
+                                       "s", "com.example.foo");
+                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
+        }
 
         /* list queued owners of a well-known name */
         {
@@ -1155,6 +1295,19 @@ static void test_get_connection_unix_user(void) {
         util_broker_new(&broker);
         util_broker_spawn(broker);
 
+        /* get uid before registering */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
+
+                util_broker_connect_raw(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "GetConnectionUnixUser", &error, NULL,
+                                       "s", "com.example.foo");
+                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
+        }
+
         /* get uid of well-known name */
         {
                 _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
@@ -1257,6 +1410,19 @@ static void test_get_connection_unix_process_id(void) {
 
         util_broker_new(&broker);
         util_broker_spawn(broker);
+
+        /* get pid before registering */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
+
+                util_broker_connect_raw(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "GetConnectionUnixProcessID", &error, NULL,
+                                       "s", "com.example.foo");
+                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
+        }
 
         /* get pid of well-known name */
         {
@@ -1424,6 +1590,19 @@ static void test_get_connection_credentials(void) {
         util_broker_new(&broker);
         util_broker_spawn(broker);
 
+        /* get creds before registering */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
+
+                util_broker_connect_raw(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "GetConnectionCredentials", &error, NULL,
+                                       "s", "com.example.foo");
+                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
+        }
+
         /* get connection credentials of well-known name */
         {
                 _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
@@ -1522,6 +1701,19 @@ static void test_get_connection_selinux_security_context(void) {
 
         util_broker_new(&broker);
         util_broker_spawn(broker);
+
+        /* get selinux context before registering */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
+
+                util_broker_connect_raw(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "GetConnectionSELinuxSecurityContext", &error, NULL,
+                                       "s", "com.example.foo");
+                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
+        }
 
         /* get selinux context of well-known name */
         {
@@ -1634,6 +1826,19 @@ static void test_get_adt_audit_session_data(void) {
         util_broker_new(&broker);
         util_broker_spawn(broker);
 
+        /* get ADT before registering */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
+
+                util_broker_connect_raw(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "GetAdtAuditSessionData", &error, NULL,
+                                       "s", "com.example.foo");
+                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
+        }
+
         /* get adt audit session data of well-known name */
         {
                 _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
@@ -1728,6 +1933,19 @@ static void test_get_id(void) {
         util_broker_new(&broker);
         util_broker_spawn(broker);
 
+        /* get bus id before registering */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
+
+                util_broker_connect_raw(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "GetId", &error, NULL,
+                                       "");
+                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
+        }
+
         /* get the bus id and verify that it is on the right format */
         {
                 _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
@@ -1760,6 +1978,19 @@ static void test_introspect(void) {
         util_broker_new(&broker);
         util_broker_spawn(broker);
 
+        /* get introspection data before registering */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
+
+                util_broker_connect_raw(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus.Introspectable",
+                                       "Introspect", &error, NULL,
+                                       "s", "com.example.foo");
+                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
+        }
+
         /* get introspection data, and verify that it is a non-empty string */
         {
                 _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
@@ -1788,6 +2019,19 @@ static void test_reload_config(void) {
         util_broker_new(&broker);
         util_broker_spawn(broker);
 
+        /* reload config before registering */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
+
+                util_broker_connect_raw(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "ReloadConfig", &error, NULL,
+                                       "");
+                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
+        }
+
         /* call ReloadConfig and block until it succeeds */
         {
                 _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
@@ -1809,6 +2053,19 @@ static void test_become_monitor(void) {
 
         util_broker_new(&broker);
         util_broker_spawn(broker);
+
+        /* become monitor before registering */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
+
+                util_broker_connect_raw(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus.Monitoring",
+                                       "BecomeMonitor", &error, NULL,
+                                       "asu", 0);
+                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
+        }
 
         /* become monitor */
         {
@@ -1838,6 +2095,19 @@ static void test_ping(void) {
         util_broker_new(&broker);
         util_broker_spawn(broker);
 
+        /* ping before registering */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
+
+                util_broker_connect_raw(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus.Peer",
+                                       "Ping", &error, NULL,
+                                       "");
+                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
+        }
+
         /* ping-pong */
         {
                 _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
@@ -1859,6 +2129,19 @@ static void test_get_machine_id(void) {
 
         util_broker_new(&broker);
         util_broker_spawn(broker);
+
+        /* get machine id before registering */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
+
+                util_broker_connect_raw(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus.Peer",
+                                       "GetMachineId", &error, NULL,
+                                       "");
+                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
+        }
 
         /* get the machine id and verify that it is on the right format */
         {
@@ -1892,7 +2175,7 @@ static void test_no_destination(void) {
         util_broker_new(&broker);
         util_broker_spawn(broker);
 
-        /* don't provide a destination, verify that the driver answers regardless */
+        /* don't provide a destination, verify that the driver answers on the Peer interface regardless */
         {
                 _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
                 _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *message = NULL;
@@ -1905,6 +2188,23 @@ static void test_no_destination(void) {
 
                 r = sd_bus_call(bus, message, 0, NULL, NULL);
                 assert(r >= 0);
+        }
+
+        /* however, it won't answer on any of the other interfaces */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *message = NULL;
+                _c_cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
+
+                util_broker_connect(broker, &bus);
+
+                r = sd_bus_message_new_method_call(bus, &message, NULL, "/org/freedestkop/DBus",
+                                                   "org.freedesktop.DBus", "GetId");
+                assert(r >= 0);
+
+                r = sd_bus_call(bus, message, 0, &error, NULL);
+                assert(r < 0);
+                assert(strcmp(error.name, "org.freedesktop.DBus.Error.UnknownMethod") == 0);
         }
 
         util_broker_terminate(broker);
