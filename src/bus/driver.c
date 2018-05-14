@@ -21,6 +21,7 @@
 #include "util/error.h"
 #include "util/selinux.h"
 
+typedef struct DriverInterface DriverInterface;
 typedef struct DriverMethod DriverMethod;
 typedef int (*DriverMethodFn) (Peer *peer, CDVar *var_in, uint32_t serial, CDVar *var_out);
 
@@ -30,6 +31,11 @@ struct DriverMethod {
         DriverMethodFn fn;
         const CDVarType *in;
         const CDVarType *out;
+};
+
+struct DriverInterface {
+        const char *name;
+        const DriverMethod *methods;
 };
 
 /*
@@ -1728,47 +1734,66 @@ static int driver_handle_method(const DriverMethod *method, Peer *peer, const ch
         return 0;
 }
 
-static int driver_dispatch_method(Peer *peer, uint32_t serial, const char *method, const char *path, const char *signature, Message *message) {
-        static const DriverMethod methods[] = {
-                { "Hello",                                      NULL,                           driver_method_hello,                                            c_dvar_type_unit,       driver_type_out_s },
-                { "RequestName",                                NULL,                           driver_method_request_name,                                     driver_type_in_su,      driver_type_out_u },
-                { "ReleaseName",                                NULL,                           driver_method_release_name,                                     driver_type_in_s,       driver_type_out_u },
-                { "ListQueuedOwners",                           NULL,                           driver_method_list_queued_owners,                               driver_type_in_s,       driver_type_out_as },
-                { "ListNames",                                  NULL,                           driver_method_list_names,                                       c_dvar_type_unit,       driver_type_out_as },
-                { "ListActivatableNames",                       NULL,                           driver_method_list_activatable_names,                           c_dvar_type_unit,       driver_type_out_as },
-                { "NameHasOwner",                               NULL,                           driver_method_name_has_owner,                                   driver_type_in_s,       driver_type_out_b },
-                { "StartServiceByName",                         NULL,                           driver_method_start_service_by_name,                            driver_type_in_su,      driver_type_out_u },
-                { "UpdateActivationEnvironment",                "/org/freedesktop/DBus",        driver_method_update_activation_environment,                    driver_type_in_apss,    driver_type_out_unit },
-                { "GetNameOwner",                               NULL,                           driver_method_get_name_owner,                                   driver_type_in_s,       driver_type_out_s },
-                { "GetConnectionUnixUser",                      NULL,                           driver_method_get_connection_unix_user,                         driver_type_in_s,       driver_type_out_u },
-                { "GetConnectionUnixProcessID",                 NULL,                           driver_method_get_connection_unix_process_id,                   driver_type_in_s,       driver_type_out_u },
-                { "GetConnectionCredentials",                   NULL,                           driver_method_get_connection_credentials,                       driver_type_in_s,       driver_type_out_apsv },
-                { "GetAdtAuditSessionData",                     NULL,                           driver_method_get_adt_audit_session_data,                       driver_type_in_s,       driver_type_out_ay },
-                { "GetConnectionSELinuxSecurityContext",        NULL,                           driver_method_get_connection_selinux_security_context,          driver_type_in_s,       driver_type_out_ay },
-                { "AddMatch",                                   NULL,                           driver_method_add_match,                                        driver_type_in_s,       driver_type_out_unit },
-                { "RemoveMatch",                                NULL,                           driver_method_remove_match,                                     driver_type_in_s,       driver_type_out_unit },
-                { "ReloadConfig",                               NULL,                           driver_method_reload_config,                                    c_dvar_type_unit,       driver_type_out_unit },
-                { "GetId",                                      NULL,                           driver_method_get_id,                                           c_dvar_type_unit,       driver_type_out_s },
-                { "Introspect",                                 NULL,                           driver_method_introspect,                                       c_dvar_type_unit,       driver_type_out_s },
-                { "BecomeMonitor",                              "/org/freedesktop/DBus",        driver_method_become_monitor,                                   driver_type_in_asu,     driver_type_out_unit },
-                { "Ping",                                       NULL,                           driver_method_ping,                                             c_dvar_type_unit,       driver_type_out_unit },
-                { "GetMachineId",                               NULL,                           driver_method_get_machine_id,                                   c_dvar_type_unit,       driver_type_out_s },
-        };
+static const DriverMethod driver_methods[] = {
+        { "Hello",                                      NULL,                           driver_method_hello,                                            c_dvar_type_unit,       driver_type_out_s },
+        { "AddMatch",                                   NULL,                           driver_method_add_match,                                        driver_type_in_s,       driver_type_out_unit },
+        { "RemoveMatch",                                NULL,                           driver_method_remove_match,                                     driver_type_in_s,       driver_type_out_unit },
+        { "RequestName",                                NULL,                           driver_method_request_name,                                     driver_type_in_su,      driver_type_out_u },
+        { "ReleaseName",                                NULL,                           driver_method_release_name,                                     driver_type_in_s,       driver_type_out_u },
+        { "GetConnectionCredentials",                   NULL,                           driver_method_get_connection_credentials,                       driver_type_in_s,       driver_type_out_apsv },
+        { "GetConnectionUnixUser",                      NULL,                           driver_method_get_connection_unix_user,                         driver_type_in_s,       driver_type_out_u },
+        { "GetConnectionUnixProcessID",                 NULL,                           driver_method_get_connection_unix_process_id,                   driver_type_in_s,       driver_type_out_u },
+        { "GetAdtAuditSessionData",                     NULL,                           driver_method_get_adt_audit_session_data,                       driver_type_in_s,       driver_type_out_ay },
+        { "GetConnectionSELinuxSecurityContext",        NULL,                           driver_method_get_connection_selinux_security_context,          driver_type_in_s,       driver_type_out_ay },
+        { "StartServiceByName",                         NULL,                           driver_method_start_service_by_name,                            driver_type_in_su,      driver_type_out_u },
+        { "ListQueuedOwners",                           NULL,                           driver_method_list_queued_owners,                               driver_type_in_s,       driver_type_out_as },
+        { "ListNames",                                  NULL,                           driver_method_list_names,                                       c_dvar_type_unit,       driver_type_out_as },
+        { "ListActivatableNames",                       NULL,                           driver_method_list_activatable_names,                           c_dvar_type_unit,       driver_type_out_as },
+        { "NameHasOwner",                               NULL,                           driver_method_name_has_owner,                                   driver_type_in_s,       driver_type_out_b },
+        { "UpdateActivationEnvironment",                "/org/freedesktop/DBus",        driver_method_update_activation_environment,                    driver_type_in_apss,    driver_type_out_unit },
+        { "GetNameOwner",                               NULL,                           driver_method_get_name_owner,                                   driver_type_in_s,       driver_type_out_s },
+        { "ReloadConfig",                               NULL,                           driver_method_reload_config,                                    c_dvar_type_unit,       driver_type_out_unit },
+        { "GetId",                                      NULL,                           driver_method_get_id,                                           c_dvar_type_unit,       driver_type_out_s },
+        { },
+};
 
+static const DriverMethod monitoring_methods[] = {
+        { "BecomeMonitor",                              "/org/freedesktop/DBus",        driver_method_become_monitor,                                   driver_type_in_asu,     driver_type_out_unit },
+        { },
+};
+
+static const DriverMethod introspectable_methods[] = {
+        { "Introspect",                                 NULL,                           driver_method_introspect,                                       c_dvar_type_unit,       driver_type_out_s },
+        { },
+};
+
+static const DriverMethod peer_methods[] = {
+        { "Ping",                                       NULL,                           driver_method_ping,                                             c_dvar_type_unit,       driver_type_out_unit },
+        { "GetMachineId",                               NULL,                           driver_method_get_machine_id,                                   c_dvar_type_unit,       driver_type_out_s },
+        { },
+};
+
+static int driver_dispatch_method(Peer *peer, const DriverMethod *methods, uint32_t serial, const char *method, const char *path, const char *signature, Message *message) {
         if (_c_unlikely_(!peer_is_registered(peer)) && strcmp(method, "Hello") != 0)
                 return DRIVER_E_PEER_NOT_REGISTERED;
 
-        for (size_t i = 0; i < C_ARRAY_SIZE(methods); i++) {
+        for (size_t i = 0; methods[i].name; i++) {
                 if (strcmp(methods[i].name, method) != 0)
                         continue;
 
-                return driver_handle_method(&methods[i], peer, path, serial, signature, message);
+                return driver_handle_method(methods + i, peer, path, serial, signature, message);
         }
 
         return DRIVER_E_UNEXPECTED_METHOD;
 }
 
 static int driver_dispatch_interface(Peer *peer, uint32_t serial, const char *interface, const char *member, const char *path, const char *signature, Message *message) {
+        static const DriverInterface interfaces[] = {
+                { "org.freedesktop.DBus", driver_methods },
+                { "org.freedesktop.DBus.Monitoring", monitoring_methods },
+                { "org.freedesktop.DBus.Introspectable", introspectable_methods },
+                { "org.freedesktop.DBus.Peer", peer_methods },
+        };
         int r;
 
         if (message->header->type != DBUS_MESSAGE_TYPE_METHOD_CALL)
@@ -1794,25 +1819,25 @@ static int driver_dispatch_interface(Peer *peer, uint32_t serial, const char *in
         }
 
         if (interface) {
-                if (_c_unlikely_(strcmp(member, "Ping") == 0)) {
-                        if (strcmp(interface, "org.freedesktop.DBus.Peer") != 0)
-                                return DRIVER_E_UNEXPECTED_INTERFACE;
-                } else if (_c_unlikely_(strcmp(member, "GetMachineId") == 0)) {
-                        if (strcmp(interface, "org.freedesktop.DBus.Peer") != 0)
-                                return DRIVER_E_UNEXPECTED_INTERFACE;
-                } else if (_c_unlikely_(strcmp(member, "Introspect") == 0)) {
-                        if (strcmp(interface, "org.freedesktop.DBus.Introspectable") != 0)
-                                return DRIVER_E_UNEXPECTED_INTERFACE;
-                } else if (_c_unlikely_(strcmp(member, "BecomeMonitor") == 0)) {
-                        if (strcmp(interface, "org.freedesktop.DBus.Monitoring") != 0)
-                                return DRIVER_E_UNEXPECTED_INTERFACE;
-                } else {
-                        if (_c_unlikely_(strcmp(interface, "org.freedesktop.DBus") != 0))
-                                return DRIVER_E_UNEXPECTED_INTERFACE;
-                }
-        }
+                for (size_t i = 0; i < C_ARRAY_SIZE(interfaces); ++i) {
+                        if (strcmp(interfaces[i].name, interface) != 0)
+                                continue;
 
-        return driver_dispatch_method(peer, serial, member, path, signature, message);
+                        return error_trace(driver_dispatch_method(peer, interfaces[i].methods, serial, member, path, signature, message));
+                }
+
+                return DRIVER_E_UNEXPECTED_INTERFACE;
+        } else {
+                for (size_t i = 0; i < C_ARRAY_SIZE(interfaces); ++i) {
+                        r = driver_dispatch_method(peer, interfaces[i].methods, serial, member, path, signature, message);
+                        if (r == DRIVER_E_UNEXPECTED_METHOD)
+                                continue;
+
+                        return error_trace(r);
+                }
+
+                return DRIVER_E_UNEXPECTED_METHOD;
+        }
 }
 
 int driver_goodbye(Peer *peer, bool silent) {
