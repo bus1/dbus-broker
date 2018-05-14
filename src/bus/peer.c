@@ -626,10 +626,10 @@ static int peer_broadcast_to_matches(PolicySnapshot *sender_policy, NameSet *sen
                         r = policy_snapshot_check_send(sender_policy,
                                                        receiver->seclabel,
                                                        &receiver_names,
-                                                       message->metadata.fields.interface,
-                                                       message->metadata.fields.member,
-                                                       message->metadata.fields.path,
-                                                       message->header->type);
+                                                       filter->interface,
+                                                       filter->member,
+                                                       filter->path,
+                                                       filter->type);
                         if (r) {
                                 if (r == POLICY_E_ACCESS_DENIED || r == POLICY_E_SELINUX_ACCESS_DENIED)
                                         continue;
@@ -640,10 +640,10 @@ static int peer_broadcast_to_matches(PolicySnapshot *sender_policy, NameSet *sen
 
                 r = policy_snapshot_check_receive(receiver->policy,
                                                   sender_names,
-                                                  message->metadata.fields.interface,
-                                                  message->metadata.fields.member,
-                                                  message->metadata.fields.path,
-                                                  message->header->type);
+                                                  filter->interface,
+                                                  filter->member,
+                                                  filter->path,
+                                                  filter->type);
                 if (r) {
                         if (r == POLICY_E_ACCESS_DENIED)
                                 continue;
