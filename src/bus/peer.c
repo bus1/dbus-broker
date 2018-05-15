@@ -609,49 +609,16 @@ void peer_flush_matches(Peer *peer) {
         }
 }
 
-static int peer_broadcast_to_matches(Peer *sender, MatchRegistry *matches, MatchFilter *filter, uint64_t transaction_id, Message *message) {
-        NameSet sender_names = NAME_SET_INIT_FROM_OWNER(sender ? &sender->owned_names : NULL);
-        MatchRule *rule;
+int peer_broadcast(Peer *sender, MatchRegistry *matches, Bus *bus, MatchFilter *filter, Message *message) {
+        _c_cleanup_(c_list_flush) CList destinations = C_LIST_INIT(destinations);
+        Peer *receiver;
         int r;
 
-        for (rule = match_rule_next_subscription_match(matches, NULL, filter); rule; rule = match_rule_next_subscription_match(matches, rule, filter)) {
-                Peer *receiver = c_container_of(rule->owner, Peer, owned_matches);
-                NameSet receiver_names = NAME_SET_INIT_FROM_OWNER(&receiver->owned_names);
+        r = bus_get_broadcast_destinations(bus, &destinations, matches, sender, filter);
+        if (r)
+                return error_trace(r);
 
-                if (transaction_id <= receiver->transaction_id)
-                        continue;
-
-                receiver->transaction_id = c_max(transaction_id, receiver->transaction_id);
-
-                if (sender) {
-                        r = policy_snapshot_check_send(sender->policy,
-                                                       receiver->seclabel,
-                                                       &receiver_names,
-                                                       filter->interface,
-                                                       filter->member,
-                                                       filter->path,
-                                                       filter->type);
-                        if (r) {
-                                if (r == POLICY_E_ACCESS_DENIED || r == POLICY_E_SELINUX_ACCESS_DENIED)
-                                        continue;
-
-                                return error_fold(r);
-                        }
-                }
-
-                r = policy_snapshot_check_receive(receiver->policy,
-                                                  &sender_names,
-                                                  filter->interface,
-                                                  filter->member,
-                                                  filter->path,
-                                                  filter->type);
-                if (r) {
-                        if (r == POLICY_E_ACCESS_DENIED)
-                                continue;
-
-                        return error_fold(r);
-                }
-
+        c_list_for_each_entry(receiver, &destinations, destinations_link) {
                 r = connection_queue(&receiver->connection, NULL, message);
                 if (r) {
                         if (r == CONNECTION_E_QUOTA)
@@ -659,44 +626,6 @@ static int peer_broadcast_to_matches(Peer *sender, MatchRegistry *matches, Match
                         else
                                 return error_fold(r);
                 }
-        }
-
-        return 0;
-}
-
-int peer_broadcast(Peer *sender, MatchRegistry *matches, Bus *bus, MatchFilter *filter, Message *message) {
-        int r;
-
-        /* start a new transaction, to avoid duplicates */
-        ++bus->transaction_ids;
-
-        r = peer_broadcast_to_matches(sender, &bus->wildcard_matches, filter, bus->transaction_ids, message);
-        if (r)
-                return error_trace(r);
-
-        if (matches) {
-                r = peer_broadcast_to_matches(sender, matches, filter, bus->transaction_ids, message);
-                if (r)
-                        return error_trace(r);
-        }
-
-        if (sender) {
-                NameOwner *owner = &sender->owned_names;
-                NameOwnership *ownership;
-
-                c_rbtree_for_each_entry(ownership, &owner->ownership_tree, owner_node) {
-                        if (!name_ownership_is_primary(ownership))
-                                continue;
-
-                        r = peer_broadcast_to_matches(sender, &ownership->name->sender_matches, filter, bus->transaction_ids, message);
-                        if (r)
-                                return error_trace(r);
-                }
-        } else {
-                /* sent from the driver */
-                r = peer_broadcast_to_matches(NULL, &bus->sender_matches, filter, bus->transaction_ids, message);
-                if (r)
-                        return error_trace(r);
         }
 
         return 0;
