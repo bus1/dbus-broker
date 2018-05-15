@@ -327,33 +327,55 @@ static const char *driver_error_to_string(int r) {
         return error_strings[r];
 }
 
-static int driver_monitor_to_matches(MatchRegistry *matches, MatchFilter *filter, uint64_t transaction_id, Message *message) {
+static int driver_get_monitor_destinations_for_matches(CList *destinations, MatchRegistry *matches, MatchFilter *filter) {
         MatchRule *rule;
-        int r;
 
         for (rule = match_rule_next_monitor_match(matches, NULL, filter); rule; rule = match_rule_next_monitor_match(matches, rule, filter)) {
                 Peer *receiver = c_container_of(rule->owner, Peer, owned_matches);
 
-                if (transaction_id <= receiver->transaction_id)
-                        continue;
+                if (!c_list_is_linked(&receiver->destinations_link))
+                        c_list_link_tail(destinations, &receiver->destinations_link);
+        }
 
-                receiver->transaction_id = c_max(transaction_id, receiver->transaction_id);
+        return 0;
+}
 
-                r = connection_queue(&receiver->connection, NULL, message);
-                if (r) {
-                        if (r == CONNECTION_E_QUOTA)
-                                connection_shutdown(&receiver->connection);
-                        else
-                                return error_fold(r);
+static int driver_get_monitor_destinations(Bus *bus, CList *destinations, Peer *sender, MatchFilter *filter) {
+        int r;
+
+        r = driver_get_monitor_destinations_for_matches(destinations, &bus->wildcard_matches, filter);
+        if (r)
+                return error_trace(r);
+
+        if (sender) {
+                NameOwnership *ownership;
+
+                c_rbtree_for_each_entry(ownership, &sender->owned_names.ownership_tree, owner_node) {
+                        if (!name_ownership_is_primary(ownership))
+                                continue;
+
+                        r = driver_get_monitor_destinations_for_matches(destinations, &ownership->name->sender_matches, filter);
+                        if (r)
+                                return error_trace(r);
                 }
+
+                r = driver_get_monitor_destinations_for_matches(destinations, &sender->sender_matches, filter);
+                if (r)
+                        return error_trace(r);
+        } else {
+                /* sent from the driver */
+                r = driver_get_monitor_destinations_for_matches(destinations, &bus->sender_matches, filter);
+                if (r)
+                        return error_trace(r);
         }
 
         return 0;
 }
 
 static int driver_monitor(Bus *bus, Peer *sender, Message *message) {
+        _c_cleanup_(c_list_flush) CList destinations = C_LIST_INIT(destinations);
         MatchFilter filter = MATCH_FILTER_INIT;
-        NameOwnership *ownership;
+        Peer *receiver;
         int r;
 
         if (!bus->n_monitors)
@@ -376,31 +398,18 @@ static int driver_monitor(Bus *bus, Peer *sender, Message *message) {
                 }
         }
 
-        /* start a new transaction, to avoid duplicates */
-        ++bus->transaction_ids;
-
-        r = driver_monitor_to_matches(&bus->wildcard_matches, &filter, bus->transaction_ids, message);
+        r = driver_get_monitor_destinations(bus, &destinations, sender, &filter);
         if (r)
                 return error_trace(r);
 
-        if (sender) {
-                c_rbtree_for_each_entry(ownership, &sender->owned_names.ownership_tree, owner_node) {
-                        if (!name_ownership_is_primary(ownership))
-                                continue;
-
-                        r = driver_monitor_to_matches(&ownership->name->sender_matches, &filter, bus->transaction_ids, message);
-                        if (r)
-                                return error_trace(r);
+        c_list_for_each_entry(receiver, &destinations, destinations_link) {
+                r = connection_queue(&receiver->connection, NULL, message);
+                if (r) {
+                        if (r == CONNECTION_E_QUOTA)
+                                connection_shutdown(&receiver->connection);
+                        else
+                                return error_fold(r);
                 }
-
-                r = driver_monitor_to_matches(&sender->sender_matches, &filter, bus->transaction_ids, message);
-                if (r)
-                        return error_trace(r);
-        } else {
-                /* sent from the driver */
-                r = driver_monitor_to_matches(&bus->sender_matches, &filter, bus->transaction_ids, message);
-                if (r)
-                        return error_trace(r);
         }
 
         return 0;
