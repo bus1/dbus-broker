@@ -2056,6 +2056,31 @@ static int driver_forward_unicast(Peer *sender, const char *destination, Message
         return 0;
 }
 
+static int driver_forward_broadcast(Peer *sender, Message *message) {
+        _c_cleanup_(c_list_flush) CList destinations = C_LIST_INIT(destinations);
+        MatchFilter filter = MATCH_FILTER_INIT;
+        Peer *receiver;
+        int r;
+
+        driver_match_filter_from_message(&filter, sender->id, message);
+
+        r = bus_get_broadcast_destinations(sender->bus, &destinations, &sender->sender_matches, sender, &filter);
+        if (r)
+                return error_trace(r);
+
+        c_list_for_each_entry(receiver, &destinations, destinations_link) {
+                r = connection_queue(&receiver->connection, NULL, message);
+                if (r) {
+                        if (r == CONNECTION_E_QUOTA)
+                                connection_shutdown(&receiver->connection);
+                        else
+                                return error_fold(r);
+                }
+        }
+
+        return 0;
+}
+
 static int driver_dispatch_internal(Peer *peer, Message *message) {
         int r;
 
@@ -2097,13 +2122,9 @@ static int driver_dispatch_internal(Peer *peer, Message *message) {
 
         if (!message->metadata.fields.destination) {
                 if (message->metadata.header.type == DBUS_MESSAGE_TYPE_SIGNAL) {
-                        MatchFilter filter = MATCH_FILTER_INIT;
-
-                        driver_match_filter_from_message(&filter, peer->id, message);
-
-                        r = peer_broadcast(peer, &peer->sender_matches, peer->bus, &filter, message);
+                        r = driver_forward_broadcast(peer, message);
                         if (r)
-                                return error_fold(r);
+                                return error_trace(r);
 
                         return 0;
                 } else {
