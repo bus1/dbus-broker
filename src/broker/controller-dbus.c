@@ -719,8 +719,8 @@ int controller_dbus_send_reload(Controller *controller, User *user, uint32_t ser
         c_dvar_begin_write(&var, type, 1);
         c_dvar_write(&var, "((yyyyuu[(y<o>)(y<s>)(y<s>)])())",
                      c_dvar_is_big_endian(&var) ? 'B' : 'l', DBUS_MESSAGE_TYPE_METHOD_CALL, 0, 1, 0, serial,
-                     DBUS_MESSAGE_FIELD_PATH, c_dvar_type_o, "/org/bus1/DBus/Launcher",
-                     DBUS_MESSAGE_FIELD_INTERFACE, c_dvar_type_s, "org.bus1.DBus.Launcher",
+                     DBUS_MESSAGE_FIELD_PATH, c_dvar_type_o, "/org/bus1/DBus/Controller",
+                     DBUS_MESSAGE_FIELD_INTERFACE, c_dvar_type_s, "org.bus1.DBus.Controller",
                      DBUS_MESSAGE_FIELD_MEMBER, c_dvar_type_s, "ReloadConfig");
 
         r = c_dvar_end_write(&var, &data, &n_data);
