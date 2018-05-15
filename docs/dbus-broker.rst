@@ -216,8 +216,8 @@ it is up to the controller to make sure not to perform **blocking** recursive
 calls back into the broker (via any means).
 
 |
-| **node** /org/bus1/DBus/Launcher {
-|     **interface** org.bus1.DBus.Launcher {
+| **node** /org/bus1/DBus/Controller {
+|     **interface** org.bus1.DBus.Controller {
 |
 |         # This function is called for each client-request of
 |         # *org.freedesktop.DBus.ReloadConfig()*.

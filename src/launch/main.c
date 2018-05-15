@@ -1415,7 +1415,7 @@ static int manager_run(Manager *manager) {
                 return error_trace(r);
         }
 
-        r = sd_bus_add_object_vtable(manager->bus_controller, NULL, "/org/bus1/DBus/Launcher", "org.bus1.DBus.Launcher", manager_vtable, manager);
+        r = sd_bus_add_object_vtable(manager->bus_controller, NULL, "/org/bus1/DBus/Controller", "org.bus1.DBus.Controller", manager_vtable, manager);
         if (r < 0)
                 return error_origin(r);
 

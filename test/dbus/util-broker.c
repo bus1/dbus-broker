@@ -215,7 +215,7 @@ void util_fork_broker(sd_bus **busp, sd_event *event, int listener_fd, pid_t *pi
         r = sd_bus_attach_event(bus, event, SD_EVENT_PRIORITY_NORMAL);
         assert(r >= 0);
 
-        r = sd_bus_add_object_vtable(bus, NULL, "/org/bus1/DBus/Launcher", "org.bus1.DBus.Launcher", util_vtable, NULL);
+        r = sd_bus_add_object_vtable(bus, NULL, "/org/bus1/DBus/Controller", "org.bus1.DBus.Controller", util_vtable, NULL);
         assert(r >= 0);
 
         r = sd_bus_start(bus);
