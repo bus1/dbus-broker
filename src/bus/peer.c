@@ -609,28 +609,6 @@ void peer_flush_matches(Peer *peer) {
         }
 }
 
-int peer_broadcast(Peer *sender, MatchRegistry *matches, Bus *bus, MatchFilter *filter, Message *message) {
-        _c_cleanup_(c_list_flush) CList destinations = C_LIST_INIT(destinations);
-        Peer *receiver;
-        int r;
-
-        r = bus_get_broadcast_destinations(bus, &destinations, matches, sender, filter);
-        if (r)
-                return error_trace(r);
-
-        c_list_for_each_entry(receiver, &destinations, destinations_link) {
-                r = connection_queue(&receiver->connection, NULL, message);
-                if (r) {
-                        if (r == CONNECTION_E_QUOTA)
-                                connection_shutdown(&receiver->connection);
-                        else
-                                return error_fold(r);
-                }
-        }
-
-        return 0;
-}
-
 static void peer_match_filter_from_message(MatchFilter *filter, uint64_t sender_id, Message *message) {
         filter->type = message->metadata.header.type;
         filter->sender = sender_id;
