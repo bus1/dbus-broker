@@ -609,7 +609,8 @@ void peer_flush_matches(Peer *peer) {
         }
 }
 
-static int peer_broadcast_to_matches(PolicySnapshot *sender_policy, NameSet *sender_names, MatchRegistry *matches, MatchFilter *filter, uint64_t transaction_id, Message *message) {
+static int peer_broadcast_to_matches(Peer *sender, MatchRegistry *matches, MatchFilter *filter, uint64_t transaction_id, Message *message) {
+        NameSet sender_names = NAME_SET_INIT_FROM_OWNER(sender ? &sender->owned_names : NULL);
         MatchRule *rule;
         int r;
 
@@ -622,8 +623,8 @@ static int peer_broadcast_to_matches(PolicySnapshot *sender_policy, NameSet *sen
 
                 receiver->transaction_id = c_max(transaction_id, receiver->transaction_id);
 
-                if (sender_policy) {
-                        r = policy_snapshot_check_send(sender_policy,
+                if (sender) {
+                        r = policy_snapshot_check_send(sender->policy,
                                                        receiver->seclabel,
                                                        &receiver_names,
                                                        filter->interface,
@@ -639,7 +640,7 @@ static int peer_broadcast_to_matches(PolicySnapshot *sender_policy, NameSet *sen
                 }
 
                 r = policy_snapshot_check_receive(receiver->policy,
-                                                  sender_names,
+                                                  &sender_names,
                                                   filter->interface,
                                                   filter->member,
                                                   filter->path,
@@ -663,55 +664,37 @@ static int peer_broadcast_to_matches(PolicySnapshot *sender_policy, NameSet *sen
         return 0;
 }
 
-int peer_broadcast(PolicySnapshot *sender_policy, NameSet *sender_names, MatchRegistry *matches, Peer *destination, Bus *bus, MatchFilter *filter, Message *message) {
+int peer_broadcast(Peer *sender, MatchRegistry *matches, Peer *destination, Bus *bus, MatchFilter *filter, Message *message) {
         int r;
 
         /* start a new transaction, to avoid duplicates */
         ++bus->transaction_ids;
 
-        r = peer_broadcast_to_matches(sender_policy, sender_names, &bus->wildcard_matches, filter, bus->transaction_ids, message);
+        r = peer_broadcast_to_matches(sender, &bus->wildcard_matches, filter, bus->transaction_ids, message);
         if (r)
                 return error_trace(r);
 
         if (matches) {
-                r = peer_broadcast_to_matches(sender_policy, sender_names, matches, filter, bus->transaction_ids, message);
+                r = peer_broadcast_to_matches(sender, matches, filter, bus->transaction_ids, message);
                 if (r)
                         return error_trace(r);
         }
 
-        if (sender_names) {
-                NameOwner *owner;
+        if (sender) {
+                NameOwner *owner = &sender->owned_names;
                 NameOwnership *ownership;
-                NameSnapshot *snapshot;
 
-                switch (sender_names->type) {
-                case NAME_SET_TYPE_OWNER:
-                        owner = sender_names->owner;
+                c_rbtree_for_each_entry(ownership, &owner->ownership_tree, owner_node) {
+                        if (!name_ownership_is_primary(ownership))
+                                continue;
 
-                        c_rbtree_for_each_entry(ownership, &owner->ownership_tree, owner_node) {
-                                if (!name_ownership_is_primary(ownership))
-                                        continue;
-
-                                r = peer_broadcast_to_matches(sender_policy, sender_names, &ownership->name->sender_matches, filter, bus->transaction_ids, message);
-                                if (r)
-                                        return error_trace(r);
-                        }
-                        break;
-                case NAME_SET_TYPE_SNAPSHOT:
-                        snapshot = sender_names->snapshot;
-
-                        for (size_t i = 0; i < snapshot->n_names; ++i) {
-                                r = peer_broadcast_to_matches(sender_policy, sender_names, &snapshot->names[i]->sender_matches, filter, bus->transaction_ids, message);
-                                if (r)
-                                        return error_trace(r);
-                        }
-                        break;
-                default:
-                        return error_origin(-ENOTRECOVERABLE);
+                        r = peer_broadcast_to_matches(sender, &ownership->name->sender_matches, filter, bus->transaction_ids, message);
+                        if (r)
+                                return error_trace(r);
                 }
         } else {
                 /* sent from the driver */
-                r = peer_broadcast_to_matches(NULL, NULL, &bus->sender_matches, filter, bus->transaction_ids, message);
+                r = peer_broadcast_to_matches(NULL, &bus->sender_matches, filter, bus->transaction_ids, message);
                 if (r)
                         return error_trace(r);
         }
