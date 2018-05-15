@@ -565,36 +565,7 @@ static int driver_notify_name_owner_changed(Bus *bus, MatchRegistry *matches, co
                 .n_args = 3,
                 .n_argpaths = 3,
         };
-        static const CDVarType type[] = {
-                C_DVAR_T_INIT(
-                        DRIVER_T_MESSAGE(
-                                C_DVAR_T_TUPLE3(
-                                        C_DVAR_T_s,
-                                        C_DVAR_T_s,
-                                        C_DVAR_T_s
-                                )
-                        )
-                )
-        };
-        _c_cleanup_(c_dvar_deinit) CDVar var = C_DVAR_INIT;
-        _c_cleanup_(message_unrefp) Message *message = NULL;
-        _c_cleanup_(c_freep) void *data = NULL;
-        size_t n_data;
         int r;
-
-        c_dvar_begin_write(&var, type, 1);
-        c_dvar_write(&var, "(");
-        driver_write_signal_header(&var, NULL, "NameOwnerChanged", "sss");
-        c_dvar_write(&var, "(sss)", name, old_owner, new_owner);
-        c_dvar_write(&var, ")");
-        r = c_dvar_end_write(&var, &data, &n_data);
-        if (r)
-                return error_origin(r);
-
-        r = message_new_outgoing(&message, data, n_data);
-        if (r)
-                return error_fold(r);
-        data = NULL;
 
         r = bus_get_monitor_destinations(bus, &destinations, NULL, &filter);
         if (r)
@@ -604,13 +575,45 @@ static int driver_notify_name_owner_changed(Bus *bus, MatchRegistry *matches, co
         if (r)
                 return error_trace(r);
 
-        c_list_for_each_entry(receiver, &destinations, destinations_link) {
-                r = connection_queue(&receiver->connection, NULL, message);
-                if (r) {
-                        if (r == CONNECTION_E_QUOTA)
-                                connection_shutdown(&receiver->connection);
-                        else
-                                return error_fold(r);
+        if (!c_list_is_empty(&destinations)) {
+                static const CDVarType type[] = {
+                        C_DVAR_T_INIT(
+                                DRIVER_T_MESSAGE(
+                                        C_DVAR_T_TUPLE3(
+                                                C_DVAR_T_s,
+                                                C_DVAR_T_s,
+                                                C_DVAR_T_s
+                                        )
+                                )
+                        )
+                };
+                _c_cleanup_(c_dvar_deinit) CDVar var = C_DVAR_INIT;
+                _c_cleanup_(message_unrefp) Message *message = NULL;
+                _c_cleanup_(c_freep) void *data = NULL;
+                size_t n_data;
+
+                c_dvar_begin_write(&var, type, 1);
+                c_dvar_write(&var, "(");
+                driver_write_signal_header(&var, NULL, "NameOwnerChanged", "sss");
+                c_dvar_write(&var, "(sss)", name, old_owner, new_owner);
+                c_dvar_write(&var, ")");
+                r = c_dvar_end_write(&var, &data, &n_data);
+                if (r)
+                        return error_origin(r);
+
+                r = message_new_outgoing(&message, data, n_data);
+                if (r)
+                        return error_fold(r);
+                data = NULL;
+
+                c_list_for_each_entry(receiver, &destinations, destinations_link) {
+                        r = connection_queue(&receiver->connection, NULL, message);
+                        if (r) {
+                                if (r == CONNECTION_E_QUOTA)
+                                        connection_shutdown(&receiver->connection);
+                                else
+                                        return error_fold(r);
+                        }
                 }
         }
 
