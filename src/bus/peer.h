@@ -76,7 +76,6 @@ struct Peer {
         ReplyRegistry replies;
         ReplyOwner owned_replies;
 
-        uint64_t transaction_id;
         CList destinations_link;
 };
 

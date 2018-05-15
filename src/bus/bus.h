@@ -46,7 +46,6 @@ struct Bus {
         PeerRegistry peers;
 
         uint64_t n_monitors;
-        uint64_t transaction_ids;
         uint64_t listener_ids;
 
         Metrics metrics;
@@ -71,6 +70,8 @@ int bus_init(Bus *bus,
 void bus_deinit(Bus *bus);
 
 Peer *bus_find_peer_by_name(Bus *bus, Name **namep, const char *name);
+int bus_get_monitor_destinations(Bus *bus, CList *destinations, Peer *sender, MatchFilter *filter);
+int bus_get_broadcast_destinations(Bus *bus, CList *destinations, MatchRegistry *matches, Peer *sender, MatchFilter *filter);
 
 int bus_log_commit_policy_send(Bus *bus, int policy_type, uint64_t sender_id, uint64_t receiver_id, NameSet *sender_names, NameSet *receiver_names, const char *sender_label, const char *receiver_label, Message *message);
 int bus_log_commit_policy_receive(Bus *bus, uint64_t sender_id, uint64_t receiver_id, NameSet *sender_names, NameSet *receievr_names, Message *message);

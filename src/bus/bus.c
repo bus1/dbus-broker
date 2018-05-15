@@ -87,6 +87,132 @@ Peer *bus_find_peer_by_name(Bus *bus, Name **namep, const char *name_str) {
         return peer;
 }
 
+static int bus_get_monitor_destinations_for_matches(CList *destinations, MatchRegistry *matches, MatchFilter *filter) {
+        MatchRule *rule;
+
+        for (rule = match_rule_next_monitor_match(matches, NULL, filter); rule; rule = match_rule_next_monitor_match(matches, rule, filter)) {
+                Peer *receiver = c_container_of(rule->owner, Peer, owned_matches);
+
+                if (!c_list_is_linked(&receiver->destinations_link))
+                        c_list_link_tail(destinations, &receiver->destinations_link);
+        }
+
+        return 0;
+}
+
+int bus_get_monitor_destinations(Bus *bus, CList *destinations, Peer *sender, MatchFilter *filter) {
+        int r;
+
+        r = bus_get_monitor_destinations_for_matches(destinations, &bus->wildcard_matches, filter);
+        if (r)
+                return error_trace(r);
+
+        if (sender) {
+                NameOwnership *ownership;
+
+                c_rbtree_for_each_entry(ownership, &sender->owned_names.ownership_tree, owner_node) {
+                        if (!name_ownership_is_primary(ownership))
+                                continue;
+
+                        r = bus_get_monitor_destinations_for_matches(destinations, &ownership->name->sender_matches, filter);
+                        if (r)
+                                return error_trace(r);
+                }
+
+                r = bus_get_monitor_destinations_for_matches(destinations, &sender->sender_matches, filter);
+                if (r)
+                        return error_trace(r);
+        } else {
+                /* sent from the driver */
+                r = bus_get_monitor_destinations_for_matches(destinations, &bus->sender_matches, filter);
+                if (r)
+                        return error_trace(r);
+        }
+
+        return 0;
+}
+
+static int bus_get_broadcast_destinations_for_matches(CList *destinations, Peer *sender, MatchRegistry *matches, MatchFilter *filter) {
+        NameSet sender_names = NAME_SET_INIT_FROM_OWNER(sender ? &sender->owned_names : NULL);
+        MatchRule *rule;
+        int r;
+
+        for (rule = match_rule_next_subscription_match(matches, NULL, filter); rule; rule = match_rule_next_subscription_match(matches, rule, filter)) {
+                Peer *receiver = c_container_of(rule->owner, Peer, owned_matches);
+                NameSet receiver_names = NAME_SET_INIT_FROM_OWNER(&receiver->owned_names);
+
+                if (sender) {
+                        r = policy_snapshot_check_send(sender->policy,
+                                                       receiver->seclabel,
+                                                       &receiver_names,
+                                                       filter->interface,
+                                                       filter->member,
+                                                       filter->path,
+                                                       filter->type);
+                        if (r) {
+                                if (r == POLICY_E_ACCESS_DENIED || r == POLICY_E_SELINUX_ACCESS_DENIED)
+                                        continue;
+
+                                return error_fold(r);
+                        }
+                }
+
+                r = policy_snapshot_check_receive(receiver->policy,
+                                                  &sender_names,
+                                                  filter->interface,
+                                                  filter->member,
+                                                  filter->path,
+                                                  filter->type);
+                if (r) {
+                        if (r == POLICY_E_ACCESS_DENIED)
+                                continue;
+
+                        return error_fold(r);
+                }
+
+                if (!c_list_is_linked(&receiver->destinations_link))
+                        c_list_link_tail(destinations, &receiver->destinations_link);
+        }
+
+        return 0;
+}
+
+int bus_get_broadcast_destinations(Bus *bus, CList *destinations, MatchRegistry *matches, Peer *sender, MatchFilter *filter) {
+        int r;
+
+        r = bus_get_broadcast_destinations_for_matches(destinations, sender, &bus->wildcard_matches, filter);
+        if (r)
+                return error_trace(r);
+
+        if (matches) {
+                r = bus_get_broadcast_destinations_for_matches(destinations, sender, matches, filter);
+                if (r)
+                        return error_trace(r);
+        }
+
+        if (sender) {
+                NameOwner *owner = &sender->owned_names;
+                NameOwnership *ownership;
+
+                c_rbtree_for_each_entry(ownership, &owner->ownership_tree, owner_node) {
+                        if (!name_ownership_is_primary(ownership))
+                                continue;
+
+                        r = bus_get_broadcast_destinations_for_matches(destinations, sender, &ownership->name->sender_matches, filter);
+                        if (r)
+                                return error_trace(r);
+                }
+        } else {
+                /* sent from the driver */
+                r = bus_get_broadcast_destinations_for_matches(destinations, NULL, &bus->sender_matches, filter);
+                if (r)
+                        return error_trace(r);
+        }
+
+        return 0;
+}
+
+
 static int bus_log_commit_policy(Bus *bus, const char *action, const char *policy_type, uint64_t sender_id, uint64_t receiver_id,
                                  NameSet *sender_names, NameSet *receiver_names, const char *sender_label, const char *receiver_label,
                                  Message *message) {

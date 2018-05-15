@@ -327,51 +327,6 @@ static const char *driver_error_to_string(int r) {
         return error_strings[r];
 }
 
-static int driver_get_monitor_destinations_for_matches(CList *destinations, MatchRegistry *matches, MatchFilter *filter) {
-        MatchRule *rule;
-
-        for (rule = match_rule_next_monitor_match(matches, NULL, filter); rule; rule = match_rule_next_monitor_match(matches, rule, filter)) {
-                Peer *receiver = c_container_of(rule->owner, Peer, owned_matches);
-
-                if (!c_list_is_linked(&receiver->destinations_link))
-                        c_list_link_tail(destinations, &receiver->destinations_link);
-        }
-
-        return 0;
-}
-
-static int driver_get_monitor_destinations(Bus *bus, CList *destinations, Peer *sender, MatchFilter *filter) {
-        int r;
-
-        r = driver_get_monitor_destinations_for_matches(destinations, &bus->wildcard_matches, filter);
-        if (r)
-                return error_trace(r);
-
-        if (sender) {
-                NameOwnership *ownership;
-
-                c_rbtree_for_each_entry(ownership, &sender->owned_names.ownership_tree, owner_node) {
-                        if (!name_ownership_is_primary(ownership))
-                                continue;
-
-                        r = driver_get_monitor_destinations_for_matches(destinations, &ownership->name->sender_matches, filter);
-                        if (r)
-                                return error_trace(r);
-                }
-
-                r = driver_get_monitor_destinations_for_matches(destinations, &sender->sender_matches, filter);
-                if (r)
-                        return error_trace(r);
-        } else {
-                /* sent from the driver */
-                r = driver_get_monitor_destinations_for_matches(destinations, &bus->sender_matches, filter);
-                if (r)
-                        return error_trace(r);
-        }
-
-        return 0;
-}
-
 static void driver_match_filter_from_message(MatchFilter *filter, uint64_t sender_id, Message *message) {
         filter->type = message->metadata.header.type;
         filter->sender = sender_id;
@@ -402,7 +357,7 @@ static int driver_monitor(Bus *bus, Peer *sender, Message *message) {
 
         driver_match_filter_from_message(&filter, sender ? sender->id : ADDRESS_ID_INVALID, message);
 
-        r = driver_get_monitor_destinations(bus, &destinations, sender, &filter);
+        r = bus_get_monitor_destinations(bus, &destinations, sender, &filter);
         if (r)
                 return error_trace(r);
 
