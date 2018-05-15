@@ -643,7 +643,7 @@ static int driver_notify_name_owner_changed(Bus *bus, MatchRegistry *matches, co
         if (r)
                 return error_fold(r);
 
-        r = peer_broadcast(NULL, NULL, matches, NULL, bus, &filter, message);
+        r = peer_broadcast(NULL, matches, NULL, bus, &filter, message);
         if (r)
                 return error_fold(r);
 
@@ -2142,12 +2142,11 @@ static int driver_dispatch_internal(Peer *peer, Message *message) {
 
         if (!message->metadata.fields.destination) {
                 if (message->metadata.header.type == DBUS_MESSAGE_TYPE_SIGNAL) {
-                        NameSet sender_names = NAME_SET_INIT_FROM_OWNER(&peer->owned_names);
                         MatchFilter filter = MATCH_FILTER_INIT;
 
                         driver_match_filter_from_message(&filter, peer->id, message);
 
-                        r = peer_broadcast(peer->policy, &sender_names, &peer->sender_matches, NULL, peer->bus, &filter, message);
+                        r = peer_broadcast(peer, &peer->sender_matches, NULL, peer->bus, &filter, message);
                         if (r)
                                 return error_fold(r);
 
