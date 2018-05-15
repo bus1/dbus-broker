@@ -455,7 +455,7 @@ static int manager_start_unit(Manager *manager, Service *service) {
         if (r < 0)
                 return error_origin(r);
 
-        r = sd_bus_message_append(method_call, "ss", service->unit, "fail");
+        r = sd_bus_message_append(method_call, "ss", service->unit, "replace");
         if (r < 0)
                 return error_origin(r);
 
