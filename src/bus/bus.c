@@ -103,6 +103,9 @@ static int bus_get_monitor_destinations_for_matches(CList *destinations, MatchRe
 int bus_get_monitor_destinations(Bus *bus, CList *destinations, Peer *sender, MatchFilter *filter) {
         int r;
 
+        if (!bus->n_monitors)
+                return 0;
+
         r = bus_get_monitor_destinations_for_matches(destinations, &bus->wildcard_matches, filter);
         if (r)
                 return error_trace(r);
