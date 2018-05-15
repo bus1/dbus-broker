@@ -17,11 +17,11 @@
 bool main_arg_audit = false;
 int main_arg_controller = 3;
 int main_arg_log = -1;
+const char *main_arg_machine_id = NULL;
 uint64_t main_arg_max_bytes = 16 * 1024 * 1024;
 uint64_t main_arg_max_fds = 64;
 uint64_t main_arg_max_matches = 16 * 1024;
 uint64_t main_arg_max_objects = 16 * 1024;
-const char *main_arg_machine_id = NULL;
 
 static void help(void) {
         printf("%s [GLOBALS...] ...\n\n"
@@ -29,13 +29,13 @@ static void help(void) {
                "  -h --help                     Show this help\n"
                "     --version                  Show package version\n"
                "     --audit                    Log to the audit subsystem\n"
-               "     --log FD                   Change log socket\n"
-               "     --controller FD            Change controller file-descriptor\n"
-               "     --max-bytes BYTES          The maximum number of bytes each user may own in the broker\n"
-               "     --max-fds FDS              The maximum number of file descriptors each user may own in the broker\n"
-               "     --max-matches MATCHES      The maximum number of match rules each user may own in the broker\n"
-               "     --max-objects OBJECTS      The maximum total number of names, peers, pending replies, etc each user may own in the broker\n"
-               "     --machine-id MACHINE_ID    The machine ID of the current machine\n"
+               "     --controller FD            Specify controller file-descriptor\n"
+               "     --log FD                   Provide logging socket\n"
+               "     --machine-id MACHINE_ID    Machine ID of the current machine\n"
+               "     --max-bytes BYTES          Maximum number of bytes each user may allocate in the broker\n"
+               "     --max-fds FDS              Maximum number of file descriptors each user may allocate in the broker\n"
+               "     --max-matches MATCHES      Maximum number of match rules each user may allocate in the broker\n"
+               "     --max-objects OBJECTS      Maximum total number of names, peers, pending replies, etc each user may allocate in the broker\n"
                , program_invocation_short_name);
 }
 
@@ -45,23 +45,23 @@ static int parse_argv(int argc, char *argv[]) {
                 ARG_AUDIT,
                 ARG_CONTROLLER,
                 ARG_LOG,
+                ARG_MACHINE_ID,
                 ARG_MAX_BYTES,
                 ARG_MAX_FDS,
                 ARG_MAX_MATCHES,
                 ARG_MAX_OBJECTS,
-                ARG_MACHINE_ID,
         };
         static const struct option options[] = {
                 { "help",               no_argument,            NULL,   'h'                     },
                 { "version",            no_argument,            NULL,   ARG_VERSION             },
                 { "audit",              no_argument,            NULL,   ARG_AUDIT               },
-                { "log",                required_argument,      NULL,   ARG_LOG                 },
                 { "controller",         required_argument,      NULL,   ARG_CONTROLLER          },
+                { "log",                required_argument,      NULL,   ARG_LOG                 },
+                { "machine-id",         required_argument,      NULL,   ARG_MACHINE_ID          },
                 { "max-bytes",          required_argument,      NULL,   ARG_MAX_BYTES           },
                 { "max-fds",            required_argument,      NULL,   ARG_MAX_FDS             },
                 { "max-matches",        required_argument,      NULL,   ARG_MAX_MATCHES         },
                 { "max-objects",        required_argument,      NULL,   ARG_MAX_OBJECTS         },
-                { "machine-id",         required_argument,      NULL,   ARG_MACHINE_ID          },
                 {}
         };
         int r, c;
@@ -80,6 +80,21 @@ static int parse_argv(int argc, char *argv[]) {
                         main_arg_audit = true;
                         break;
 
+                case ARG_CONTROLLER: {
+                        unsigned long vul;
+                        char *end;
+
+                        errno = 0;
+                        vul = strtoul(optarg, &end, 10);
+                        if (errno != 0 || *end || optarg == end || vul > INT_MAX) {
+                                fprintf(stderr, "%s: invalid controller file-descriptor -- '%s'\n", program_invocation_name, optarg);
+                                return MAIN_FAILED;
+                        }
+
+                        main_arg_controller = vul;
+                        break;
+                }
+
                 case ARG_LOG: {
                         unsigned long vul;
                         char *end;
@@ -95,18 +110,13 @@ static int parse_argv(int argc, char *argv[]) {
                         break;
                 }
 
-                case ARG_CONTROLLER: {
-                        unsigned long vul;
-                        char *end;
-
-                        errno = 0;
-                        vul = strtoul(optarg, &end, 10);
-                        if (errno != 0 || *end || optarg == end || vul > INT_MAX) {
-                                fprintf(stderr, "%s: invalid controller file-descriptor -- '%s'\n", program_invocation_name, optarg);
+                case ARG_MACHINE_ID: {
+                        if (strlen(optarg) != 32) {
+                                fprintf(stderr, "%s: invalid machine ID -- '%s'\n", program_invocation_name, optarg);
                                 return MAIN_FAILED;
                         }
 
-                        main_arg_controller = vul;
+                        main_arg_machine_id = optarg;
                         break;
                 }
 
@@ -167,16 +177,6 @@ static int parse_argv(int argc, char *argv[]) {
                         }
 
                         main_arg_max_objects = vul;
-                        break;
-                }
-
-                case ARG_MACHINE_ID: {
-                        if (strlen(optarg) != 32) {
-                                fprintf(stderr, "%s: invalid machine ID -- '%s'\n", program_invocation_name, optarg);
-                                return MAIN_FAILED;
-                        }
-
-                        main_arg_machine_id = optarg;
                         break;
                 }
 
