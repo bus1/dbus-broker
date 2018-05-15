@@ -643,7 +643,7 @@ static int driver_notify_name_owner_changed(Bus *bus, MatchRegistry *matches, co
         if (r)
                 return error_fold(r);
 
-        r = peer_broadcast(NULL, matches, NULL, bus, &filter, message);
+        r = peer_broadcast(NULL, matches, bus, &filter, message);
         if (r)
                 return error_fold(r);
 
@@ -2146,7 +2146,7 @@ static int driver_dispatch_internal(Peer *peer, Message *message) {
 
                         driver_match_filter_from_message(&filter, peer->id, message);
 
-                        r = peer_broadcast(peer, &peer->sender_matches, NULL, peer->bus, &filter, message);
+                        r = peer_broadcast(peer, &peer->sender_matches, peer->bus, &filter, message);
                         if (r)
                                 return error_fold(r);
 

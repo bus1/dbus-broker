@@ -664,7 +664,7 @@ static int peer_broadcast_to_matches(Peer *sender, MatchRegistry *matches, Match
         return 0;
 }
 
-int peer_broadcast(Peer *sender, MatchRegistry *matches, Peer *destination, Bus *bus, MatchFilter *filter, Message *message) {
+int peer_broadcast(Peer *sender, MatchRegistry *matches, Bus *bus, MatchFilter *filter, Message *message) {
         int r;
 
         /* start a new transaction, to avoid duplicates */
