@@ -372,6 +372,25 @@ static int driver_get_monitor_destinations(Bus *bus, CList *destinations, Peer *
         return 0;
 }
 
+static void driver_match_filter_from_message(MatchFilter *filter, uint64_t sender_id, Message *message) {
+        filter->type = message->metadata.header.type;
+        filter->sender = sender_id;
+        filter->interface = message->metadata.fields.interface;
+        filter->member = message->metadata.fields.member,
+        filter->path = message->metadata.fields.path;
+        filter->n_args = message->metadata.n_args;
+        filter->n_argpaths = message->metadata.n_args;
+
+        for (size_t i = 0; i < message->metadata.n_args; ++i) {
+                if (message->metadata.args[i].element == 's') {
+                        filter->args[i] = message->metadata.args[i].value;
+                        filter->argpaths[i] = message->metadata.args[i].value;
+                } else if (message->metadata.args[i].element == 'o') {
+                        filter->argpaths[i] = message->metadata.args[i].value;
+                }
+        }
+}
+
 static int driver_monitor(Bus *bus, Peer *sender, Message *message) {
         _c_cleanup_(c_list_flush) CList destinations = C_LIST_INIT(destinations);
         MatchFilter filter = MATCH_FILTER_INIT;
@@ -381,22 +400,7 @@ static int driver_monitor(Bus *bus, Peer *sender, Message *message) {
         if (!bus->n_monitors)
                 return 0;
 
-        filter.type = message->metadata.header.type;
-        filter.sender = sender ? sender->id : ADDRESS_ID_INVALID;
-        filter.interface = message->metadata.fields.interface;
-        filter.member = message->metadata.fields.member,
-        filter.path = message->metadata.fields.path;
-        filter.n_args = message->metadata.n_args;
-        filter.n_argpaths = message->metadata.n_args;
-
-        for (size_t i = 0; i < message->metadata.n_args; ++i) {
-                if (message->metadata.args[i].element == 's') {
-                        filter.args[i] = message->metadata.args[i].value;
-                        filter.argpaths[i] = message->metadata.args[i].value;
-                } else if (message->metadata.args[i].element == 'o') {
-                        filter.argpaths[i] = message->metadata.args[i].value;
-                }
-        }
+        driver_match_filter_from_message(&filter, sender ? sender->id : ADDRESS_ID_INVALID, message);
 
         r = driver_get_monitor_destinations(bus, &destinations, sender, &filter);
         if (r)
@@ -639,7 +643,7 @@ static int driver_notify_name_owner_changed(Bus *bus, MatchRegistry *matches, co
         if (r)
                 return error_fold(r);
 
-        r = peer_broadcast(NULL, NULL, matches, ADDRESS_ID_INVALID, NULL, bus, &filter, message);
+        r = peer_broadcast(NULL, NULL, matches, NULL, bus, &filter, message);
         if (r)
                 return error_fold(r);
 
@@ -2139,8 +2143,11 @@ static int driver_dispatch_internal(Peer *peer, Message *message) {
         if (!message->metadata.fields.destination) {
                 if (message->metadata.header.type == DBUS_MESSAGE_TYPE_SIGNAL) {
                         NameSet sender_names = NAME_SET_INIT_FROM_OWNER(&peer->owned_names);
+                        MatchFilter filter = MATCH_FILTER_INIT;
 
-                        r = peer_broadcast(peer->policy, &sender_names, &peer->sender_matches, peer->id, NULL, peer->bus, NULL, message);
+                        driver_match_filter_from_message(&filter, peer->id, message);
+
+                        r = peer_broadcast(peer->policy, &sender_names, &peer->sender_matches, NULL, peer->bus, &filter, message);
                         if (r)
                                 return error_fold(r);
 
