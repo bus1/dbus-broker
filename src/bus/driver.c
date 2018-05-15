@@ -549,6 +549,8 @@ static int driver_notify_name_lost(Peer *peer, const char *name) {
 }
 
 static int driver_notify_name_owner_changed(Bus *bus, MatchRegistry *matches, const char *name, const char *old_owner, const char *new_owner) {
+        _c_cleanup_(c_list_flush) CList destinations = C_LIST_INIT(destinations);
+        Peer *receiver;
         MatchFilter filter = {
                 .type = DBUS_MESSAGE_TYPE_SIGNAL,
                 .interface = "org.freedesktop.DBus",
@@ -594,13 +596,23 @@ static int driver_notify_name_owner_changed(Bus *bus, MatchRegistry *matches, co
                 return error_fold(r);
         data = NULL;
 
-        r = driver_monitor(bus, NULL, message);
+        r = bus_get_monitor_destinations(bus, &destinations, NULL, &filter);
         if (r)
-                return error_fold(r);
+                return error_trace(r);
 
-        r = peer_broadcast(NULL, matches, bus, &filter, message);
+        r = bus_get_broadcast_destinations(bus, &destinations, matches, NULL, &filter);
         if (r)
-                return error_fold(r);
+                return error_trace(r);
+
+        c_list_for_each_entry(receiver, &destinations, destinations_link) {
+                r = connection_queue(&receiver->connection, NULL, message);
+                if (r) {
+                        if (r == CONNECTION_E_QUOTA)
+                                connection_shutdown(&receiver->connection);
+                        else
+                                return error_fold(r);
+                }
+        }
 
         return 0;
 }

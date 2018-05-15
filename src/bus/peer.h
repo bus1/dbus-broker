@@ -125,7 +125,6 @@ void peer_flush_matches(Peer *peer);
 
 int peer_queue_call(PolicySnapshot *sender_policy, NameSet *sender_names, ReplyOwner *sender_replies, User *sender_user, uint64_t sender_id, Peer *receiver, Message *message);
 int peer_queue_reply(Peer *sender, const char *destination, uint32_t reply_serial, Message *message);
-int peer_broadcast(Peer *sender, MatchRegistry *matches, Bus *bus, MatchFilter *filter, Message *message);
 
 void peer_registry_init(PeerRegistry *registry);
 void peer_registry_deinit(PeerRegistry *registry);
