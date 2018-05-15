@@ -663,34 +663,8 @@ static int peer_broadcast_to_matches(PolicySnapshot *sender_policy, NameSet *sen
         return 0;
 }
 
-static void peer_match_filter_from_message(MatchFilter *filter, uint64_t sender_id, Message *message) {
-        filter->type = message->metadata.header.type;
-        filter->sender = sender_id;
-        filter->interface = message->metadata.fields.interface;
-        filter->member = message->metadata.fields.member,
-        filter->path = message->metadata.fields.path;
-        filter->n_args = message->metadata.n_args;
-        filter->n_argpaths = message->metadata.n_args;
-
-        for (size_t i = 0; i < message->metadata.n_args; ++i) {
-                if (message->metadata.args[i].element == 's') {
-                        filter->args[i] = message->metadata.args[i].value;
-                        filter->argpaths[i] = message->metadata.args[i].value;
-                } else if (message->metadata.args[i].element == 'o') {
-                        filter->argpaths[i] = message->metadata.args[i].value;
-                }
-        }
-}
-
-int peer_broadcast(PolicySnapshot *sender_policy, NameSet *sender_names, MatchRegistry *matches, uint64_t sender_id, Peer *destination, Bus *bus, MatchFilter *filter, Message *message) {
-        MatchFilter fallback_filter = MATCH_FILTER_INIT;
+int peer_broadcast(PolicySnapshot *sender_policy, NameSet *sender_names, MatchRegistry *matches, Peer *destination, Bus *bus, MatchFilter *filter, Message *message) {
         int r;
-
-        if (!filter) {
-                filter = &fallback_filter;
-
-                peer_match_filter_from_message(filter, sender_id, message);
-        }
 
         /* start a new transaction, to avoid duplicates */
         ++bus->transaction_ids;
@@ -743,6 +717,25 @@ int peer_broadcast(PolicySnapshot *sender_policy, NameSet *sender_names, MatchRe
         }
 
         return 0;
+}
+
+static void peer_match_filter_from_message(MatchFilter *filter, uint64_t sender_id, Message *message) {
+        filter->type = message->metadata.header.type;
+        filter->sender = sender_id;
+        filter->interface = message->metadata.fields.interface;
+        filter->member = message->metadata.fields.member,
+        filter->path = message->metadata.fields.path;
+        filter->n_args = message->metadata.n_args;
+        filter->n_argpaths = message->metadata.n_args;
+
+        for (size_t i = 0; i < message->metadata.n_args; ++i) {
+                if (message->metadata.args[i].element == 's') {
+                        filter->args[i] = message->metadata.args[i].value;
+                        filter->argpaths[i] = message->metadata.args[i].value;
+                } else if (message->metadata.args[i].element == 'o') {
+                        filter->argpaths[i] = message->metadata.args[i].value;
+                }
+        }
 }
 
 static bool peer_message_is_solicited(Peer *destination, uint64_t sender_id, Message *message) {
