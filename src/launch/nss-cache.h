@@ -7,7 +7,6 @@
 #include <c-macro.h>
 #include <c-rbtree.h>
 #include <stdlib.h>
-#include <sys/types.h>
 
 typedef struct NSSCache NSSCache;
 
@@ -19,12 +18,16 @@ enum {
 
 struct NSSCache {
         CRBTree user_tree;
+        CRBTree uid_tree;
         CRBTree group_tree;
+        CRBTree gid_tree;
 };
 
 #define NSS_CACHE_INIT {                                                        \
                 .user_tree = C_RBTREE_INIT,                                     \
+                .uid_tree = C_RBTREE_INIT,                                      \
                 .group_tree = C_RBTREE_INIT,                                    \
+                .gid_tree = C_RBTREE_INIT,                                      \
         }
 
 /* nss cache */
@@ -34,5 +37,5 @@ void nss_cache_deinit(NSSCache *cache);
 
 int nss_cache_populate(NSSCache *cache);
 
-int nss_cache_get_uid(NSSCache *cache, uid_t *uidp, const char *user);
-int nss_cache_get_gid(NSSCache *cache, gid_t *gidp, const char *group);
+int nss_cache_get_uid(NSSCache *cache, uint32_t *uidp, const char *user);
+int nss_cache_get_gid(NSSCache *cache, uint32_t *gidp, const char *group);
