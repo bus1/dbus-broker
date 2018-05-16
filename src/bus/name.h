@@ -101,6 +101,7 @@ struct NameSnapshot {
 enum {
         NAME_SET_TYPE_OWNER,
         NAME_SET_TYPE_SNAPSHOT,
+        NAME_SET_TYPE_EMPTY,
 };
 
 struct NameSet {
@@ -111,14 +112,14 @@ struct NameSet {
         };
 };
 
-#define NAME_SET_INIT_FROM_OWNER(_x) {          \
-                .type = NAME_SET_TYPE_OWNER,    \
-                .owner = (_x),                  \
+#define NAME_SET_INIT_FROM_OWNER(_x) {                                          \
+                .type = (_x) ? NAME_SET_TYPE_OWNER : NAME_SET_TYPE_EMPTY,       \
+                .owner = (_x),                                                  \
         }
 
-#define NAME_SET_INIT_FROM_SNAPSHOT(_x) {       \
-                .type = NAME_SET_TYPE_SNAPSHOT, \
-                .snapshot = (_x),               \
+#define NAME_SET_INIT_FROM_SNAPSHOT(_x) {                                       \
+                .type = (_x) ? NAME_SET_TYPE_SNAPSHOT : NAME_SET_TYPE_EMPTY,    \
+                .snapshot = (_x),                                               \
         }
 
 /* notifications */

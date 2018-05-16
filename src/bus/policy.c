@@ -875,7 +875,7 @@ static void policy_snapshot_check_xmit(PolicyBatch *batch,
                                                         method,
                                                         path,
                                                         type);
-        } else {
+        } else if (nameset->type != NAME_SET_TYPE_EMPTY) {
                 assert(0);
         }
 }
