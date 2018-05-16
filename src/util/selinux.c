@@ -26,6 +26,8 @@ struct BusSELinuxName {
 
 typedef struct BusSELinuxName BusSELinuxName;
 
+static bool bus_selinux_avc_open;
+
 /** bus_selinux_is_enabled() - checks if SELinux is currently enabled
  *
  * Returns: true if SELinux is enabled, false otherwise.
@@ -318,9 +320,13 @@ int bus_selinux_init_global(void) {
         if (!is_selinux_enabled())
                 return 0;
 
-        r = avc_open(NULL, 0);
-        if (r)
-                return error_origin(-errno);
+        if (!bus_selinux_avc_open) {
+                r = avc_open(NULL, 0);
+                if (r)
+                        return error_origin(-errno);
+
+                bus_selinux_avc_open = true;
+        }
 
         selinux_set_callback(SELINUX_CB_LOG, (union selinux_callback)bus_selinux_log);
 
@@ -340,5 +346,8 @@ void bus_selinux_deinit_global(void) {
         if (!is_selinux_enabled())
                 return;
 
-        avc_destroy();
+        if (bus_selinux_avc_open) {
+                avc_destroy();
+                bus_selinux_avc_open = false;
+        }
 }
