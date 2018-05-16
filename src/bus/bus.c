@@ -93,8 +93,11 @@ static int bus_get_monitor_destinations_for_matches(CList *destinations, MatchRe
         for (rule = match_rule_next_monitor_match(matches, NULL, metadata); rule; rule = match_rule_next_monitor_match(matches, rule, metadata)) {
                 Peer *receiver = c_container_of(rule->owner, Peer, owned_matches);
 
-                if (!c_list_is_linked(&receiver->destinations_link))
-                        c_list_link_tail(destinations, &receiver->destinations_link);
+                if (c_list_is_linked(&receiver->destinations_link))
+                        /* only link a destination once, despite matching in several different ways */
+                        continue;
+
+                c_list_link_tail(destinations, &receiver->destinations_link);
         }
 
         return 0;
@@ -144,6 +147,10 @@ static int bus_get_broadcast_destinations_for_matches(CList *destinations, Peer 
                 Peer *receiver = c_container_of(rule->owner, Peer, owned_matches);
                 NameSet receiver_names = NAME_SET_INIT_FROM_OWNER(&receiver->owned_names);
 
+                if (c_list_is_linked(&receiver->destinations_link))
+                        /* only link a destination once, despite matching in several different ways */
+                        continue;
+
                 if (sender) {
                         r = policy_snapshot_check_send(sender->policy,
                                                        receiver->seclabel,
@@ -173,8 +180,7 @@ static int bus_get_broadcast_destinations_for_matches(CList *destinations, Peer 
                         return error_fold(r);
                 }
 
-                if (!c_list_is_linked(&receiver->destinations_link))
-                        c_list_link_tail(destinations, &receiver->destinations_link);
+                c_list_link_tail(destinations, &receiver->destinations_link);
         }
 
         return 0;
