@@ -2103,8 +2103,8 @@ static int driver_dispatch_internal(Peer *peer, Message *message) {
         if (r)
                 return error_trace(r);
 
-        if (message->metadata.header.type == DBUS_MESSAGE_TYPE_METHOD_CALL &&
-            !message->metadata.fields.destination) {
+        if (_c_unlikely_(message->metadata.header.type == DBUS_MESSAGE_TYPE_METHOD_CALL &&
+                         !message->metadata.fields.destination)) {
                 /*
                  * The empty destination is treated as a special peer, only implementing the Peer
                  * interface.
