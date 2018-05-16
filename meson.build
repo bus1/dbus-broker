@@ -43,6 +43,7 @@ dep_thread = dependency('threads')
 use_audit = get_option('audit')
 if use_audit
         dep_libaudit = dependency('audit', version: '>=2.7')
+        dep_libcapng = dependency('libcap-ng', version: '>=0.6')
 endif
 
 #

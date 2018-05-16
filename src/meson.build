@@ -52,6 +52,7 @@ if use_audit
         ]
         deps_bus += [
                 dep_libaudit,
+                dep_libcapng,
         ]
 else
         sources_bus += [
