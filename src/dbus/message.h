@@ -39,6 +39,8 @@ struct MessageMetadata {
                 uint32_t serial;
         } header;
 
+        uint64_t sender_id;
+
         struct {
                 unsigned int available;
                 const char *path;
@@ -59,14 +61,16 @@ struct MessageMetadata {
         size_t n_args;
 };
 
+#define MESSAGE_METADATA_INIT {                         \
+                .sender_id = ADDRESS_ID_INVALID,        \
+        }
+
 struct Message {
         _Atomic unsigned long n_refs;
 
         bool big_endian : 1;
         bool allocated_data : 1;
         bool parsed : 1;
-
-        uint64_t sender_id;
 
         FDList *fds;
 
@@ -85,6 +89,12 @@ struct Message {
         alignas(8) uint8_t patch[MESSAGE_PATCH_MAX];
         alignas(8) uint8_t extra[];
 };
+
+#define MESSAGE_INIT(_big_endian) {                     \
+                .n_refs = C_REF_INIT,                   \
+                .big_endian = _big_endian,              \
+                .metadata = MESSAGE_METADATA_INIT,      \
+        }
 
 struct MessageHeader {
         uint8_t endian;
