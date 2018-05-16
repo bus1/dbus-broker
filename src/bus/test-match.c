@@ -7,6 +7,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include "bus/match.h"
+#include "dbus/message.h"
 #include "dbus/protocol.h"
 
 static void test_arg(MatchOwner *owner,
@@ -114,7 +115,7 @@ static void test_validate_keys(MatchOwner *owner) {
         assert(!test_validity(owner, "arg0namespace=foo,arg0namespace=foo"));
 }
 
-static bool test_match(const char *match_string, MatchFilter *filter) {
+static bool test_match(const char *match_string, MessageMetadata *metadata) {
         MatchRegistry registry;
         MatchOwner owner;
         MatchRule *rule, *rule1;
@@ -129,7 +130,7 @@ static bool test_match(const char *match_string, MatchFilter *filter) {
         r = match_rule_link(rule, &registry, false);
         assert(!r);
 
-        rule1 = match_rule_next_subscription_match(&registry, NULL, filter);
+        rule1 = match_rule_next_subscription_match(&registry, NULL, metadata);
         assert(!rule1 || rule1 == rule);
 
         match_rule_user_unref(rule);
@@ -140,118 +141,124 @@ static bool test_match(const char *match_string, MatchFilter *filter) {
 }
 
 static void test_individual_matches(void) {
-        MatchFilter filter = MATCH_FILTER_INIT;
+        MessageMetadata metadata = MESSAGE_METADATA_INIT;
 
-        assert(test_match("", &filter));
+        assert(test_match("", &metadata));
 
         /* type */
-        filter = (MatchFilter)MATCH_FILTER_INIT;
-        assert(!test_match("type=signal", &filter));
-        filter.type = DBUS_MESSAGE_TYPE_SIGNAL;
-        assert(test_match("type=signal", &filter));
-        assert(!test_match("type=error", &filter));
+        metadata = (MessageMetadata)MESSAGE_METADATA_INIT;
+        assert(!test_match("type=signal", &metadata));
+        metadata.header.type = DBUS_MESSAGE_TYPE_SIGNAL;
+        assert(test_match("type=signal", &metadata));
+        assert(!test_match("type=error", &metadata));
 
         /* destination: we do not support destination matching */
-        filter = (MatchFilter)MATCH_FILTER_INIT;
-        assert(test_match("destination=:1.0", &filter));
-        assert(test_match("destination=:1.1", &filter));
+        metadata = (MessageMetadata)MESSAGE_METADATA_INIT;
+        assert(test_match("destination=:1.0", &metadata));
+        assert(test_match("destination=:1.1", &metadata));
 
         /* interface */
-        filter = (MatchFilter)MATCH_FILTER_INIT;
-        assert(!test_match("interface=com.example.foo", &filter));
-        filter.interface = "com.example.foo";
-        assert(test_match("interface=com.example.foo", &filter));
-        assert(!test_match("interface=com.example.bar", &filter));
+        metadata = (MessageMetadata)MESSAGE_METADATA_INIT;
+        assert(!test_match("interface=com.example.foo", &metadata));
+        metadata.fields.interface = "com.example.foo";
+        assert(test_match("interface=com.example.foo", &metadata));
+        assert(!test_match("interface=com.example.bar", &metadata));
 
         /* member */
-        filter = (MatchFilter)MATCH_FILTER_INIT;
-        assert(!test_match("member=FooBar", &filter));
-        filter.member = "FooBar";
-        assert(test_match("member=FooBar", &filter));
-        assert(!test_match("member=FooBaz", &filter));
+        metadata = (MessageMetadata)MESSAGE_METADATA_INIT;
+        assert(!test_match("member=FooBar", &metadata));
+        metadata.fields.member = "FooBar";
+        assert(test_match("member=FooBar", &metadata));
+        assert(!test_match("member=FooBaz", &metadata));
 
         /* path */
-        filter = (MatchFilter)MATCH_FILTER_INIT;
-        assert(!test_match("path=/com/example/foo", &filter));
-        filter.path = "/com/example/foo";
-        assert(test_match("path=/com/example/foo", &filter));
-        assert(!test_match("path=/com/example/bar", &filter));
-        assert(!test_match("path=/com/example", &filter));
-        assert(!test_match("path=/com/example/foo/bar", &filter));
+        metadata = (MessageMetadata)MESSAGE_METADATA_INIT;
+        assert(!test_match("path=/com/example/foo", &metadata));
+        metadata.fields.path = "/com/example/foo";
+        assert(test_match("path=/com/example/foo", &metadata));
+        assert(!test_match("path=/com/example/bar", &metadata));
+        assert(!test_match("path=/com/example", &metadata));
+        assert(!test_match("path=/com/example/foo/bar", &metadata));
 
         /* path_namespace */
-        filter = (MatchFilter)MATCH_FILTER_INIT;
-        assert(!test_match("path_namespace=/com/example/foo", &filter));
-        filter.path = "/com/example/foo";
-        assert(test_match("path_namespace=/com/example/foo", &filter));
-        assert(!test_match("path_namespace=/com/example/foo/bar", &filter));
-        assert(!test_match("path_namespace=/com/example/foobar", &filter));
-        assert(test_match("path_namespace=/com/example", &filter));
-        assert(!test_match("path_namespace=/com/ex", &filter));
-        assert(test_match("path_namespace=/com", &filter));
+        metadata = (MessageMetadata)MESSAGE_METADATA_INIT;
+        assert(!test_match("path_namespace=/com/example/foo", &metadata));
+        metadata.fields.path = "/com/example/foo";
+        assert(test_match("path_namespace=/com/example/foo", &metadata));
+        assert(!test_match("path_namespace=/com/example/foo/bar", &metadata));
+        assert(!test_match("path_namespace=/com/example/foobar", &metadata));
+        assert(test_match("path_namespace=/com/example", &metadata));
+        assert(!test_match("path_namespace=/com/ex", &metadata));
+        assert(test_match("path_namespace=/com", &metadata));
         /* XXX: This fails but shouldn't! */
-        /* assert(test_match("path_namespace=/", &filter)); */
+        /* assert(test_match("path_namespace=/", &metadata)); */
 
         /* arg0 */
-        filter = (MatchFilter)MATCH_FILTER_INIT;
-        assert(!test_match("arg0=/com/example/foo/", &filter));
-        filter.args[0] = "/com/example/foo/";
-        filter.n_args = 1;
-        assert(test_match("arg0=/com/example/foo/", &filter));
-        assert(!test_match("arg0=/com/example/foo/bar", &filter));
-        assert(!test_match("arg0=/com/example/foobar", &filter));
-        assert(!test_match("arg0=/com/example/", &filter));
-        assert(!test_match("arg0=/com/example", &filter));
-        filter.args[0] = "/com/example/foo";
-        assert(test_match("arg0=/com/example/foo", &filter));
-        assert(!test_match("arg0=/com/example/foo/bar", &filter));
-        assert(!test_match("arg0=/com/example/foobar", &filter));
-        assert(!test_match("arg0=/com/example/", &filter));
-        assert(!test_match("arg0=/com/example", &filter));
-        filter.args[0] = "com.example.foo";
-        assert(test_match("arg0=com.example.foo", &filter));
-        assert(!test_match("arg0=com.example.foo.bar", &filter));
-        assert(!test_match("arg0=com.example.foobar", &filter));
-        assert(!test_match("arg0=com.example", &filter));
+        metadata = (MessageMetadata)MESSAGE_METADATA_INIT;
+        assert(!test_match("arg0=/com/example/foo/", &metadata));
+        metadata.args[0].value = "/com/example/foo/";
+        metadata.args[0].element = 's';
+        metadata.n_args = 1;
+        assert(test_match("arg0=/com/example/foo/", &metadata));
+        assert(!test_match("arg0=/com/example/foo/bar", &metadata));
+        assert(!test_match("arg0=/com/example/foobar", &metadata));
+        assert(!test_match("arg0=/com/example/", &metadata));
+        assert(!test_match("arg0=/com/example", &metadata));
+        metadata.args[0].value = "/com/example/foo";
+        metadata.args[0].element = 's';
+        assert(test_match("arg0=/com/example/foo", &metadata));
+        assert(!test_match("arg0=/com/example/foo/bar", &metadata));
+        assert(!test_match("arg0=/com/example/foobar", &metadata));
+        assert(!test_match("arg0=/com/example/", &metadata));
+        assert(!test_match("arg0=/com/example", &metadata));
+        metadata.args[0].value = "com.example.foo";
+        metadata.args[0].element = 's';
+        assert(test_match("arg0=com.example.foo", &metadata));
+        assert(!test_match("arg0=com.example.foo.bar", &metadata));
+        assert(!test_match("arg0=com.example.foobar", &metadata));
+        assert(!test_match("arg0=com.example", &metadata));
 
         /* arg0path - parent */
-        filter = (MatchFilter)MATCH_FILTER_INIT;
-        assert(!test_match("arg0path=/com/example/foo/", &filter));
-        filter.argpaths[0] = "/com/example/foo/";
-        filter.n_argpaths = 1;
-        assert(test_match("arg0path=/com/example/foo/", &filter));
-        assert(test_match("arg0path=/com/example/foo/bar", &filter));
-        assert(!test_match("arg0path=/com/example/foobar", &filter));
-        assert(test_match("arg0path=/com/example/", &filter));
-        assert(!test_match("arg0path=/com/example", &filter));
+        metadata = (MessageMetadata)MESSAGE_METADATA_INIT;
+        assert(!test_match("arg0path=/com/example/foo/", &metadata));
+        metadata.args[0].value = "/com/example/foo/";
+        metadata.args[0].element = 'o';
+        metadata.n_args = 1;
+        assert(test_match("arg0path=/com/example/foo/", &metadata));
+        assert(test_match("arg0path=/com/example/foo/bar", &metadata));
+        assert(!test_match("arg0path=/com/example/foobar", &metadata));
+        assert(test_match("arg0path=/com/example/", &metadata));
+        assert(!test_match("arg0path=/com/example", &metadata));
 
         /* arg0path - child */
-        filter = (MatchFilter)MATCH_FILTER_INIT;
-        assert(!test_match("arg0path=/com/example/foo", &filter));
-        filter.argpaths[0] = "/com/example/foo";
-        filter.n_argpaths = 1;
-        assert(test_match("arg0path=/com/example/foo", &filter));
-        assert(!test_match("arg0path=/com/example/foo/bar", &filter));
-        assert(!test_match("arg0path=/com/example/foobar", &filter));
-        assert(test_match("arg0path=/com/example/", &filter));
-        assert(!test_match("arg0path=/com/example", &filter));
+        metadata = (MessageMetadata)MESSAGE_METADATA_INIT;
+        assert(!test_match("arg0path=/com/example/foo", &metadata));
+        metadata.args[0].value = "/com/example/foo";
+        metadata.args[0].element = 'o';
+        metadata.n_args = 1;
+        assert(test_match("arg0path=/com/example/foo", &metadata));
+        assert(!test_match("arg0path=/com/example/foo/bar", &metadata));
+        assert(!test_match("arg0path=/com/example/foobar", &metadata));
+        assert(test_match("arg0path=/com/example/", &metadata));
+        assert(!test_match("arg0path=/com/example", &metadata));
 
         /* arg0namespace */
-        filter = (MatchFilter)MATCH_FILTER_INIT;
-        assert(!test_match("arg0namespace=com.example.foo", &filter));
-        filter.args[0] = "com.example.foo";
-        filter.n_args = 1;
-        assert(test_match("arg0namespace=com.example.foo", &filter));
-        assert(!test_match("arg0namespace=com.example.foo.bar", &filter));
-        assert(!test_match("arg0namespace=com.example.foobar", &filter));
-        assert(test_match("arg0namespace=com.example", &filter));
-        assert(!test_match("arg0namespace=com.ex", &filter));
-        assert(test_match("arg0namespace=com", &filter));
+        metadata = (MessageMetadata)MESSAGE_METADATA_INIT;
+        assert(!test_match("arg0namespace=com.example.foo", &metadata));
+        metadata.args[0].value = "com.example.foo";
+        metadata.args[0].element = 's';
+        metadata.n_args = 1;
+        assert(test_match("arg0namespace=com.example.foo", &metadata));
+        assert(!test_match("arg0namespace=com.example.foo.bar", &metadata));
+        assert(!test_match("arg0namespace=com.example.foobar", &metadata));
+        assert(test_match("arg0namespace=com.example", &metadata));
+        assert(!test_match("arg0namespace=com.ex", &metadata));
+        assert(test_match("arg0namespace=com", &metadata));
 }
 
 static void test_iterator(void) {
         MatchRegistry registry = MATCH_REGISTRY_INIT(registry);
-        MatchFilter filter = MATCH_FILTER_INIT;
+        MessageMetadata metadata = MESSAGE_METADATA_INIT;
         MatchOwner owner1, owner2;
         MatchRule *rule, *rule1, *rule2, *rule3, *rule4;
         int r;
@@ -283,13 +290,13 @@ static void test_iterator(void) {
         r = match_rule_link(rule4, &registry, false);
         assert(!r);
 
-        rule = match_rule_next_subscription_match(&registry, NULL, &filter);
+        rule = match_rule_next_subscription_match(&registry, NULL, &metadata);
         assert(rule == rule1);
 
-        rule = match_rule_next_subscription_match(&registry, rule, &filter);
+        rule = match_rule_next_subscription_match(&registry, rule, &metadata);
         assert(rule == rule3);
 
-        rule = match_rule_next_subscription_match(&registry, rule, &filter);
+        rule = match_rule_next_subscription_match(&registry, rule, &metadata);
         assert(!rule);
 
         match_rule_user_unref(rule4);

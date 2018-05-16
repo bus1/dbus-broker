@@ -327,37 +327,16 @@ static const char *driver_error_to_string(int r) {
         return error_strings[r];
 }
 
-static void driver_match_filter_from_message(MatchFilter *filter, Message *message) {
-        filter->type = message->metadata.header.type;
-        filter->sender = message->metadata.sender_id;
-        filter->interface = message->metadata.fields.interface;
-        filter->member = message->metadata.fields.member,
-        filter->path = message->metadata.fields.path;
-        filter->n_args = message->metadata.n_args;
-        filter->n_argpaths = message->metadata.n_args;
-
-        for (size_t i = 0; i < message->metadata.n_args; ++i) {
-                if (message->metadata.args[i].element == 's') {
-                        filter->args[i] = message->metadata.args[i].value;
-                        filter->argpaths[i] = message->metadata.args[i].value;
-                } else if (message->metadata.args[i].element == 'o') {
-                        filter->argpaths[i] = message->metadata.args[i].value;
-                }
-        }
-}
-
 static int driver_monitor(Bus *bus, Peer *sender, Message *message) {
         _c_cleanup_(c_list_flush) CList destinations = C_LIST_INIT(destinations);
-        MatchFilter filter = MATCH_FILTER_INIT;
+        MessageMetadata metadata = MESSAGE_METADATA_INIT; /* XXX: this must be initialized */
         Peer *receiver;
         int r;
 
         if (!bus->n_monitors)
                 return 0;
 
-        driver_match_filter_from_message(&filter, message);
-
-        r = bus_get_monitor_destinations(bus, &destinations, sender, &filter);
+        r = bus_get_monitor_destinations(bus, &destinations, sender, &metadata);
         if (r)
                 return error_trace(r);
 
@@ -551,27 +530,39 @@ static int driver_notify_name_lost(Peer *peer, const char *name) {
 static int driver_notify_name_owner_changed(Bus *bus, MatchRegistry *matches, const char *name, const char *old_owner, const char *new_owner) {
         _c_cleanup_(c_list_flush) CList destinations = C_LIST_INIT(destinations);
         Peer *receiver;
-        MatchFilter filter = {
-                .type = DBUS_MESSAGE_TYPE_SIGNAL,
-                .interface = "org.freedesktop.DBus",
-                .member = "NameOwnerChanged",
-                .path = "/org/freedesktop/DBus",
-                .args[0] = name,
-                .argpaths[0] = name,
-                .args[1] = old_owner,
-                .argpaths[1] = old_owner,
-                .args[2] = new_owner,
-                .argpaths[2] = new_owner,
+        MessageMetadata metadata = {
+                .header = {
+                        .type = DBUS_MESSAGE_TYPE_SIGNAL,
+                },
+                .sender_id = ADDRESS_ID_INVALID,
+                .fields = {
+                        .path = "/org/freedesktop/DBus",
+                        .interface = "org.freedesktop.DBus",
+                        .member = "NameOwnerChanged",
+                },
+                .args = {
+                        {
+                                .value = name,
+                                .element = 's',
+                        },
+                        {
+                                .value = old_owner,
+                                .element = 's',
+                        },
+                        {
+                                .value = new_owner,
+                                .element = 's',
+                        },
+                },
                 .n_args = 3,
-                .n_argpaths = 3,
         };
         int r;
 
-        r = bus_get_monitor_destinations(bus, &destinations, NULL, &filter);
+        r = bus_get_monitor_destinations(bus, &destinations, NULL, &metadata);
         if (r)
                 return error_trace(r);
 
-        r = bus_get_broadcast_destinations(bus, &destinations, matches, NULL, &filter);
+        r = bus_get_broadcast_destinations(bus, &destinations, matches, NULL, &metadata);
         if (r)
                 return error_trace(r);
 
@@ -2073,13 +2064,10 @@ static int driver_forward_unicast(Peer *sender, const char *destination, Message
 
 static int driver_forward_broadcast(Peer *sender, Message *message) {
         _c_cleanup_(c_list_flush) CList destinations = C_LIST_INIT(destinations);
-        MatchFilter filter = MATCH_FILTER_INIT;
         Peer *receiver;
         int r;
 
-        driver_match_filter_from_message(&filter, message);
-
-        r = bus_get_broadcast_destinations(sender->bus, &destinations, &sender->sender_matches, sender, &filter);
+        r = bus_get_broadcast_destinations(sender->bus, &destinations, &sender->sender_matches, sender, &message->metadata);
         if (r)
                 return error_trace(r);
 
