@@ -3,12 +3,74 @@
  */
 
 #include <c-macro.h>
+#include <cap-ng.h>
+#include <grp.h>
 #include <libaudit.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include "util/audit.h"
 #include "util/error.h"
 
 static int audit_fd = -1;
+
+/**
+ * util_audit_drop_permissions() - drop process permissions
+ * @uid:        uid to set
+ * @gid:        gid to set
+ *
+ * This performs a setuid(2) and setgid(2) syscall, clearing all process
+ * permissions we have, but retaining required capabilities.
+ *
+ * The reason this lives in the audit-subsystem, is that the audit-subsystem is
+ * the only code that needs to retain capabilities. Hence, the cap-ng
+ * dependency is only required for the audit code. If the capability
+ * dependencies get more comples, we have to rework this, but for now it should
+ * be fine.
+ *
+ * Return: 0 on success, or a negative error code on failure.
+ */
+int util_audit_drop_permissions(uint32_t uid, uint32_t gid) {
+        int r;
+
+        /*
+         * This is modeled exactly after the behavior of dbus-daemon(1). We
+         * have to be compatibile and fail in the exact same situations. This
+         * means, only try to retain CAP_AUDIT_WRITE if we are running as root
+         * and own it. In all other cases, simply drop privileges to the
+         * requested IDs.
+         */
+
+        if (geteuid() != 0) {
+                /*
+                 * For compatibility to dbus-daemon, this must be
+                 * non-fatal.
+                 */
+                setgroups(0, NULL);
+
+                r = setgid(gid);
+                if (r < 0)
+                        return error_origin(-errno);
+
+                r = setuid(uid);
+                if (r < 0)
+                        return error_origin(-errno);
+        } else {
+                int have_audit_write;
+
+                have_audit_write = capng_have_capability(CAPNG_PERMITTED, CAP_AUDIT_WRITE);
+                capng_clear(CAPNG_SELECT_BOTH);
+                if (have_audit_write)
+                        capng_update(CAPNG_ADD,
+                                     CAPNG_EFFECTIVE | CAPNG_PERMITTED,
+                                     CAP_AUDIT_WRITE);
+
+                r = capng_change_id(uid, gid, CAPNG_DROP_SUPP_GRP);
+                if (r)
+                        return error_origin(-EPERM);
+        }
+
+        return 0;
+}
 
 /**
  * util_audit_log() - log a message to the audit subsystem

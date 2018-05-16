@@ -24,6 +24,7 @@
 #include "launch/config.h"
 #include "launch/nss-cache.h"
 #include "launch/policy.h"
+#include "util/audit.h"
 #include "util/error.h"
 #include "util/log.h"
 
@@ -335,6 +336,12 @@ static noreturn void manager_run_child(Manager *manager, int fd_log, int fd_cont
                 NULL,
         };
         int r;
+
+        if (manager->uid != (uint32_t)-1) {
+                r = util_audit_drop_permissions(manager->uid, manager->gid);
+                if (r)
+                        goto exit;
+        }
 
         r = prctl(PR_SET_PDEATHSIG, SIGTERM);
         if (r) {
