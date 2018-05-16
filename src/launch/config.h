@@ -106,6 +106,12 @@ struct ConfigNode {
 
         union {
                 struct {
+                        uint32_t uid;
+                        uint32_t gid;
+                        bool valid : 1;
+                } user;
+
+                struct {
                         ConfigPath *dir;
                 } includedir;
 
