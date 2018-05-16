@@ -171,6 +171,9 @@ test('D-Bus Message Abstraction', test_message)
 test_name = executable('test-name', ['bus/test-name.c'], dependencies: dep_bus)
 test('Name Registry', test_name)
 
+test_nss_cache = executable('test-nss-cache', ['launch/test-nss-cache.c'], dependencies: dep_bus)
+test('NSS Cache', test_nss_cache)
+
 test_peersec = executable('test-peersec', ['util/test-peersec.c'], dependencies: dep_bus)
 test('SO_PEERSEC Queries', test_peersec)
 
