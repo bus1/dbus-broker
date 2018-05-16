@@ -340,7 +340,9 @@ static int driver_monitor(Bus *bus, Peer *sender, Message *message) {
         if (r)
                 return error_trace(r);
 
-        c_list_for_each_entry(receiver, &destinations, destinations_link) {
+        while ((receiver = c_list_first_entry(&destinations, Peer, destinations_link))) {
+                c_list_unlink(&receiver->destinations_link);
+
                 r = connection_queue(&receiver->connection, NULL, message);
                 if (r) {
                         if (r == CONNECTION_E_QUOTA)
@@ -597,7 +599,9 @@ static int driver_notify_name_owner_changed(Bus *bus, MatchRegistry *matches, co
                         return error_fold(r);
                 data = NULL;
 
-                c_list_for_each_entry(receiver, &destinations, destinations_link) {
+                while ((receiver = c_list_first_entry(&destinations, Peer, destinations_link))) {
+                        c_list_unlink(&receiver->destinations_link);
+
                         r = connection_queue(&receiver->connection, NULL, message);
                         if (r) {
                                 if (r == CONNECTION_E_QUOTA)
@@ -2071,7 +2075,9 @@ static int driver_forward_broadcast(Peer *sender, Message *message) {
         if (r)
                 return error_trace(r);
 
-        c_list_for_each_entry(receiver, &destinations, destinations_link) {
+        while ((receiver = c_list_first_entry(&destinations, Peer, destinations_link))) {
+                c_list_unlink(&receiver->destinations_link);
+
                 r = connection_queue(&receiver->connection, NULL, message);
                 if (r) {
                         if (r == CONNECTION_E_QUOTA)
