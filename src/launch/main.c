@@ -8,6 +8,7 @@
 #include <fcntl.h>
 #include <getopt.h>
 #include <glib.h>
+#include <grp.h>
 #include <pwd.h>
 #include <signal.h>
 #include <stdlib.h>
@@ -19,6 +20,7 @@
 #include <systemd/sd-daemon.h>
 #include <systemd/sd-event.h>
 #include <systemd/sd-id128.h>
+#include <unistd.h>
 #include "launch/config.h"
 #include "launch/nss-cache.h"
 #include "launch/policy.h"
@@ -64,6 +66,8 @@ struct Manager {
         CRBTree services;
         CRBTree services_by_name;
         uint64_t service_ids;
+        uint32_t uid;
+        uint32_t gid;
 };
 
 static bool             main_arg_audit = false;
@@ -245,6 +249,8 @@ static int manager_new(Manager **managerp) {
                 return error_origin(-ENOMEM);
 
         manager->fd_listen = -1;
+        manager->uid = -1;
+        manager->gid = -1;
 
         r = sd_event_default(&manager->event);
         if (r < 0)
@@ -828,7 +834,7 @@ static int manager_load_service_file(Manager *manager, const char *path, NSSCach
         }
 
         if (user) {
-                r = nss_cache_get_uid(nss_cache, &uid, user);
+                r = nss_cache_get_uid(nss_cache, &uid, NULL, user);
                 if (r) {
                         if (r == NSS_CACHE_E_INVALID_NAME) {
                                 fprintf(stderr, "Invalid user name '%s' in service file '%s'\n", user, path);
@@ -1150,9 +1156,11 @@ static int manager_load_services(Manager *manager, ConfigRoot *config, NSSCache 
 
         return 0;
 }
+
 static int manager_parse_config(Manager *manager, ConfigRoot **rootp, NSSCache *nss_cache) {
         _c_cleanup_(config_parser_deinit) ConfigParser parser = CONFIG_PARSER_NULL(parser);
         const char *configfile;
+        ConfigNode *cnode;
         int r;
 
         if (main_arg_configfile)
@@ -1167,6 +1175,22 @@ static int manager_parse_config(Manager *manager, ConfigRoot **rootp, NSSCache *
         r = config_parser_read(&parser, rootp, configfile, nss_cache);
         if (r)
                 return error_fold(r);
+
+        c_list_for_each_entry(cnode, &(*rootp)->node_list, root_link) {
+                switch (cnode->type) {
+                case CONFIG_NODE_USER:
+                        if (cnode->user.valid) {
+                                manager->uid = cnode->user.uid;
+                                manager->gid = cnode->user.gid;
+                        }
+
+                        break;
+                default:
+                        /* ignored */
+                        break;
+                }
+
+        }
 
         return 0;
 }
@@ -1201,7 +1225,7 @@ static int manager_load_system_console_users(Manager *manager, NSSCache *nss_cac
                 return error_origin(-ENOMEM);
 
         for (i = 0; i < C_ARRAY_SIZE(usernames); ++i) {
-                r = nss_cache_get_uid(nss_cache, &uid, usernames[i]);
+                r = nss_cache_get_uid(nss_cache, &uid, NULL, usernames[i]);
                 if (r) {
                         if (r == NSS_CACHE_E_INVALID_NAME)
                                 continue;

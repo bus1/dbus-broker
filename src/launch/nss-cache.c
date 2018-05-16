@@ -293,7 +293,7 @@ int nss_cache_populate(NSSCache *cache) {
         return 0;
 }
 
-int nss_cache_get_uid(NSSCache *cache, uint32_t *uidp, const char *name) {
+int nss_cache_get_uid(NSSCache *cache, uint32_t *uidp, uint32_t *gidp, const char *name) {
         unsigned long long id;
         NSSCacheNode *node;
         struct passwd *pw;
@@ -349,7 +349,10 @@ int nss_cache_get_uid(NSSCache *cache, uint32_t *uidp, const char *name) {
                         return r;
         }
 
-        *uidp = pw->pw_uid;
+        if (uidp)
+                *uidp = pw->pw_uid;
+        if (gidp)
+                *gidp = pw->pw_gid;
         return 0;
 }
 

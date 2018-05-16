@@ -268,7 +268,7 @@ static int config_parser_attrs_policy(ConfigState *state, ConfigNode *node, cons
                         if (node->policy.context)
                                 CONFIG_ERR(state, "Conflicting attributes", "");
 
-                        r = nss_cache_get_uid(state->nss, &node->policy.id, v);
+                        r = nss_cache_get_uid(state->nss, &node->policy.id, NULL, v);
                         if (r) {
                                 if (r == NSS_CACHE_E_INVALID_NAME) {
                                         CONFIG_ERR(state, "Invalid user-name", ": %s=\"%s\"", k, v);
@@ -495,7 +495,7 @@ static int config_parser_attrs_allow_deny(ConfigState *state, ConfigNode *node, 
                                 node->allow_deny.uid = -1;
                                 node->allow_deny.user = true;
                         } else {
-                                r = nss_cache_get_uid(state->nss, &node->allow_deny.uid, v);
+                                r = nss_cache_get_uid(state->nss, &node->allow_deny.uid, NULL, v);
                                 if (r) {
                                         if (r == NSS_CACHE_E_INVALID_NAME) {
                                                 CONFIG_ERR(state, "Invalid user-name", ": %s=\"%s\"", k, v);
@@ -961,6 +961,26 @@ static void config_parser_end_fn(void *userdata, const XML_Char *name) {
          * that all mandatory data was given.
          */
         switch (state->current->type) {
+        case CONFIG_NODE_USER:
+                state->current->user.valid = false;
+                r = nss_cache_get_uid(state->nss,
+                                      &state->current->user.uid,
+                                      &state->current->user.gid,
+                                      state->current->cdata);
+                if (r) {
+                        if (r == NSS_CACHE_E_INVALID_NAME) {
+                                CONFIG_ERR(state, "Invalid user-name", ": <user>%s</user>", state->current->cdata);
+                                break;
+                        }
+
+                        state->error = error_fold(r);
+                        return;
+                } else {
+                        state->current->user.valid = true;
+                }
+
+                break;
+
         case CONFIG_NODE_INCLUDEDIR: {
                 _c_cleanup_(c_closedirp) DIR *dir = NULL;
                 static const char suffix[] = ".conf";
@@ -1046,7 +1066,6 @@ static void config_parser_end_fn(void *userdata, const XML_Char *name) {
                 break;
         }
 
-        case CONFIG_NODE_USER:
         case CONFIG_NODE_TYPE:
         case CONFIG_NODE_LISTEN:
         case CONFIG_NODE_PIDFILE:
