@@ -894,7 +894,7 @@ bool match_rule_match_filter(MatchRule *rule, MatchFilter *filter) {
         return match_keys_match_filter(&rule->keys, filter);
 }
 
-static MatchRule *match_rule_next_match_by_keys(MatchRegistryByKeys *registry, MatchRule *rule, MatchFilter *filter) {
+static MatchRule *match_rule_next_match_by_keys(MatchRegistryByKeys *registry, MatchRule *rule) {
         c_list_for_each_entry_continue(rule, &registry->rule_list, registry_link)
                 return rule;
 
@@ -910,7 +910,7 @@ static MatchRule *match_rule_next_match_by_member(MatchRegistryByMember *registr
         if (rule) {
                 registry_by_keys = rule->registry_by_keys;
 
-                rule = match_rule_next_match_by_keys(registry_by_keys, rule, filter);
+                rule = match_rule_next_match_by_keys(registry_by_keys, rule);
                 if (rule)
                         return rule;
 
@@ -923,7 +923,7 @@ static MatchRule *match_rule_next_match_by_member(MatchRegistryByMember *registr
                 if (!match_keys_match_filter(&registry_by_keys->keys, filter))
                         continue;
 
-                return match_rule_next_match_by_keys(registry_by_keys, NULL, filter);
+                return match_rule_next_match_by_keys(registry_by_keys, NULL);
         }
 
         return NULL;
