@@ -608,27 +608,7 @@ void peer_flush_matches(Peer *peer) {
         }
 }
 
-static void peer_match_filter_from_message(MatchFilter *filter, uint64_t sender_id, Message *message) {
-        filter->type = message->metadata.header.type;
-        filter->sender = sender_id;
-        filter->interface = message->metadata.fields.interface;
-        filter->member = message->metadata.fields.member,
-        filter->path = message->metadata.fields.path;
-        filter->n_args = message->metadata.n_args;
-        filter->n_argpaths = message->metadata.n_args;
-
-        for (size_t i = 0; i < message->metadata.n_args; ++i) {
-                if (message->metadata.args[i].element == 's') {
-                        filter->args[i] = message->metadata.args[i].value;
-                        filter->argpaths[i] = message->metadata.args[i].value;
-                } else if (message->metadata.args[i].element == 'o') {
-                        filter->argpaths[i] = message->metadata.args[i].value;
-                }
-        }
-}
-
 static bool peer_message_is_solicited(Peer *destination, uint64_t sender_id, Message *message) {
-        MatchFilter filter = MATCH_FILTER_INIT;
         MatchRule *rule;
 
         /*
@@ -640,10 +620,8 @@ static bool peer_message_is_solicited(Peer *destination, uint64_t sender_id, Mes
         if (message->header->type != DBUS_MESSAGE_TYPE_SIGNAL)
                 return false;
 
-        peer_match_filter_from_message(&filter, sender_id, message);
-
         c_rbtree_for_each_entry(rule, &destination->owned_matches.rule_tree, owner_node) {
-                if (match_rule_match_filter(rule, &filter))
+                if (match_rule_match_metadata(rule, &message->metadata))
                         return true;
         }
 

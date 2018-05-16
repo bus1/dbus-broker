@@ -9,6 +9,7 @@
 #include <c-string.h>
 #include "bus/match.h"
 #include "dbus/address.h"
+#include "dbus/message.h"
 #include "dbus/protocol.h"
 #include "util/error.h"
 
@@ -394,40 +395,43 @@ static bool match_string_prefix(const char *string, const char *prefix, char del
         return true;
 }
 
-static bool match_keys_match_filter(MatchKeys *keys, MatchFilter *filter) {
-        if (keys->filter.interface && !c_string_equal(keys->filter.interface, filter->interface))
+static bool match_keys_match_metadata(MatchKeys *keys, MessageMetadata *metadata) {
+        if (keys->filter.n_args > metadata->n_args)
                 return false;
 
-        if (keys->filter.member && !c_string_equal(keys->filter.member, filter->member))
+        if (keys->filter.n_argpaths > metadata->n_args)
                 return false;
 
-        if (keys->filter.path && !c_string_equal(keys->filter.path, filter->path))
+        if (keys->path_namespace && !match_string_prefix(metadata->fields.path, keys->path_namespace, '/', false))
                 return false;
 
-        if (keys->path_namespace && !match_string_prefix(filter->path, keys->path_namespace, '/', false))
-                return false;
-
-        if (keys->arg0namespace && !match_string_prefix(filter->args[0], keys->arg0namespace, '.', false))
-                return false;
-
-        if (keys->filter.n_args > filter->n_args)
+        if (keys->arg0namespace && !(metadata->args[0].element == 's' && match_string_prefix(metadata->args[0].value, keys->arg0namespace, '.', false)))
                 return false;
 
         for (unsigned int i = 0; i < keys->filter.n_args || i < keys->filter.n_argpaths; i ++) {
-                if (keys->filter.args[i] && !c_string_equal(keys->filter.args[i], filter->args[i]))
+                if (keys->filter.args[i] && !(metadata->args[0].element == 's' && c_string_equal(keys->filter.args[i], metadata->args[i].value)))
                         return false;
 
                 if (keys->filter.argpaths[i]) {
-                        if (!match_string_prefix(filter->argpaths[i], keys->filter.argpaths[i], '/', true) &&
-                            !match_string_prefix(keys->filter.argpaths[i], filter->argpaths[i], '/', true))
+                        if (!match_string_prefix(metadata->args[i].value, keys->filter.argpaths[i], '/', true) &&
+                            !match_string_prefix(keys->filter.argpaths[i], metadata->args[0].value, '/', true))
                                 return false;
                 }
         }
 
-        if (keys->filter.type != DBUS_MESSAGE_TYPE_INVALID && keys->filter.type != filter->type)
+        if (keys->filter.type != DBUS_MESSAGE_TYPE_INVALID && keys->filter.type != metadata->header.type)
                 return false;
 
-        if (keys->filter.sender != ADDRESS_ID_INVALID && keys->filter.sender != filter->sender)
+        if (keys->filter.sender != ADDRESS_ID_INVALID && keys->filter.sender != metadata->sender_id)
+                return false;
+
+        if (keys->filter.interface && !c_string_equal(keys->filter.interface, metadata->fields.interface))
+                return false;
+
+        if (keys->filter.member && !c_string_equal(keys->filter.member, metadata->fields.member))
+                return false;
+
+        if (keys->filter.path && !c_string_equal(keys->filter.path, metadata->fields.path))
                 return false;
 
         return true;
@@ -902,8 +906,8 @@ void match_rule_unlink(MatchRule *rule) {
         }
 }
 
-bool match_rule_match_filter(MatchRule *rule, MatchFilter *filter) {
-        return match_keys_match_filter(&rule->keys, filter);
+bool match_rule_match_metadata(MatchRule *rule, MessageMetadata *metadata) {
+        return match_keys_match_metadata(&rule->keys, metadata);
 }
 
 static MatchRule *match_rule_next_match_by_keys(MatchRegistryByKeys *registry, MatchRule *rule) {
@@ -913,7 +917,7 @@ static MatchRule *match_rule_next_match_by_keys(MatchRegistryByKeys *registry, M
         return NULL;
 }
 
-static MatchRule *match_rule_next_match_by_member(MatchRegistryByMember *registry, MatchRule *rule, MatchFilter *filter) {
+static MatchRule *match_rule_next_match_by_member(MatchRegistryByMember *registry, MatchRule *rule, MessageMetadata *metadata) {
         MatchRegistryByKeys *registry_by_keys;
 
         if (!registry)
@@ -932,7 +936,7 @@ static MatchRule *match_rule_next_match_by_member(MatchRegistryByMember *registr
         }
 
         for (; registry_by_keys; registry_by_keys = c_rbnode_entry(c_rbnode_next(&registry_by_keys->registry_node), MatchRegistryByKeys, registry_node)) {
-                if (!match_keys_match_filter(&registry_by_keys->keys, filter))
+                if (!match_keys_match_metadata(&registry_by_keys->keys, metadata))
                         continue;
 
                 return match_rule_next_match_by_keys(registry_by_keys, NULL);
@@ -941,7 +945,7 @@ static MatchRule *match_rule_next_match_by_member(MatchRegistryByMember *registr
         return NULL;
 }
 
-static MatchRule *match_rule_next_match_by_interface(MatchRegistryByInterface *registry, MatchRule *rule, MatchFilter *filter) {
+static MatchRule *match_rule_next_match_by_interface(MatchRegistryByInterface *registry, MatchRule *rule, MessageMetadata *metadata) {
         MatchRegistryByMember *registry_by_member;
         bool wildcard;
 
@@ -959,16 +963,16 @@ static MatchRule *match_rule_next_match_by_interface(MatchRegistryByInterface *r
                 wildcard = true;
         }
 
-        rule = match_rule_next_match_by_member(registry_by_member, rule, filter);
-        if (!rule && wildcard && filter->member) {
-                registry_by_member = c_rbtree_find_entry(&registry->member_tree, match_registry_by_member_compare, filter->member, MatchRegistryByMember, registry_node);
-                rule = match_rule_next_match_by_member(registry_by_member, NULL, filter);
+        rule = match_rule_next_match_by_member(registry_by_member, rule, metadata);
+        if (!rule && wildcard && metadata->fields.member) {
+                registry_by_member = c_rbtree_find_entry(&registry->member_tree, match_registry_by_member_compare, metadata->fields.member, MatchRegistryByMember, registry_node);
+                rule = match_rule_next_match_by_member(registry_by_member, NULL, metadata);
         }
 
         return rule;
 }
 
-static MatchRule *match_rule_next_match_by_path(MatchRegistryByPath *registry, MatchRule *rule, MatchFilter *filter) {
+static MatchRule *match_rule_next_match_by_path(MatchRegistryByPath *registry, MatchRule *rule, MessageMetadata *metadata) {
         MatchRegistryByInterface *registry_by_interface;
         bool wildcard;
 
@@ -986,16 +990,16 @@ static MatchRule *match_rule_next_match_by_path(MatchRegistryByPath *registry, M
                 wildcard = true;
         }
 
-        rule = match_rule_next_match_by_interface(registry_by_interface, rule, filter);
-        if (!rule && wildcard && filter->interface) {
-                registry_by_interface = c_rbtree_find_entry(&registry->interface_tree, match_registry_by_interface_compare, filter->interface, MatchRegistryByInterface, registry_node);
-                rule = match_rule_next_match_by_interface(registry_by_interface, NULL, filter);
+        rule = match_rule_next_match_by_interface(registry_by_interface, rule, metadata);
+        if (!rule && wildcard && metadata->fields.interface) {
+                registry_by_interface = c_rbtree_find_entry(&registry->interface_tree, match_registry_by_interface_compare, metadata->fields.interface, MatchRegistryByInterface, registry_node);
+                rule = match_rule_next_match_by_interface(registry_by_interface, NULL, metadata);
         }
 
         return rule;
 }
 
-static MatchRule *match_rule_next_match(CRBTree *tree, MatchRule *rule, MatchFilter *filter) {
+static MatchRule *match_rule_next_match(CRBTree *tree, MatchRule *rule, MessageMetadata *metadata) {
         MatchRegistryByPath *registry_by_path;
         bool wildcard;
 
@@ -1010,21 +1014,21 @@ static MatchRule *match_rule_next_match(CRBTree *tree, MatchRule *rule, MatchFil
                 wildcard = true;
         }
 
-        rule = match_rule_next_match_by_path(registry_by_path, rule, filter);
-        if (!rule && wildcard && filter->path) {
-                registry_by_path = c_rbtree_find_entry(tree, match_registry_by_path_compare, filter->path, MatchRegistryByPath, registry_node);
-                rule = match_rule_next_match_by_path(registry_by_path, NULL, filter);
+        rule = match_rule_next_match_by_path(registry_by_path, rule, metadata);
+        if (!rule && wildcard && metadata->fields.path) {
+                registry_by_path = c_rbtree_find_entry(tree, match_registry_by_path_compare, metadata->fields.path, MatchRegistryByPath, registry_node);
+                rule = match_rule_next_match_by_path(registry_by_path, NULL, metadata);
         }
 
         return rule;
 }
 
-MatchRule *match_rule_next_subscription_match(MatchRegistry *registry, MatchRule *rule, MatchFilter *filter) {
-        return match_rule_next_match(&registry->subscription_tree, rule, filter);
+MatchRule *match_rule_next_subscription_match(MatchRegistry *registry, MatchRule *rule, MessageMetadata *metadata) {
+        return match_rule_next_match(&registry->subscription_tree, rule, metadata);
 }
 
-MatchRule *match_rule_next_monitor_match(MatchRegistry *registry, MatchRule *rule, MatchFilter *filter) {
-        return match_rule_next_match(&registry->monitor_tree, rule, filter);
+MatchRule *match_rule_next_monitor_match(MatchRegistry *registry, MatchRule *rule, MessageMetadata *metadata) {
+        return match_rule_next_match(&registry->monitor_tree, rule, metadata);
 }
 
 /**
