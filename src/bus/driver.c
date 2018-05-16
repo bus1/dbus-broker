@@ -327,9 +327,9 @@ static const char *driver_error_to_string(int r) {
         return error_strings[r];
 }
 
-static void driver_match_filter_from_message(MatchFilter *filter, uint64_t sender_id, Message *message) {
+static void driver_match_filter_from_message(MatchFilter *filter, Message *message) {
         filter->type = message->metadata.header.type;
-        filter->sender = sender_id;
+        filter->sender = message->metadata.sender_id;
         filter->interface = message->metadata.fields.interface;
         filter->member = message->metadata.fields.member,
         filter->path = message->metadata.fields.path;
@@ -355,7 +355,7 @@ static int driver_monitor(Bus *bus, Peer *sender, Message *message) {
         if (!bus->n_monitors)
                 return 0;
 
-        driver_match_filter_from_message(&filter, sender ? sender->id : ADDRESS_ID_INVALID, message);
+        driver_match_filter_from_message(&filter, message);
 
         r = bus_get_monitor_destinations(bus, &destinations, sender, &filter);
         if (r)
@@ -674,7 +674,7 @@ int driver_name_activation_failed(Bus *bus, Activation *activation) {
         c_list_for_each_entry_safe(message, message_safe, &activation->activation_messages, link) {
                 Peer *sender;
 
-                sender = peer_registry_find_peer(&bus->peers, message->message->sender_id);
+                sender = peer_registry_find_peer(&bus->peers, message->message->metadata.sender_id);
                 if (sender) {
                         r = driver_send_error(sender, message_read_serial(message->message), "org.freedesktop.DBus.Error.NameHasNoOwner", "Could not activate remote peer.");
                         if (r)
@@ -722,9 +722,9 @@ static int driver_name_activated(Activation *activation, Peer *receiver) {
                 NameSet sender_names = NAME_SET_INIT_FROM_SNAPSHOT(message->senders_names);
                 Peer *sender;
 
-                sender = peer_registry_find_peer(&receiver->bus->peers, message->message->sender_id);
+                sender = peer_registry_find_peer(&receiver->bus->peers, message->message->metadata.sender_id);
 
-                r = peer_queue_call(message->senders_policy, &sender_names, sender ? &sender->owned_replies : NULL, message->user, message->message->sender_id, receiver, message->message);
+                r = peer_queue_call(message->senders_policy, &sender_names, sender ? &sender->owned_replies : NULL, message->user, message->message->metadata.sender_id, receiver, message->message);
                 if (r) {
                         switch (r) {
                         case PEER_E_QUOTA:
@@ -2077,7 +2077,7 @@ static int driver_forward_broadcast(Peer *sender, Message *message) {
         Peer *receiver;
         int r;
 
-        driver_match_filter_from_message(&filter, sender->id, message);
+        driver_match_filter_from_message(&filter, message);
 
         r = bus_get_broadcast_destinations(sender->bus, &destinations, &sender->sender_matches, sender, &filter);
         if (r)

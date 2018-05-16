@@ -26,21 +26,7 @@ static int message_new(Message **messagep, bool big_endian, size_t n_extra) {
         if (!message)
                 return error_origin(-ENOMEM);
 
-        message->n_refs = C_REF_INIT;
-        message->big_endian = big_endian;
-        message->allocated_data = false;
-        message->parsed = false;
-        message->sender_id = ADDRESS_ID_INVALID;
-        message->fds = NULL;
-        message->n_data = 0;
-        message->n_copied = 0;
-        message->n_header = 0;
-        message->n_body = 0;
-        message->data = NULL;
-        message->header = NULL;
-        message->metadata = (MessageMetadata){};
-        message->body = NULL;
-        message->original_sender = NULL;
+        *message = (Message)MESSAGE_INIT(big_endian);
 
         *messagep = message;
         message = NULL;
@@ -505,7 +491,7 @@ void message_stitch_sender(Message *message, uint64_t sender_id) {
          * a valid sender id.
          */
         sender = address_to_string(&(Address)ADDRESS_INIT_ID(sender_id));
-        message->sender_id = sender_id;
+        message->metadata.sender_id = sender_id;
 
         /*
          * Calculate string, field, and buffer lengths. We need to possibly cut
