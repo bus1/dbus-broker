@@ -35,11 +35,23 @@ static int match_keys_assign(MatchKeys *keys, const char *key, size_t n_key, con
                 else
                         return MATCH_E_INVALID;
         } else if (match_key_equal("sender", key, n_key)) {
+                Address addr;
+
                 if (keys->sender)
                         return MATCH_E_INVALID;
                 if (!dbus_validate_name(value, strlen(value)))
                         return MATCH_E_INVALID;
                 keys->sender = value;
+
+                address_from_string(&addr, value);
+                if (addr.type == ADDRESS_TYPE_ID) {
+                        /*
+                         * Usually rules are indexed by sender, however, we also allow rules that match
+                         * on a sender ID to not be indexed, in case the peer with the ID does not yet
+                         * exits. Therefore, we must also remember the sender id.
+                         */
+                        keys->filter.sender = addr.id;
+                }
         } else if (match_key_equal("destination", key, n_key)) {
                 if (keys->destination)
                         return MATCH_E_INVALID;

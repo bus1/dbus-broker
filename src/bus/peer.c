@@ -452,7 +452,6 @@ static int peer_link_match(Peer *peer, MatchRule *rule, bool monitor) {
                                  * reasoning as above, keep it as a wildcard
                                  * match.
                                  */
-                                rule->keys.filter.sender = addr.id;
                                 r = match_rule_link(rule, &peer->bus->wildcard_matches, monitor);
                                 if (r)
                                         return error_fold(r);
