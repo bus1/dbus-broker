@@ -27,6 +27,7 @@
 #include "util/audit.h"
 #include "util/error.h"
 #include "util/log.h"
+#include "util/misc.h"
 
 typedef struct Manager Manager;
 typedef struct Service Service;
@@ -1477,6 +1478,12 @@ static int manager_run(Manager *manager) {
         r = sd_bus_attach_event(manager->bus_regular, manager->event, SD_EVENT_PRIORITY_NORMAL);
         if (r < 0)
                 return error_origin(r);
+
+        if (manager->uid != (uint32_t)-1) {
+                r = util_drop_permissions(manager->uid, manager->gid);
+                if (r)
+                        return error_fold(r);
+        }
 
         r = sd_event_loop(manager->event);
         if (r < 0)
