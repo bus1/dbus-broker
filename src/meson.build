@@ -33,6 +33,7 @@ sources_bus = [
         'util/fdlist.c',
         'util/log.c',
         'util/metrics.c',
+        'util/misc.c',
         'util/proc.c',
         'util/sockopt.c',
         'util/user.c',
