@@ -6,7 +6,7 @@ rm -Rf "./ci-build"
 mkdir "./ci-build"
 cd "./ci-build"
 
-${CHERRY_LIB_MESONSETUP} . "${CHERRY_LIB_SRCDIR}"
+${CHERRY_LIB_MESONSETUP} -Daudit=true -Dselinux=true . "${CHERRY_LIB_SRCDIR}"
 ${CHERRY_LIB_NINJABUILD}
 ${CHERRY_LIB_MESONTEST}
 # XXX: Valgrind and sd-bus / dbus-daemon does not work nicely. We should
