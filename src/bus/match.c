@@ -1116,36 +1116,44 @@ static void match_registry_by_keys_flush(MatchRegistryByKeys *registry) {
 
         c_list_for_each_entry_safe(rule, rule_safe, &registry->rule_list, registry_link)
                 match_rule_unlink(rule);
+
+        assert(c_list_is_empty(&registry->rule_list));
 }
 
 static void match_registry_by_member_flush(MatchRegistryByMember *registry) {
         MatchRegistryByKeys *registry_by_keys, *registry_by_keys_safe;
 
-        c_rbtree_for_each_entry_safe_postorder(registry_by_keys, registry_by_keys_safe, &registry->keys_tree, registry_node) {
+        c_rbtree_for_each_entry_safe(registry_by_keys, registry_by_keys_safe, &registry->keys_tree, registry_node) {
                 match_registry_by_keys_ref(registry_by_keys);
                 match_registry_by_keys_flush(registry_by_keys);
                 match_registry_by_keys_unref(registry_by_keys);
         }
+
+        assert(c_rbtree_is_empty(&registry->keys_tree));
 }
 
 static void match_registry_by_interface_flush(MatchRegistryByInterface *registry) {
         MatchRegistryByMember *registry_by_member, *registry_by_member_safe;
 
-        c_rbtree_for_each_entry_safe_postorder(registry_by_member, registry_by_member_safe, &registry->member_tree, registry_node) {
+        c_rbtree_for_each_entry_safe(registry_by_member, registry_by_member_safe, &registry->member_tree, registry_node) {
                 match_registry_by_member_ref(registry_by_member);
                 match_registry_by_member_flush(registry_by_member);
                 match_registry_by_member_unref(registry_by_member);
         }
+
+        assert(c_rbtree_is_empty(&registry->member_tree));
 }
 
 static void match_registry_by_path_flush(MatchRegistryByPath *registry) {
         MatchRegistryByInterface *registry_by_interface, *registry_by_interface_safe;
 
-        c_rbtree_for_each_entry_safe_postorder(registry_by_interface, registry_by_interface_safe, &registry->interface_tree, registry_node) {
+        c_rbtree_for_each_entry_safe(registry_by_interface, registry_by_interface_safe, &registry->interface_tree, registry_node) {
                 match_registry_by_interface_ref(registry_by_interface);
                 match_registry_by_interface_flush(registry_by_interface);
                 match_registry_by_interface_unref(registry_by_interface);
         }
+
+        assert(c_rbtree_is_empty(&registry->interface_tree));
 }
 
 /**
@@ -1154,9 +1162,11 @@ static void match_registry_by_path_flush(MatchRegistryByPath *registry) {
 void match_registry_flush(MatchRegistry *registry) {
         MatchRegistryByPath *registry_by_path, *registry_by_path_safe;
 
-        c_rbtree_for_each_entry_safe_postorder(registry_by_path, registry_by_path_safe, &registry->subscription_tree, registry_node) {
+        c_rbtree_for_each_entry_safe(registry_by_path, registry_by_path_safe, &registry->subscription_tree, registry_node) {
                 match_registry_by_path_ref(registry_by_path);
                 match_registry_by_path_flush(registry_by_path);
                 match_registry_by_path_unref(registry_by_path);
         }
+
+        assert(c_rbtree_is_empty(&registry->subscription_tree));
 }
