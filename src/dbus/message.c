@@ -408,7 +408,8 @@ int message_parse_metadata(Message *message) {
         void *p;
         int r;
 
-        assert(!message->parsed);
+        if (message->parsed)
+                return 0;
 
         /*
          * As first step, parse the static header and the dynamic header

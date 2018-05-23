@@ -335,6 +335,10 @@ static int driver_monitor(Bus *bus, Peer *sender, Message *message) {
         if (!bus->n_monitors)
                 return 0;
 
+        r = message_parse_metadata(message);
+        if (r)
+                return error_fold(r);
+
         r = bus_get_monitor_destinations(bus, &destinations, sender, &message->metadata);
         if (r)
                 return error_trace(r);
