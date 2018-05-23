@@ -329,14 +329,13 @@ static const char *driver_error_to_string(int r) {
 
 static int driver_monitor(Bus *bus, Peer *sender, Message *message) {
         _c_cleanup_(c_list_flush) CList destinations = C_LIST_INIT(destinations);
-        MessageMetadata metadata = MESSAGE_METADATA_INIT; /* XXX: this must be initialized */
         Peer *receiver;
         int r;
 
         if (!bus->n_monitors)
                 return 0;
 
-        r = bus_get_monitor_destinations(bus, &destinations, sender, &metadata);
+        r = bus_get_monitor_destinations(bus, &destinations, sender, &message->metadata);
         if (r)
                 return error_trace(r);
 
