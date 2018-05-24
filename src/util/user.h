@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <sys/types.h>
 
+typedef struct Log Log;
 typedef struct UserCharge UserCharge;
 typedef struct UserUsage UserUsage;
 typedef struct User User;
@@ -23,6 +24,21 @@ enum {
         USER_SLOT_OBJECTS,
         _USER_SLOT_N,
 };
+
+static inline const char *user_slot_to_string(size_t slot) {
+        switch (slot) {
+        case USER_SLOT_BYTES:
+                return "bytes";
+        case USER_SLOT_FDS:
+                return "FDs";
+        case USER_SLOT_MATCHES:
+                return "matches";
+        case USER_SLOT_OBJECTS:
+                return "objects";
+        default:
+                assert(0);
+        }
+}
 
 enum {
         _USER_E_SUCCESS,
@@ -66,6 +82,7 @@ int user_charge(User *user, UserCharge *charge, User *actor, size_t slot, unsign
 /* registry */
 
 struct UserRegistry {
+        Log *log;
         CRBTree user_tree;
         size_t n_slots;
         unsigned int *maxima;
@@ -75,7 +92,7 @@ struct UserRegistry {
                 .user_tree = C_RBTREE_INIT,                                     \
         }
 
-int user_registry_init(UserRegistry *registry, size_t n_slots, const unsigned int *maxima);
+int user_registry_init(UserRegistry *registry, Log *log, size_t n_slots, const unsigned int *maxima);
 void user_registry_deinit(UserRegistry *registry);
 int user_registry_ref_user(UserRegistry *registry, User **userp, uid_t uid);
 
