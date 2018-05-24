@@ -656,7 +656,12 @@ int peer_queue_call(PolicySnapshot *sender_policy, NameSet *sender_names, ReplyO
         if (r) {
                 if (r == POLICY_E_ACCESS_DENIED) {
                         log_append_here(receiver->bus->log, LOG_WARNING, 0);
-                        r = bus_log_commit_policy_receive(receiver->bus, receiver->id, sender_id, sender_names, &receiver_names, message);
+                        bus_log_append_policy_receive(receiver->bus, receiver->id, sender_id, sender_names, &receiver_names, message);
+                        r = log_commitf(receiver->bus->log, "A security policy denied %s to receive %s %s:%s.%s from :1.%llu.",
+                                        message->metadata.fields.destination,
+                                        message->header->type == DBUS_MESSAGE_TYPE_METHOD_CALL ? "method call" : "signal",
+                                        message->metadata.fields.path, message->metadata.fields.interface, message->metadata.fields.member,
+                                        sender_id);
                         if (r)
                                 return error_fold(r);
 
@@ -676,10 +681,15 @@ int peer_queue_call(PolicySnapshot *sender_policy, NameSet *sender_names, ReplyO
         if (r) {
                 if (r == POLICY_E_ACCESS_DENIED || r == POLICY_E_SELINUX_ACCESS_DENIED) {
                         log_append_here(receiver->bus->log, LOG_WARNING, 0);
-                        r = bus_log_commit_policy_send(receiver->bus,
-                                                       (r == POLICY_E_ACCESS_DENIED ? BUS_LOG_POLICY_TYPE_INTERNAL : BUS_LOG_POLICY_TYPE_SELINUX),
-                                                       sender_id, receiver->id, sender_names, &receiver_names,
-                                                       sender_policy->seclabel, receiver->policy->seclabel, message);
+                        bus_log_append_policy_send(receiver->bus,
+                                                   (r == POLICY_E_ACCESS_DENIED ? BUS_LOG_POLICY_TYPE_INTERNAL : BUS_LOG_POLICY_TYPE_SELINUX),
+                                                   sender_id, receiver->id, sender_names, &receiver_names,
+                                                   sender_policy->seclabel, receiver->policy->seclabel, message);
+                        r = log_commitf(receiver->bus->log, "A security policy denied :1.%llu to send %s %s:%s.%s to %s.",
+                                        sender_id,
+                                        message->header->type == DBUS_MESSAGE_TYPE_METHOD_CALL ? "method call" : "signal",
+                                        message->metadata.fields.path, message->metadata.fields.interface, message->metadata.fields.member,
+                                        message->metadata.fields.destination);
                         if (r)
                                 return error_fold(r);
 

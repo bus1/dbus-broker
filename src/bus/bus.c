@@ -222,11 +222,10 @@ int bus_get_broadcast_destinations(Bus *bus, CList *destinations, MatchRegistry 
 }
 
 
-static int bus_log_commit_policy(Bus *bus, const char *action, const char *policy_type, uint64_t sender_id, uint64_t receiver_id,
-                                 NameSet *sender_names, NameSet *receiver_names, const char *sender_label, const char *receiver_label,
-                                 Message *message) {
+static void bus_log_append_policy(Bus *bus, const char *action, const char *policy_type, uint64_t sender_id, uint64_t receiver_id,
+                                  NameSet *sender_names, NameSet *receiver_names, const char *sender_label, const char *receiver_label,
+                                  Message *message) {
         Log *log = bus->log;
-        int r;
 
         message_log_append(message, log);
 
@@ -298,15 +297,9 @@ static int bus_log_commit_policy(Bus *bus, const char *action, const char *polic
                                             i, receiver_names->snapshot->names[i]->name);
                 }
         }
-
-        r = log_commitf(log, ":1.%llu failed to %s message, due to policy.", sender_id, action);
-        if (r)
-                return error_fold(r);
-
-        return 0;
 }
 
-int bus_log_commit_policy_send(Bus *bus, int policy_type, uint64_t sender_id, uint64_t receiver_id, NameSet *sender_names, NameSet *receiver_names, const char *sender_label, const char *receiver_label, Message *message) {
+void bus_log_append_policy_send(Bus *bus, int policy_type, uint64_t sender_id, uint64_t receiver_id, NameSet *sender_names, NameSet *receiver_names, const char *sender_label, const char *receiver_label, Message *message) {
         const char *policy_type_str;
 
         switch (policy_type) {
@@ -320,9 +313,9 @@ int bus_log_commit_policy_send(Bus *bus, int policy_type, uint64_t sender_id, ui
                 assert(0);
         }
 
-        return bus_log_commit_policy(bus, "send", policy_type_str, sender_id, receiver_id, sender_names, receiver_names, sender_label, receiver_label, message);
+        bus_log_append_policy(bus, "send", policy_type_str, sender_id, receiver_id, sender_names, receiver_names, sender_label, receiver_label, message);
 }
 
-int bus_log_commit_policy_receive(Bus *bus, uint64_t receiver_id, uint64_t sender_id, NameSet *sender_names, NameSet *receiver_names, Message *message) {
-        return bus_log_commit_policy(bus, "receive", "internal", sender_id, receiver_id, sender_names, receiver_names, NULL, NULL, message);
+void bus_log_append_policy_receive(Bus *bus, uint64_t receiver_id, uint64_t sender_id, NameSet *sender_names, NameSet *receiver_names, Message *message) {
+        bus_log_append_policy(bus, "receive", "internal", sender_id, receiver_id, sender_names, receiver_names, NULL, NULL, message);
 }
