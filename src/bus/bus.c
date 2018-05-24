@@ -41,7 +41,7 @@ int bus_init(Bus *bus,
         static_assert(_USER_SLOT_N == C_ARRAY_SIZE(maxima),
                       "User accounting slot mismatch");
 
-        r = user_registry_init(&bus->users, _USER_SLOT_N, maxima);
+        r = user_registry_init(&bus->users, log, _USER_SLOT_N, maxima);
         if (r)
                 return error_fold(r);
 

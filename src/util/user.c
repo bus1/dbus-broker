@@ -27,6 +27,7 @@
 #include <stdlib.h>
 #include <sys/types.h>
 #include "util/error.h"
+#include "util/log.h"
 #include "util/user.h"
 
 struct UserUsage {
@@ -208,6 +209,29 @@ static int user_ref_usage(User *user, UserUsage **usagep, User *actor) {
         return 0;
 }
 
+static int user_charge_commit_log(Log *log, User *user, UserCharge *charge, User *actor, size_t slot, unsigned int amount) {
+        int r;
+
+        if (!log)
+                return 0;
+
+        assert(slot < user->registry->n_slots);
+
+        log_appendf(log, "DBUS_BROKER_USER_CHARGE_USER=%u\n", user->uid);
+        log_appendf(log, "DBUS_BROKER_USER_CHARGE_ACTOR=%u\n", actor->uid);
+        log_appendf(log, "DBUS_BROKER_USER_CHARGE_AMOUNT=%u\n", amount);
+        log_appendf(log, "DBUS_BROKER_USER_CHARGE_N_ACTORS=%u\n", user->n_usages);
+        log_appendf(log, "DBUS_BROKER_USER_CHARGE_SLOT=%s\n", user_slot_to_string(slot));
+        log_appendf(log, "DBUS_BROKER_USER_CHARGE_REMAINING=%u\n", user->slots[slot].n);
+        log_appendf(log, "DBUS_BROKER_USER_CHARGE_CONSUMED=%u\n", charge->usage ? charge->usage->slots[slot] : 0);
+
+        r = log_commitf(log, "UID %u exceeded its '%s' quota on UID %u.", actor->uid, user_slot_to_string(slot), user->uid);
+        if (r)
+                return error_fold(r);
+
+        return 0;
+}
+
 /**
  * user_charge() - charge a user object
  * @user:       user object to charge
@@ -268,11 +292,15 @@ int user_charge(User *user, UserCharge *charge, User *actor, size_t slot, unsign
         if (user == actor) {
                 /* never apply quotas on self-charge */
                 if (amount > *user_slot)
-                        return USER_E_QUOTA;
+                        goto quota;
         } else {
                 r = user_charge_check(*user_slot, user->n_usages, *usage_slot, amount);
-                if (r)
+                if (r) {
+                        if (r == USER_E_QUOTA)
+                                goto quota;
+
                         return error_trace(r);
+                }
         }
 
         *user_slot -= amount;
@@ -286,6 +314,12 @@ int user_charge(User *user, UserCharge *charge, User *actor, size_t slot, unsign
         }
 
         return 0;
+quota:
+        r = user_charge_commit_log(user->registry->log, user, charge, actor, slot, amount);
+        if (r)
+                return error_trace(r);
+
+        return USER_E_QUOTA;
 }
 
 static int user_compare(CRBTree *tree, void *k, CRBNode *rb) {
@@ -303,6 +337,7 @@ static int user_compare(CRBTree *tree, void *k, CRBNode *rb) {
 /**
  * user_registry_init() - initialize user registry
  * @registry:           user registry to operate on
+ * @log:                destination of any log messages
  * @n_slots:            number of accounting slots
  * @maxima:             maxima for each slot
  *
@@ -312,6 +347,7 @@ static int user_compare(CRBTree *tree, void *k, CRBNode *rb) {
  * Return: 0 on success, negative error code on failure.
  */
 int user_registry_init(UserRegistry *registry,
+                       Log *log,
                        size_t n_slots,
                        const unsigned int *maxima) {
         static_assert(sizeof(*maxima) == sizeof(*registry->maxima),
@@ -323,6 +359,7 @@ int user_registry_init(UserRegistry *registry,
         if (!registry->maxima)
                 return error_origin(-ENOMEM);
 
+        registry->log = log;
         registry->n_slots = n_slots;
         memcpy(registry->maxima, maxima, n_slots * sizeof(*registry->maxima));
 
