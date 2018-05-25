@@ -1976,7 +1976,7 @@ static int driver_dispatch_interface(Peer *peer, uint32_t serial, const char *in
                         log_append_here(peer->bus->log, LOG_WARNING, 0);
                         bus_log_append_policy_send(peer->bus,
                                                    (r == POLICY_E_ACCESS_DENIED ? BUS_LOG_POLICY_TYPE_INTERNAL : BUS_LOG_POLICY_TYPE_SELINUX),
-                                                   peer->id, ADDRESS_ID_INVALID, &names, NULL, peer->policy->seclabel, NULL, message);
+                                                   peer->id, ADDRESS_ID_INVALID, &names, NULL, peer->policy->seclabel, peer->bus->seclabel, message);
                         r = log_commitf(peer->bus->log, "A security policy denied :1.%llu to send method call %s:%s.%s to org.freedesktop.DBus.",
                                         peer->id, path, interface, member);
                         if (r)
