@@ -348,10 +348,22 @@ static int driver_monitor(Bus *bus, Peer *sender, Message *message) {
 
                 r = connection_queue(&receiver->connection, NULL, message);
                 if (r) {
-                        if (r == CONNECTION_E_QUOTA)
+                        if (r == CONNECTION_E_QUOTA) {
+                                NameSet sender_names = NAME_SET_INIT_FROM_OWNER(sender ? &sender->owned_names : NULL);
+
                                 connection_shutdown(&receiver->connection);
-                        else
+
+                                log_append_here(bus->log, LOG_WARNING, 0);
+                                bus_log_append_transaction(bus, sender ? sender->id : ADDRESS_ID_INVALID, receiver->id,
+                                                           &sender_names, NULL,
+                                                           sender ? sender->policy->seclabel : bus->seclabel, receiver->policy->seclabel,
+                                                           message);
+                                r = log_commitf(bus->log, "Monitor :1.%llu is being disconnected as it does not have the resources to receive a message it subscribed to.", receiver->id);
+                                if (r)
+                                        return error_fold(r);
+                        } else {
                                 return error_fold(r);
+                        }
                 }
         }
 
@@ -367,10 +379,21 @@ static int driver_send_unicast(Peer *receiver, Message *message) {
 
         r = connection_queue(&receiver->connection, NULL, message);
         if (r) {
-                if (r != CONNECTION_E_QUOTA)
-                        return error_fold(r);
+                if (r == CONNECTION_E_QUOTA) {
+                        NameSet receiver_names = NAME_SET_INIT_FROM_OWNER(&receiver->owned_names);
 
-                connection_shutdown(&receiver->connection);
+                        connection_shutdown(&receiver->connection);
+
+                        log_append_here(receiver->bus->log, LOG_WARNING, 0);
+                        bus_log_append_transaction(receiver->bus, ADDRESS_ID_INVALID, receiver->id, NULL, &receiver_names,
+                                                   receiver->bus->seclabel, receiver->policy->seclabel,
+                                                   message);
+                        r = log_commitf(receiver->bus->log, "Peer :1.%llu is being disconnected as it does not have the resources to receive a reply or unicast signal it expects.", receiver->id);
+                        if (r)
+                                return error_fold(r);
+                } else {
+                        return error_fold(r);
+                }
         }
 
         return 0;
@@ -607,10 +630,21 @@ static int driver_notify_name_owner_changed(Bus *bus, MatchRegistry *matches, co
 
                         r = connection_queue(&receiver->connection, NULL, message);
                         if (r) {
-                                if (r == CONNECTION_E_QUOTA)
+                                if (r == CONNECTION_E_QUOTA) {
+                                        NameSet receiver_names = NAME_SET_INIT_FROM_OWNER(&receiver->owned_names);
+
                                         connection_shutdown(&receiver->connection);
-                                else
+
+                                        log_append_here(bus->log, LOG_WARNING, 0);
+                                        bus_log_append_transaction(bus, ADDRESS_ID_INVALID, receiver->id, NULL, &receiver_names,
+                                                                   receiver->bus->seclabel, receiver->policy->seclabel,
+                                                                   message);
+                                        r = log_commitf(bus->log, "Peer :1.%llu is being disconnected as it does not have the resources to receive a signal it subscribed to.", receiver->id);
+                                        if (r)
+                                                return error_fold(r);
+                                } else {
                                         return error_fold(r);
+                                }
                         }
                 }
         }
@@ -2085,10 +2119,22 @@ static int driver_forward_broadcast(Peer *sender, Message *message) {
 
                 r = connection_queue(&receiver->connection, NULL, message);
                 if (r) {
-                        if (r == CONNECTION_E_QUOTA)
+                        if (r == CONNECTION_E_QUOTA) {
+                                NameSet sender_names = NAME_SET_INIT_FROM_OWNER(&sender->owned_names);
+                                NameSet receiver_names = NAME_SET_INIT_FROM_OWNER(&receiver->owned_names);
+
                                 connection_shutdown(&receiver->connection);
-                        else
+
+                                log_append_here(sender->bus->log, LOG_WARNING, 0);
+                                bus_log_append_transaction(sender->bus, sender->id, receiver->id, &sender_names, &receiver_names,
+                                                           sender->policy->seclabel, receiver->policy->seclabel,
+                                                           message);
+                                r = log_commitf(sender->bus->log, "Peer :1.%llu is being disconnected as it does not have the resources to receive a signal it subscribed to.", receiver->id);
+                                if (r)
+                                        return error_fold(r);
+                        } else {
                                 return error_fold(r);
+                        }
                 }
         }
 

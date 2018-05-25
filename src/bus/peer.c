@@ -709,10 +709,22 @@ int peer_queue_reply(Peer *sender, const char *destination, uint32_t reply_seria
 
         r = connection_queue(&receiver->connection, NULL, message);
         if (r) {
-                if (r == CONNECTION_E_QUOTA)
+                if (r == CONNECTION_E_QUOTA) {
+                        NameSet sender_names = NAME_SET_INIT_FROM_OWNER(&sender->owned_names);
+                        NameSet receiver_names = NAME_SET_INIT_FROM_OWNER(&receiver->owned_names);
+
                         connection_shutdown(&receiver->connection);
-                else
+
+                        log_append_here(receiver->bus->log, LOG_WARNING, 0);
+                        bus_log_append_transaction(receiver->bus, sender->id, receiver->id, &sender_names, &receiver_names,
+                                                   sender->policy->seclabel, receiver->policy->seclabel, message);
+                        r = log_commitf(receiver->bus->log, "Peer :1.%llu is being disconnected as it does not have the resources to receive a reply it requested.",
+                                        receiver->id);
+                        if (r)
+                                return error_fold(r);
+                } else {
                         return error_fold(r);
+                }
         }
 
         return 0;
