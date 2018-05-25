@@ -222,17 +222,12 @@ int bus_get_broadcast_destinations(Bus *bus, CList *destinations, MatchRegistry 
 }
 
 
-static void bus_log_append_policy(Bus *bus, const char *action, const char *policy_type, uint64_t sender_id, uint64_t receiver_id,
-                                  NameSet *sender_names, NameSet *receiver_names, const char *sender_label, const char *receiver_label,
-                                  Message *message) {
+void bus_log_append_transaction(Bus *bus, uint64_t sender_id, uint64_t receiver_id,
+                                NameSet *sender_names, NameSet *receiver_names, const char *sender_label, const char *receiver_label,
+                                Message *message) {
         Log *log = bus->log;
 
         message_log_append(message, log);
-
-        log_appendf(log, "DBUS_BROKER_TRANSMIT_ACTION=%s\n", action);
-
-        if (policy_type)
-                log_appendf(log, "DBUS_BROKER_POLICY_TYPE=%s\n", policy_type);
 
         if (sender_label)
                 log_appendf(log, "DBUS_BROKER_SENDER_SECURITY_LABEL=%s\n",
@@ -300,22 +295,23 @@ static void bus_log_append_policy(Bus *bus, const char *action, const char *poli
 }
 
 void bus_log_append_policy_send(Bus *bus, int policy_type, uint64_t sender_id, uint64_t receiver_id, NameSet *sender_names, NameSet *receiver_names, const char *sender_label, const char *receiver_label, Message *message) {
-        const char *policy_type_str;
-
         switch (policy_type) {
         case BUS_LOG_POLICY_TYPE_INTERNAL:
-                policy_type_str = "internal";
+                log_appendf(bus->log, "DBUS_BROKER_POLICY_TYPE=internal\n");
                 break;
         case BUS_LOG_POLICY_TYPE_SELINUX:
-                policy_type_str = "selinux";
+                log_appendf(bus->log, "DBUS_BROKER_POLICY_TYPE=selinux\n");
                 break;
         default:
                 assert(0);
         }
 
-        bus_log_append_policy(bus, "send", policy_type_str, sender_id, receiver_id, sender_names, receiver_names, sender_label, receiver_label, message);
+        log_appendf(bus->log, "DBUS_BROKER_TRANSMIT_ACTION=send\n");
+        bus_log_append_transaction(bus, sender_id, receiver_id, sender_names, receiver_names, sender_label, receiver_label, message);
 }
 
 void bus_log_append_policy_receive(Bus *bus, uint64_t receiver_id, uint64_t sender_id, NameSet *sender_names, NameSet *receiver_names, Message *message) {
-        bus_log_append_policy(bus, "receive", "internal", sender_id, receiver_id, sender_names, receiver_names, NULL, NULL, message);
+        log_appendf(bus->log, "DBUS_BROKER_POLICY_TYPE=internal\n");
+        log_appendf(bus->log, "DBUS_BROKER_TRANSMIT_ACTION=receive\n");
+        bus_log_append_transaction(bus, sender_id, receiver_id, sender_names, receiver_names, NULL, NULL, message);
 }
