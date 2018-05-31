@@ -310,7 +310,7 @@ static void test_iterator(void) {
 }
 
 int main(int argc, char **argv) {
-        MatchOwner owner = {};
+        MatchOwner owner = MATCH_OWNER_INIT(owner);
 
         test_splitting(&owner);
         test_parse_key(&owner);

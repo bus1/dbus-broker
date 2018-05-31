@@ -187,4 +187,7 @@ int match_owner_find_rule(MatchOwner *owner, MatchRule **rulep, const char *rule
 void match_registry_init(MatchRegistry *registry);
 void match_registry_deinit(MatchRegistry *registry);
 
+void match_registry_get_subscribers(MatchRegistry *matches, CList *destinations, MessageMetadata *metadata);
+void match_registry_get_monitors(MatchRegistry *matches, CList *destinations, MessageMetadata *metadata);
+
 void match_registry_flush(MatchRegistry *registry);

@@ -87,29 +87,11 @@ Peer *bus_find_peer_by_name(Bus *bus, Name **namep, const char *name_str) {
         return peer;
 }
 
-static int bus_get_monitor_destinations_for_matches(CList *destinations, MatchRegistry *matches, MessageMetadata *metadata) {
-        MatchRule *rule;
-
-        for (rule = match_rule_next_monitor_match(matches, NULL, metadata); rule; rule = match_rule_next_monitor_match(matches, rule, metadata)) {
-                if (c_list_is_linked(&rule->owner->destinations_link))
-                        /* only link a destination once, despite matching in several different ways */
-                        continue;
-
-                c_list_link_tail(destinations, &rule->owner->destinations_link);
-        }
-
-        return 0;
-}
-
-int bus_get_monitor_destinations(Bus *bus, CList *destinations, Peer *sender, MessageMetadata *metadata) {
-        int r;
-
+void bus_get_monitor_destinations(Bus *bus, CList *destinations, Peer *sender, MessageMetadata *metadata) {
         if (!bus->n_monitors)
-                return 0;
+                return;
 
-        r = bus_get_monitor_destinations_for_matches(destinations, &bus->wildcard_matches, metadata);
-        if (r)
-                return error_trace(r);
+        match_registry_get_monitors(&bus->wildcard_matches, destinations, metadata);
 
         if (sender) {
                 NameOwnership *ownership;
@@ -118,49 +100,21 @@ int bus_get_monitor_destinations(Bus *bus, CList *destinations, Peer *sender, Me
                         if (!name_ownership_is_primary(ownership))
                                 continue;
 
-                        r = bus_get_monitor_destinations_for_matches(destinations, &ownership->name->sender_matches, metadata);
-                        if (r)
-                                return error_trace(r);
+                        match_registry_get_monitors(&ownership->name->sender_matches, destinations, metadata);
                 }
 
-                r = bus_get_monitor_destinations_for_matches(destinations, &sender->sender_matches, metadata);
-                if (r)
-                        return error_trace(r);
+                match_registry_get_monitors(&sender->sender_matches, destinations, metadata);
         } else {
                 /* sent from the driver */
-                r = bus_get_monitor_destinations_for_matches(destinations, &bus->sender_matches, metadata);
-                if (r)
-                        return error_trace(r);
+                match_registry_get_monitors(&bus->sender_matches, destinations, metadata);
         }
-
-        return 0;
 }
 
-static int bus_get_broadcast_destinations_for_matches(CList *destinations, MatchRegistry *matches, MessageMetadata *metadata) {
-        MatchRule *rule;
-
-        for (rule = match_rule_next_subscription_match(matches, NULL, metadata); rule; rule = match_rule_next_subscription_match(matches, rule, metadata)) {
-                if (c_list_is_linked(&rule->owner->destinations_link))
-                        /* only link a destination once, despite matching in several different ways */
-                        continue;
-
-                c_list_link_tail(destinations, &rule->owner->destinations_link);
-        }
-
-        return 0;
-}
-
-int bus_get_broadcast_destinations(Bus *bus, CList *destinations, MatchRegistry *matches, Peer *sender, MessageMetadata *metadata) {
-        int r;
-
-        r = bus_get_broadcast_destinations_for_matches(destinations, &bus->wildcard_matches, metadata);
-        if (r)
-                return error_trace(r);
+void bus_get_broadcast_destinations(Bus *bus, CList *destinations, MatchRegistry *matches, Peer *sender, MessageMetadata *metadata) {
+        match_registry_get_subscribers(&bus->wildcard_matches, destinations, metadata);
 
         if (matches) {
-                r = bus_get_broadcast_destinations_for_matches(destinations, matches, metadata);
-                if (r)
-                        return error_trace(r);
+                match_registry_get_subscribers(matches, destinations, metadata);
         }
 
         if (sender) {
@@ -171,18 +125,12 @@ int bus_get_broadcast_destinations(Bus *bus, CList *destinations, MatchRegistry 
                         if (!name_ownership_is_primary(ownership))
                                 continue;
 
-                        r = bus_get_broadcast_destinations_for_matches(destinations, &ownership->name->sender_matches, metadata);
-                        if (r)
-                                return error_trace(r);
+                        match_registry_get_subscribers(&ownership->name->sender_matches, destinations, metadata);
                 }
         } else {
                 /* sent from the driver */
-                r = bus_get_broadcast_destinations_for_matches(destinations, &bus->sender_matches, metadata);
-                if (r)
-                        return error_trace(r);
+                match_registry_get_subscribers(&bus->sender_matches, destinations, metadata);
         }
-
-        return 0;
 }
 
 

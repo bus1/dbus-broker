@@ -339,9 +339,7 @@ static int driver_monitor(Bus *bus, Peer *sender, Message *message) {
         if (r)
                 return error_fold(r);
 
-        r = bus_get_monitor_destinations(bus, &destinations, sender, &message->metadata);
-        if (r)
-                return error_trace(r);
+        bus_get_monitor_destinations(bus, &destinations, sender, &message->metadata);
 
         while ((match_owner = c_list_first_entry(&destinations, MatchOwner, destinations_link))) {
                 Peer *receiver = c_container_of(match_owner, Peer, owned_matches);
@@ -564,13 +562,8 @@ static int driver_notify_name_owner_changed(Bus *bus, MatchRegistry *matches, co
         };
         int r;
 
-        r = bus_get_monitor_destinations(bus, &destinations, NULL, &metadata);
-        if (r)
-                return error_trace(r);
-
-        r = bus_get_broadcast_destinations(bus, &destinations, matches, NULL, &metadata);
-        if (r)
-                return error_trace(r);
+        bus_get_monitor_destinations(bus, &destinations, NULL, &metadata);
+        bus_get_broadcast_destinations(bus, &destinations, matches, NULL, &metadata);
 
         if (!c_list_is_empty(&destinations)) {
                 static const CDVarType type[] = {
@@ -2094,9 +2087,7 @@ static int driver_forward_broadcast(Peer *sender, Message *message) {
         MatchOwner *match_owner;
         int r;
 
-        r = bus_get_broadcast_destinations(sender->bus, &destinations, &sender->sender_matches, sender, &message->metadata);
-        if (r)
-                return error_trace(r);
+        bus_get_broadcast_destinations(sender->bus, &destinations, &sender->sender_matches, sender, &message->metadata);
 
         while ((match_owner = c_list_first_entry(&destinations, MatchOwner, destinations_link))) {
                 Peer *receiver = c_container_of(match_owner, Peer, owned_matches);
