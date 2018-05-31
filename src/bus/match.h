@@ -85,10 +85,12 @@ struct MatchRule {
 
 struct MatchOwner {
         CRBTree rule_tree;
+        CList destinations_link;
 };
 
-#define MATCH_OWNER_INIT {                      \
-                .rule_tree = C_RBTREE_INIT,     \
+#define MATCH_OWNER_INIT(_x) {                                                  \
+                .rule_tree = C_RBTREE_INIT,                                     \
+                .destinations_link = C_LIST_INIT((_x).destinations_link),       \
         }
 
 struct MatchRegistryByKeys {
