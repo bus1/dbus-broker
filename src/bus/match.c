@@ -906,127 +906,6 @@ void match_rule_unlink(MatchRule *rule) {
         }
 }
 
-static MatchRule *match_rule_next_match_by_keys(MatchRegistryByKeys *registry, MatchRule *rule) {
-        c_list_for_each_entry_continue(rule, &registry->rule_list, registry_link)
-                return rule;
-
-        return NULL;
-}
-
-static MatchRule *match_rule_next_match_by_member(MatchRegistryByMember *registry, MatchRule *rule, MessageMetadata *metadata) {
-        MatchRegistryByKeys *registry_by_keys;
-
-        if (!registry)
-                return NULL;
-
-        if (rule) {
-                registry_by_keys = rule->registry_by_keys;
-
-                rule = match_rule_next_match_by_keys(registry_by_keys, rule);
-                if (rule)
-                        return rule;
-
-                registry_by_keys = c_rbnode_entry(c_rbnode_next(&registry_by_keys->registry_node), MatchRegistryByKeys, registry_node);
-        } else {
-                registry_by_keys = c_rbnode_entry(c_rbtree_first(&registry->keys_tree), MatchRegistryByKeys, registry_node);
-        }
-
-        for (; registry_by_keys; registry_by_keys = c_rbnode_entry(c_rbnode_next(&registry_by_keys->registry_node), MatchRegistryByKeys, registry_node)) {
-                if (!match_keys_match_metadata(&registry_by_keys->keys, metadata))
-                        continue;
-
-                return match_rule_next_match_by_keys(registry_by_keys, NULL);
-        }
-
-        return NULL;
-}
-
-static MatchRule *match_rule_next_match_by_interface(MatchRegistryByInterface *registry, MatchRule *rule, MessageMetadata *metadata) {
-        MatchRegistryByMember *registry_by_member;
-        bool wildcard;
-
-        if (!registry)
-                return NULL;
-
-        if (rule) {
-                registry_by_member = rule->registry_by_keys->registry_by_member;
-                if (registry_by_member->member[0] == '\0')
-                        wildcard = true;
-                else
-                        wildcard = false;
-        } else {
-                registry_by_member = c_rbtree_find_entry(&registry->member_tree, match_registry_by_member_compare, NULL, MatchRegistryByMember, registry_node);
-                wildcard = true;
-        }
-
-        rule = match_rule_next_match_by_member(registry_by_member, rule, metadata);
-        if (!rule && wildcard && metadata->fields.member) {
-                registry_by_member = c_rbtree_find_entry(&registry->member_tree, match_registry_by_member_compare, metadata->fields.member, MatchRegistryByMember, registry_node);
-                rule = match_rule_next_match_by_member(registry_by_member, NULL, metadata);
-        }
-
-        return rule;
-}
-
-static MatchRule *match_rule_next_match_by_path(MatchRegistryByPath *registry, MatchRule *rule, MessageMetadata *metadata) {
-        MatchRegistryByInterface *registry_by_interface;
-        bool wildcard;
-
-        if (!registry)
-                return NULL;
-
-        if (rule) {
-                registry_by_interface = rule->registry_by_keys->registry_by_member->registry_by_interface;
-                if (registry_by_interface->interface[0] == '\0')
-                        wildcard = true;
-                else
-                        wildcard = false;
-        } else {
-                registry_by_interface = c_rbtree_find_entry(&registry->interface_tree, match_registry_by_interface_compare, NULL, MatchRegistryByInterface, registry_node);
-                wildcard = true;
-        }
-
-        rule = match_rule_next_match_by_interface(registry_by_interface, rule, metadata);
-        if (!rule && wildcard && metadata->fields.interface) {
-                registry_by_interface = c_rbtree_find_entry(&registry->interface_tree, match_registry_by_interface_compare, metadata->fields.interface, MatchRegistryByInterface, registry_node);
-                rule = match_rule_next_match_by_interface(registry_by_interface, NULL, metadata);
-        }
-
-        return rule;
-}
-
-static MatchRule *match_rule_next_match(CRBTree *tree, MatchRule *rule, MessageMetadata *metadata) {
-        MatchRegistryByPath *registry_by_path;
-        bool wildcard;
-
-        if (rule) {
-                registry_by_path = rule->registry_by_keys->registry_by_member->registry_by_interface->registry_by_path;
-                if (registry_by_path->path[0] == '\0')
-                        wildcard = true;
-                else
-                        wildcard = false;
-        } else {
-                registry_by_path = c_rbtree_find_entry(tree, match_registry_by_path_compare, NULL, MatchRegistryByPath, registry_node);
-                wildcard = true;
-        }
-
-        rule = match_rule_next_match_by_path(registry_by_path, rule, metadata);
-        if (!rule && wildcard && metadata->fields.path) {
-                registry_by_path = c_rbtree_find_entry(tree, match_registry_by_path_compare, metadata->fields.path, MatchRegistryByPath, registry_node);
-                rule = match_rule_next_match_by_path(registry_by_path, NULL, metadata);
-        }
-
-        return rule;
-}
-
-static MatchRule *match_rule_next_subscription_match(MatchRegistry *registry, MatchRule *rule, MessageMetadata *metadata) {
-        return match_rule_next_match(&registry->subscription_tree, rule, metadata);
-}
-
-static MatchRule *match_rule_next_monitor_match(MatchRegistry *registry, MatchRule *rule, MessageMetadata *metadata) {
-        return match_rule_next_match(&registry->monitor_tree, rule, metadata);
-}
-
 /**
  * match_owner_init() - XXX
  */
@@ -1108,10 +987,10 @@ void match_registry_deinit(MatchRegistry *registry) {
         assert(c_rbtree_is_empty(&registry->monitor_tree));
 }
 
-void match_registry_get_subscribers(MatchRegistry *matches, CList *destinations, MessageMetadata *metadata) {
+static void match_registry_by_keys_get_destinations(MatchRegistryByKeys *registry, CList *destinations) {
         MatchRule *rule;
 
-        for (rule = match_rule_next_subscription_match(matches, NULL, metadata); rule; rule = match_rule_next_subscription_match(matches, rule, metadata)) {
+        c_list_for_each_entry(rule, &registry->rule_list, registry_link) {
                 if (c_list_is_linked(&rule->owner->destinations_link))
                         /* only link a destination once, despite matching in several different ways */
                         continue;
@@ -1120,16 +999,67 @@ void match_registry_get_subscribers(MatchRegistry *matches, CList *destinations,
         }
 }
 
-void match_registry_get_monitors(MatchRegistry *matches, CList *destinations, MessageMetadata *metadata) {
-        MatchRule *rule;
+static void match_registry_by_member_get_destinations(MatchRegistryByMember *registry, CList *destinations, MessageMetadata *metadata) {
+        MatchRegistryByKeys *registry_by_keys;
 
-        for (rule = match_rule_next_monitor_match(matches, NULL, metadata); rule; rule = match_rule_next_monitor_match(matches, rule, metadata)) {
-                if (c_list_is_linked(&rule->owner->destinations_link))
-                        /* only link a destination once, despite matching in several different ways */
+        c_rbtree_for_each_entry(registry_by_keys, &registry->keys_tree, registry_node) {
+                if (!match_keys_match_metadata(&registry_by_keys->keys, metadata))
                         continue;
 
-                c_list_link_tail(destinations, &rule->owner->destinations_link);
+                match_registry_by_keys_get_destinations(registry_by_keys, destinations);
         }
+}
+
+static void match_registry_by_interface_get_destinations(MatchRegistryByInterface *registry, CList *destinations, MessageMetadata *metadata) {
+        MatchRegistryByMember *registry_by_member;
+
+        registry_by_member = c_rbtree_find_entry(&registry->member_tree, match_registry_by_member_compare, NULL, MatchRegistryByMember, registry_node);
+        if (registry_by_member)
+                match_registry_by_member_get_destinations(registry_by_member, destinations, metadata);
+
+        if (metadata->fields.member) {
+                registry_by_member = c_rbtree_find_entry(&registry->member_tree, match_registry_by_member_compare, metadata->fields.member, MatchRegistryByMember, registry_node);
+                if (registry_by_member)
+                        match_registry_by_member_get_destinations(registry_by_member, destinations, metadata);
+        }
+}
+
+static void match_registry_by_path_get_destinations(MatchRegistryByPath *registry, CList *destinations, MessageMetadata *metadata) {
+        MatchRegistryByInterface *registry_by_interface;
+
+        registry_by_interface = c_rbtree_find_entry(&registry->interface_tree, match_registry_by_interface_compare, NULL, MatchRegistryByInterface, registry_node);
+        if (registry_by_interface)
+                match_registry_by_interface_get_destinations(registry_by_interface, destinations, metadata);
+
+        if (metadata->fields.interface) {
+                registry_by_interface = c_rbtree_find_entry(&registry->interface_tree, match_registry_by_interface_compare, metadata->fields.interface, MatchRegistryByInterface, registry_node);
+                if (registry_by_interface)
+                        match_registry_by_interface_get_destinations(registry_by_interface, destinations, metadata);
+        }
+
+}
+
+static void match_registry_get_destinations(CRBTree *tree, CList *destinations, MessageMetadata *metadata) {
+        MatchRegistryByPath *registry_by_path;
+
+        registry_by_path = c_rbtree_find_entry(tree, match_registry_by_path_compare, NULL, MatchRegistryByPath, registry_node);
+        if (registry_by_path)
+                match_registry_by_path_get_destinations(registry_by_path, destinations, metadata);
+
+        if (metadata->fields.path) {
+                registry_by_path = c_rbtree_find_entry(tree, match_registry_by_path_compare, metadata->fields.path, MatchRegistryByPath, registry_node);
+                if (registry_by_path)
+                        match_registry_by_path_get_destinations(registry_by_path, destinations, metadata);
+        }
+
+}
+
+void match_registry_get_subscribers(MatchRegistry *registry, CList *destinations, MessageMetadata *metadata) {
+        match_registry_get_destinations(&registry->subscription_tree, destinations, metadata);
+}
+
+void match_registry_get_monitors(MatchRegistry *registry, CList *destinations, MessageMetadata *metadata) {
+        match_registry_get_destinations(&registry->monitor_tree, destinations, metadata);
 }
 
 static void match_registry_by_keys_flush(MatchRegistryByKeys *registry) {
