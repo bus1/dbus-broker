@@ -1031,7 +1031,7 @@ MatchRule *match_rule_next_monitor_match(MatchRegistry *registry, MatchRule *rul
  * match_owner_init() - XXX
  */
 void match_owner_init(MatchOwner *owner) {
-        *owner = (MatchOwner)MATCH_OWNER_INIT;
+        *owner = (MatchOwner)MATCH_OWNER_INIT(*owner);
 }
 
 /**
@@ -1039,6 +1039,7 @@ void match_owner_init(MatchOwner *owner) {
  */
 void match_owner_deinit(MatchOwner *owner) {
         assert(c_rbtree_is_empty(&owner->rule_tree));
+        assert(!c_list_is_linked(&owner->destinations_link));
 }
 
 /**

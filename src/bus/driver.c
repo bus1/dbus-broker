@@ -329,7 +329,7 @@ static const char *driver_error_to_string(int r) {
 
 static int driver_monitor(Bus *bus, Peer *sender, Message *message) {
         _c_cleanup_(c_list_flush) CList destinations = C_LIST_INIT(destinations);
-        Peer *receiver;
+        MatchOwner *match_owner;
         int r;
 
         if (!bus->n_monitors)
@@ -343,8 +343,10 @@ static int driver_monitor(Bus *bus, Peer *sender, Message *message) {
         if (r)
                 return error_trace(r);
 
-        while ((receiver = c_list_first_entry(&destinations, Peer, destinations_link))) {
-                c_list_unlink(&receiver->destinations_link);
+        while ((match_owner = c_list_first_entry(&destinations, MatchOwner, destinations_link))) {
+                Peer *receiver = c_container_of(match_owner, Peer, owned_matches);
+
+                c_list_unlink(&match_owner->destinations_link);
 
                 r = connection_queue(&receiver->connection, NULL, message);
                 if (r) {
@@ -534,7 +536,6 @@ static int driver_notify_name_lost(Peer *peer, const char *name) {
 
 static int driver_notify_name_owner_changed(Bus *bus, MatchRegistry *matches, const char *name, const char *old_owner, const char *new_owner) {
         _c_cleanup_(c_list_flush) CList destinations = C_LIST_INIT(destinations);
-        Peer *receiver;
         MessageMetadata metadata = {
                 .header = {
                         .type = DBUS_MESSAGE_TYPE_SIGNAL,
@@ -586,6 +587,7 @@ static int driver_notify_name_owner_changed(Bus *bus, MatchRegistry *matches, co
                 _c_cleanup_(c_dvar_deinit) CDVar var = C_DVAR_INIT;
                 _c_cleanup_(message_unrefp) Message *message = NULL;
                 _c_cleanup_(c_freep) void *data = NULL;
+                MatchOwner *match_owner;
                 size_t n_data;
 
                 c_dvar_begin_write(&var, type, 1);
@@ -602,8 +604,10 @@ static int driver_notify_name_owner_changed(Bus *bus, MatchRegistry *matches, co
                         return error_fold(r);
                 data = NULL;
 
-                while ((receiver = c_list_first_entry(&destinations, Peer, destinations_link))) {
-                        c_list_unlink(&receiver->destinations_link);
+                while ((match_owner = c_list_first_entry(&destinations, MatchOwner, destinations_link))) {
+                        Peer *receiver = c_container_of(match_owner, Peer, owned_matches);
+
+                        c_list_unlink(&match_owner->destinations_link);
 
                         r = policy_snapshot_check_receive(receiver->policy,
                                                           NULL,
@@ -2087,17 +2091,18 @@ static int driver_forward_unicast(Peer *sender, const char *destination, Message
 static int driver_forward_broadcast(Peer *sender, Message *message) {
         _c_cleanup_(c_list_flush) CList destinations = C_LIST_INIT(destinations);
         NameSet sender_names = NAME_SET_INIT_FROM_OWNER(&sender->owned_names);
-        Peer *receiver;
+        MatchOwner *match_owner;
         int r;
 
         r = bus_get_broadcast_destinations(sender->bus, &destinations, &sender->sender_matches, sender, &message->metadata);
         if (r)
                 return error_trace(r);
 
-        while ((receiver = c_list_first_entry(&destinations, Peer, destinations_link))) {
+        while ((match_owner = c_list_first_entry(&destinations, MatchOwner, destinations_link))) {
+                Peer *receiver = c_container_of(match_owner, Peer, owned_matches);
                 NameSet receiver_names = NAME_SET_INIT_FROM_OWNER(&receiver->owned_names);
 
-                c_list_unlink(&receiver->destinations_link);
+                c_list_unlink(&match_owner->destinations_link);
 
                 r = policy_snapshot_check_send(sender->policy,
                                                receiver->seclabel,

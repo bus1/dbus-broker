@@ -91,13 +91,11 @@ static int bus_get_monitor_destinations_for_matches(CList *destinations, MatchRe
         MatchRule *rule;
 
         for (rule = match_rule_next_monitor_match(matches, NULL, metadata); rule; rule = match_rule_next_monitor_match(matches, rule, metadata)) {
-                Peer *receiver = c_container_of(rule->owner, Peer, owned_matches);
-
-                if (c_list_is_linked(&receiver->destinations_link))
+                if (c_list_is_linked(&rule->owner->destinations_link))
                         /* only link a destination once, despite matching in several different ways */
                         continue;
 
-                c_list_link_tail(destinations, &receiver->destinations_link);
+                c_list_link_tail(destinations, &rule->owner->destinations_link);
         }
 
         return 0;
@@ -142,13 +140,11 @@ static int bus_get_broadcast_destinations_for_matches(CList *destinations, Match
         MatchRule *rule;
 
         for (rule = match_rule_next_subscription_match(matches, NULL, metadata); rule; rule = match_rule_next_subscription_match(matches, rule, metadata)) {
-                Peer *receiver = c_container_of(rule->owner, Peer, owned_matches);
-
-                if (c_list_is_linked(&receiver->destinations_link))
+                if (c_list_is_linked(&rule->owner->destinations_link))
                         /* only link a destination once, despite matching in several different ways */
                         continue;
 
-                c_list_link_tail(destinations, &receiver->destinations_link);
+                c_list_link_tail(destinations, &rule->owner->destinations_link);
         }
 
         return 0;

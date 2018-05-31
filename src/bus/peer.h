@@ -75,8 +75,6 @@ struct Peer {
         MatchOwner owned_matches;
         ReplyRegistry replies;
         ReplyOwner owned_replies;
-
-        CList destinations_link;
 };
 
 #define PEER_INIT(_x) {                                                                                 \
@@ -89,10 +87,9 @@ struct Peer {
                 .owned_names = NAME_OWNER_INIT,                                                         \
                 .sender_matches = MATCH_REGISTRY_INIT((_x).sender_matches),                             \
                 .name_owner_changed_matches = MATCH_REGISTRY_INIT((_x).name_owner_changed_matches),     \
-                .owned_matches = MATCH_OWNER_INIT,                                                      \
+                .owned_matches = MATCH_OWNER_INIT((_x).owned_matches),                                  \
                 .replies = REPLY_REGISTRY_INIT,                                                         \
                 .owned_replies = REPLY_OWNER_INIT((_x).owned_replies),                                  \
-                .destinations_link = C_LIST_INIT((_x).destinations_link),                               \
         }
 
 struct PeerRegistry {
