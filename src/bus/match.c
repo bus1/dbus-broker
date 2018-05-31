@@ -1108,6 +1108,30 @@ void match_registry_deinit(MatchRegistry *registry) {
         assert(c_rbtree_is_empty(&registry->monitor_tree));
 }
 
+void match_registry_get_subscribers(MatchRegistry *matches, CList *destinations, MessageMetadata *metadata) {
+        MatchRule *rule;
+
+        for (rule = match_rule_next_subscription_match(matches, NULL, metadata); rule; rule = match_rule_next_subscription_match(matches, rule, metadata)) {
+                if (c_list_is_linked(&rule->owner->destinations_link))
+                        /* only link a destination once, despite matching in several different ways */
+                        continue;
+
+                c_list_link_tail(destinations, &rule->owner->destinations_link);
+        }
+}
+
+void match_registry_get_monitors(MatchRegistry *matches, CList *destinations, MessageMetadata *metadata) {
+        MatchRule *rule;
+
+        for (rule = match_rule_next_monitor_match(matches, NULL, metadata); rule; rule = match_rule_next_monitor_match(matches, rule, metadata)) {
+                if (c_list_is_linked(&rule->owner->destinations_link))
+                        /* only link a destination once, despite matching in several different ways */
+                        continue;
+
+                c_list_link_tail(destinations, &rule->owner->destinations_link);
+        }
+}
+
 static void match_registry_by_keys_flush(MatchRegistryByKeys *registry) {
         MatchRule *rule, *rule_safe;
 
