@@ -116,9 +116,10 @@ static void test_validate_keys(MatchOwner *owner) {
 }
 
 static bool test_match(const char *match_string, MessageMetadata *metadata) {
+        CList subscribers = C_LIST_INIT(subscribers);
         MatchRegistry registry;
-        MatchOwner owner;
-        MatchRule *rule, *rule1;
+        MatchOwner owner, *owner1;
+        MatchRule *rule;
         int r;
 
         match_registry_init(&registry);
@@ -130,14 +131,16 @@ static bool test_match(const char *match_string, MessageMetadata *metadata) {
         r = match_rule_link(rule, &registry, false);
         assert(!r);
 
-        rule1 = match_rule_next_subscription_match(&registry, NULL, metadata);
-        assert(!rule1 || rule1 == rule);
+        match_registry_get_subscribers(&registry, &subscribers, metadata);
+        owner1 = c_list_first_entry(&subscribers, MatchOwner, destinations_link);
+        assert(!owner1 || owner1 == &owner);
+        c_list_flush(&subscribers);
 
         match_rule_user_unref(rule);
         match_owner_deinit(&owner);
         match_registry_deinit(&registry);
 
-        return !!(rule1 == rule);
+        return !!(owner1 == &owner);
 }
 
 static void test_individual_matches(void) {
@@ -258,9 +261,10 @@ static void test_individual_matches(void) {
 
 static void test_iterator(void) {
         MatchRegistry registry = MATCH_REGISTRY_INIT(registry);
+        CList subscribers = C_LIST_INIT(subscribers);
         MessageMetadata metadata = MESSAGE_METADATA_INIT;
-        MatchOwner owner1, owner2;
-        MatchRule *rule, *rule1, *rule2, *rule3, *rule4;
+        MatchOwner owner1, owner2, *owner;
+        MatchRule *rule1, *rule2, *rule3, *rule4;
         int r;
 
         match_owner_init(&owner1);
@@ -290,14 +294,15 @@ static void test_iterator(void) {
         r = match_rule_link(rule4, &registry, false);
         assert(!r);
 
-        rule = match_rule_next_subscription_match(&registry, NULL, &metadata);
-        assert(rule == rule1);
+        match_registry_get_subscribers(&registry, &subscribers, &metadata);
 
-        rule = match_rule_next_subscription_match(&registry, rule, &metadata);
-        assert(rule == rule3);
+        owner = c_list_first_entry(&subscribers, MatchOwner, destinations_link);
+        c_list_unlink(&owner->destinations_link);
+        assert(owner == &owner1);
 
-        rule = match_rule_next_subscription_match(&registry, rule, &metadata);
-        assert(!rule);
+        owner = c_list_first_entry(&subscribers, MatchOwner, destinations_link);
+        c_list_unlink(&owner->destinations_link);
+        assert(owner == &owner2);
 
         match_rule_user_unref(rule4);
         match_rule_user_unref(rule3);

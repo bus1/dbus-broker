@@ -1019,11 +1019,11 @@ static MatchRule *match_rule_next_match(CRBTree *tree, MatchRule *rule, MessageM
         return rule;
 }
 
-MatchRule *match_rule_next_subscription_match(MatchRegistry *registry, MatchRule *rule, MessageMetadata *metadata) {
+static MatchRule *match_rule_next_subscription_match(MatchRegistry *registry, MatchRule *rule, MessageMetadata *metadata) {
         return match_rule_next_match(&registry->subscription_tree, rule, metadata);
 }
 
-MatchRule *match_rule_next_monitor_match(MatchRegistry *registry, MatchRule *rule, MessageMetadata *metadata) {
+static MatchRule *match_rule_next_monitor_match(MatchRegistry *registry, MatchRule *rule, MessageMetadata *metadata) {
         return match_rule_next_match(&registry->monitor_tree, rule, metadata);
 }
 
