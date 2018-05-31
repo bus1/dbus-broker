@@ -138,47 +138,15 @@ int bus_get_monitor_destinations(Bus *bus, CList *destinations, Peer *sender, Me
         return 0;
 }
 
-static int bus_get_broadcast_destinations_for_matches(CList *destinations, Peer *sender, MatchRegistry *matches, MessageMetadata *metadata) {
-        NameSet sender_names = NAME_SET_INIT_FROM_OWNER(sender ? &sender->owned_names : NULL);
+static int bus_get_broadcast_destinations_for_matches(CList *destinations, MatchRegistry *matches, MessageMetadata *metadata) {
         MatchRule *rule;
-        int r;
 
         for (rule = match_rule_next_subscription_match(matches, NULL, metadata); rule; rule = match_rule_next_subscription_match(matches, rule, metadata)) {
                 Peer *receiver = c_container_of(rule->owner, Peer, owned_matches);
-                NameSet receiver_names = NAME_SET_INIT_FROM_OWNER(&receiver->owned_names);
 
                 if (c_list_is_linked(&receiver->destinations_link))
                         /* only link a destination once, despite matching in several different ways */
                         continue;
-
-                if (sender) {
-                        r = policy_snapshot_check_send(sender->policy,
-                                                       receiver->seclabel,
-                                                       &receiver_names,
-                                                       metadata->fields.interface,
-                                                       metadata->fields.member,
-                                                       metadata->fields.path,
-                                                       metadata->header.type);
-                        if (r) {
-                                if (r == POLICY_E_ACCESS_DENIED || r == POLICY_E_SELINUX_ACCESS_DENIED)
-                                        continue;
-
-                                return error_fold(r);
-                        }
-                }
-
-                r = policy_snapshot_check_receive(receiver->policy,
-                                                  &sender_names,
-                                                  metadata->fields.interface,
-                                                  metadata->fields.member,
-                                                  metadata->fields.path,
-                                                  metadata->header.type);
-                if (r) {
-                        if (r == POLICY_E_ACCESS_DENIED)
-                                continue;
-
-                        return error_fold(r);
-                }
 
                 c_list_link_tail(destinations, &receiver->destinations_link);
         }
@@ -189,12 +157,12 @@ static int bus_get_broadcast_destinations_for_matches(CList *destinations, Peer 
 int bus_get_broadcast_destinations(Bus *bus, CList *destinations, MatchRegistry *matches, Peer *sender, MessageMetadata *metadata) {
         int r;
 
-        r = bus_get_broadcast_destinations_for_matches(destinations, sender, &bus->wildcard_matches, metadata);
+        r = bus_get_broadcast_destinations_for_matches(destinations, &bus->wildcard_matches, metadata);
         if (r)
                 return error_trace(r);
 
         if (matches) {
-                r = bus_get_broadcast_destinations_for_matches(destinations, sender, matches, metadata);
+                r = bus_get_broadcast_destinations_for_matches(destinations, matches, metadata);
                 if (r)
                         return error_trace(r);
         }
@@ -207,13 +175,13 @@ int bus_get_broadcast_destinations(Bus *bus, CList *destinations, MatchRegistry 
                         if (!name_ownership_is_primary(ownership))
                                 continue;
 
-                        r = bus_get_broadcast_destinations_for_matches(destinations, sender, &ownership->name->sender_matches, metadata);
+                        r = bus_get_broadcast_destinations_for_matches(destinations, &ownership->name->sender_matches, metadata);
                         if (r)
                                 return error_trace(r);
                 }
         } else {
                 /* sent from the driver */
-                r = bus_get_broadcast_destinations_for_matches(destinations, NULL, &bus->sender_matches, metadata);
+                r = bus_get_broadcast_destinations_for_matches(destinations, &bus->sender_matches, metadata);
                 if (r)
                         return error_trace(r);
         }
