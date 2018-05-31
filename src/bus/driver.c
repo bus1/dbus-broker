@@ -605,6 +605,19 @@ static int driver_notify_name_owner_changed(Bus *bus, MatchRegistry *matches, co
                 while ((receiver = c_list_first_entry(&destinations, Peer, destinations_link))) {
                         c_list_unlink(&receiver->destinations_link);
 
+                        r = policy_snapshot_check_receive(receiver->policy,
+                                                          NULL,
+                                                          metadata.fields.interface,
+                                                          metadata.fields.member,
+                                                          metadata.fields.path,
+                                                          metadata.header.type);
+                        if (r) {
+                                if (r == POLICY_E_ACCESS_DENIED)
+                                        continue;
+
+                                return error_fold(r);
+                        }
+
                         r = connection_queue(&receiver->connection, NULL, message);
                         if (r) {
                                 if (r == CONNECTION_E_QUOTA)
@@ -2073,6 +2086,7 @@ static int driver_forward_unicast(Peer *sender, const char *destination, Message
 
 static int driver_forward_broadcast(Peer *sender, Message *message) {
         _c_cleanup_(c_list_flush) CList destinations = C_LIST_INIT(destinations);
+        NameSet sender_names = NAME_SET_INIT_FROM_OWNER(&sender->owned_names);
         Peer *receiver;
         int r;
 
@@ -2081,7 +2095,36 @@ static int driver_forward_broadcast(Peer *sender, Message *message) {
                 return error_trace(r);
 
         while ((receiver = c_list_first_entry(&destinations, Peer, destinations_link))) {
+                NameSet receiver_names = NAME_SET_INIT_FROM_OWNER(&receiver->owned_names);
+
                 c_list_unlink(&receiver->destinations_link);
+
+                r = policy_snapshot_check_send(sender->policy,
+                                               receiver->seclabel,
+                                               &receiver_names,
+                                               message->metadata.fields.interface,
+                                               message->metadata.fields.member,
+                                               message->metadata.fields.path,
+                                               message->metadata.header.type);
+                if (r) {
+                        if (r == POLICY_E_ACCESS_DENIED || r == POLICY_E_SELINUX_ACCESS_DENIED)
+                                continue;
+
+                        return error_fold(r);
+                }
+
+                r = policy_snapshot_check_receive(receiver->policy,
+                                                  &sender_names,
+                                                  message->metadata.fields.interface,
+                                                  message->metadata.fields.member,
+                                                  message->metadata.fields.path,
+                                                  message->metadata.header.type);
+                if (r) {
+                        if (r == POLICY_E_ACCESS_DENIED)
+                                continue;
+
+                        return error_fold(r);
+                }
 
                 r = connection_queue(&receiver->connection, NULL, message);
                 if (r) {
