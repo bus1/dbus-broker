@@ -1002,7 +1002,7 @@ static void match_registry_by_keys_get_destinations(MatchRegistryByKeys *registr
 static void match_registry_by_member_get_destinations(MatchRegistryByMember *registry, CList *destinations, MessageMetadata *metadata) {
         MatchRegistryByKeys *registry_by_keys;
 
-        c_rbtree_for_each_entry(registry_by_keys, &registry->keys_tree, registry_node) {
+        c_rbtree_for_each_entry_postorder(registry_by_keys, &registry->keys_tree, registry_node) {
                 if (!match_keys_match_metadata(&registry_by_keys->keys, metadata))
                         continue;
 
