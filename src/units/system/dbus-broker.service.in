@@ -3,6 +3,7 @@ Description=D-Bus System Message Bus
 Documentation=man:dbus-broker-launch(1)
 DefaultDependencies=false
 Before=basic.target shutdown.target
+Requires=dbus.socket
 Conflicts=shutdown.target
 
 [Service]
