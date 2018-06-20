@@ -2159,9 +2159,6 @@ static int driver_forward_broadcast(Peer *sender, Message *message) {
                 r = connection_queue(&receiver->connection, NULL, message);
                 if (r) {
                         if (r == CONNECTION_E_QUOTA) {
-                                NameSet sender_names = NAME_SET_INIT_FROM_OWNER(&sender->owned_names);
-                                NameSet receiver_names = NAME_SET_INIT_FROM_OWNER(&receiver->owned_names);
-
                                 connection_shutdown(&receiver->connection);
 
                                 log_append_here(sender->bus->log, LOG_WARNING, 0);
