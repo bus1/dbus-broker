@@ -10,8 +10,6 @@ Type=notify
 Sockets=dbus.socket
 OOMScoreAdjust=-900
 LimitNOFILE=16384
-# See https://github.com/systemd/systemd/commit/fd63e712b2025d235ce4bfbb512fada10e2690b5
-Environment=SYSTEMD_NSS_BYPASS_BUS=1
 ExecStart=@bindir@/dbus-broker-launch --scope system --audit
 ExecReload=@bindir@/busctl call org.freedesktop.DBus /org/freedesktop/DBus org.freedesktop.DBus ReloadConfig
 
