@@ -608,26 +608,6 @@ void peer_flush_matches(Peer *peer) {
         }
 }
 
-static bool peer_message_is_solicited(Peer *destination, uint64_t sender_id, Message *message) {
-        MatchRule *rule;
-
-        /*
-         * This checks whether @message is solicited by @destination. Note that
-         * only signals can be solicited, and they are considered so if, and
-         * only if, there is a match installed for them.
-         */
-
-        if (message->header->type != DBUS_MESSAGE_TYPE_SIGNAL)
-                return false;
-
-        c_rbtree_for_each_entry(rule, &destination->owned_matches.rule_tree, owner_node) {
-                if (match_rule_match_metadata(rule, &message->metadata))
-                        return true;
-        }
-
-        return false;
-}
-
 int peer_queue_unicast(PolicySnapshot *sender_policy, NameSet *sender_names, ReplyOwner *sender_replies, User *sender_user, uint64_t sender_id, Peer *receiver, Message *message) {
         _c_cleanup_(reply_slot_freep) ReplySlot *slot = NULL;
         NameSet receiver_names = NAME_SET_INIT_FROM_OWNER(&receiver->owned_names);
@@ -701,15 +681,10 @@ int peer_queue_unicast(PolicySnapshot *sender_policy, NameSet *sender_names, Rep
 
         r = connection_queue(&receiver->connection, sender_user, message);
         if (r) {
-                if (r == CONNECTION_E_QUOTA) {
-                        if (!peer_message_is_solicited(receiver, sender_id, message))
-                                return PEER_E_QUOTA;
+                if (r == CONNECTION_E_QUOTA)
+                        return PEER_E_QUOTA;
 
-                        connection_shutdown(&receiver->connection);
-                        /* fallthrough */
-                } else {
-                        return error_fold(r);
-                }
+                return error_fold(r);
         }
 
         slot = NULL;

@@ -166,8 +166,6 @@ MatchRule *match_rule_user_unref(MatchRule *rule);
 int match_rule_link(MatchRule *rule, MatchRegistry *registry, bool monitor);
 void match_rule_unlink(MatchRule *rule);
 
-bool match_rule_match_metadata(MatchRule *rule, MessageMetadata *metadata);
-
 MatchRule *match_rule_next_subscription_match(MatchRegistry *registry, MatchRule *rule, MessageMetadata *metadata);
 MatchRule *match_rule_next_monitor_match(MatchRegistry *registry, MatchRule *rule, MessageMetadata *metadata);
 
