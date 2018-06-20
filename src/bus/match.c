@@ -906,10 +906,6 @@ void match_rule_unlink(MatchRule *rule) {
         }
 }
 
-bool match_rule_match_metadata(MatchRule *rule, MessageMetadata *metadata) {
-        return match_keys_match_metadata(&rule->keys, metadata);
-}
-
 static MatchRule *match_rule_next_match_by_keys(MatchRegistryByKeys *registry, MatchRule *rule) {
         c_list_for_each_entry_continue(rule, &registry->rule_list, registry_link)
                 return rule;
