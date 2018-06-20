@@ -628,7 +628,7 @@ static bool peer_message_is_solicited(Peer *destination, uint64_t sender_id, Mes
         return false;
 }
 
-int peer_queue_call(PolicySnapshot *sender_policy, NameSet *sender_names, ReplyOwner *sender_replies, User *sender_user, uint64_t sender_id, Peer *receiver, Message *message) {
+int peer_queue_unicast(PolicySnapshot *sender_policy, NameSet *sender_names, ReplyOwner *sender_replies, User *sender_user, uint64_t sender_id, Peer *receiver, Message *message) {
         _c_cleanup_(reply_slot_freep) ReplySlot *slot = NULL;
         NameSet receiver_names = NAME_SET_INIT_FROM_OWNER(&receiver->owned_names);
         uint32_t serial;
