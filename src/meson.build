@@ -28,6 +28,7 @@ sources_bus = [
         'dbus/queue.c',
         'dbus/sasl.c',
         'dbus/socket.c',
+        'util/apparmor.c',
         'util/error.c',
         'util/dispatch.c',
         'util/fdlist.c',
@@ -151,6 +152,9 @@ endif
 
 test_address = executable('test-address', ['dbus/test-address.c'], dependencies: dep_bus)
 test('Address Handling', test_address)
+
+test_apparmor = executable('test-apparmor', ['util/test-apparmor.c'], dependencies: dep_bus)
+test('AppArmor Handling', test_apparmor)
 
 test_config = executable('test-config', ['launch/test-config.c'], dependencies: dep_bus)
 test('Configuration Parser', test_config)

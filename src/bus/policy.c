@@ -503,6 +503,7 @@ static int policy_registry_import_batch(PolicyRegistry *registry,
  */
 int policy_registry_import(PolicyRegistry *registry, CDVar *v) {
         PolicyRegistryNode *node;
+        bool apparmor;
         int r;
 
         /* XXX: provide the type */
@@ -572,7 +573,13 @@ int policy_registry_import(PolicyRegistry *registry, CDVar *v) {
                         return error_fold(r);
         }
 
-        c_dvar_read(v, "])>");
+        c_dvar_read(v, "]b", &apparmor);
+
+        if (apparmor)
+                /* XXX: AppArmor is currently not supported. */
+                return POLICY_E_INVALID;
+
+        c_dvar_read(v, ")>");
 
         r = c_dvar_get_poison(v);
         if (r)

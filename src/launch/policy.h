@@ -99,6 +99,7 @@ struct Policy {
         CRBTree gid_tree;
 
         CList selinux_list;
+        unsigned int apparmor_mode;
 };
 
 #define POLICY_INIT(_x) {                                                               \
@@ -108,7 +109,8 @@ struct Policy {
                 .no_console_entries = POLICY_ENTRIES_NULL((_x).no_console_entries),     \
                 .uid_tree = C_RBTREE_INIT,                                              \
                 .gid_tree = C_RBTREE_INIT,                                              \
-                .selinux_list = C_LIST_INIT((_x).selinux_list)                          \
+                .selinux_list = C_LIST_INIT((_x).selinux_list),                         \
+                .apparmor_mode = CONFIG_APPARMOR_ENABLED,                               \
         }
 
 /* records */

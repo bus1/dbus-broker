@@ -24,6 +24,7 @@
 #include "launch/config.h"
 #include "launch/nss-cache.h"
 #include "launch/policy.h"
+#include "util/apparmor.h"
 #include "util/audit.h"
 #include "util/error.h"
 #include "util/log.h"
@@ -1354,6 +1355,32 @@ static int manager_reload_config(Manager *manager) {
         if (r)
                 return error_trace(r);
 
+        switch (policy.apparmor_mode) {
+        case CONFIG_APPARMOR_ENABLED: {
+                bool enabled;
+
+                /* XXX: See comments in manager_run() */
+
+                r = bus_apparmor_is_enabled(&enabled);
+                if (r)
+                        return error_fold(r);
+
+                if (enabled)
+                        fprintf(stderr, "AppArmor enabled, but not supported. Ignoring.\n");
+
+                policy.apparmor_mode = CONFIG_APPARMOR_DISABLED;
+                break;
+        }
+        case CONFIG_APPARMOR_REQUIRED:
+                fprintf(stderr, "AppArmor required, but not supported. Exiting.\n");
+
+                r = sd_event_exit(manager->event, 0);
+                if (r < 0)
+                        return error_fold(r);
+
+                return 0;
+        }
+
         r = manager_remove_services(manager);
         if (r)
                 return error_trace(r);
@@ -1444,6 +1471,30 @@ static int manager_run(Manager *manager) {
         r = manager_load_policy(manager, root, &policy);
         if (r)
                 return error_trace(r);
+
+        switch (policy.apparmor_mode) {
+        case CONFIG_APPARMOR_ENABLED: {
+                bool enabled;
+
+                r = bus_apparmor_is_enabled(&enabled);
+                if (r)
+                        return error_fold(r);
+
+                if (enabled)
+                        fprintf(stderr, "AppArmor enabled, but not supported. Ignoring.\n");
+
+                /* XXX: once the broker supports AppArmor, set this to DISABLED if and only if
+                 *      it is disabled in the kernel. */
+                policy.apparmor_mode = CONFIG_APPARMOR_DISABLED;
+                break;
+        }
+        case CONFIG_APPARMOR_REQUIRED:
+                fprintf(stderr, "AppArmor required, but not supported. Exiting.\n");
+
+                /* XXX: once the broker supports AppArmor, set this to enabled if and only
+                 *      if it is enabled in the kernel, and exit the launcher otherwise. */
+                return 0;
+        }
 
         assert(manager->fd_listen >= 0);
 
