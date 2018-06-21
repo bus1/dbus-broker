@@ -614,6 +614,12 @@ static int policy_import_selinux(Policy *policy, ConfigNode *cnode) {
         return 0;
 }
 
+static int policy_import_apparmor(Policy *policy, ConfigNode *cnode) {
+        policy->apparmor_mode = cnode->apparmor.mode;
+
+        return 0;
+}
+
 /**
  * policy_import() - XXX
  */
@@ -628,6 +634,13 @@ int policy_import(Policy *policy, ConfigRoot *root) {
         c_list_for_each_entry(i_cnode, &root->node_list, root_link) {
                 if (i_cnode->type == CONFIG_NODE_ASSOCIATE) {
                         r = policy_import_selinux(policy, i_cnode);
+                        if (r)
+                                return error_trace(r);
+                        continue;
+                }
+
+                if (i_cnode->type == CONFIG_NODE_APPARMOR) {
+                        r = policy_import_apparmor(policy, i_cnode);
                         if (r)
                                 return error_trace(r);
                         continue;
@@ -901,7 +914,8 @@ static int policy_export_xmit(Policy *policy, CList *list1, CList *list2, sd_bus
 #define POLICY_T                                                                \
                 "a(u(" POLICY_T_BATCH "))"                                      \
                 "a(buu(" POLICY_T_BATCH "))"                                    \
-                "a(ss)"
+                "a(ss)"                                                         \
+                "b"
 
 static int policy_export_console(Policy *policy, sd_bus_message *m, PolicyEntries *entries, uint32_t uid_start, uint32_t n_uid) {
         int r;
@@ -1115,6 +1129,10 @@ int policy_export(Policy *policy, sd_bus_message *m, uint32_t *at_console_uids, 
         }
 
         r = sd_bus_message_close_container(m);
+        if (r < 0)
+                return error_origin(r);
+
+        r = sd_bus_message_append(m, "b", (policy->apparmor_mode != CONFIG_APPARMOR_DISABLED));
         if (r < 0)
                 return error_origin(r);
 

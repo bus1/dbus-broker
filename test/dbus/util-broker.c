@@ -55,7 +55,8 @@ static int util_event_sigchld(sd_event_source *source, const siginfo_t *si, void
 #define POLICY_T                                                                \
                 "a(u(" POLICY_T_BATCH "))"                                      \
                 "a(buu(" POLICY_T_BATCH "))"                                    \
-                "a(ss)"
+                "a(ss)"                                                         \
+                "b"
 
 static int util_append_policy(sd_bus_message *m) {
         int r;
@@ -121,6 +122,12 @@ static int util_append_policy(sd_bus_message *m) {
                 assert(r >= 0);
 
                 r = sd_bus_message_close_container(m);
+                assert(r >= 0);
+        }
+
+        /* disable AppArmor */
+        {
+                r = sd_bus_message_append(m, "b", false);
                 assert(r >= 0);
         }
 
