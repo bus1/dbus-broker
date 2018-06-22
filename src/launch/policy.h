@@ -36,6 +36,9 @@ struct PolicyRecord {
                         const char *interface;
                         const char *member;
                         unsigned int type;
+                        unsigned int broadcast;
+                        uint64_t min_fds;
+                        uint64_t max_fds;
                 } xmit;
 
                 struct {

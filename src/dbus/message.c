@@ -608,10 +608,12 @@ void message_log_append(Message *message, Log *log) {
         log_appendf(log,
                     "DBUS_BROKER_MESSAGE_DESTINATION=%s\n"
                     "DBUS_BROKER_MESSAGE_SERIAL=%"PRIu32"\n"
-                    "DBUS_BROKER_MESSAGE_SIGNATURE=%s\n",
+                    "DBUS_BROKER_MESSAGE_SIGNATURE=%s\n"
+                    "DBUS_BROKER_MESSAGE_UNIX_FDS=%"PRIu32"\n",
                     message->metadata.fields.destination ?: "<broadcast>",
                     message->metadata.header.serial,
-                    message->metadata.fields.signature ?: "<missing>");
+                    message->metadata.fields.signature ?: "<missing>",
+                    message->metadata.fields.unix_fds);
 
         switch (message->metadata.header.type) {
         case DBUS_MESSAGE_TYPE_METHOD_CALL:

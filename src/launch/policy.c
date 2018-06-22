@@ -10,6 +10,7 @@
 #include "dbus/protocol.h"
 #include "launch/config.h"
 #include "launch/policy.h"
+#include "util/common.h"
 #include "util/error.h"
 
 /**
@@ -286,6 +287,7 @@ static int policy_import_connect(Policy *policy, ConfigNode *cnode) {
             cnode->allow_deny.send_destination ||
             cnode->allow_deny.send_path ||
             cnode->allow_deny.send_type ||
+            cnode->allow_deny.send_broadcast ||
             cnode->allow_deny.send_requested_reply ||
             cnode->allow_deny.recv_interface ||
             cnode->allow_deny.recv_member ||
@@ -350,6 +352,7 @@ static int policy_import_own(Policy *policy, ConfigNode *cnode) {
             cnode->allow_deny.send_destination ||
             cnode->allow_deny.send_path ||
             cnode->allow_deny.send_type ||
+            cnode->allow_deny.send_broadcast ||
             cnode->allow_deny.send_requested_reply ||
             cnode->allow_deny.recv_interface ||
             cnode->allow_deny.recv_member ||
@@ -433,10 +436,10 @@ static int policy_import_send(Policy *policy, ConfigNode *cnode) {
         if (cnode->allow_deny.send_type == DBUS_MESSAGE_TYPE_METHOD_RETURN ||
             cnode->allow_deny.send_type == DBUS_MESSAGE_TYPE_ERROR ||
             cnode->allow_deny.send_type == DBUS_MESSAGE_TYPE_INVALID) {
-                if (cnode->type == CONFIG_NODE_DENY && cnode->allow_deny.send_requested_reply == CONFIG_TRISTATE_YES)
+                if (cnode->type == CONFIG_NODE_DENY && cnode->allow_deny.send_requested_reply == UTIL_TRISTATE_YES)
                         fprintf(stderr, "Policy to deny expected replies in %s +%lu: Explicit policies on replies and errors are deprecated and ignored\n",
                                 cnode->file, cnode->lineno);
-                else if (cnode->type == CONFIG_NODE_ALLOW && cnode->allow_deny.send_requested_reply == CONFIG_TRISTATE_NO)
+                else if (cnode->type == CONFIG_NODE_ALLOW && cnode->allow_deny.send_requested_reply == UTIL_TRISTATE_NO)
                         fprintf(stderr, "Policy to allow unexpected replies in %s +%lu: Explicit policies on replies and errors are deprecated and ignored\n",
                                 cnode->file, cnode->lineno);
 
@@ -444,7 +447,7 @@ static int policy_import_send(Policy *policy, ConfigNode *cnode) {
                         return 0;
         }
 
-        if (cnode->allow_deny.eavesdrop == CONFIG_TRISTATE_YES) {
+        if (cnode->allow_deny.eavesdrop == UTIL_TRISTATE_YES) {
                 if (cnode->type == CONFIG_NODE_ALLOW)
                         /* Ignore the attribute, but keep the rule, it also applies when not eavesdropping. */
                         fprintf(stderr, "Policy to allow eavesdropping in %s +%lu: Eavesdropping is deprecated and ignored\n",
@@ -465,6 +468,9 @@ static int policy_import_send(Policy *policy, ConfigNode *cnode) {
         record->xmit.interface = cnode->allow_deny.send_interface;
         record->xmit.member = cnode->allow_deny.send_member;
         record->xmit.type = cnode->allow_deny.send_type;
+        record->xmit.broadcast = cnode->allow_deny.send_broadcast;
+        record->xmit.min_fds = cnode->allow_deny.min_fds;
+        record->xmit.max_fds = cnode->allow_deny.max_fds;
         policy_record_xmit_trim(record);
 
         if (cnode->parent->policy.context == CONFIG_POLICY_USER) {
@@ -509,6 +515,7 @@ static int policy_import_recv(Policy *policy, ConfigNode *cnode) {
             cnode->allow_deny.send_destination ||
             cnode->allow_deny.send_path ||
             cnode->allow_deny.send_type ||
+            cnode->allow_deny.send_broadcast ||
             cnode->allow_deny.send_requested_reply) {
                 fprintf(stderr, "Invalid policy attribute combination in %s +%lu\n",
                         cnode->file, cnode->lineno);
@@ -518,10 +525,10 @@ static int policy_import_recv(Policy *policy, ConfigNode *cnode) {
         if (cnode->allow_deny.recv_type == DBUS_MESSAGE_TYPE_METHOD_RETURN ||
             cnode->allow_deny.recv_type == DBUS_MESSAGE_TYPE_ERROR ||
             cnode->allow_deny.recv_type == DBUS_MESSAGE_TYPE_INVALID) {
-                if (cnode->type == CONFIG_NODE_DENY && cnode->allow_deny.recv_requested_reply == CONFIG_TRISTATE_YES)
+                if (cnode->type == CONFIG_NODE_DENY && cnode->allow_deny.recv_requested_reply == UTIL_TRISTATE_YES)
                         fprintf(stderr, "Policy to deny expected replies in %s +%lu: Explicit policies on replies and errors are deprecated and ignored\n",
                                 cnode->file, cnode->lineno);
-                else if (cnode->type == CONFIG_NODE_ALLOW && cnode->allow_deny.recv_requested_reply == CONFIG_TRISTATE_NO)
+                else if (cnode->type == CONFIG_NODE_ALLOW && cnode->allow_deny.recv_requested_reply == UTIL_TRISTATE_NO)
                         fprintf(stderr, "Policy to allow unexpected replies in %s +%lu: Explicit policies on replies and errors are deprecated and ignored\n",
                                 cnode->file, cnode->lineno);
 
@@ -529,7 +536,7 @@ static int policy_import_recv(Policy *policy, ConfigNode *cnode) {
                         return 0;
         }
 
-        if (cnode->allow_deny.eavesdrop == CONFIG_TRISTATE_YES) {
+        if (cnode->allow_deny.eavesdrop == UTIL_TRISTATE_YES) {
                 if (cnode->type == CONFIG_NODE_ALLOW)
                         /* Ignore the attribute, but keep the rule, it also applies when not eavesdropping. */
                         fprintf(stderr, "Policy to allow eavesdropping in %s +%lu: Eavesdropping is deprecated and ignored\n",
@@ -550,6 +557,8 @@ static int policy_import_recv(Policy *policy, ConfigNode *cnode) {
         record->xmit.interface = cnode->allow_deny.recv_interface;
         record->xmit.member = cnode->allow_deny.recv_member;
         record->xmit.type = cnode->allow_deny.recv_type;
+        record->xmit.min_fds = cnode->allow_deny.min_fds;
+        record->xmit.max_fds = cnode->allow_deny.max_fds;
         policy_record_xmit_trim(record);
 
         if (cnode->parent->policy.context == CONFIG_POLICY_USER) {
@@ -652,6 +661,7 @@ int policy_import(Policy *policy, ConfigRoot *root) {
                            i_cnode->allow_deny.send_destination ||
                            i_cnode->allow_deny.send_path ||
                            i_cnode->allow_deny.send_type ||
+                           i_cnode->allow_deny.send_broadcast ||
                            i_cnode->allow_deny.send_requested_reply) {
                         r = policy_import_send(policy, i_cnode);
                         if (r)
@@ -833,21 +843,24 @@ static int policy_export_xmit(Policy *policy, CList *list1, CList *list2, sd_bus
         PolicyRecord *i_record;
         int r;
 
-        r = sd_bus_message_open_container(m, 'a', "(btssssu)");
+        r = sd_bus_message_open_container(m, 'a', "(btssssuutt)");
         if (r < 0)
                 return error_origin(r);
 
         if (list1) {
                 c_list_for_each_entry(i_record, list1, link) {
                         r = sd_bus_message_append(m,
-                                                  "(btssssu)",
+                                                  "(btssssuutt)",
                                                   i_record->verdict,
                                                   i_record->priority,
                                                   i_record->xmit.name,
                                                   i_record->xmit.path,
                                                   i_record->xmit.interface,
                                                   i_record->xmit.member,
-                                                  i_record->xmit.type);
+                                                  i_record->xmit.type,
+                                                  i_record->xmit.broadcast,
+                                                  i_record->xmit.min_fds,
+                                                  i_record->xmit.max_fds);
                         if (r < 0)
                                 return error_origin(r);
                 }
@@ -856,14 +869,17 @@ static int policy_export_xmit(Policy *policy, CList *list1, CList *list2, sd_bus
         if (list2) {
                 c_list_for_each_entry(i_record, list2, link) {
                         r = sd_bus_message_append(m,
-                                                  "(btssssu)",
+                                                  "(btssssuutt)",
                                                   i_record->verdict,
                                                   i_record->priority,
                                                   i_record->xmit.name,
                                                   i_record->xmit.path,
                                                   i_record->xmit.interface,
                                                   i_record->xmit.member,
-                                                  i_record->xmit.type);
+                                                  i_record->xmit.type,
+                                                  i_record->xmit.broadcast,
+                                                  i_record->xmit.min_fds,
+                                                  i_record->xmit.max_fds);
                         if (r < 0)
                                 return error_origin(r);
                 }
@@ -879,8 +895,8 @@ static int policy_export_xmit(Policy *policy, CList *list1, CList *list2, sd_bus
 #define POLICY_T_BATCH                                                          \
                 "bt"                                                            \
                 "a(btbs)"                                                       \
-                "a(btssssu)"                                                    \
-                "a(btssssu)"
+                "a(btssssuutt)"                                                 \
+                "a(btssssuutt)"
 
 #define POLICY_T                                                                \
                 "a(u(" POLICY_T_BATCH "))"                                      \

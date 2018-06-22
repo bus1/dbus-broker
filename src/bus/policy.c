@@ -10,6 +10,7 @@
 #include "bus/name.h"
 #include "bus/policy.h"
 #include "dbus/protocol.h"
+#include "util/common.h"
 #include "util/error.h"
 #include "util/selinux.h"
 
@@ -27,9 +28,12 @@ C_DEFINE_CLEANUP(PolicyXmit *, policy_xmit_free);
 
 static int policy_xmit_new(PolicyXmit **xmitp,
                            unsigned int type,
+                           unsigned int broadcast,
                            const char *path,
                            const char *interface,
-                           const char *member) {
+                           const char *member,
+                           uint64_t min_fds,
+                           uint64_t max_fds) {
         _c_cleanup_(policy_xmit_freep) PolicyXmit *xmit = NULL;
         size_t n_path, n_interface, n_member;
         void *p;
@@ -44,6 +48,9 @@ static int policy_xmit_new(PolicyXmit **xmitp,
 
         *xmit = (PolicyXmit)POLICY_XMIT_NULL(*xmit);
         xmit->type = type;
+        xmit->broadcast = broadcast;
+        xmit->min_fds = min_fds;
+        xmit->max_fds = max_fds;
 
         p = xmit + 1;
         if (n_path) {
@@ -205,14 +212,17 @@ static int policy_batch_add_send(PolicyBatch *batch,
                                  const char *name_str,
                                  PolicyVerdict verdict,
                                  unsigned int type,
+                                 unsigned int broadcast,
                                  const char *path,
                                  const char *interface,
-                                 const char *member) {
+                                 const char *member,
+                                 uint64_t min_fds,
+                                 uint64_t max_fds) {
         _c_cleanup_(policy_xmit_freep) PolicyXmit *xmit = NULL;
         PolicyBatchName *name;
         int r;
 
-        r = policy_xmit_new(&xmit, type, path, interface, member);
+        r = policy_xmit_new(&xmit, type, broadcast, path, interface, member, min_fds, max_fds);
         if (r)
                 return error_trace(r);
 
@@ -231,14 +241,17 @@ static int policy_batch_add_recv(PolicyBatch *batch,
                                  const char *name_str,
                                  PolicyVerdict verdict,
                                  unsigned int type,
+                                 unsigned int broadcast,
                                  const char *path,
                                  const char *interface,
-                                 const char *member) {
+                                 const char *member,
+                                 uint64_t min_fds,
+                                 uint64_t max_fds) {
         _c_cleanup_(policy_xmit_freep) PolicyXmit *xmit = NULL;
         PolicyBatchName *name;
         int r;
 
-        r = policy_xmit_new(&xmit, type, path, interface, member);
+        r = policy_xmit_new(&xmit, type, broadcast, path, interface, member, min_fds, max_fds);
         if (r)
                 return error_trace(r);
 
@@ -422,7 +435,8 @@ static int policy_registry_import_batch(PolicyRegistry *registry,
                                         CDVar *v) {
         const char *name_str, *interface, *member, *path;
         PolicyVerdict verdict;
-        unsigned int type;
+        unsigned int type, broadcast;
+        uint64_t min_fds, max_fds;
         bool is_prefix;
         int r;
 
@@ -450,22 +464,31 @@ static int policy_registry_import_batch(PolicyRegistry *registry,
         c_dvar_read(v, "][");
 
         while (c_dvar_more(v)) {
-                c_dvar_read(v, "(btssssu)",
+                c_dvar_read(v, "(btssssuutt)",
                             &verdict.verdict,
                             &verdict.priority,
                             &name_str,
                             &path,
                             &interface,
                             &member,
-                            &type);
+                            &type,
+                            &broadcast,
+                            &min_fds,
+                            &max_fds);
+
+                if (broadcast >= _N_UTIL_TRISTATE)
+                        return POLICY_E_INVALID;
 
                 r = policy_batch_add_send(batch,
                                           name_str,
                                           verdict,
                                           type,
+                                          broadcast,
                                           path,
                                           interface,
-                                          member);
+                                          member,
+                                          min_fds,
+                                          max_fds);
                 if (r)
                         return error_trace(r);
         }
@@ -473,22 +496,31 @@ static int policy_registry_import_batch(PolicyRegistry *registry,
         c_dvar_read(v, "][");
 
         while (c_dvar_more(v)) {
-                c_dvar_read(v, "(btssssu)",
+                c_dvar_read(v, "(btssssuutt)",
                             &verdict.verdict,
                             &verdict.priority,
                             &name_str,
                             &path,
                             &interface,
                             &member,
-                            &type);
+                            &type,
+                            &broadcast,
+                            &min_fds,
+                            &max_fds);
+
+                if (broadcast >= _N_UTIL_TRISTATE)
+                        return POLICY_E_INVALID;
 
                 r = policy_batch_add_recv(batch,
                                           name_str,
                                           verdict,
                                           type,
+                                          broadcast,
                                           path,
                                           interface,
-                                          member);
+                                          member,
+                                          min_fds,
+                                          max_fds);
                 if (r)
                         return error_trace(r);
         }
@@ -766,7 +798,9 @@ static void policy_snapshot_check_xmit_name(PolicyBatch *batch,
                                             const char *interface,
                                             const char *member,
                                             const char *path,
-                                            unsigned int type) {
+                                            unsigned int type,
+                                            bool broadcast,
+                                            size_t n_fds) {
         PolicyBatchName *name;
         PolicyXmit *xmit;
         CList *list;
@@ -797,6 +831,23 @@ static void policy_snapshot_check_xmit_name(PolicyBatch *batch,
                         if (!member || strcmp(member, xmit->member))
                                 continue;
 
+                switch (xmit->broadcast) {
+                case UTIL_TRISTATE_YES:
+                        if (!broadcast)
+                                continue;
+                        break;
+                case UTIL_TRISTATE_NO:
+                        if (broadcast)
+                                continue;
+                        break;
+                }
+
+                if (xmit->min_fds > n_fds)
+                        continue;
+
+                if (xmit->max_fds < n_fds)
+                        continue;
+
                 *verdict = xmit->verdict;
         }
 }
@@ -808,7 +859,9 @@ static void policy_snapshot_check_xmit(PolicyBatch *batch,
                                        const char *interface,
                                        const char *method,
                                        const char *path,
-                                       unsigned int type) {
+                                       unsigned int type,
+                                       bool broadcast,
+                                       size_t n_fds) {
         NameOwnership *ownership;
         size_t i;
 
@@ -827,7 +880,9 @@ static void policy_snapshot_check_xmit(PolicyBatch *batch,
                                         interface,
                                         method,
                                         path,
-                                        type);
+                                        type,
+                                        broadcast,
+                                        n_fds);
 
         if (!nameset) {
                 /*
@@ -842,7 +897,9 @@ static void policy_snapshot_check_xmit(PolicyBatch *batch,
                                                 interface,
                                                 method,
                                                 path,
-                                                type);
+                                                type,
+                                                broadcast,
+                                                n_fds);
         } else if (nameset->type == NAME_SET_TYPE_OWNER) {
                 /*
                  * A set of owned names is given. In this case, we iterate all
@@ -859,7 +916,9 @@ static void policy_snapshot_check_xmit(PolicyBatch *batch,
                                                         interface,
                                                         method,
                                                         path,
-                                                        type);
+                                                        type,
+                                                        broadcast,
+                                                        n_fds);
         } else if (nameset->type == NAME_SET_TYPE_SNAPSHOT) {
                 /*
                  * An ownership-snapshot is given. Again, we simply iterate the
@@ -874,7 +933,9 @@ static void policy_snapshot_check_xmit(PolicyBatch *batch,
                                                         interface,
                                                         method,
                                                         path,
-                                                        type);
+                                                        type,
+                                                        broadcast,
+                                                        n_fds);
         } else if (nameset->type != NAME_SET_TYPE_EMPTY) {
                 assert(0);
         }
@@ -889,7 +950,9 @@ int policy_snapshot_check_send(PolicySnapshot *snapshot,
                                const char *interface,
                                const char *method,
                                const char *path,
-                               unsigned int type) {
+                               unsigned int type,
+                               bool broadcast,
+                               size_t n_fds) {
         PolicyVerdict verdict = POLICY_VERDICT_INIT;
         size_t i;
         int r;
@@ -910,7 +973,9 @@ int policy_snapshot_check_send(PolicySnapshot *snapshot,
                                            interface,
                                            method,
                                            path,
-                                           type);
+                                           type,
+                                           broadcast,
+                                           n_fds);
 
         return verdict.verdict ? 0 : POLICY_E_ACCESS_DENIED;
 }
@@ -923,7 +988,9 @@ int policy_snapshot_check_receive(PolicySnapshot *snapshot,
                                   const char *interface,
                                   const char *method,
                                   const char *path,
-                                  unsigned int type) {
+                                  unsigned int type,
+                                  bool broadcast,
+                                  size_t n_fds) {
         PolicyVerdict verdict = POLICY_VERDICT_INIT;
         size_t i;
 
@@ -935,7 +1002,9 @@ int policy_snapshot_check_receive(PolicySnapshot *snapshot,
                                            interface,
                                            method,
                                            path,
-                                           type);
+                                           type,
+                                           broadcast,
+                                           n_fds);
 
         return verdict.verdict ? 0 : POLICY_E_ACCESS_DENIED;
 }

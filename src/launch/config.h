@@ -25,12 +25,6 @@ enum {
 };
 
 enum {
-        CONFIG_TRISTATE_UNSET,
-        CONFIG_TRISTATE_YES,
-        CONFIG_TRISTATE_NO,
-};
-
-enum {
         CONFIG_NODE_NONE,
 
         CONFIG_NODE_BUSCONFIG,
@@ -146,12 +140,15 @@ struct ConfigNode {
                         char *send_destination;
                         char *send_path;
                         unsigned int send_type;
+                        unsigned int send_broadcast;
                         char *recv_interface;
                         char *recv_member;
                         char *recv_error;
                         char *recv_sender;
                         char *recv_path;
                         unsigned int recv_type;
+                        uint64_t min_fds;
+                        uint64_t max_fds;
                         char *own;
                         char *own_prefix;
                         uint32_t uid;

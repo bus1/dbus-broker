@@ -43,15 +43,19 @@ struct PolicyXmit {
         CList batch_link;
         PolicyVerdict verdict;
         unsigned int type;
+        unsigned int broadcast;
         char *path;
         char *interface;
         char *member;
+        uint64_t min_fds;
+        uint64_t max_fds;
 };
 
 #define POLICY_XMIT_NULL(_x) {                                                  \
                 .batch_link = C_LIST_INIT((_x).batch_link),                     \
                 .verdict = POLICY_VERDICT_INIT,                                 \
                 .type = DBUS_MESSAGE_TYPE_INVALID,                              \
+                .max_fds = UINT64_MAX,                                          \
         }
 
 struct PolicyBatchName {
@@ -163,13 +167,17 @@ int policy_snapshot_check_send(PolicySnapshot *snapshot,
                                const char *interface,
                                const char *method,
                                const char *path,
-                               unsigned int type);
+                               unsigned int type,
+                               bool broadcast,
+                               size_t n_fds);
 int policy_snapshot_check_receive(PolicySnapshot *snapshot,
                                   NameSet *subject,
                                   const char *interface,
                                   const char *method,
                                   const char *path,
-                                  unsigned int type);
+                                  unsigned int type,
+                                  bool broadcast,
+                                  size_t n_fds);
 
 C_DEFINE_CLEANUP(PolicySnapshot *, policy_snapshot_free);
 

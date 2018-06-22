@@ -630,7 +630,9 @@ static int driver_notify_name_owner_changed(Bus *bus, MatchRegistry *matches, co
                                                           metadata.fields.interface,
                                                           metadata.fields.member,
                                                           metadata.fields.path,
-                                                          metadata.header.type);
+                                                          metadata.header.type,
+                                                          true,
+                                                          0);
                         if (r) {
                                 if (r == POLICY_E_ACCESS_DENIED)
                                         continue;
@@ -1978,7 +1980,7 @@ static int driver_dispatch_interface(Peer *peer, uint32_t serial, const char *in
                 /* ignore */
                 return 0;
 
-        r = policy_snapshot_check_send(peer->policy, NULL, NULL, interface, member, path, message->header->type);
+        r = policy_snapshot_check_send(peer->policy, NULL, NULL, interface, member, path, message->header->type, false, message->metadata.fields.unix_fds);
         if (r) {
                 if (r == POLICY_E_ACCESS_DENIED || r == POLICY_E_SELINUX_ACCESS_DENIED) {
                         NameSet names = NAME_SET_INIT_FROM_OWNER(&peer->owned_names);
@@ -2135,7 +2137,9 @@ static int driver_forward_broadcast(Peer *sender, Message *message) {
                                                message->metadata.fields.interface,
                                                message->metadata.fields.member,
                                                message->metadata.fields.path,
-                                               message->metadata.header.type);
+                                               message->metadata.header.type,
+                                               true,
+                                               message->metadata.fields.unix_fds);
                 if (r) {
                         if (r == POLICY_E_ACCESS_DENIED || r == POLICY_E_SELINUX_ACCESS_DENIED)
                                 continue;
@@ -2148,7 +2152,9 @@ static int driver_forward_broadcast(Peer *sender, Message *message) {
                                                   message->metadata.fields.interface,
                                                   message->metadata.fields.member,
                                                   message->metadata.fields.path,
-                                                  message->metadata.header.type);
+                                                  message->metadata.header.type,
+                                                  true,
+                                                  message->metadata.fields.unix_fds);
                 if (r) {
                         if (r == POLICY_E_ACCESS_DENIED)
                                 continue;
