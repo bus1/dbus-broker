@@ -632,7 +632,9 @@ int peer_queue_unicast(PolicySnapshot *sender_policy, NameSet *sender_names, Rep
                                           message->metadata.fields.interface,
                                           message->metadata.fields.member,
                                           message->metadata.fields.path,
-                                          message->header->type);
+                                          message->header->type,
+                                          false,
+                                          message->metadata.fields.unix_fds);
         if (r) {
                 if (r == POLICY_E_ACCESS_DENIED) {
                         log_append_here(receiver->bus->log, LOG_WARNING, 0);
@@ -657,7 +659,9 @@ int peer_queue_unicast(PolicySnapshot *sender_policy, NameSet *sender_names, Rep
                                        message->metadata.fields.interface,
                                        message->metadata.fields.member,
                                        message->metadata.fields.path,
-                                       message->header->type);
+                                       message->header->type,
+                                       false,
+                                       message->metadata.fields.unix_fds);
         if (r) {
                 if (r == POLICY_E_ACCESS_DENIED || r == POLICY_E_SELINUX_ACCESS_DENIED) {
                         log_append_here(receiver->bus->log, LOG_WARNING, 0);

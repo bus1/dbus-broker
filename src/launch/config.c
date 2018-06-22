@@ -9,6 +9,7 @@
 #include "dbus/protocol.h"
 #include "launch/config.h"
 #include "launch/nss-cache.h"
+#include "util/common.h"
 #include "util/error.h"
 #include "util/selinux.h"
 
@@ -122,6 +123,13 @@ int config_node_new(ConfigNode **nodep, ConfigNode *parent, unsigned int type) {
         if (parent)
                 ++parent->n_children;
         node->type = type;
+
+        switch (node->type) {
+        case CONFIG_NODE_ALLOW:
+        case CONFIG_NODE_DENY:
+                node->allow_deny.max_fds = UINT64_MAX;
+                break;
+        }
 
         *nodep = node;
         node = NULL;
@@ -430,6 +438,13 @@ static int config_parser_attrs_allow_deny(ConfigState *state, ConfigNode *node, 
                                 node->allow_deny.send_type = DBUS_MESSAGE_TYPE_ERROR;
                         else
                                 CONFIG_ERR(state, "Invalid value", ": %s=\"%s\"", k, v);
+                } else if (!strcmp(k, "send_broadcast")) {
+                        if (!strcmp(v, "false"))
+                                node->allow_deny.send_broadcast = UTIL_TRISTATE_NO;
+                        else if (!strcmp(v, "true"))
+                                node->allow_deny.send_broadcast = UTIL_TRISTATE_YES;
+                        else
+                                CONFIG_ERR(state, "Invalid value", ": %s=\"%s\"", k, v);
                 } else if (!strcmp(k, "receive_interface")) {
                         t = strdup(v);
                         if (!t)
@@ -490,6 +505,27 @@ static int config_parser_attrs_allow_deny(ConfigState *state, ConfigNode *node, 
 
                         free(node->allow_deny.own_prefix);
                         node->allow_deny.own_prefix = t;
+                } else if (!strcmp(k, "min_fds")) {
+                        unsigned long long min_fds;
+                        char *end;
+
+                        errno = 0;
+                        min_fds = strtoull(v, &end, 10);
+                        if (end != v && *end == '\0' && errno == 0)
+                                node->allow_deny.min_fds = min_fds;
+                        else
+                                CONFIG_ERR(state, "Invalid value", ": %s=\"%s\"", k, v);
+                } else if (!strcmp(k, "max_fds")) {
+                        unsigned long long max_fds;
+                        char *end;
+
+                        errno = 0;
+                        max_fds = strtoull(v, &end, 10);
+                        if (end != v && *end == '\0' && errno == 0)
+                                node->allow_deny.max_fds = max_fds;
+                        else
+                                CONFIG_ERR(state, "Invalid value", ": %s=\"%s\"", k, v);
+
                 } else if (!strcmp(k, "user")) {
                         if (!strcmp(v, "*")) {
                                 node->allow_deny.uid = -1;
@@ -526,23 +562,23 @@ static int config_parser_attrs_allow_deny(ConfigState *state, ConfigNode *node, 
                         }
                 } else if (!strcmp(k, "send_requested_reply")) {
                         if (!strcmp(v, "true"))
-                                node->allow_deny.send_requested_reply = CONFIG_TRISTATE_YES;
+                                node->allow_deny.send_requested_reply = UTIL_TRISTATE_YES;
                         else if (!strcmp(v, "false"))
-                                node->allow_deny.send_requested_reply = CONFIG_TRISTATE_NO;
+                                node->allow_deny.send_requested_reply = UTIL_TRISTATE_NO;
                         else
                                 CONFIG_ERR(state, "Invalid value", ": %s=\"%s\"", k, v);
                 } else if (!strcmp(k, "receive_requested_reply")) {
                         if (!strcmp(v, "true"))
-                                node->allow_deny.recv_requested_reply = CONFIG_TRISTATE_YES;
+                                node->allow_deny.recv_requested_reply = UTIL_TRISTATE_YES;
                         else if (!strcmp(v, "false"))
-                                node->allow_deny.recv_requested_reply = CONFIG_TRISTATE_NO;
+                                node->allow_deny.recv_requested_reply = UTIL_TRISTATE_NO;
                         else
                                 CONFIG_ERR(state, "Invalid value", ": %s=\"%s\"", k, v);
                 } else if (!strcmp(k, "eavesdrop")) {
                         if (!strcmp(v, "true"))
-                                node->allow_deny.eavesdrop = CONFIG_TRISTATE_YES;
+                                node->allow_deny.eavesdrop = UTIL_TRISTATE_YES;
                         else if (!strcmp(v, "false"))
-                                node->allow_deny.eavesdrop = CONFIG_TRISTATE_NO;
+                                node->allow_deny.eavesdrop = UTIL_TRISTATE_NO;
                         else
                                 CONFIG_ERR(state, "Invalid value", ": %s=\"%s\"", k, v);
                 } else if (!strcmp(k, "log")) {
