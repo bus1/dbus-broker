@@ -11,6 +11,6 @@ enum {
         UTIL_TRISTATE_YES,
         UTIL_TRISTATE_NO,
 
-        _N_UTIL_TRISTATE,
+        _UTIL_TRISTATE_N,
 };
 

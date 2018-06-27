@@ -476,7 +476,7 @@ static int policy_registry_import_batch(PolicyRegistry *registry,
                             &min_fds,
                             &max_fds);
 
-                if (broadcast >= _N_UTIL_TRISTATE)
+                if (broadcast >= _UTIL_TRISTATE_N)
                         return POLICY_E_INVALID;
 
                 r = policy_batch_add_send(batch,
@@ -508,7 +508,7 @@ static int policy_registry_import_batch(PolicyRegistry *registry,
                             &min_fds,
                             &max_fds);
 
-                if (broadcast >= _N_UTIL_TRISTATE)
+                if (broadcast >= _UTIL_TRISTATE_N)
                         return POLICY_E_INVALID;
 
                 r = policy_batch_add_recv(batch,
