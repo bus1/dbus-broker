@@ -1472,6 +1472,20 @@ int driver_reload_config_completed(Bus *bus, uint64_t sender_id, uint32_t reply_
         return 0;
 }
 
+int driver_reload_config_invalid(Bus *bus, uint64_t sender_id, uint32_t reply_serial) {
+        Peer *sender;
+        int r;
+
+        sender = peer_registry_find_peer(&bus->peers, sender_id);
+        if (sender) {
+                r = driver_send_error(sender, reply_serial, "org.freedesktop.DBus.Error.Failed", "Config invalid. Reload ignored.");
+                if (r)
+                        return error_trace(r);
+        }
+
+        return 0;
+}
+
 static int driver_method_reload_config(Peer *peer, CDVar *in_v, uint32_t serial, CDVar *out_v) {
         int r;
 

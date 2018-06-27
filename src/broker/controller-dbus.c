@@ -528,6 +528,26 @@ static int controller_dispatch_reply(Controller *controller, uint32_t serial, co
         return 0;
 }
 
+static int controller_dispatch_error(Controller *controller, uint32_t serial, const char *error_name, Message *message) {
+        ControllerReload *reload;
+        int r;
+
+        reload = controller_find_reload(controller, serial);
+        if (!reload)
+                return CONTROLLER_E_UNEXPECTED_REPLY;
+
+        if (strcmp(error_name, "org.bus1.DBus.Controller.Error.InvalidConfig"))
+                return CONTROLLER_E_UNEXPECTED_ERROR;
+
+        r = controller_reload_invalid(reload);
+        if (r)
+                return error_trace(r);
+
+        controller_reload_free(reload);
+
+        return 0;
+}
+
 int controller_dbus_dispatch(Controller *controller, Message *message) {
         Connection *connection = &controller->connection;
         int r;
@@ -554,6 +574,12 @@ int controller_dbus_dispatch(Controller *controller, Message *message) {
                                               message->metadata.fields.signature,
                                               message);
                 break;
+        case DBUS_MESSAGE_TYPE_ERROR:
+                r = controller_dispatch_error(controller,
+                                              message->metadata.fields.reply_serial,
+                                              message->metadata.fields.error_name,
+                                              message);
+                break;
         default:
                 return CONTROLLER_E_PROTOCOL_VIOLATION;
         }
@@ -561,6 +587,7 @@ int controller_dbus_dispatch(Controller *controller, Message *message) {
         switch (r) {
         case CONTROLLER_E_INVALID_MESSAGE:
         case CONTROLLER_E_UNEXPECTED_REPLY:
+        case CONTROLLER_E_UNEXPECTED_ERROR:
                 return CONTROLLER_E_PROTOCOL_VIOLATION;
         case CONTROLLER_E_UNEXPECTED_MESSAGE_TYPE:
         case CONTROLLER_E_UNEXPECTED_PATH:

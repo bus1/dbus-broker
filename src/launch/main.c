@@ -38,6 +38,12 @@ enum {
         MAIN_FAILED,
 };
 
+enum {
+        _MANAGER_E_SUCCESS,
+
+        MANAGER_E_INVALID_CONFIG,
+};
+
 typedef enum {
         SERVICE_STATE_PENDING,
         SERVICE_STATE_CURRENT,
@@ -236,8 +242,12 @@ static int manager_on_sighup(sd_event_source *s, const struct signalfd_siginfo *
         fprintf(stderr, "Caught SIGHUP\n");
 
         r = manager_reload_config(manager);
-        if (r)
-                return error_fold(r);
+        if (r) {
+                if (r == MANAGER_E_INVALID_CONFIG)
+                        fprintf(stderr, "Invalid configuration. SIGHUP ignored.\n");
+                else
+                        return error_fold(r);
+        }
 
         return 1;
 }
@@ -1192,8 +1202,12 @@ static int manager_parse_config(Manager *manager, ConfigRoot **rootp, NSSCache *
         config_parser_init(&parser);
 
         r = config_parser_read(&parser, rootp, configfile, nss_cache);
-        if (r)
+        if (r) {
+                if (r == CONFIG_E_INVALID)
+                        return MANAGER_E_INVALID_CONFIG;
+
                 return error_fold(r);
+        }
 
         c_list_for_each_entry(cnode, &(*rootp)->node_list, root_link) {
                 switch (cnode->type) {
@@ -1396,8 +1410,12 @@ static int bus_method_reload_config(sd_bus_message *message, void *userdata, sd_
         int r;
 
         r = manager_reload_config(manager);
-        if (r)
-                return error_fold(r);
+        if (r) {
+                if (r == MANAGER_E_INVALID_CONFIG)
+                        return sd_bus_reply_method_errorf(message, "org.bus1.DBus.Controller.Error.InvalidConfig", "Invalid configuration. Reload ignored.");
+                else
+                        return error_fold(r);
+        }
 
         return sd_bus_reply_method_return(message, NULL);
 }

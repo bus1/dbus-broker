@@ -148,6 +148,13 @@ int controller_reload_completed(ControllerReload *reload) {
         return error_fold(driver_reload_config_completed(&reload->controller->broker->bus, reload->sender_id, reload->sender_serial));
 }
 
+/**
+ * controller_reload_invalid() - XXX
+ */
+int controller_reload_invalid(ControllerReload *reload) {
+        return error_fold(driver_reload_config_invalid(&reload->controller->broker->bus, reload->sender_id, reload->sender_serial));
+}
+
 static int controller_listener_compare(CRBTree *t, void *k, CRBNode *rb) {
         ControllerListener *listener = c_container_of(rb, ControllerListener, controller_node);
 
