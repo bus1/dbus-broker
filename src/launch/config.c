@@ -1188,7 +1188,7 @@ static int config_parser_include(ConfigParser *parser, ConfigRoot *root, ConfigN
         r = open(node->include.file->path, O_RDONLY | O_CLOEXEC | O_NOCTTY);
         if (r < 0) {
                 if (errno == ENOENT || errno == ENOTDIR)
-                        return node->include.ignore_missing ? 0 : error_origin(-errno);
+                        return node->include.ignore_missing ? 0 : CONFIG_E_INVALID;
 
                 return error_origin(-errno);
         }
