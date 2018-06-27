@@ -40,6 +40,7 @@ enum {
         CONTROLLER_E_UNEXPECTED_METHOD,
         CONTROLLER_E_UNEXPECTED_SIGNATURE,
         CONTROLLER_E_UNEXPECTED_REPLY,
+        CONTROLLER_E_UNEXPECTED_ERROR,
 
         CONTROLLER_E_LISTENER_EXISTS,
         CONTROLLER_E_LISTENER_INVALID_FD,
@@ -115,6 +116,7 @@ C_DEFINE_CLEANUP(ControllerListener *, controller_listener_free);
 /* reload */
 ControllerReload *controller_reload_free(ControllerReload *reload);
 int controller_reload_completed(ControllerReload *reload);
+int controller_reload_invalid(ControllerReload *reload);
 
 C_DEFINE_CLEANUP(ControllerReload *, controller_reload_free);
 
