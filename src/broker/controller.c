@@ -263,6 +263,10 @@ int controller_init(Controller *c, Broker *broker, int controller_fd) {
 void controller_deinit(Controller *controller) {
         ControllerListener *listener, *listener_safe;
         ControllerName *name, *name_safe;
+        ControllerReload *reload, *reload_safe;
+
+        c_rbtree_for_each_entry_safe_postorder_unlink(reload, reload_safe, &controller->reload_tree, controller_node)
+                controller_reload_free(reload);
 
         c_rbtree_for_each_entry_safe_postorder_unlink(name, name_safe, &controller->name_tree, controller_node)
                 controller_name_free(name);
