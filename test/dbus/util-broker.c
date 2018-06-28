@@ -11,6 +11,7 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <sys/un.h>
+#include <sys/wait.h>
 #include <systemd/sd-bus.h>
 #include <systemd/sd-event.h>
 #include "dbus/protocol.h"
