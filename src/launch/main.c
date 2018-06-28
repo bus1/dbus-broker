@@ -1025,7 +1025,7 @@ static int manager_load_standard_session_services(Manager *manager, NSSCache *ns
                 _c_cleanup_(c_freep) char *dirpath = NULL;
                 const char *runtime_dir;
 
-                runtime_dir = secure_getenv("XDG_RUNTIME_DIR");
+                runtime_dir = getenv("XDG_RUNTIME_DIR");
                 if (!runtime_dir) {
                         fprintf(stderr, "Cannot figure out service runtime directory\n");
                 } else {
@@ -1049,7 +1049,7 @@ static int manager_load_standard_session_services(Manager *manager, NSSCache *ns
                 struct passwd *passwd;
                 const char *dir;
 
-                dir = secure_getenv("XDG_DATA_HOME");
+                dir = getenv("XDG_DATA_HOME");
                 if (dir) {
                         r = asprintf(&data_home_dir, "%s/%s", dir, suffix);
                         if (r < 0)
@@ -1080,7 +1080,7 @@ static int manager_load_standard_session_services(Manager *manager, NSSCache *ns
                 const char *data_dirs, *sep;
                 size_t n;
 
-                data_dirs = secure_getenv("XDG_DATA_DIRS") ?:
+                data_dirs = getenv("XDG_DATA_DIRS") ?:
                             "/usr/local/share:/usr/share";
 
                 while (*data_dirs) {
