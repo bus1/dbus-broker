@@ -415,3 +415,38 @@ int nss_cache_get_gid(NSSCache *cache, uint32_t *gidp, const char *name) {
         *gidp = gr->gr_gid;
         return 0;
 }
+
+int nss_cache_resolve_system_console_users(NSSCache *nss_cache, uint32_t **uidsp, size_t *n_uidsp) {
+        static const char * const usernames[] = { SYSTEM_CONSOLE_USERS };
+        _c_cleanup_(c_freep) uint32_t *uids = NULL;
+        size_t i, n_uids = 0;
+        uid_t uid;
+        int r;
+
+        if (!C_ARRAY_SIZE(usernames)) {
+                *uidsp = NULL;
+                *n_uidsp = 0;
+                return 0;
+        }
+
+        uids = calloc(C_ARRAY_SIZE(usernames), sizeof(*uids));
+        if (!uids)
+                return error_origin(-ENOMEM);
+
+        for (i = 0; i < C_ARRAY_SIZE(usernames); ++i) {
+                r = nss_cache_get_uid(nss_cache, &uid, NULL, usernames[i]);
+                if (r) {
+                        if (r == NSS_CACHE_E_INVALID_NAME)
+                                continue;
+
+                        return error_fold(r);
+                }
+
+                uids[n_uids++] = uid;
+        }
+
+        *uidsp = uids;
+        *n_uidsp = n_uids;
+        uids = NULL;
+        return 0;
+}
