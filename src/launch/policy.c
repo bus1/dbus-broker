@@ -958,7 +958,7 @@ static int policy_uid_compare(const void *_a, const void *_b) {
 /**
  * policy_export() - XXX
  */
-int policy_export(Policy *policy, sd_bus_message *m, uint32_t *at_console_uids, size_t n_at_console_uids) {
+int policy_export(Policy *policy, sd_bus_message *m, NSSCache *nss_cache) {
         PolicyNode *node;
         PolicyRecord *i_record;
         int r;
@@ -1069,7 +1069,13 @@ int policy_export(Policy *policy, sd_bus_message *m, uint32_t *at_console_uids, 
         }
 
         {
+                _c_cleanup_(c_freep) uint32_t *at_console_uids = NULL;
+                size_t n_at_console_uids;
                 uint32_t next_uid = 0;
+
+                r = nss_cache_resolve_system_console_users(nss_cache, &at_console_uids, &n_at_console_uids);
+                if (r)
+                        return error_fold(r);
 
                 if (n_at_console_uids > 1)
                         qsort(at_console_uids, n_at_console_uids, sizeof(*at_console_uids), policy_uid_compare);

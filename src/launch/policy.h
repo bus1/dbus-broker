@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <systemd/sd-bus.h>
 #include "launch/config.h"
+#include "launch/nss-cache.h"
 
 typedef struct Policy Policy;
 typedef struct PolicyEntries PolicyEntries;
@@ -131,6 +132,6 @@ void policy_deinit(Policy *policy);
 
 int policy_import(Policy *policy, ConfigRoot *root);
 void policy_optimize(Policy *policy);
-int policy_export(Policy *policy, sd_bus_message *m, uint32_t *at_console_uids, size_t n_at_console_uids);
+int policy_export(Policy *policy, sd_bus_message *m, NSSCache *nss_cache);
 
 C_DEFINE_CLEANUP(Policy *, policy_deinit);

@@ -1241,7 +1241,7 @@ static int manager_load_policy(Manager *manager, ConfigRoot *root, Policy *polic
         return 0;
 }
 
-static int manager_add_listener(Manager *manager, Policy *policy, uint32_t *system_console_users, size_t n_system_console_users) {
+static int manager_add_listener(Manager *manager, Policy *policy, NSSCache *nss_cache) {
         _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *m = NULL;
         int r;
 
@@ -1260,7 +1260,7 @@ static int manager_add_listener(Manager *manager, Policy *policy, uint32_t *syst
         if (r < 0)
                 return error_origin(r);
 
-        r = policy_export(policy, m, system_console_users, n_system_console_users);
+        r = policy_export(policy, m, nss_cache);
         if (r)
                 return error_fold(r);
 
@@ -1271,7 +1271,7 @@ static int manager_add_listener(Manager *manager, Policy *policy, uint32_t *syst
         return 0;
 }
 
-static int manager_set_policy(Manager *manager, Policy *policy, uint32_t *system_console_users, size_t n_system_console_users) {
+static int manager_set_policy(Manager *manager, Policy *policy, NSSCache *nss_cache) {
         _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *m = NULL;
         int r;
 
@@ -1284,7 +1284,7 @@ static int manager_set_policy(Manager *manager, Policy *policy, uint32_t *system
         if (r < 0)
                 return error_origin(r);
 
-        r = policy_export(policy, m, system_console_users, n_system_console_users);
+        r = policy_export(policy, m, nss_cache);
         if (r)
                 return error_fold(r);
 
@@ -1299,8 +1299,6 @@ static int manager_reload_config(Manager *manager) {
         _c_cleanup_(config_root_freep) ConfigRoot *root = NULL;
         _c_cleanup_(policy_deinit) Policy policy = POLICY_INIT(policy);
         _c_cleanup_(nss_cache_deinit) NSSCache nss_cache = NSS_CACHE_INIT;
-        _c_cleanup_(c_freep) uint32_t *system_console_users = NULL;
-        size_t n_system_console_users;
         Service *service;
         int r;
 
@@ -1319,12 +1317,6 @@ static int manager_reload_config(Manager *manager) {
         if (r)
                 return error_trace(r);
 
-        r = nss_cache_resolve_system_console_users(&nss_cache,
-                                                   &system_console_users,
-                                                   &n_system_console_users);
-        if (r)
-                return error_trace(r);
-
         r = manager_load_services(manager, root, &nss_cache);
         if (r)
                 return error_trace(r);
@@ -1337,7 +1329,7 @@ static int manager_reload_config(Manager *manager) {
         if (r)
                 return error_trace(r);
 
-        r = manager_set_policy(manager, &policy, system_console_users, n_system_console_users);
+        r = manager_set_policy(manager, &policy, &nss_cache);
         if (r)
                 return error_trace(r);
 
@@ -1397,8 +1389,6 @@ static int manager_run(Manager *manager) {
         _c_cleanup_(config_root_freep) ConfigRoot *root = NULL;
         _c_cleanup_(policy_deinit) Policy policy = POLICY_INIT(policy);
         _c_cleanup_(nss_cache_deinit) NSSCache nss_cache = NSS_CACHE_INIT;
-        _c_cleanup_(c_freep) uint32_t *system_console_users = NULL;
-        size_t n_system_console_users;
         int r, controller[2];
 
         r = nss_cache_populate(&nss_cache);
@@ -1406,12 +1396,6 @@ static int manager_run(Manager *manager) {
                 return error_fold(r);
 
         r = manager_parse_config(manager, &root, &nss_cache);
-        if (r)
-                return error_trace(r);
-
-        r = nss_cache_resolve_system_console_users(&nss_cache,
-                                                   &system_console_users,
-                                                   &n_system_console_users);
         if (r)
                 return error_trace(r);
 
@@ -1464,7 +1448,7 @@ static int manager_run(Manager *manager) {
         if (r)
                 return error_trace(r);
 
-        r = manager_add_listener(manager, &policy, system_console_users, n_system_console_users);
+        r = manager_add_listener(manager, &policy, &nss_cache);
         if (r)
                 return error_trace(r);
 
