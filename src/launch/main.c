@@ -1300,7 +1300,7 @@ static int manager_reload_config(Manager *manager) {
         _c_cleanup_(policy_deinit) Policy policy = POLICY_INIT(policy);
         _c_cleanup_(nss_cache_deinit) NSSCache nss_cache = NSS_CACHE_INIT;
         Service *service;
-        int r;
+        int r, res;
 
         r = sd_notify(false, "RELOADING=1");
         if (r < 0)
@@ -1311,37 +1311,38 @@ static int manager_reload_config(Manager *manager) {
 
         r = nss_cache_populate(&nss_cache);
         if (r)
-                return error_fold(r);
+                goto out;
 
         r = manager_parse_config(manager, &root, &nss_cache);
         if (r)
-                return error_trace(r);
+                goto out;
 
         r = manager_load_services(manager, root, &nss_cache);
         if (r)
-                return error_trace(r);
+                goto out;
 
         r = manager_load_policy(manager, root, &policy);
         if (r)
-                return error_trace(r);
+                goto out;
 
         r = manager_remove_services(manager);
         if (r)
-                return error_trace(r);
+                goto out;
 
         r = manager_set_policy(manager, &policy, &nss_cache);
         if (r)
-                return error_trace(r);
+                goto out;
 
         r = manager_add_services(manager);
         if (r)
-                return error_trace(r);
+                goto out;
 
-        r = sd_notify(false, "READY=1");
-        if (r < 0)
-                return error_origin(r);
+out:
+        res = sd_notify(false, "READY=1");
+        if (res < 0)
+                return error_origin(res);
 
-        return 0;
+        return error_trace(r);
 }
 
 static int manager_connect(Manager *manager) {
