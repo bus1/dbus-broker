@@ -29,6 +29,7 @@ sources_bus = [
         'dbus/sasl.c',
         'dbus/socket.c',
         'util/error.c',
+        'util/dirwatch.c',
         'util/dispatch.c',
         'util/fdlist.c',
         'util/log.c',
@@ -154,6 +155,9 @@ test('Address Handling', test_address)
 
 test_config = executable('test-config', ['launch/test-config.c'], dependencies: dep_bus)
 test('Configuration Parser', test_config)
+
+test_dirwatch = executable('test-dirwatch', ['util/test-dirwatch.c'], dependencies: dep_bus)
+test('Directory Watch', test_dirwatch)
 
 test_dispatch = executable('test-dispatch', ['util/test-dispatch.c'], dependencies: dep_bus)
 test('Event Dispatcher', test_dispatch)
