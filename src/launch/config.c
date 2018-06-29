@@ -10,6 +10,7 @@
 #include "launch/config.h"
 #include "launch/nss-cache.h"
 #include "util/common.h"
+#include "util/dirwatch.h"
 #include "util/error.h"
 #include "util/selinux.h"
 
@@ -1040,6 +1041,12 @@ static void config_parser_end_fn(void *userdata, const XML_Char *name) {
                         return;
                 }
 
+                r = dirwatch_add(state->dirwatch, state->current->includedir.dir->path);
+                if (r) {
+                        state->error = error_fold(r);
+                        return;
+                }
+
                 for (errno = 0, de = readdir(dir);
                      de;
                      errno = 0, de = readdir(dir)) {
@@ -1187,7 +1194,7 @@ void config_parser_deinit(ConfigParser *parser) {
         *parser = (ConfigParser)CONFIG_PARSER_NULL(*parser);
 }
 
-static int config_parser_include(ConfigParser *parser, ConfigRoot *root, ConfigNode *node, NSSCache *nss_cache) {
+static int config_parser_include(ConfigParser *parser, ConfigRoot *root, ConfigNode *node, NSSCache *nss_cache, Dirwatch *dirwatch) {
         _c_cleanup_(c_closep) int fd = -1;
         char buffer[CONFIG_PARSER_BUFFER_MAX];
         ConfigPath *i_file;
@@ -1199,6 +1206,7 @@ static int config_parser_include(ConfigParser *parser, ConfigRoot *root, ConfigN
 
         memset(&parser->state, 0, sizeof(parser->state));
         parser->state.nss = nss_cache;
+        parser->state.dirwatch = dirwatch;
         parser->state.file = node->include.file;
         parser->state.root = root;
         parser->state.current = node;
@@ -1255,7 +1263,7 @@ static int config_parser_include(ConfigParser *parser, ConfigRoot *root, ConfigN
 /**
  * config_parser_read() - XXX
  */
-int config_parser_read(ConfigParser *parser, ConfigRoot **rootp, const char *path, NSSCache *nss_cache) {
+int config_parser_read(ConfigParser *parser, ConfigRoot **rootp, const char *path, NSSCache *nss_cache, Dirwatch *dirwatch) {
         _c_cleanup_(config_root_freep) ConfigRoot *root = NULL;
         _c_cleanup_(config_path_unrefp) ConfigPath *file = NULL;
         ConfigNode *node;
@@ -1293,7 +1301,7 @@ int config_parser_read(ConfigParser *parser, ConfigRoot **rootp, const char *pat
         while ((node = c_list_first_entry(&root->include_list, ConfigNode, include_link))) {
                 c_list_unlink(&node->include_link);
 
-                r = config_parser_include(parser, root, node, nss_cache);
+                r = config_parser_include(parser, root, node, nss_cache, dirwatch);
                 if (r)
                         return error_trace(r);
         }

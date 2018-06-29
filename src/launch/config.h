@@ -14,6 +14,7 @@ typedef struct ConfigNode ConfigNode;
 typedef struct ConfigParser ConfigParser;
 typedef struct ConfigRoot ConfigRoot;
 typedef struct ConfigState ConfigState;
+typedef struct Dirwatch Dirwatch;
 typedef struct NSSCache NSSCache;
 
 #define CONFIG_PARSER_BUFFER_MAX 4096
@@ -190,6 +191,7 @@ struct ConfigParser {
 
         struct ConfigState {
                 NSSCache *nss;
+                Dirwatch *dirwatch;
                 ConfigPath *file;
                 ConfigRoot *root;
                 ConfigNode *current;
@@ -231,6 +233,6 @@ C_DEFINE_CLEANUP(ConfigRoot *, config_root_free);
 void config_parser_init(ConfigParser *parser);
 void config_parser_deinit(ConfigParser *parser);
 
-int config_parser_read(ConfigParser *parser, ConfigRoot **rootp, const char *path, NSSCache *nss_cache);
+int config_parser_read(ConfigParser *parser, ConfigRoot **rootp, const char *path, NSSCache *nss_cache, Dirwatch *dirwatch);
 
 C_DEFINE_CLEANUP(ConfigParser *, config_parser_deinit);

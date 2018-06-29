@@ -953,6 +953,10 @@ static int manager_load_service_dir(Manager *manager, const char *dirpath, NSSCa
                         return error_origin(-errno);
         }
 
+        r = dirwatch_add(manager->dirwatch, dirpath);
+        if (r)
+                return error_fold(r);
+
         for (errno = 0, de = readdir(dir);
              de;
              errno = 0, de = readdir(dir)) {
@@ -1233,7 +1237,7 @@ static int manager_parse_config(Manager *manager, ConfigRoot **rootp, NSSCache *
 
         config_parser_init(&parser);
 
-        r = config_parser_read(&parser, rootp, configfile, nss_cache);
+        r = config_parser_read(&parser, rootp, configfile, nss_cache, dirwatch);
         if (r) {
                 if (r == CONFIG_E_INVALID)
                         return MANAGER_E_INVALID_CONFIG;

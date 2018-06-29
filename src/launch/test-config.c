@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include "launch/config.h"
 #include "launch/nss-cache.h"
+#include "util/dirwatch.h"
 
 static const char *test_type2str[_CONFIG_NODE_N] = {
         [CONFIG_NODE_BUSCONFIG]         = "busconfig",
@@ -37,12 +38,16 @@ static void print_config(const char *path) {
         _c_cleanup_(config_parser_deinit) ConfigParser parser = CONFIG_PARSER_NULL(parser);
         _c_cleanup_(config_root_freep) ConfigRoot *root = NULL;
         _c_cleanup_(nss_cache_deinit) NSSCache nss_cache = NSS_CACHE_INIT;
+        _c_cleanup_(dirwatch_freep) Dirwatch *dirwatch = NULL;
         ConfigNode *i_node;
         int r;
 
+        r = dirwatch_new(&dirwatch);
+        assert(!r);
+
         config_parser_init(&parser);
 
-        r = config_parser_read(&parser, &root, path, &nss_cache);
+        r = config_parser_read(&parser, &root, path, &nss_cache, dirwatch);
         assert(!r);
 
         c_list_for_each_entry(i_node, &root->node_list, root_link) {
