@@ -26,6 +26,7 @@
 #include "launch/nss-cache.h"
 #include "launch/policy.h"
 #include "util/audit.h"
+#include "util/dirwatch.h"
 #include "util/error.h"
 #include "util/log.h"
 #include "util/misc.h"
@@ -72,6 +73,8 @@ struct Manager {
         sd_bus *bus_controller;
         sd_bus *bus_regular;
         int fd_listen;
+        Dirwatch *dirwatch;
+        sd_event_source *dirwatch_src;
         CRBTree services;
         CRBTree services_by_name;
         uint64_t service_ids;
@@ -223,6 +226,8 @@ static Manager *manager_free(Manager *manager) {
                 service_free(service);
         assert(c_rbtree_is_empty(&manager->services_by_name));
 
+        sd_event_source_unref(manager->dirwatch_src);
+        dirwatch_free(manager->dirwatch);
         c_close(manager->fd_listen);
         bus_close_unref(manager->bus_regular);
         bus_close_unref(manager->bus_controller);
@@ -245,7 +250,28 @@ static int manager_on_sighup(sd_event_source *s, const struct signalfd_siginfo *
         r = manager_reload_config(manager);
         if (r) {
                 if (r == MANAGER_E_INVALID_CONFIG)
-                        fprintf(stderr, "Invalid configuration. SIGHUP ignored.\n");
+                        fprintf(stderr, "Invalid configuration, ignored.\n");
+                else
+                        return error_fold(r);
+        }
+
+        return 1;
+}
+
+static int manager_on_dirwatch(sd_event_source *s, int fd, uint32_t revents, void *userdata) {
+        Manager *manager = userdata;
+        int r;
+
+        r = dirwatch_dispatch(manager->dirwatch);
+        if (r != DIRWATCH_E_TRIGGERED)
+                return error_fold(r);
+
+        fprintf(stderr, "Noticed file-system modification, trigger reload\n");
+
+        r = manager_reload_config(manager);
+        if (r) {
+                if (r == MANAGER_E_INVALID_CONFIG)
+                        fprintf(stderr, "Invalid configuration, ignored.\n");
                 else
                         return error_fold(r);
         }
@@ -1189,9 +1215,14 @@ static int manager_load_services(Manager *manager, ConfigRoot *config, NSSCache 
 
 static int manager_parse_config(Manager *manager, ConfigRoot **rootp, NSSCache *nss_cache) {
         _c_cleanup_(config_parser_deinit) ConfigParser parser = CONFIG_PARSER_NULL(parser);
+        _c_cleanup_(dirwatch_freep) Dirwatch *dirwatch = NULL;
         const char *configfile;
         ConfigNode *cnode;
         int r;
+
+        r = dirwatch_new(&dirwatch);
+        if (r)
+                return error_fold(r);
 
         if (main_arg_configfile)
                 configfile = main_arg_configfile;
@@ -1209,6 +1240,21 @@ static int manager_parse_config(Manager *manager, ConfigRoot **rootp, NSSCache *
 
                 return error_fold(r);
         }
+
+        manager->dirwatch = dirwatch_free(manager->dirwatch);
+        manager->dirwatch_src = sd_event_source_unref(manager->dirwatch_src);
+
+        manager->dirwatch = dirwatch;
+        dirwatch = NULL;
+
+        r = sd_event_add_io(manager->event,
+                            &manager->dirwatch_src,
+                            dirwatch_get_fd(manager->dirwatch),
+                            EPOLLIN,
+                            manager_on_dirwatch,
+                            manager);
+        if (r)
+                return error_origin(r);
 
         c_list_for_each_entry(cnode, &(*rootp)->node_list, root_link) {
                 switch (cnode->type) {
