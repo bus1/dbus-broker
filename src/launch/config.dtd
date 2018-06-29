@@ -58,6 +58,7 @@
           send_path CDATA #IMPLIED
           send_type CDATA #IMPLIED
           send_requested_reply (true|false) #IMPLIED
+          send_broadcast (true|false) #IMPLIED
           receive_interface CDATA #IMPLIED
           receive_member CDATA #IMPLIED
           receive_error CDATA #IMPLIED
@@ -66,6 +67,8 @@
           receive_type CDATA #IMPLIED
           receive_requested_reply (true|false) #IMPLIED
           eavesdrop (true|false) #IMPLIED
+          min_fds CDATA #IMPLIED
+          max_fds CDATA #IMPLIED
           own CDATA #IMPLIED
           own_prefix CDATA #IMPLIED
           user CDATA #IMPLIED
@@ -81,6 +84,7 @@
           send_path CDATA #IMPLIED
           send_type CDATA #IMPLIED
           send_requested_reply (true|false) #IMPLIED
+          send_broadcast (true|false) #IMPLIED
           receive_interface CDATA #IMPLIED
           receive_member CDATA #IMPLIED
           receive_error CDATA #IMPLIED
@@ -89,6 +93,8 @@
           receive_type CDATA #IMPLIED
           receive_requested_reply (true|false) #IMPLIED
           eavesdrop (true|false) #IMPLIED
+          min_fds CDATA #IMPLIED
+          max_fds CDATA #IMPLIED
           own CDATA #IMPLIED
           own_prefix CDATA #IMPLIED
           user CDATA #IMPLIED
