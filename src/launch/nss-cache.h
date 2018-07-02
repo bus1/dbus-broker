@@ -39,3 +39,5 @@ int nss_cache_populate(NSSCache *cache);
 
 int nss_cache_get_uid(NSSCache *cache, uint32_t *uidp, uint32_t *gidp, const char *user);
 int nss_cache_get_gid(NSSCache *cache, uint32_t *gidp, const char *group);
+
+int nss_cache_resolve_system_console_users(NSSCache *nss_cache, uint32_t **uidsp, size_t *n_uidsp);
