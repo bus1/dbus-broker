@@ -23,7 +23,7 @@
 
 typedef struct DriverInterface DriverInterface;
 typedef struct DriverMethod DriverMethod;
-typedef int (*DriverMethodFn) (Peer *peer, CDVar *var_in, uint32_t serial, CDVar *var_out);
+typedef int (*DriverMethodFn) (Peer *peer, const char *path, CDVar *var_in, uint32_t serial, CDVar *var_out);
 
 struct DriverMethod {
         const char *name;
@@ -832,7 +832,7 @@ static int driver_end_read(CDVar *var) {
         }
 }
 
-static int driver_method_hello(Peer *peer, CDVar *in_v, uint32_t serial, CDVar *out_v) {
+static int driver_method_hello(Peer *peer, const char *path, CDVar *in_v, uint32_t serial, CDVar *out_v) {
         const char *unique_name;
         int r;
 
@@ -861,7 +861,7 @@ static int driver_method_hello(Peer *peer, CDVar *in_v, uint32_t serial, CDVar *
         return 0;
 }
 
-static int driver_method_request_name(Peer *peer, CDVar *in_v, uint32_t serial, CDVar *out_v) {
+static int driver_method_request_name(Peer *peer, const char *path, CDVar *in_v, uint32_t serial, CDVar *out_v) {
         NameChange change = NAME_CHANGE_INIT;
         const char *name;
         uint32_t flags, reply;
@@ -922,7 +922,7 @@ static int driver_method_request_name(Peer *peer, CDVar *in_v, uint32_t serial, 
         return 0;
 }
 
-static int driver_method_release_name(Peer *peer, CDVar *in_v, uint32_t serial, CDVar *out_v) {
+static int driver_method_release_name(Peer *peer, const char *path, CDVar *in_v, uint32_t serial, CDVar *out_v) {
         NameChange change = NAME_CHANGE_INIT;
         const char *name;
         uint32_t reply;
@@ -972,7 +972,7 @@ static int driver_method_release_name(Peer *peer, CDVar *in_v, uint32_t serial, 
         return 0;
 }
 
-static int driver_method_list_queued_owners(Peer *peer, CDVar *in_v, uint32_t serial, CDVar *out_v) {
+static int driver_method_list_queued_owners(Peer *peer, const char *path, CDVar *in_v, uint32_t serial, CDVar *out_v) {
         NameOwnership *ownership;
         const char *name_str;
         Peer *owner;
@@ -1009,7 +1009,7 @@ static int driver_method_list_queued_owners(Peer *peer, CDVar *in_v, uint32_t se
         return 0;
 }
 
-static int driver_method_list_names(Peer *peer, CDVar *in_v, uint32_t serial, CDVar *out_v) {
+static int driver_method_list_names(Peer *peer, const char *path, CDVar *in_v, uint32_t serial, CDVar *out_v) {
         Peer *p;
         Name *name;
         int r;
@@ -1043,7 +1043,7 @@ static int driver_method_list_names(Peer *peer, CDVar *in_v, uint32_t serial, CD
         return 0;
 }
 
-static int driver_method_list_activatable_names(Peer *peer, CDVar *in_v, uint32_t serial, CDVar *out_v) {
+static int driver_method_list_activatable_names(Peer *peer, const char *path, CDVar *in_v, uint32_t serial, CDVar *out_v) {
         Name *name;
         int r;
 
@@ -1070,7 +1070,7 @@ static int driver_method_list_activatable_names(Peer *peer, CDVar *in_v, uint32_
         return 0;
 }
 
-static int driver_method_name_has_owner(Peer *peer, CDVar *in_v, uint32_t serial, CDVar *out_v) {
+static int driver_method_name_has_owner(Peer *peer, const char *path, CDVar *in_v, uint32_t serial, CDVar *out_v) {
         Peer *connection;
         const char *name;
         int r;
@@ -1096,7 +1096,7 @@ static int driver_method_name_has_owner(Peer *peer, CDVar *in_v, uint32_t serial
         return 0;
 }
 
-static int driver_method_start_service_by_name(Peer *peer, CDVar *in_v, uint32_t serial, CDVar *out_v) {
+static int driver_method_start_service_by_name(Peer *peer, const char *path, CDVar *in_v, uint32_t serial, CDVar *out_v) {
         const char *service;
         Name *name;
         NameOwnership *ownership;
@@ -1130,7 +1130,7 @@ static int driver_method_start_service_by_name(Peer *peer, CDVar *in_v, uint32_t
         return 0;
 }
 
-static int driver_method_update_activation_environment(Peer *peer, CDVar *in_v, uint32_t serial, CDVar *out_v) {
+static int driver_method_update_activation_environment(Peer *peer, const char *path, CDVar *in_v, uint32_t serial, CDVar *out_v) {
         _c_cleanup_(c_freep) const char **env = NULL;
         const char *key, *value;
         size_t n_env = 0, z_env = 0;
@@ -1175,7 +1175,7 @@ static int driver_method_update_activation_environment(Peer *peer, CDVar *in_v, 
         return 0;
 }
 
-static int driver_method_get_name_owner(Peer *peer, CDVar *in_v, uint32_t serial, CDVar *out_v) {
+static int driver_method_get_name_owner(Peer *peer, const char *path, CDVar *in_v, uint32_t serial, CDVar *out_v) {
         const char *name_str, *owner_str;
         Address addr;
         int r;
@@ -1209,7 +1209,7 @@ static int driver_method_get_name_owner(Peer *peer, CDVar *in_v, uint32_t serial
         return 0;
 }
 
-static int driver_method_get_connection_unix_user(Peer *peer, CDVar *in_v, uint32_t serial, CDVar *out_v) {
+static int driver_method_get_connection_unix_user(Peer *peer, const char *path, CDVar *in_v, uint32_t serial, CDVar *out_v) {
         Peer *connection;
         const char *name;
         int r;
@@ -1237,7 +1237,7 @@ static int driver_method_get_connection_unix_user(Peer *peer, CDVar *in_v, uint3
         return 0;
 }
 
-static int driver_method_get_connection_unix_process_id(Peer *peer, CDVar *in_v, uint32_t serial, CDVar *out_v) {
+static int driver_method_get_connection_unix_process_id(Peer *peer, const char *path, CDVar *in_v, uint32_t serial, CDVar *out_v) {
         Peer *connection;
         const char *name;
         int r;
@@ -1265,7 +1265,7 @@ static int driver_method_get_connection_unix_process_id(Peer *peer, CDVar *in_v,
         return 0;
 }
 
-static int driver_method_get_connection_credentials(Peer *peer, CDVar *in_v, uint32_t serial, CDVar *out_v) {
+static int driver_method_get_connection_credentials(Peer *peer, const char *path, CDVar *in_v, uint32_t serial, CDVar *out_v) {
         Peer *connection;
         const char *name, *seclabel;
         size_t n_seclabel;
@@ -1324,7 +1324,7 @@ static int driver_method_get_connection_credentials(Peer *peer, CDVar *in_v, uin
         return 0;
 }
 
-static int driver_method_get_adt_audit_session_data(Peer *peer, CDVar *in_v, uint32_t serial, CDVar *out_v) {
+static int driver_method_get_adt_audit_session_data(Peer *peer, const char *path, CDVar *in_v, uint32_t serial, CDVar *out_v) {
         Peer *connection;
         const char *name;
         int r;
@@ -1347,7 +1347,7 @@ static int driver_method_get_adt_audit_session_data(Peer *peer, CDVar *in_v, uin
         return DRIVER_E_ADT_NOT_SUPPORTED;
 }
 
-static int driver_method_get_connection_selinux_security_context(Peer *peer, CDVar *in_v, uint32_t serial, CDVar *out_v) {
+static int driver_method_get_connection_selinux_security_context(Peer *peer, const char *path, CDVar *in_v, uint32_t serial, CDVar *out_v) {
         const char *name, *seclabel;
         size_t n_seclabel;
         int r;
@@ -1395,7 +1395,7 @@ static int driver_method_get_connection_selinux_security_context(Peer *peer, CDV
         return 0;
 }
 
-static int driver_method_add_match(Peer *peer, CDVar *in_v, uint32_t serial, CDVar *out_v) {
+static int driver_method_add_match(Peer *peer, const char *path, CDVar *in_v, uint32_t serial, CDVar *out_v) {
         const char *rule_string;
         int r;
 
@@ -1424,7 +1424,7 @@ static int driver_method_add_match(Peer *peer, CDVar *in_v, uint32_t serial, CDV
         return 0;
 }
 
-static int driver_method_remove_match(Peer *peer, CDVar *in_v, uint32_t serial, CDVar *out_v) {
+static int driver_method_remove_match(Peer *peer, const char *path, CDVar *in_v, uint32_t serial, CDVar *out_v) {
         const char *rule_string;
         int r;
 
@@ -1488,7 +1488,7 @@ int driver_reload_config_invalid(Bus *bus, uint64_t sender_id, uint32_t reply_se
         return 0;
 }
 
-static int driver_method_reload_config(Peer *peer, CDVar *in_v, uint32_t serial, CDVar *out_v) {
+static int driver_method_reload_config(Peer *peer, const char *path, CDVar *in_v, uint32_t serial, CDVar *out_v) {
         int r;
 
         /* verify the input argument */
@@ -1509,7 +1509,7 @@ static int driver_method_reload_config(Peer *peer, CDVar *in_v, uint32_t serial,
         return 0;
 }
 
-static int driver_method_get_id(Peer *peer, CDVar *in_v, uint32_t serial, CDVar *out_v) {
+static int driver_method_get_id(Peer *peer, const char *path, CDVar *in_v, uint32_t serial, CDVar *out_v) {
         char buffer[sizeof(peer->bus->guid) * 2 + 1] = {};
         int r;
 
@@ -1531,7 +1531,7 @@ static int driver_method_get_id(Peer *peer, CDVar *in_v, uint32_t serial, CDVar 
         return 0;
 }
 
-static int driver_method_introspect(Peer *peer, CDVar *in_v, uint32_t serial, CDVar *out_v) {
+static int driver_method_introspect(Peer *peer, const char *path, CDVar *in_v, uint32_t serial, CDVar *out_v) {
         static const char *introspection =
                 "<!DOCTYPE node PUBLIC \"-//freedesktop//DTD D-BUS Object Introspection 1.0//EN\"\n"
                 "\"http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd\">\n"
@@ -1681,7 +1681,7 @@ static int driver_method_introspect(Peer *peer, CDVar *in_v, uint32_t serial, CD
         return 0;
 }
 
-static int driver_method_become_monitor(Peer *peer, CDVar *in_v, uint32_t serial, CDVar *out_v) {
+static int driver_method_become_monitor(Peer *peer, const char *path, CDVar *in_v, uint32_t serial, CDVar *out_v) {
         MatchOwner owned_matches;
         const char *match_string;
         uint32_t flags;
@@ -1759,7 +1759,7 @@ error:
         return r;
 }
 
-static int driver_method_ping(Peer *peer, CDVar *in_v, uint32_t serial, CDVar *out_v) {
+static int driver_method_ping(Peer *peer, const char *path, CDVar *in_v, uint32_t serial, CDVar *out_v) {
         int r;
 
         c_dvar_read(in_v, "()");
@@ -1777,7 +1777,7 @@ static int driver_method_ping(Peer *peer, CDVar *in_v, uint32_t serial, CDVar *o
         return 0;
 }
 
-static int driver_method_get_machine_id(Peer *peer, CDVar *in_v, uint32_t serial, CDVar *out_v) {
+static int driver_method_get_machine_id(Peer *peer, const char *path, CDVar *in_v, uint32_t serial, CDVar *out_v) {
         int r;
 
         /* verify the input argument */
@@ -1824,7 +1824,7 @@ static void driver_append_property_interfaces(CDVar *v) {
         c_dvar_write(v, "<[s]>", variant_type, "org.freedesktop.DBus.Monitoring");
 }
 
-static int driver_method_get(Peer *peer, CDVar *in_v, uint32_t serial, CDVar *out_v) {
+static int driver_method_get(Peer *peer, const char *path, CDVar *in_v, uint32_t serial, CDVar *out_v) {
         const char *interface, *property;
         int r;
 
@@ -1856,7 +1856,7 @@ static int driver_method_get(Peer *peer, CDVar *in_v, uint32_t serial, CDVar *ou
         return 0;
 }
 
-static int driver_method_set(Peer *peer, CDVar *in_v, uint32_t serial, CDVar *out_v) {
+static int driver_method_set(Peer *peer, const char *path, CDVar *in_v, uint32_t serial, CDVar *out_v) {
         const char *interface, *property;
         int r;
 
@@ -1877,7 +1877,7 @@ static int driver_method_set(Peer *peer, CDVar *in_v, uint32_t serial, CDVar *ou
         return DRIVER_E_READONLY_PROPERTY;
 }
 
-static int driver_method_get_all(Peer *peer, CDVar *in_v, uint32_t serial, CDVar *out_v) {
+static int driver_method_get_all(Peer *peer, const char *path, CDVar *in_v, uint32_t serial, CDVar *out_v) {
         const char *interface;
         int r;
 
@@ -1938,7 +1938,7 @@ static int driver_handle_method(const DriverMethod *method, Peer *peer, const ch
         c_dvar_write(&var_out, "(");
         driver_write_reply_header(&var_out, peer, serial, method->out);
 
-        r = method->fn(peer, &var_in, serial, &var_out);
+        r = method->fn(peer, path, &var_in, serial, &var_out);
         if (r)
                 return error_trace(r);
 
