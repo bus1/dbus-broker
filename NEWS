@@ -1,5 +1,37 @@
 dbus-broker - Linux D-Bus Message Broker
 
+CHANGES WITH 14:
+
+        * The broker now implements the org.freedesktop.DBus.Peer, and
+          org.freedesktop.DBus.Properties interfaces.
+
+        * The man-pages have been updated to reflect the current state of
+          dbus-broker and dbus-broker-launch.
+
+        * Matches are now indexed by all major fields, greatly improving
+          broadcast performance.
+
+        * The launcher now respects the `<user>NAME</user>' configuration and
+          correctly drops privileges of the broker and itself after startup.
+
+        * The `send_broadcast', `min_fds', and `max_fds' XML policy attributes
+          are now supported (as defined by dbus-daemon(1)).
+
+        * Configuration files are now watched for modifications by the
+          launcher. Any modification triggers a configuration reload. This
+          follows the behavior of dbus-daemon(1).
+
+        * The broker gained a `--machine-id' command-line switch to specify the
+          local machine-id to be served via the org.freedesktop.DBus.Peer
+          interface. The launcher uses libsystemd-daemon to provide it.
+
+        * The controller interface of dbus-broker has been renamed from
+          org.bus1.DBus.Launcher to org.bus1.DBus.Controller.
+
+        Contributions from: David Herrmann, Khem Raj, Tom Gundersen
+
+        - Tübingen, 2018-07-03
+
 CHANGES WITH 13:
 
         * The --verbose command-line switch was dropped from both the broker
