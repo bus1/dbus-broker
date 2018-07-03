@@ -1532,7 +1532,7 @@ static int driver_method_get_id(Peer *peer, const char *path, CDVar *in_v, uint3
 }
 
 static int driver_method_introspect(Peer *peer, const char *path, CDVar *in_v, uint32_t serial, CDVar *out_v) {
-        static const char *introspection =
+        static const char *introspection_org_freedesktop_DBus =
                 "<!DOCTYPE node PUBLIC \"-//freedesktop//DTD D-BUS Object Introspection 1.0//EN\"\n"
                 "\"http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd\">\n"
                 "<node>\n"
@@ -1664,6 +1664,29 @@ static int driver_method_introspect(Peer *peer, const char *path, CDVar *in_v, u
                 "    </method>\n"
                 "  </interface>\n"
                 "</node>\n";
+        static const char *introspection_org_freedesktop =
+                "<!DOCTYPE node PUBLIC \"-//freedesktop//DTD D-BUS Object Introspection 1.0//EN\"\n"
+                "\"http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd\">\n"
+                "<node>\n"
+                "  <node name=\"DBus\"/>\n"
+                "</node>\n";
+        static const char *introspection_org =
+                "<!DOCTYPE node PUBLIC \"-//freedesktop//DTD D-BUS Object Introspection 1.0//EN\"\n"
+                "\"http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd\">\n"
+                "<node>\n"
+                "  <node name=\"freedesktop/DBus\"/>\n"
+                "</node>\n";
+        static const char *introspection =
+                "<!DOCTYPE node PUBLIC \"-//freedesktop//DTD D-BUS Object Introspection 1.0//EN\"\n"
+                "\"http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd\">\n"
+                "<node>\n"
+                "  <node name=\"org/freedesktop/DBus\"/>\n"
+                "</node>\n";
+        static const char *introspection_any =
+                "<!DOCTYPE node PUBLIC \"-//freedesktop//DTD D-BUS Object Introspection 1.0//EN\"\n"
+                "\"http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd\">\n"
+                "<node>\n"
+                "</node>\n";
         int r;
 
         c_dvar_read(in_v, "()");
@@ -1672,7 +1695,23 @@ static int driver_method_introspect(Peer *peer, const char *path, CDVar *in_v, u
         if (r)
                 return error_trace(r);
 
-        c_dvar_write(out_v, "(s)", introspection);
+        /*
+         * We return the same intropsection data for the canonical path as the reference
+         * implementation does, and all methods behave the same. However, we only expose
+         * simplified intropsection data for all other paths, as if all interfaces were
+         * only implemented on the canonical path. The only reason they are implemented
+         * on arbitrary paths is for backwards compatibility.
+         */
+        if (!strcmp(path, "/org/freedesktop/DBus"))
+                c_dvar_write(out_v, "(s)", introspection_org_freedesktop_DBus);
+        else if (!strcmp(path, "/org/freedesktop"))
+                c_dvar_write(out_v, "(s)", introspection_org_freedesktop);
+        else if (!strcmp(path, "/org"))
+                c_dvar_write(out_v, "(s)", introspection_org);
+        else if (!strcmp(path, "/"))
+                c_dvar_write(out_v, "(s)", introspection);
+        else
+                c_dvar_write(out_v, "(s)", introspection_any);
 
         r = driver_send_reply(peer, out_v, serial);
         if (r)
