@@ -16,7 +16,8 @@
 #include "util/apparmor.h"
 #include "util/error.h"
 
-/** bus_apparmor_is_enabled() - checks if AppArmor is currently enabled
+/**
+ * bus_apparmor_is_enabled() - checks if AppArmor is currently enabled
  * @enabled:            return argument telling if AppArmor is enabled
  *
  * If the AppArmor module is not loaded, or AppArmor is disabled in the
