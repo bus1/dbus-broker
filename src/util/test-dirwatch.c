@@ -13,6 +13,9 @@ static void test_basic(void) {
         {
                 _c_cleanup_(dirwatch_freep) Dirwatch *dw1 = NULL, *dw2 = NULL;
 
+                /* prevent 'unused variable' warning */
+                dw1 = NULL;
+
                 r = dirwatch_new(&dw2);
                 assert(!r);
         }
