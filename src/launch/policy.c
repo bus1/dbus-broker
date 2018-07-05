@@ -386,11 +386,13 @@ static int policy_import_own(Policy *policy, ConfigNode *cnode) {
         }
 
         if (cnode->parent->policy.context == CONFIG_POLICY_USER) {
-                r = policy_at_uid(policy, &node, cnode->parent->policy.id);
-                if (r)
-                        return error_trace(r);
+                if (cnode->parent->policy.id != (uint32_t)-1) {
+                        r = policy_at_uid(policy, &node, cnode->parent->policy.id);
+                        if (r)
+                                return error_trace(r);
 
-                c_list_link_tail(&node->entries.own_list, &record->link);
+                        c_list_link_tail(&node->entries.own_list, &record->link);
+                }
         } else if (cnode->parent->policy.context == CONFIG_POLICY_NO_CONSOLE) {
                 c_list_link_tail(&policy->no_console_entries.own_list, &record->link);
         } else if (cnode->parent->policy.context == CONFIG_POLICY_AT_CONSOLE) {
@@ -474,21 +476,25 @@ static int policy_import_send(Policy *policy, ConfigNode *cnode) {
         policy_record_xmit_trim(record);
 
         if (cnode->parent->policy.context == CONFIG_POLICY_USER) {
-                r = policy_at_uid(policy, &node, cnode->parent->policy.id);
-                if (r)
-                        return error_trace(r);
+                if (cnode->parent->policy.id != (uint32_t)-1) {
+                        r = policy_at_uid(policy, &node, cnode->parent->policy.id);
+                        if (r)
+                                return error_trace(r);
 
-                c_list_link_tail(&node->entries.send_list, &record->link);
+                        c_list_link_tail(&node->entries.send_list, &record->link);
+                }
         } else if (cnode->parent->policy.context == CONFIG_POLICY_NO_CONSOLE) {
                 c_list_link_tail(&policy->no_console_entries.send_list, &record->link);
         } else if (cnode->parent->policy.context == CONFIG_POLICY_AT_CONSOLE) {
                 c_list_link_tail(&policy->at_console_entries.send_list, &record->link);
         } else if (cnode->parent->policy.context == CONFIG_POLICY_GROUP) {
-                r = policy_at_gid(policy, &node, cnode->parent->policy.id);
-                if (r)
-                        return error_trace(r);
+                if (cnode->parent->policy.id != (uint32_t)-1) {
+                        r = policy_at_gid(policy, &node, cnode->parent->policy.id);
+                        if (r)
+                                return error_trace(r);
 
-                c_list_link_tail(&node->entries.send_list, &record->link);
+                        c_list_link_tail(&node->entries.send_list, &record->link);
+                }
         } else {
                 c_list_link_tail(&policy->default_entries.send_list, &record->link);
         }
@@ -562,21 +568,25 @@ static int policy_import_recv(Policy *policy, ConfigNode *cnode) {
         policy_record_xmit_trim(record);
 
         if (cnode->parent->policy.context == CONFIG_POLICY_USER) {
-                r = policy_at_uid(policy, &node, cnode->parent->policy.id);
-                if (r)
-                        return error_trace(r);
+                if (cnode->parent->policy.id != (uint32_t)-1) {
+                        r = policy_at_uid(policy, &node, cnode->parent->policy.id);
+                        if (r)
+                                return error_trace(r);
 
-                c_list_link_tail(&node->entries.recv_list, &record->link);
+                        c_list_link_tail(&node->entries.recv_list, &record->link);
+                }
         } else if (cnode->parent->policy.context == CONFIG_POLICY_NO_CONSOLE) {
                 c_list_link_tail(&policy->no_console_entries.recv_list, &record->link);
         } else if (cnode->parent->policy.context == CONFIG_POLICY_AT_CONSOLE) {
                 c_list_link_tail(&policy->at_console_entries.recv_list, &record->link);
         } else if (cnode->parent->policy.context == CONFIG_POLICY_GROUP) {
-                r = policy_at_gid(policy, &node, cnode->parent->policy.id);
-                if (r)
-                        return error_trace(r);
+                if (cnode->parent->policy.id != (uint32_t)-1) {
+                        r = policy_at_gid(policy, &node, cnode->parent->policy.id);
+                        if (r)
+                                return error_trace(r);
 
-                c_list_link_tail(&node->entries.recv_list, &record->link);
+                        c_list_link_tail(&node->entries.recv_list, &record->link);
+                }
         } else {
                 c_list_link_tail(&policy->default_entries.recv_list, &record->link);
         }
