@@ -281,10 +281,10 @@ static int config_parser_attrs_policy(ConfigState *state, ConfigNode *node, cons
                         if (r) {
                                 if (r == NSS_CACHE_E_INVALID_NAME) {
                                         CONFIG_ERR(state, "Invalid user-name", ": %s=\"%s\"", k, v);
-                                        continue;
+                                        node->policy.id = (uint32_t)-1;
+                                } else {
+                                        return error_fold(r);
                                 }
-
-                                return error_fold(r);
                         }
 
                         node->policy.context = CONFIG_POLICY_USER;
@@ -296,10 +296,10 @@ static int config_parser_attrs_policy(ConfigState *state, ConfigNode *node, cons
                         if (r) {
                                 if (r == NSS_CACHE_E_INVALID_NAME) {
                                         CONFIG_ERR(state, "Invalid group-name", ": %s=\"%s\"", k, v);
-                                        continue;
+                                        node->policy.id = (uint32_t)-1;
+                                } else {
+                                        return error_fold(r);
                                 }
-
-                                return error_fold(r);
                         }
 
                         node->policy.context = CONFIG_POLICY_GROUP;
@@ -529,7 +529,7 @@ static int config_parser_attrs_allow_deny(ConfigState *state, ConfigNode *node, 
 
                 } else if (!strcmp(k, "user")) {
                         if (!strcmp(v, "*")) {
-                                node->allow_deny.uid = -1;
+                                node->allow_deny.uid = (uint32_t)-1;
                                 node->allow_deny.user = true;
                         } else {
                                 r = nss_cache_get_uid(state->nss, &node->allow_deny.uid, NULL, v);
@@ -546,7 +546,7 @@ static int config_parser_attrs_allow_deny(ConfigState *state, ConfigNode *node, 
                         }
                 } else if (!strcmp(k, "group")) {
                         if (!strcmp(v, "*")) {
-                                node->allow_deny.gid = -1;
+                                node->allow_deny.gid = (uint32_t)-1;
                                 node->allow_deny.group = true;
                         } else {
                                 r = nss_cache_get_gid(state->nss, &node->allow_deny.gid, v);
