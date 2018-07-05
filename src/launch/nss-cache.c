@@ -40,7 +40,7 @@ typedef struct NSSCacheNode {
 
 static int nss_cache_node_new(NSSCacheNode **nodep, const char *name, uint32_t id) {
         NSSCacheNode *node;
-        size_t n_name = strlen(name);
+        size_t n_name = name ? strlen(name) : 0;
 
         node = malloc(sizeof(*node) + n_name + 1);
         if (!node)
@@ -114,64 +114,86 @@ static int nss_cache_add(CRBTree *tree_by_name,
                          const char *name,
                          uint32_t id) {
         CRBNode **slot_by_name, **slot_by_id, *parent_by_name, *parent_by_id;
-        NSSCacheNode *node_by_name, *node_by_id;
+        NSSCacheNode *node_by_name = NULL, *node_by_id = NULL, *node = NULL;
         int r;
 
-        slot_by_name = c_rbtree_find_slot(tree_by_name,
-                                          nss_cache_node_compare_name,
-                                          name,
-                                          &parent_by_name);
-        slot_by_id = c_rbtree_find_slot(tree_by_id,
-                                        nss_cache_node_compare_id,
-                                        (void *)(unsigned long)id,
-                                        &parent_by_id);
-
-        if (slot_by_name)
-                node_by_name = NULL;
-        else
-                node_by_name = c_rbnode_entry(parent_by_name, NSSCacheNode, rb_by_name);
-
-        if (slot_by_id)
-                node_by_id = NULL;
-        else
-                node_by_id = c_rbnode_entry(parent_by_id, NSSCacheNode, rb_by_id);
-
         /*
-         * Either the entry is linked by-name *AND* by-id (and it is the *SAME*
-         * entry), or it is not linked at all. However, if only one of both is
-         * known, or if they point to different entries, we will *NOT* cache
-         * the new data. This situation implies a UID/GID conflict and there is
-         * no sane way to handle this, other than bypassing the cache. Worst
-         * case, you will end up calling into NSS all the time.
+         * Do not cache invalid user/UID or group/GID pairs.
          */
-        if (node_by_name != node_by_id) {
+        if (!name && id == (uint32_t)-1)
+                return error_origin(-EINVAL);
+
+        if (name) {
+                /*
+                 * The user/group is valid, so try to find an existing entry for it.
+                 */
+                slot_by_name = c_rbtree_find_slot(tree_by_name,
+                                                  nss_cache_node_compare_name,
+                                                  name,
+                                                  &parent_by_name);
+
+                if (!slot_by_name) {
+                        node_by_name = c_rbnode_entry(parent_by_name, NSSCacheNode, rb_by_name);
+                        node = node_by_name;
+                }
+        }
+
+        if (id != (uint32_t)-1) {
+                /*
+                 * The UID/GID is valid, so try to find an existing entry for it.
+                 */
+                slot_by_id = c_rbtree_find_slot(tree_by_id,
+                                                nss_cache_node_compare_id,
+                                                (void *)(unsigned long)id,
+                                                &parent_by_id);
+                if (!slot_by_id) {
+                        node_by_id = c_rbnode_entry(parent_by_id, NSSCacheNode, rb_by_id);
+                        node = node_by_name;
+                }
+        }
+
+        if (node_by_name != node_by_id &&
+            ((node_by_name && node_by_id) ||
+             (node_by_id && c_rbnode_is_linked(&node_by_id->rb_by_name)) ||
+             (node_by_name && c_rbnode_is_linked(&node_by_name->rb_by_id)))) {
+                /*
+                 * If an entry is linked by-name (resp., by-id), and either not linked
+                 * at all by-id (resp., by-name), or using a different id (resp., name)
+                 * from what we are adding, then that implies a UID/GID conflict which
+                 * there is no sane way to handle, other than bypassing the cache. We
+                 * therefore do not cach such entries. Worst case, you will end up
+                 * calling into NSS all the time.
+                 */
                 *nodep = NULL;
                 return 0;
         }
 
-        if (!node_by_name && !node_by_id) {
+        if (!node) {
                 /*
-                 * Neither by-name nor by-id is any entry linked. We have to
+                 * No entry was found either by-name, nor by-id. We have to
                  * create a new entry and link it into both trees.
                  *
                  * This is the common case, since the nss-cache is shortlived
                  * and there really shouldn't be any conflicts in UIDs/GIDs.
                  */
-                r = nss_cache_node_new(&node_by_name, name, id);
+                r = nss_cache_node_new(&node, name, id);
                 if (r)
                         return error_trace(r);
 
-                c_rbtree_add(tree_by_name,
-                             parent_by_name,
-                             slot_by_name,
-                             &node_by_name->rb_by_name);
-                c_rbtree_add(tree_by_id,
-                             parent_by_id,
-                             slot_by_id,
-                             &node_by_name->rb_by_id);
+                if (name)
+                        c_rbtree_add(tree_by_name,
+                                     parent_by_name,
+                                     slot_by_name,
+                                     &node->rb_by_name);
+                if (id != (uint32_t)-1)
+                        c_rbtree_add(tree_by_id,
+                                     parent_by_id,
+                                     slot_by_id,
+                                     &node->rb_by_id);
+
         }
 
-        *nodep = node_by_name;
+        *nodep = node;
         return 0;
 }
 
@@ -327,6 +349,11 @@ int nss_cache_get_uid(NSSCache *cache, uint32_t *uidp, uint32_t *gidp, const cha
                                            rb_by_name);
         if (node) {
                 pw = &node->pw;
+
+                if (by_id && !pw->pw_name)
+                        return NSS_CACHE_E_INVALID_NAME;
+                else if (pw->pw_uid == (uint32_t)-1)
+                        return NSS_CACHE_E_INVALID_NAME;
         } else {
                 fprintf(stderr, "Looking up NSS user entry for '%s'...\n", name);
 
@@ -338,15 +365,36 @@ int nss_cache_get_uid(NSSCache *cache, uint32_t *uidp, uint32_t *gidp, const cha
                 if (pw) {
                         fprintf(stderr, "NSS returned NAME '%s' and UID '%u'\n",
                                 pw->pw_name, pw->pw_uid);
+
+                        r = nss_cache_add_user(cache, pw);
+                        if (r)
+                                return r;
                 } else {
                         fprintf(stderr, "NSS returned no entry for '%s'\n",
                                 name);
+
+                        if (by_id) {
+                                r = nss_cache_add_user(cache,
+                                                       &(struct passwd){
+                                                                .pw_name = NULL,
+                                                                .pw_uid = id,
+                                                                .pw_gid = (uint32_t)-1,
+                                                       });
+                                if (r)
+                                        return r;
+                        } else {
+                                r = nss_cache_add_user(cache,
+                                                       &(struct passwd){
+                                                                .pw_name = (char*)name,
+                                                                .pw_uid = (uint32_t)-1,
+                                                                .pw_gid = (uint32_t)-1,
+                                                       });
+                                if (r)
+                                        return r;
+                        }
+
                         return NSS_CACHE_E_INVALID_NAME;
                 }
-
-                r = nss_cache_add_user(cache, pw);
-                if (r)
-                        return r;
         }
 
         if (uidp)
@@ -390,6 +438,11 @@ int nss_cache_get_gid(NSSCache *cache, uint32_t *gidp, const char *name) {
                                            rb_by_name);
         if (node) {
                 gr = &node->gr;
+
+                if (by_id && !gr->gr_name)
+                        return NSS_CACHE_E_INVALID_NAME;
+                else if (gr->gr_gid == (uint32_t)-1)
+                        return NSS_CACHE_E_INVALID_NAME;
         } else {
                 fprintf(stderr, "Looking up NSS group entry for '%s'...\n", name);
 
@@ -401,15 +454,34 @@ int nss_cache_get_gid(NSSCache *cache, uint32_t *gidp, const char *name) {
                 if (gr) {
                         fprintf(stderr, "NSS returned NAME '%s' and GID '%u'\n",
                                 gr->gr_name, gr->gr_gid);
+
+                        r = nss_cache_add_group(cache, gr);
+                        if (r)
+                                return r;
                 } else {
                         fprintf(stderr, "NSS returned no entry for '%s'\n",
                                 name);
+
+                        if (by_id) {
+                                r = nss_cache_add_group(cache,
+                                                       &(struct group){
+                                                                .gr_name = NULL,
+                                                                .gr_gid = id,
+                                                       });
+                                if (r)
+                                        return r;
+                        } else {
+                                r = nss_cache_add_group(cache,
+                                                        &(struct group){
+                                                                .gr_name = (char*) name,
+                                                                .gr_gid = (uint32_t)-1,
+                                                       });
+                                if (r)
+                                        return r;
+                        }
+
                         return NSS_CACHE_E_INVALID_NAME;
                 }
-
-                r = nss_cache_add_group(cache, gr);
-                if (r)
-                        return r;
         }
 
         *gidp = gr->gr_gid;
