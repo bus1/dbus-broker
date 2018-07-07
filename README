@@ -18,7 +18,7 @@ GIT:
         git@github.com:bus1/dbus-broker.git
         https://github.com/bus1/dbus-broker.git
 
-GITWEB:
+GITHUB:
         https://github.com/bus1/dbus-broker
 
 LICENSE:
