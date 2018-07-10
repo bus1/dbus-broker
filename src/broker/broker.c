@@ -84,7 +84,7 @@ int broker_new(Broker **brokerp, const char *machine_id, int log_fd, int control
         if (r)
                 return error_fold(r);
 
-        r = proc_get_seclabel(&broker->bus.seclabel, &broker->bus.n_seclabel);
+        r = proc_get_seclabel(PROC_SELF, &broker->bus.seclabel, &broker->bus.n_seclabel);
         if (r)
                 return error_fold(r);
 
