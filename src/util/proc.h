@@ -6,5 +6,8 @@
 
 #include <c-macro.h>
 #include <stdlib.h>
+#include <unistd.h>
 
-int proc_get_seclabel(char **labelp, size_t *n_labelp);
+#define PROC_SELF ((pid_t)0)
+
+int proc_get_seclabel(pid_t pid, char **labelp, size_t *n_labelp);
