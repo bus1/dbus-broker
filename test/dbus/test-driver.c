@@ -9,6 +9,58 @@
 #include "util/selinux.h"
 #include "util-broker.h"
 
+static void test_unknown(void) {
+        _c_cleanup_(util_broker_freep) Broker *broker = NULL;
+        int r;
+
+        util_broker_new(&broker);
+        util_broker_spawn(broker);
+
+        /* call method on unknown interface */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
+
+                util_broker_connect(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.Foo",
+                                       "GetId", &error, NULL,
+                                       "");
+                assert(r < 0);
+                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.UnknownInterface"));
+        }
+
+        /* call unknown method */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
+
+                util_broker_connect(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "Foo", &error, NULL,
+                                       "");
+                assert(r < 0);
+                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.UnknownMethod"));
+        }
+
+        /* call unknown method without interface */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
+
+                util_broker_connect(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", NULL,
+                                       "Foo", &error, NULL,
+                                       "");
+                assert(r < 0);
+                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.UnknownMethod"));
+        }
+
+        util_broker_terminate(broker);
+}
+
 static void test_hello(void) {
         _c_cleanup_(util_broker_freep) Broker *broker = NULL;
         int r;
@@ -40,6 +92,46 @@ static void test_hello(void) {
                                        "");
                 assert(r < 0);
                 assert(!strcmp(error.name, "org.freedesktop.DBus.Error.Failed"));
+        }
+
+        /* try to call a hypothetical future Hello2() and check that falling back to Hello() works when Hello2() fails */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *reply = NULL;
+                _c_cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
+                const char *unique_name = NULL;
+
+                util_broker_connect_raw(broker, &bus);
+
+                /* do the Hello2(), verify that it fails */
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "Foo", &error, NULL,
+                                       "");
+                assert(r < 0);
+                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
+
+                /* same without an interface */
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", NULL,
+                                       "Foo", &error, NULL,
+                                       "");
+                assert(r < 0);
+                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
+
+                /* the same again, but Hello() on an alternative interface */
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.Foo",
+                                       "Hello", &error, NULL,
+                                       "");
+                assert(r < 0);
+                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
+
+                /* falling back to Hello() works */
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "Hello", NULL, &reply,
+                                       "");
+
+                r = sd_bus_message_read(reply, "s", &unique_name);
+                assert(r >= 0);
+                assert(!strcmp(unique_name, ":1.1"));
         }
 
         /* try to send a message on the bus before Hello(), see that it fails and the client is disconnected */
@@ -2274,7 +2366,6 @@ static void test_properties(void) {
                                        "Set", &error, NULL,
                                        "ssv", "org.freedesktop.DBus", "Features", "as", 1, "Foo");
                 assert(r < 0);
-                fprintf(stderr, "%s: %s\n", error.name, error.message);
                 assert(strcmp(error.name, "org.freedesktop.DBus.Error.PropertyReadOnly") == 0);
         }
 
@@ -2381,6 +2472,7 @@ static void test_no_destination(void) {
 }
 
 int main(int argc, char **argv) {
+        test_unknown();
         test_hello();
         test_request_name();
         test_release_name();
