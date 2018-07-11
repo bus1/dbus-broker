@@ -1949,9 +1949,6 @@ static int driver_handle_method(const DriverMethod *method, Peer *peer, const ch
         _c_cleanup_(c_dvar_deinit) CDVar var_in = C_DVAR_INIT, var_out = C_DVAR_INIT;
         int r;
 
-        if (_c_unlikely_(!peer_is_registered(peer)) && method->needs_registration)
-                return DRIVER_E_PEER_NOT_YET_REGISTERED;
-
         /*
          * Verify the path and the input signature and prepare the
          * input & output variants for input parsing and output marshaling.
@@ -2034,7 +2031,8 @@ static int driver_dispatch_method(Peer *peer, const DriverMethod *methods, uint3
                 if (strcmp(methods[i].name, method) != 0)
                         continue;
 
-                return driver_handle_method(methods + i, peer, path, serial, signature, message);
+                if (_c_likely_(peer_is_registered(peer)) || !methods[i].needs_registration)
+                        return driver_handle_method(methods + i, peer, path, serial, signature, message);
         }
 
         return DRIVER_E_UNEXPECTED_METHOD;
@@ -2284,13 +2282,23 @@ static int driver_dispatch_internal(Peer *peer, Message *message) {
         }
 
         if (c_string_equal(message->metadata.fields.destination, "org.freedesktop.DBus")) {
-                return error_trace(driver_dispatch_interface(peer,
-                                                             message_read_serial(message),
-                                                             message->metadata.fields.interface,
-                                                             message->metadata.fields.member,
-                                                             message->metadata.fields.path,
-                                                             message->metadata.fields.signature,
-                                                             message));
+                r = driver_dispatch_interface(peer,
+                                              message_read_serial(message),
+                                              message->metadata.fields.interface,
+                                              message->metadata.fields.member,
+                                              message->metadata.fields.path,
+                                              message->metadata.fields.signature,
+                                              message);
+                if (r) {
+                        if (_c_unlikely_(!peer_is_registered(peer)) &&
+                            (r == DRIVER_E_UNEXPECTED_INTERFACE ||
+                             r == DRIVER_E_UNEXPECTED_METHOD))
+                                return DRIVER_E_PEER_NOT_YET_REGISTERED;
+
+                        return error_trace(r);
+                }
+
+                return 0;
         }
 
         if (!peer_is_registered(peer))
