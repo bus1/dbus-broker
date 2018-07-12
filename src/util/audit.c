@@ -123,6 +123,16 @@ int util_audit_init_global(void) {
 
         assert(audit_fd < 0);
 
+        r = capng_have_capability(CAPNG_EFFECTIVE, CAP_AUDIT_WRITE);
+        if (r == 0)
+                /*
+                 * Without the right capability, any writes will fail, so treat this
+                 * as if audit is unsupported.
+                 */
+                return 0;
+        else if (r == CAPNG_FAIL)
+                return error_origin(-EIO);
+
         r = audit_open();
         if (r < 0 && errno != EINVAL && errno != EPROTONOSUPPORT && errno != EAFNOSUPPORT)
                 return error_origin(-errno);
