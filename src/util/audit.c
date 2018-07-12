@@ -55,14 +55,25 @@ int util_audit_drop_permissions(uint32_t uid, uint32_t gid) {
                 if (r < 0)
                         return error_origin(-errno);
         } else {
-                int have_audit_write;
+                bool have_audit_write;
 
-                have_audit_write = capng_have_capability(CAPNG_PERMITTED, CAP_AUDIT_WRITE);
+                r = capng_have_capability(CAPNG_PERMITTED, CAP_AUDIT_WRITE);
+                if (r == CAPNG_FAIL)
+                        return error_origin(-EIO);
+                else if (r == 1)
+                        have_audit_write = true;
+                else
+                        have_audit_write = false;
+
                 capng_clear(CAPNG_SELECT_BOTH);
-                if (have_audit_write)
-                        capng_update(CAPNG_ADD,
-                                     CAPNG_EFFECTIVE | CAPNG_PERMITTED,
-                                     CAP_AUDIT_WRITE);
+
+                if (have_audit_write) {
+                        r = capng_update(CAPNG_ADD,
+                                         CAPNG_EFFECTIVE | CAPNG_PERMITTED,
+                                         CAP_AUDIT_WRITE);
+                        if (r < 0)
+                                return error_origin(-EINVAL);
+                }
 
                 r = capng_change_id(uid, gid, CAPNG_DROP_SUPP_GRP);
                 if (r)
