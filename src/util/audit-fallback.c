@@ -24,7 +24,7 @@ int util_audit_drop_permissions(uint32_t uid, uint32_t gid) {
 int util_audit_log(const char *message, uid_t uid) {
         int r;
 
-        r = fputs(message, stderr);
+        r = fprintf(stderr, "%s\n", message);
         if (r < 0)
                 return error_origin(r);
 
