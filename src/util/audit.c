@@ -7,6 +7,7 @@
 #include <grp.h>
 #include <libaudit.h>
 #include <stdlib.h>
+#include <sys/prctl.h>
 #include <unistd.h>
 #include "util/audit.h"
 #include "util/error.h"
@@ -69,7 +70,7 @@ int util_audit_drop_permissions(uint32_t uid, uint32_t gid) {
 
                 if (have_audit_write) {
                         r = capng_update(CAPNG_ADD,
-                                         CAPNG_EFFECTIVE | CAPNG_PERMITTED,
+                                         CAPNG_EFFECTIVE | CAPNG_PERMITTED | CAPNG_INHERITABLE,
                                          CAP_AUDIT_WRITE);
                         if (r < 0)
                                 return error_origin(-EINVAL);
@@ -78,6 +79,12 @@ int util_audit_drop_permissions(uint32_t uid, uint32_t gid) {
                 r = capng_change_id(uid, gid, CAPNG_DROP_SUPP_GRP);
                 if (r)
                         return error_origin(-EPERM);
+
+                if (have_audit_write) {
+                        r = prctl(PR_CAP_AMBIENT, PR_CAP_AMBIENT_RAISE, CAP_AUDIT_WRITE, 0, 0);
+                        if (r < 0)
+                                return error_origin(-errno);
+                }
         }
 
         return 0;
