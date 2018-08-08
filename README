@@ -21,6 +21,9 @@ GIT:
 GITWEB:
         https://github.com/bus1/dbus-broker
 
+MAILINGLIST:
+        https://groups.google.com/forum/#!forum/bus1-devel
+
 LICENSE:
         Apache Software License 2.0
         See AUTHORS for details.
