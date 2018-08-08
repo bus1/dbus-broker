@@ -419,7 +419,7 @@ static int driver_send_error(Peer *receiver, uint32_t serial, const char *error,
         if (!serial)
                 return 0;
 
-        c_dvar_begin_write(&var, type, 1);
+        c_dvar_begin_write(&var, (__BYTE_ORDER == __BIG_ENDIAN), type, 1);
         c_dvar_write(&var, "((yyyyuu[(y<u>)(y<s>)(y<s>)(y<g>)(y<",
                      c_dvar_is_big_endian(&var) ? 'B' : 'l', DBUS_MESSAGE_TYPE_ERROR, DBUS_HEADER_FLAG_NO_REPLY_EXPECTED, 1, 0, (uint32_t)-1,
                      DBUS_MESSAGE_FIELD_REPLY_SERIAL, c_dvar_type_u, serial,
@@ -497,7 +497,7 @@ static int driver_notify_name_acquired(Peer *peer, const char *name) {
         size_t n_data;
         int r;
 
-        c_dvar_begin_write(&var, type, 1);
+        c_dvar_begin_write(&var, (__BYTE_ORDER == __BIG_ENDIAN), type, 1);
         c_dvar_write(&var, "(");
         driver_write_signal_header(&var, peer, "NameAcquired", "s");
         c_dvar_write(&var, "(s)", name);
@@ -534,7 +534,7 @@ static int driver_notify_name_lost(Peer *peer, const char *name) {
         size_t n_data;
         int r;
 
-        c_dvar_begin_write(&var, type, 1);
+        c_dvar_begin_write(&var, (__BYTE_ORDER == __BIG_ENDIAN), type, 1);
         c_dvar_write(&var, "(");
         driver_write_signal_header(&var, peer, "NameLost", "s");
         c_dvar_write(&var, "(s)", name);
@@ -606,7 +606,7 @@ static int driver_notify_name_owner_changed(Bus *bus, MatchRegistry *matches, co
                 MatchOwner *match_owner;
                 size_t n_data;
 
-                c_dvar_begin_write(&var, type, 1);
+                c_dvar_begin_write(&var, (__BYTE_ORDER == __BIG_ENDIAN), type, 1);
                 c_dvar_write(&var, "(");
                 driver_write_signal_header(&var, NULL, "NameOwnerChanged", "sss");
                 c_dvar_write(&var, "(sss)", name, old_owner, new_owner);
@@ -749,7 +749,7 @@ static int driver_name_activated(Activation *activation, Peer *receiver) {
                 if (sender) {
                         _c_cleanup_(c_dvar_deinit) CDVar var = C_DVAR_INIT;
 
-                        c_dvar_begin_write(&var, driver_type_out_u, 1);
+                        c_dvar_begin_write(&var, (__BYTE_ORDER == __BIG_ENDIAN), driver_type_out_u, 1);
                         c_dvar_write(&var, "(");
                         driver_write_reply_header(&var, sender, request->serial, driver_type_out_u);
                         c_dvar_write(&var, "(u)", DBUS_START_REPLY_SUCCESS);
@@ -1461,7 +1461,7 @@ int driver_reload_config_completed(Bus *bus, uint64_t sender_id, uint32_t reply_
         if (sender) {
                 _c_cleanup_(c_dvar_deinit) CDVar var = C_DVAR_INIT;
 
-                c_dvar_begin_write(&var, driver_type_out_unit, 1);
+                c_dvar_begin_write(&var, (__BYTE_ORDER == __BIG_ENDIAN), driver_type_out_unit, 1);
                 c_dvar_write(&var, "(");
                 driver_write_reply_header(&var, sender, reply_serial, driver_type_out_unit);
                 c_dvar_write(&var, "()");
@@ -1962,7 +1962,7 @@ static int driver_handle_method(const DriverMethod *method, Peer *peer, const ch
                 return error_trace(r);
 
         c_dvar_begin_read(&var_in, message_in->big_endian, method->in, 1, message_in->body, message_in->n_body);
-        c_dvar_begin_write(&var_out, method->out, 1);
+        c_dvar_begin_write(&var_out, (__BYTE_ORDER == __BIG_ENDIAN), method->out, 1);
 
         /*
          * Write the generic reply-header and then call into the method-handler

@@ -45,7 +45,7 @@ static Message *test_new_message(size_t before, const char *sender_early, size_t
         char *p;
         int r;
 
-        c_dvar_begin_write(&v, test_message_type, 1);
+        c_dvar_begin_write(&v, (__BYTE_ORDER == __BIG_ENDIAN), test_message_type, 1);
         c_dvar_write(&v, "((yyyyuu[",
                      c_dvar_is_big_endian(&v) ? 'B' : 'l',
                      128,

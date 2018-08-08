@@ -150,7 +150,7 @@ static int controller_send_error(Connection *connection, uint32_t serial, const 
         if (!serial)
                 return 0;
 
-        c_dvar_begin_write(&var, controller_type_out_unit, 1);
+        c_dvar_begin_write(&var, (__BYTE_ORDER == __BIG_ENDIAN), controller_type_out_unit, 1);
         c_dvar_write(&var, "((yyyyuu[(y<u>)(y<s>)])())",
                      c_dvar_is_big_endian(&var) ? 'B' : 'l', DBUS_MESSAGE_TYPE_ERROR, DBUS_HEADER_FLAG_NO_REPLY_EXPECTED, 1, 0, (uint32_t)-1,
                      DBUS_MESSAGE_FIELD_REPLY_SERIAL, c_dvar_type_u, serial,
@@ -390,7 +390,7 @@ static int controller_handle_method(const ControllerMethod *method, Controller *
                 return error_trace(r);
 
         c_dvar_begin_read(&var_in, message_in->big_endian, method->in, 1, message_in->body, message_in->n_body);
-        c_dvar_begin_write(&var_out, method->out, 1);
+        c_dvar_begin_write(&var_out, (__BYTE_ORDER == __BIG_ENDIAN), method->out, 1);
 
         /*
          * Write the generic reply-header and then call into the method-handler
@@ -650,7 +650,7 @@ int controller_dbus_send_activation(Controller *controller, const char *path) {
         size_t n_data;
         int r;
 
-        c_dvar_begin_write(&var, type, 1);
+        c_dvar_begin_write(&var, (__BYTE_ORDER == __BIG_ENDIAN), type, 1);
         c_dvar_write(&var, "((yyyyuu[(y<o>)(y<s>)(y<s>)])())",
                      c_dvar_is_big_endian(&var) ? 'B' : 'l', DBUS_MESSAGE_TYPE_SIGNAL, DBUS_HEADER_FLAG_NO_REPLY_EXPECTED, 1, 0, (uint32_t)-1,
                      DBUS_MESSAGE_FIELD_PATH, c_dvar_type_o, path,
@@ -697,7 +697,7 @@ int controller_dbus_send_environment(Controller *controller, const char * const 
         size_t i, n_data;
         int r;
 
-        c_dvar_begin_write(&var, type, 1);
+        c_dvar_begin_write(&var, (__BYTE_ORDER == __BIG_ENDIAN), type, 1);
         c_dvar_write(&var, "((yyyyuu[(y<o>)(y<s>)(y<s>)(y<g>)])([",
                      c_dvar_is_big_endian(&var) ? 'B' : 'l', DBUS_MESSAGE_TYPE_SIGNAL, DBUS_HEADER_FLAG_NO_REPLY_EXPECTED, 1, 0, (uint32_t)-1,
                      DBUS_MESSAGE_FIELD_PATH, c_dvar_type_o, "/org/bus1/DBus/Broker",
@@ -743,7 +743,7 @@ int controller_dbus_send_reload(Controller *controller, User *user, uint32_t ser
         size_t n_data;
         int r;
 
-        c_dvar_begin_write(&var, type, 1);
+        c_dvar_begin_write(&var, (__BYTE_ORDER == __BIG_ENDIAN), type, 1);
         c_dvar_write(&var, "((yyyyuu[(y<o>)(y<s>)(y<s>)])())",
                      c_dvar_is_big_endian(&var) ? 'B' : 'l', DBUS_MESSAGE_TYPE_METHOD_CALL, 0, 1, 0, serial,
                      DBUS_MESSAGE_FIELD_PATH, c_dvar_type_o, "/org/bus1/DBus/Controller",

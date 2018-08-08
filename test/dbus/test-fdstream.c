@@ -52,7 +52,7 @@ static void test_fd_stream_send(Connection *c, unsigned int unix_fds, unsigned i
         void *data;
         int r;
 
-        c_dvar_begin_write(&v, type, 1);
+        c_dvar_begin_write(&v, (__BYTE_ORDER == __BIG_ENDIAN), type, 1);
 
         c_dvar_write(&v, "((yyyyuu[(y<s>)(y<o>)(y<s>)(y<u>)])())",
                      c_dvar_is_big_endian(&v) ? 'B' : 'l',
@@ -110,7 +110,7 @@ static void test_fd_stream_hello(Connection *c) {
         void *data;
         int r;
 
-        c_dvar_begin_write(&v, type, 1);
+        c_dvar_begin_write(&v, (__BYTE_ORDER == __BIG_ENDIAN), type, 1);
 
         c_dvar_write(&v, "((yyyyuu[(y<s>)(y<o>)(y<s>)])())",
                      c_dvar_is_big_endian(&v) ? 'B' : 'l',
