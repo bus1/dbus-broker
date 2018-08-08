@@ -1,5 +1,17 @@
 dbus-broker - Linux D-Bus Message Broker
 
+CHANGES WITH 15:
+
+        * Fix dbus-broker-launch to retain CAP_AUDIT_WRITE in its ambient
+          capability set, so dbus-broker will get it as well.
+
+        * Be less verbose about unknown usernames in the XML config of
+          dbus-broker-launch.
+
+        Contributions from: David Herrmann, Tom Gundersen
+
+        - Tübingen, 2018-08-08
+
 CHANGES WITH 14:
 
         * The broker now implements the org.freedesktop.DBus.Peer, and
