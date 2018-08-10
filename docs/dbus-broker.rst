@@ -132,7 +132,7 @@ API
 
 The following interfaces are implemented by the broker on the respective nodes.
 The controller is free to call these at any time. The controller connection is
-considered trusted. No resource accouting, nor access control is performed.
+considered trusted. No resource accounting, nor access control is performed.
 
 The controller itself is also required to implement interfaces to be used by
 the broker. See the section below for a list of interfaces on the controller.
@@ -182,7 +182,7 @@ the broker. See the section below for a list of interfaces on the controller.
 | **node** /org/bus1/DBus/Name/% {
 |     **interface** org.bus1.DBus.Name {
 |
-|         # Release this activatable name. It will be removed with immediated
+|         # Release this activatable name. It will be removed with immediate
 |         # effect by the broker. Note that the name is still valid to be
 |         # acquired by clients, though no activation-features will be
 |         # supported on this name.
