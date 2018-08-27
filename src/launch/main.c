@@ -1634,6 +1634,7 @@ static void help(void) {
 static int parse_argv(int argc, char *argv[]) {
         enum {
                 ARG_VERSION = 0x100,
+                ARG_VERBOSE,
                 ARG_AUDIT,
                 ARG_CONFIG,
                 ARG_SCOPE,
@@ -1641,6 +1642,7 @@ static int parse_argv(int argc, char *argv[]) {
         static const struct option options[] = {
                 { "help",               no_argument,            NULL,   'h'                     },
                 { "version",            no_argument,            NULL,   ARG_VERSION             },
+                { "verbose",            no_argument,            NULL,   ARG_VERBOSE             },
                 { "audit",              no_argument,            NULL,   ARG_AUDIT               },
                 { "config-file",        required_argument,      NULL,   ARG_CONFIG,             },
                 { "scope",              required_argument,      NULL,   ARG_SCOPE               },
@@ -1657,6 +1659,10 @@ static int parse_argv(int argc, char *argv[]) {
                 case ARG_VERSION:
                         printf("dbus-broker-launch %d\n", PACKAGE_VERSION);
                         return MAIN_EXIT;
+
+                /* noop for backward compatibility */
+                case ARG_VERBOSE:
+                        break;
 
                 case ARG_AUDIT:
                         main_arg_audit = true;
