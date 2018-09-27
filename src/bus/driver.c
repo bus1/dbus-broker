@@ -1123,8 +1123,12 @@ static int driver_method_start_service_by_name(Peer *peer, const char *path, CDV
                         return error_trace(r);
         } else {
                 r = activation_queue_request(name->activation, peer->user, peer->id, serial);
-                if (r)
+                if (r) {
+                        if (r == ACTIVATION_E_QUOTA)
+                                return DRIVER_E_QUOTA;
+
                         return error_fold(r);
+                }
         }
 
         return 0;
@@ -2166,8 +2170,12 @@ static int driver_forward_unicast(Peer *sender, const char *destination, Message
                         return DRIVER_E_NAME_NOT_ACTIVATABLE;
 
                 r = activation_queue_message(name->activation, sender->user, &sender->owned_names, sender->policy, message);
-                if (r)
+                if (r) {
+                        if (r == ACTIVATION_E_QUOTA)
+                                return DRIVER_E_QUOTA;
+
                         return error_fold(r);
+                }
 
                 return 0;
         }
