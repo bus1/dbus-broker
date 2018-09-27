@@ -33,6 +33,12 @@ dep_test = declare_dependency(
 )
 
 #
+# target: tool-*
+#
+
+tool_flood = executable('tool-flood', ['tool-flood.c'], dependencies: [ dep_test ])
+
+#
 # target: bench-*
 #
 
