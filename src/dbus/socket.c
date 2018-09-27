@@ -364,6 +364,8 @@ int socket_dequeue_line(Socket *socket, const char **linep, size_t *np) {
  *         fetched, NULL is put into @messagep.
  *         If the input-stream was closed and no more data is to be read,
  *         SOCKET_E_EOF is returned.
+ *         If the incoming message would exceed the quota of the caller, then
+ *         SOCKET_E_QUOTA is returned.
  *         On fatal errors, a negative error code is returned.
  */
 int socket_dequeue(Socket *socket, Message **messagep) {

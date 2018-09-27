@@ -238,7 +238,16 @@ int connection_dequeue(Connection *connection, Message **messagep) {
         }
 
         r = socket_dequeue(&connection->socket, messagep);
-        return (r == SOCKET_E_EOF) ? CONNECTION_E_EOF : error_fold(r);
+        if (r) {
+                if (r == SOCKET_E_EOF)
+                        return CONNECTION_E_EOF;
+                else if (r == SOCKET_E_QUOTA)
+                        return CONNECTION_E_QUOTA;
+
+                return error_fold(r);
+        }
+
+        return 0;
 }
 
 /**

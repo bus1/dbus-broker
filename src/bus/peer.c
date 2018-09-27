@@ -44,6 +44,8 @@ static int peer_dispatch_connection(Peer *peer, uint32_t events) {
                 if (r || !m) {
                         if (r == CONNECTION_E_EOF)
                                 return PEER_E_EOF;
+                        else if (r == CONNECTION_E_QUOTA)
+                                return PEER_E_QUOTA;
 
                         return error_fold(r);
                 }
@@ -112,7 +114,8 @@ int peer_dispatch(DispatchFile *file) {
                                 return error_fold(r);
 
                         connection_shutdown(&peer->connection);
-                } else if (r == PEER_E_PROTOCOL_VIOLATION) {
+                } else if (r == PEER_E_QUOTA ||
+                           r == PEER_E_PROTOCOL_VIOLATION) {
                         connection_close(&peer->connection);
 
                         metrics_sample_start(&peer->bus->metrics);
