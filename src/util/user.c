@@ -36,6 +36,8 @@ struct UserUsage {
         uid_t uid;
         CRBNode user_node;
 
+        bool logged : 1;
+
         unsigned int slots[];
 };
 
@@ -215,6 +217,9 @@ static int user_charge_commit_log(Log *log, User *user, UserCharge *charge, User
         if (!log)
                 return 0;
 
+        if (charge->usage->logged)
+                return 0;
+
         assert(slot < user->registry->n_slots);
 
         log_appendf(log, "DBUS_BROKER_USER_CHARGE_USER=%u\n", user->uid);
@@ -223,11 +228,13 @@ static int user_charge_commit_log(Log *log, User *user, UserCharge *charge, User
         log_appendf(log, "DBUS_BROKER_USER_CHARGE_N_ACTORS=%u\n", user->n_usages);
         log_appendf(log, "DBUS_BROKER_USER_CHARGE_SLOT=%s\n", user_slot_to_string(slot));
         log_appendf(log, "DBUS_BROKER_USER_CHARGE_REMAINING=%u\n", user->slots[slot].n);
-        log_appendf(log, "DBUS_BROKER_USER_CHARGE_CONSUMED=%u\n", charge->usage ? charge->usage->slots[slot] : 0);
+        log_appendf(log, "DBUS_BROKER_USER_CHARGE_CONSUMED=%u\n", charge->usage->slots[slot]);
 
         r = log_commitf(log, "UID %u exceeded its '%s' quota on UID %u.", actor->uid, user_slot_to_string(slot), user->uid);
         if (r)
                 return error_fold(r);
+
+        charge->usage->logged = true;
 
         return 0;
 }
@@ -249,7 +256,9 @@ static int user_charge_commit_log(Log *log, User *user, UserCharge *charge, User
  * @actor is at most allowed to consume an n'th of @user's resources that have
  * not been consumed by any other user, where n is one more than the total
  * number of actors currently pinning any of @user's resources. If this quota
- * is exceeded the charge fails to apply and this is a no-op.
+ * is exceeded the charge fails to apply and nothing is charged. The first time
+ * a certain quota fails for a certain @user / @actor a message is written to
+ * the log.
  *
  * If @actor is NULL it is taken to be @user itself.
  *
@@ -315,6 +324,12 @@ int user_charge(User *user, UserCharge *charge, User *actor, size_t slot, unsign
 
         return 0;
 quota:
+        if (!charge->usage) {
+                charge->slot = slot;
+                charge->usage = usage;
+                usage = NULL;
+        }
+
         r = user_charge_commit_log(user->registry->log, user, charge, actor, slot, amount);
         if (r)
                 return error_trace(r);
