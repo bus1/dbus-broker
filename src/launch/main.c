@@ -81,6 +81,9 @@ struct Manager {
         uint64_t service_ids;
         uint32_t uid;
         uint32_t gid;
+        unsigned long long max_bytes;
+        unsigned long long max_fds;
+        unsigned long long max_matches;
 };
 
 static bool             main_arg_audit = false;
@@ -362,7 +365,12 @@ static int manager_listen_inherit(Manager *manager) {
 
 static noreturn void manager_run_child(Manager *manager, int fd_log, int fd_controller) {
         sd_id128_t machine_id;
-        char str_log[C_DECIMAL_MAX(int) + 1], str_controller[C_DECIMAL_MAX(int) + 1], str_machine_id[33];
+        char str_log[C_DECIMAL_MAX(int) + 1],
+             str_controller[C_DECIMAL_MAX(int) + 1],
+             str_machine_id[33],
+             str_max_bytes[C_DECIMAL_MAX(unsigned long long)],
+             str_max_fds[C_DECIMAL_MAX(unsigned long long)],
+             str_max_matches[C_DECIMAL_MAX(unsigned long long)];
         const char * const argv[] = {
                 "dbus-broker",
                 "--log",
@@ -371,6 +379,12 @@ static noreturn void manager_run_child(Manager *manager, int fd_log, int fd_cont
                 str_controller,
                 "--machine-id",
                 str_machine_id,
+                "--max-bytes",
+                str_max_bytes,
+                "--max-fds",
+                str_max_fds,
+                "--max-matches",
+                str_max_matches,
                 main_arg_audit ? "--audit" : NULL, /* note that this needs to be the last argument to work */
                 NULL,
         };
@@ -425,6 +439,15 @@ static noreturn void manager_run_child(Manager *manager, int fd_log, int fd_cont
 
         r = snprintf(str_controller, sizeof(str_controller), "%d", fd_controller);
         assert(r < (ssize_t)sizeof(str_controller));
+
+        r = snprintf(str_max_bytes, sizeof(str_max_bytes), "%llu", manager->max_bytes);
+        assert(r < (ssize_t)sizeof(str_max_bytes));
+
+        r = snprintf(str_max_fds, sizeof(str_max_fds), "%llu", manager->max_fds);
+        assert(r < (ssize_t)sizeof(str_max_fds));
+
+        r = snprintf(str_max_matches, sizeof(str_max_matches), "%llu", manager->max_matches);
+        assert(r < (ssize_t)sizeof(str_max_matches));
 
         r = execve(main_arg_broker, (char * const *)argv, environ);
         r = error_origin(-errno);
@@ -1223,6 +1246,14 @@ static int manager_parse_config(Manager *manager, ConfigRoot **rootp, NSSCache *
         _c_cleanup_(dirwatch_freep) Dirwatch *dirwatch = NULL;
         const char *configfile;
         ConfigNode *cnode;
+        /*
+         * Default limits are lower than those from the reference implementation,
+         * which sholud be ok due to our quota logic.
+         */
+        unsigned long long max_outgoing_bytes = 8 * 1024 * 1024, /* 127MB in reference implementation */
+                           max_outgoing_unix_fds = 64,
+                           max_connections_per_user = 64, /* 256 in reference implementation */
+                           max_match_rules_per_connection = 256;
         int r;
 
         r = dirwatch_new(&dirwatch);
@@ -1270,12 +1301,41 @@ static int manager_parse_config(Manager *manager, ConfigRoot **rootp, NSSCache *
                         }
 
                         break;
+                case CONFIG_NODE_LIMIT:
+                        switch (cnode->limit.name) {
+                        case CONFIG_LIMIT_MAX_OUTGOING_BYTES:
+                                max_outgoing_bytes = cnode->limit.value;
+                                break;
+                        case CONFIG_LIMIT_MAX_OUTGOING_UNIX_FDS:
+                                max_outgoing_unix_fds = cnode->limit.value;
+                                break;
+                        case CONFIG_LIMIT_MAX_CONNECTIONS_PER_USER:
+                                max_connections_per_user = cnode->limit.value;
+                                break;
+                        case CONFIG_LIMIT_MAX_MATCH_RULES_PER_CONNECTION:
+                                max_match_rules_per_connection = cnode->limit.value;
+                                break;
+                        }
+
+                        break;
                 default:
                         /* ignored */
                         break;
                 }
-
         }
+
+        /* Convert the per-connection limits into per-user limits. */
+        manager->max_bytes = max_outgoing_bytes * max_connections_per_user;
+        if (max_outgoing_bytes && max_connections_per_user && manager->max_bytes < max_outgoing_bytes)
+                manager->max_bytes = ULLONG_MAX;
+
+        manager->max_fds = max_outgoing_unix_fds * max_connections_per_user;
+        if (max_outgoing_unix_fds && max_connections_per_user && manager->max_fds < max_outgoing_unix_fds)
+                manager->max_fds = ULLONG_MAX;
+
+        manager->max_matches = max_match_rules_per_connection * max_connections_per_user;
+        if (max_match_rules_per_connection && max_connections_per_user && manager->max_matches < max_match_rules_per_connection)
+                manager->max_matches = ULLONG_MAX;
 
         return 0;
 }
