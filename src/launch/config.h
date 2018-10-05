@@ -68,6 +68,28 @@ enum {
 };
 
 enum {
+        _CONFIG_LIMIT_INVALID = 0,
+
+        CONFIG_LIMIT_MAX_INCOMING_BYTES,
+        CONFIG_LIMIT_MAX_INCOMING_UNIX_FDS,
+        CONFIG_LIMIT_MAX_OUTGOING_BYTES,
+        CONFIG_LIMIT_MAX_OUTGOING_UNIX_FDS,
+        CONFIG_LIMIT_MAX_MESSAGE_SIZE,
+        CONFIG_LIMIT_MAX_MESSAGE_UNIX_FDS,
+        CONFIG_LIMIT_SERVICE_START_TIMEOUT,
+        CONFIG_LIMIT_AUTH_TIMEOUT,
+        CONFIG_LIMIT_PENDING_FD_TIMEOUT,
+        CONFIG_LIMIT_MAX_COMPLETED_CONNECTIONS,
+        CONFIG_LIMIT_MAX_INCOMPLETE_CONNECTIONS,
+        CONFIG_LIMIT_MAX_CONNECTIONS_PER_USER,
+        CONFIG_LIMIT_MAX_PENDING_SERVICE_STARTS,
+        CONFIG_LIMIT_MAX_NAMES_PER_CONNECTION,
+        CONFIG_LIMIT_MAX_MATCH_RULES_PER_CONNECTION,
+        CONFIG_LIMIT_MAX_REPLIES_PER_CONNECTION,
+        CONFIG_LIMIT_REPLY_TIMEOUT,
+};
+
+enum {
         CONFIG_APPARMOR_ENABLED,
         CONFIG_APPARMOR_DISABLED,
         CONFIG_APPARMOR_REQUIRED,
@@ -127,7 +149,8 @@ struct ConfigNode {
                 } policy;
 
                 struct {
-                        char *name;
+                        unsigned int name;
+                        unsigned long long value;
                 } limit;
 
                 struct {

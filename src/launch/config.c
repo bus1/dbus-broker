@@ -154,9 +154,6 @@ ConfigNode *config_node_free(ConfigNode *node) {
         case CONFIG_NODE_SERVICEDIR:
                 free(node->servicedir.path);
                 break;
-        case CONFIG_NODE_LIMIT:
-                free(node->limit.name);
-                break;
         case CONFIG_NODE_ALLOW:
         case CONFIG_NODE_DENY:
                 free(node->allow_deny.send_interface);
@@ -336,19 +333,48 @@ static int config_parser_attrs_policy(ConfigState *state, ConfigNode *node, cons
 
 static int config_parser_attrs_limit(ConfigState *state, ConfigNode *node, const XML_Char **attrs) {
         const char *k, *v;
-        char *t;
 
         while (*attrs) {
                 k = *(attrs++);
                 v = *(attrs++);
 
                 if (!strcmp(k, "name")) {
-                        t = strdup(v);
-                        if (!t)
-                                return error_origin(-ENOMEM);
-
-                        free(node->limit.name);
-                        node->limit.name = t;
+                        if (!strcmp(v, "max_incoming_bytes"))
+                                node->limit.name = CONFIG_LIMIT_MAX_INCOMING_BYTES;
+                        else if (!strcmp(v, "max_incoming_unix_fds"))
+                                node->limit.name = CONFIG_LIMIT_MAX_INCOMING_UNIX_FDS;
+                        else if (!strcmp(v, "max_outgoing_bytes"))
+                                node->limit.name = CONFIG_LIMIT_MAX_OUTGOING_BYTES;
+                        else if (!strcmp(v, "max_outgoing_unix_fds"))
+                                node->limit.name = CONFIG_LIMIT_MAX_OUTGOING_UNIX_FDS;
+                        else if (!strcmp(v, "max_message_size"))
+                                node->limit.name = CONFIG_LIMIT_MAX_MESSAGE_SIZE;
+                        else if (!strcmp(v, "max_message_unix_fds"))
+                                node->limit.name = CONFIG_LIMIT_MAX_MESSAGE_UNIX_FDS;
+                        else if (!strcmp(v, "service_start_timeout"))
+                                node->limit.name = CONFIG_LIMIT_SERVICE_START_TIMEOUT;
+                        else if (!strcmp(v, "auth_timeout"))
+                                node->limit.name = CONFIG_LIMIT_AUTH_TIMEOUT;
+                        else if (!strcmp(v, "pending_fd_timeout"))
+                                node->limit.name = CONFIG_LIMIT_PENDING_FD_TIMEOUT;
+                        else if (!strcmp(v, "max_completed_connections"))
+                                node->limit.name = CONFIG_LIMIT_MAX_COMPLETED_CONNECTIONS;
+                        else if (!strcmp(v, "max_incomplete_connections"))
+                                node->limit.name = CONFIG_LIMIT_MAX_INCOMPLETE_CONNECTIONS;
+                        else if (!strcmp(v, "max_connections_per_user"))
+                                node->limit.name = CONFIG_LIMIT_MAX_CONNECTIONS_PER_USER;
+                        else if (!strcmp(v, "max_pending_service_starts"))
+                                node->limit.name = CONFIG_LIMIT_MAX_PENDING_SERVICE_STARTS;
+                        else if (!strcmp(v, "max_names_per_connection"))
+                                node->limit.name = CONFIG_LIMIT_MAX_NAMES_PER_CONNECTION;
+                        else if (!strcmp(v, "max_match_rules_per_connection"))
+                                node->limit.name = CONFIG_LIMIT_MAX_MATCH_RULES_PER_CONNECTION;
+                        else if (!strcmp(v, "max_replies_per_connection"))
+                                node->limit.name = CONFIG_LIMIT_MAX_REPLIES_PER_CONNECTION;
+                        else if (!strcmp(v, "reply_timeout"))
+                                node->limit.name = CONFIG_LIMIT_REPLY_TIMEOUT;
+                        else
+                                CONFIG_ERR(state, "Invalid value", ": %s=\"%s\"", k, v);
                 } else {
                         CONFIG_ERR(state, "Unknown attribute", ": %s=\"%s\"", k, v);
                 }
@@ -1109,12 +1135,26 @@ static void config_parser_end_fn(void *userdata, const XML_Char *name) {
                 break;
         }
 
+        case CONFIG_NODE_LIMIT: {
+                unsigned long long limit;
+                char *end;
+
+                errno = 0;
+                limit = strtoull(state->current->cdata, &end, 10);
+                if (end != state->current->cdata && *end == '\0' && errno == 0)
+                        state->current->limit.value = limit;
+                else
+                        CONFIG_ERR(state, "Invalid limit value", ": %s", state->current->cdata);
+
+                break;
+
+        }
+
         case CONFIG_NODE_TYPE:
         case CONFIG_NODE_LISTEN:
         case CONFIG_NODE_PIDFILE:
         case CONFIG_NODE_SERVICEHELPER:
         case CONFIG_NODE_AUTH:
-        case CONFIG_NODE_LIMIT:
                 /* XXX: Not yet implemented. */
                 break;
 
