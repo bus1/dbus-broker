@@ -18,10 +18,10 @@ bool main_arg_audit = false;
 int main_arg_controller = 3;
 int main_arg_log = -1;
 const char *main_arg_machine_id = NULL;
-uint64_t main_arg_max_bytes = 16 * 1024 * 1024;
-uint64_t main_arg_max_fds = 64;
+uint64_t main_arg_max_bytes = 512 * 1024 * 1024;
+uint64_t main_arg_max_fds = 16 * 1024;
 uint64_t main_arg_max_matches = 16 * 1024;
-uint64_t main_arg_max_objects = 16 * 1024;
+uint64_t main_arg_max_objects = 16 * 1024 * 1024;
 
 static void help(void) {
         printf("%s [GLOBALS...] ...\n\n"
