@@ -13,6 +13,7 @@
 #include "util/audit.h"
 #include "util/error.h"
 #include "util/selinux.h"
+#include "util/string.h"
 
 bool main_arg_audit = false;
 int main_arg_controller = 3;
@@ -120,65 +121,41 @@ static int parse_argv(int argc, char *argv[]) {
                         break;
                 }
 
-                case ARG_MAX_BYTES: {
-                        unsigned long long vul;
-                        char *end;
-
-                        errno = 0;
-                        vul = strtoull(optarg, &end, 10);
-                        if (errno != 0 || *end || optarg == end) {
+                case ARG_MAX_BYTES:
+                        r = util_strtou64(&main_arg_max_bytes, optarg);
+                        if (r) {
                                 fprintf(stderr, "%s: invalid max number of bytes -- '%s'\n", program_invocation_name, optarg);
                                 return MAIN_FAILED;
                         }
 
-                        main_arg_max_bytes = vul;
                         break;
-                }
 
-                case ARG_MAX_FDS: {
-                        unsigned long long vul;
-                        char *end;
-
-                        errno = 0;
-                        vul = strtoull(optarg, &end, 10);
-                        if (errno != 0 || *end || optarg == end) {
+                case ARG_MAX_FDS:
+                        r = util_strtou64(&main_arg_max_fds, optarg);
+                        if (r) {
                                 fprintf(stderr, "%s: invalid max number of fds -- '%s'\n", program_invocation_name, optarg);
                                 return MAIN_FAILED;
                         }
 
-                        main_arg_max_fds = vul;
                         break;
-                }
 
-                case ARG_MAX_MATCHES: {
-                        unsigned long long vul;
-                        char *end;
-
-                        errno = 0;
-                        vul = strtoull(optarg, &end, 10);
-                        if (errno != 0 || *end || optarg == end) {
+                case ARG_MAX_MATCHES:
+                        r = util_strtou64(&main_arg_max_matches, optarg);
+                        if (r) {
                                 fprintf(stderr, "%s: invalid max number of matches -- '%s'\n", program_invocation_name, optarg);
                                 return MAIN_FAILED;
                         }
 
-                        main_arg_max_matches = vul;
                         break;
-                }
 
-                case ARG_MAX_OBJECTS: {
-                        unsigned long long vul;
-                        char *end;
-
-                        errno = 0;
-                        vul = strtoull(optarg, &end, 10);
-                        if (errno != 0 || *end || optarg == end) {
+                case ARG_MAX_OBJECTS:
+                        r = util_strtou64(&main_arg_max_objects, optarg);
+                        if (r) {
                                 fprintf(stderr, "%s: invalid max number of objects -- '%s'\n", program_invocation_name, optarg);
                                 return MAIN_FAILED;
                         }
 
-                        main_arg_max_objects = vul;
                         break;
-                }
 
                 case '?':
                         /* getopt_long() prints warning */

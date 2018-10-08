@@ -13,6 +13,7 @@
 #include "util/dirwatch.h"
 #include "util/error.h"
 #include "util/selinux.h"
+#include "util/string.h"
 
 static_assert(__builtin_types_compatible_p(XML_Char, char),
               "Missing UTF-8 support in expat");
@@ -533,26 +534,13 @@ static int config_parser_attrs_allow_deny(ConfigState *state, ConfigNode *node, 
                         free(node->allow_deny.own_prefix);
                         node->allow_deny.own_prefix = t;
                 } else if (!strcmp(k, "min_fds")) {
-                        unsigned long long min_fds;
-                        char *end;
-
-                        errno = 0;
-                        min_fds = strtoull(v, &end, 10);
-                        if (end != v && *end == '\0' && errno == 0)
-                                node->allow_deny.min_fds = min_fds;
-                        else
+                        r = util_strtou64(&node->allow_deny.min_fds, v);
+                        if (r)
                                 CONFIG_ERR(state, "Invalid value", ": %s=\"%s\"", k, v);
                 } else if (!strcmp(k, "max_fds")) {
-                        unsigned long long max_fds;
-                        char *end;
-
-                        errno = 0;
-                        max_fds = strtoull(v, &end, 10);
-                        if (end != v && *end == '\0' && errno == 0)
-                                node->allow_deny.max_fds = max_fds;
-                        else
+                        r = util_strtou64(&node->allow_deny.max_fds, v);
+                        if (r)
                                 CONFIG_ERR(state, "Invalid value", ": %s=\"%s\"", k, v);
-
                 } else if (!strcmp(k, "user")) {
                         if (!strcmp(v, "*")) {
                                 node->allow_deny.uid = (uint32_t)-1;
@@ -1135,20 +1123,12 @@ static void config_parser_end_fn(void *userdata, const XML_Char *name) {
                 break;
         }
 
-        case CONFIG_NODE_LIMIT: {
-                unsigned long long limit;
-                char *end;
-
-                errno = 0;
-                limit = strtoull(state->current->cdata, &end, 10);
-                if (end != state->current->cdata && *end == '\0' && errno == 0)
-                        state->current->limit.value = limit;
-                else
+        case CONFIG_NODE_LIMIT:
+                r = util_strtou64(&state->current->limit.value, state->current->cdata);
+                if (r)
                         CONFIG_ERR(state, "Invalid limit value", ": %s", state->current->cdata);
 
                 break;
-
-        }
 
         case CONFIG_NODE_TYPE:
         case CONFIG_NODE_LISTEN:

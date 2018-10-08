@@ -150,7 +150,7 @@ struct ConfigNode {
 
                 struct {
                         unsigned int name;
-                        unsigned long long value;
+                        uint64_t value;
                 } limit;
 
                 struct {
