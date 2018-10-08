@@ -81,9 +81,9 @@ struct Manager {
         uint64_t service_ids;
         uint32_t uid;
         uint32_t gid;
-        unsigned long long max_bytes;
-        unsigned long long max_fds;
-        unsigned long long max_matches;
+        uint64_t max_bytes;
+        uint64_t max_fds;
+        uint64_t max_matches;
 };
 
 static bool             main_arg_audit = false;
@@ -368,9 +368,9 @@ static noreturn void manager_run_child(Manager *manager, int fd_log, int fd_cont
         char str_log[C_DECIMAL_MAX(int) + 1],
              str_controller[C_DECIMAL_MAX(int) + 1],
              str_machine_id[33],
-             str_max_bytes[C_DECIMAL_MAX(unsigned long long)],
-             str_max_fds[C_DECIMAL_MAX(unsigned long long)],
-             str_max_matches[C_DECIMAL_MAX(unsigned long long)];
+             str_max_bytes[C_DECIMAL_MAX(uint64_t)],
+             str_max_fds[C_DECIMAL_MAX(uint64_t)],
+             str_max_matches[C_DECIMAL_MAX(uint64_t)];
         const char * const argv[] = {
                 "dbus-broker",
                 "--log",
@@ -440,13 +440,13 @@ static noreturn void manager_run_child(Manager *manager, int fd_log, int fd_cont
         r = snprintf(str_controller, sizeof(str_controller), "%d", fd_controller);
         assert(r < (ssize_t)sizeof(str_controller));
 
-        r = snprintf(str_max_bytes, sizeof(str_max_bytes), "%llu", manager->max_bytes);
+        r = snprintf(str_max_bytes, sizeof(str_max_bytes), "%"PRIu64, manager->max_bytes);
         assert(r < (ssize_t)sizeof(str_max_bytes));
 
-        r = snprintf(str_max_fds, sizeof(str_max_fds), "%llu", manager->max_fds);
+        r = snprintf(str_max_fds, sizeof(str_max_fds), "%"PRIu64, manager->max_fds);
         assert(r < (ssize_t)sizeof(str_max_fds));
 
-        r = snprintf(str_max_matches, sizeof(str_max_matches), "%llu", manager->max_matches);
+        r = snprintf(str_max_matches, sizeof(str_max_matches), "%"PRIu64, manager->max_matches);
         assert(r < (ssize_t)sizeof(str_max_matches));
 
         r = execve(main_arg_broker, (char * const *)argv, environ);
@@ -1250,10 +1250,10 @@ static int manager_parse_config(Manager *manager, ConfigRoot **rootp, NSSCache *
          * Default limits are lower than those from the reference implementation,
          * which sholud be ok due to our quota logic.
          */
-        unsigned long long max_outgoing_bytes = 8 * 1024 * 1024, /* 127MB in reference implementation */
-                           max_outgoing_unix_fds = 64,
-                           max_connections_per_user = 64, /* 256 in reference implementation */
-                           max_match_rules_per_connection = 256;
+        uint64_t max_outgoing_bytes = 8 * 1024 * 1024, /* 127MB in reference implementation */
+                 max_outgoing_unix_fds = 64,
+                 max_connections_per_user = 64, /* 256 in reference implementation */
+                 max_match_rules_per_connection = 256;
         int r;
 
         r = dirwatch_new(&dirwatch);
@@ -1325,17 +1325,9 @@ static int manager_parse_config(Manager *manager, ConfigRoot **rootp, NSSCache *
         }
 
         /* Convert the per-connection limits into per-user limits. */
-        manager->max_bytes = max_outgoing_bytes * max_connections_per_user;
-        if (max_outgoing_bytes && max_connections_per_user && manager->max_bytes < max_outgoing_bytes)
-                manager->max_bytes = ULLONG_MAX;
-
-        manager->max_fds = max_outgoing_unix_fds * max_connections_per_user;
-        if (max_outgoing_unix_fds && max_connections_per_user && manager->max_fds < max_outgoing_unix_fds)
-                manager->max_fds = ULLONG_MAX;
-
-        manager->max_matches = max_match_rules_per_connection * max_connections_per_user;
-        if (max_match_rules_per_connection && max_connections_per_user && manager->max_matches < max_match_rules_per_connection)
-                manager->max_matches = ULLONG_MAX;
+        manager->max_bytes = util_umul64_saturating(max_connections_per_user, max_outgoing_bytes);
+        manager->max_fds = util_umul64_saturating(max_connections_per_user, max_outgoing_unix_fds);
+        manager->max_matches = util_umul64_saturating(max_connections_per_user, max_match_rules_per_connection);
 
         return 0;
 }
