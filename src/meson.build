@@ -38,6 +38,7 @@ sources_bus = [
         'util/misc.c',
         'util/proc.c',
         'util/sockopt.c',
+        'util/string.c',
         'util/user.c',
 ]
 
