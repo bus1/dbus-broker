@@ -17,7 +17,7 @@ static void test_dummy(void) {
         util_broker_terminate(broker);
 }
 
-static void test_client(void) {
+static void test_client1(void) {
         _c_cleanup_(util_broker_freep) Broker *broker = NULL;
         _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *monitor = NULL;
 
@@ -39,6 +39,19 @@ static void test_client(void) {
 
         util_broker_consume_signal(monitor, "org.freedesktop.DBus", "NameLost");
         util_broker_consume_signal(monitor, "org.freedesktop.DBus", "NameOwnerChanged");
+
+        util_broker_terminate(broker);
+}
+
+static void test_client2(void) {
+        _c_cleanup_(util_broker_freep) Broker *broker = NULL;
+        _c_cleanup_(sd_bus_unrefp) sd_bus *bus = NULL;
+
+        util_broker_new(&broker);
+        util_broker_spawn(broker);
+
+        util_broker_connect(broker, &bus);
+        util_broker_disconnect(bus);
 
         util_broker_terminate(broker);
 }
@@ -141,7 +154,8 @@ static void test_names(void) {
 
 int main(int argc, char **argv) {
         test_dummy();
-        test_client();
+        test_client1();
+        test_client2();
         test_monitor();
         test_names();
 }

@@ -518,12 +518,15 @@ void util_broker_terminate(Broker *broker) {
 }
 
 void util_broker_settle(Broker *broker) {
-        _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *client = NULL;
+        _c_cleanup_(sd_bus_unrefp) sd_bus *client = NULL;
         int r;
 
         /*
          * This connects to the broker and invokes a synchronous method call
          * on the driver to make sure all queued messages are fully handles.
+         *
+         * Then trigger a disconnect, and wait for the client to have been
+         * fully disconnected by the broker.
          */
 
         util_broker_connect(broker, &client);
@@ -537,6 +540,8 @@ void util_broker_settle(Broker *broker) {
                                NULL,
                                "");
         assert(r >= 0);
+
+        util_broker_disconnect(client);
 }
 
 void util_broker_connect_fd(Broker *broker, int *fdp) {
@@ -625,6 +630,28 @@ void util_broker_connect_monitor(Broker *broker, sd_bus **busp) {
 
         *busp = bus;
         bus = NULL;
+}
+
+void util_broker_disconnect(sd_bus *bus) {
+        int r;
+
+        r = sd_bus_flush(bus);
+        assert(r >= 0);
+
+        r = shutdown(sd_bus_get_fd(bus), SHUT_WR);
+        assert(r >= 0);
+
+        for (;;) {
+                r = sd_bus_wait(bus, (uint64_t)-1);
+                if (r == -ENOTCONN)
+                        break;
+                assert(r >= 0);
+
+                r = sd_bus_process(bus, NULL);
+                assert(r >= 0);
+        }
+
+        sd_bus_close(bus);
 }
 
 void util_broker_consume_method_call(sd_bus *bus, const char *interface, const char *member) {
