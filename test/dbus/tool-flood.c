@@ -40,7 +40,7 @@ static void test_connect_system_blocking_fd(int *fdp) {
         fd = -1;
 }
 
-static void test_flood(const char *destination) {
+noreturn static void test_flood(const char *destination) {
         _c_cleanup_(c_closep) int fd = -1;
         uint32_t serial = 0;;
 
