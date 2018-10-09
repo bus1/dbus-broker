@@ -144,7 +144,7 @@ static void test_pipelining(void) {
                 size_t n_buf = 0;
                 uint32_t serial = 0;
 
-                for (unsigned int i = 0; i <= (1 << j); ++i) {
+                for (unsigned int i = 0; i <= (1U << j); ++i) {
                         test_message_append_ping(&buf, &n_buf, ++serial, 1, 1);
                 }
 
