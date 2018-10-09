@@ -86,6 +86,17 @@ struct Manager {
         uint64_t max_matches;
 };
 
+/*
+ * These are the default limits used when spawning dbus-broker. They are
+ * similar to the limits used by dbus-daemon(1) (specified here in parentheses)
+ * but slightly lowered to avoid DoS. We should be fine, since dbus-broker
+ * employs a dynamically adjusted quota-based share distribution of resources.
+ */
+static const uint64_t main_max_outgoing_bytes = 8 * 1024 * 1024; /* 127MiB */
+static const uint64_t main_max_outgoing_unix_fds = 64;
+static const uint64_t main_max_connections_per_user = 64; /* 256 */
+static const uint64_t main_max_match_rules_per_connection = 256;
+
 static bool             main_arg_audit = false;
 static const char *     main_arg_broker = BINDIR "/dbus-broker";
 static const char *     main_arg_configfile = NULL;
@@ -1244,16 +1255,12 @@ static int manager_load_services(Manager *manager, ConfigRoot *config, NSSCache 
 static int manager_parse_config(Manager *manager, ConfigRoot **rootp, NSSCache *nss_cache) {
         _c_cleanup_(config_parser_deinit) ConfigParser parser = CONFIG_PARSER_NULL(parser);
         _c_cleanup_(dirwatch_freep) Dirwatch *dirwatch = NULL;
+        uint64_t max_match_rules_per_connection = main_max_match_rules_per_connection;
+        uint64_t max_connections_per_user = main_max_connections_per_user;
+        uint64_t max_outgoing_unix_fds = main_max_outgoing_unix_fds;
+        uint64_t max_outgoing_bytes = main_max_outgoing_bytes;
         const char *configfile;
         ConfigNode *cnode;
-        /*
-         * Default limits are lower than those from the reference implementation,
-         * which sholud be ok due to our quota logic.
-         */
-        uint64_t max_outgoing_bytes = 8 * 1024 * 1024, /* 127MB in reference implementation */
-                 max_outgoing_unix_fds = 64,
-                 max_connections_per_user = 64, /* 256 in reference implementation */
-                 max_match_rules_per_connection = 256;
         int r;
 
         r = dirwatch_new(&dirwatch);
