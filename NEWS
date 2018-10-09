@@ -1,5 +1,29 @@
 dbus-broker - Linux D-Bus Message Broker
 
+CHANGES WITH 16:
+
+        * Explicitly mention our mailing-list in the README:
+
+              https://groups.google.com/forum/#!forum/bus1-devel
+
+          All dbus-broker releases are announced there, and the list is open
+          for any dbus and dbus-broker related discussions.
+
+        * Revert the removal of the --verbose switch of bus launcher. There
+          are existing users that pass this switch, and now suddenly fail
+          spawning dbus-broker. The switch is now a no-op and silently ignored.
+
+        * The global resource limits were reconsidered and aligned with the
+          values used by dbus-daemon(1) and current distributions. Furthermore,
+          the limits provided in the bus XML configuration are now interpreted
+          by the launcher and converted to the broker-internal accounting
+          scheme.
+
+        Contributions from: Daniel Rusek, David Herrmann, Marc-Antoine
+                            Perennou, Tom Gundersen
+
+        - Tübingen, 2018-10-09
+
 CHANGES WITH 15:
 
         * Fix dbus-broker-launch to retain CAP_AUDIT_WRITE in its ambient
