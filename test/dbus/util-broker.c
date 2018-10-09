@@ -517,6 +517,28 @@ void util_broker_terminate(Broker *broker) {
         assert(broker->pipe_fds[0] < 0);
 }
 
+void util_broker_settle(Broker *broker) {
+        _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *client = NULL;
+        int r;
+
+        /*
+         * This connects to the broker and invokes a synchronous method call
+         * on the driver to make sure all queued messages are fully handles.
+         */
+
+        util_broker_connect(broker, &client);
+
+        r = sd_bus_call_method(client,
+                               "org.freedesktop.DBus",
+                               "/org/freedesktop/DBus",
+                               "org.freedesktop.DBus.Peer",
+                               "Ping",
+                               NULL,
+                               NULL,
+                               "");
+        assert(r >= 0);
+}
+
 void util_broker_connect_fd(Broker *broker, int *fdp) {
         _c_cleanup_(c_closep) int fd = -1;
         int r;

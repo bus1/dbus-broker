@@ -45,6 +45,7 @@ void util_broker_new(Broker **brokerp);
 Broker *util_broker_free(Broker *broker);
 void util_broker_spawn(Broker *broker);
 void util_broker_terminate(Broker *broker);
+void util_broker_settle(Broker *broker);
 
 void util_broker_connect_fd(Broker *broker, int *fdp);
 void util_broker_connect_raw(Broker *broker, sd_bus **busp);
