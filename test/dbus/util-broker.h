@@ -23,6 +23,7 @@ struct Broker {
         int pipe_fds[2];
         pid_t pid;
         pid_t child_pid;
+        sd_bus *client;
 };
 
 #define BROKER_NULL {                                                           \
@@ -44,6 +45,7 @@ void util_fork_daemon(sd_event *event, int pipe_fd, pid_t *pidp);
 void util_broker_new(Broker **brokerp);
 Broker *util_broker_free(Broker *broker);
 void util_broker_spawn(Broker *broker);
+void util_broker_spawn_and_settle(Broker *broker);
 void util_broker_terminate(Broker *broker);
 
 void util_broker_connect_fd(Broker *broker, int *fdp);

@@ -200,6 +200,9 @@ void util_fork_broker(sd_bus **busp, sd_event *event, int listener_fd, pid_t *pi
                           "./src/dbus-broker",
                           "--controller", fdstr,
                           "--machine-id", "0123456789abcdef0123456789abcdef",
+                          "--max-matches", "1000000",
+                          "--max-objects", "1000000",
+                          "--max-bytes", "1000000000",
                           (char *)NULL);
                 /* execl(2) only returns on error */
                 assert(r >= 0);
@@ -267,6 +270,13 @@ void util_fork_daemon(sd_event *event, int pipe_fd, pid_t *pidp) {
                 "    <allow receive_sender=\"*\" eavesdrop=\"true\"/>\n"
                 "    <allow own=\"*\"/>\n"
                 "  </policy>\n"
+                "  <limit name=\"max_completed_connections\">1000000</limit>\n"
+                "  <limit name=\"max_incomplete_connections\">1000000</limit>\n"
+                "  <limit name=\"max_connections_per_user\">1000000</limit>\n"
+                "  <limit name=\"max_pending_service_starts\">1000000</limit>\n"
+                "  <limit name=\"max_names_per_connection\">1000000</limit>\n"
+                "  <limit name=\"max_match_rules_per_connection\">1000000</limit>\n"
+                "  <limit name=\"max_replies_per_connection\">1000000</limit>\n"
                 "</busconfig>\n";
         _c_cleanup_(c_freep) char *fdstr = NULL, *path = NULL;
         const char *bin;
@@ -337,6 +347,7 @@ Broker *util_broker_free(Broker *broker) {
         if (!broker)
                 return NULL;
 
+        assert(!broker->client);
         assert(broker->listener_fd < 0);
         assert(broker->pipe_fds[0] < 0);
         assert(broker->pipe_fds[1] < 0);
@@ -374,6 +385,7 @@ static void *util_broker_thread(void *userdata) {
                 util_fork_broker(&bus, event, broker->listener_fd, &broker->child_pid);
                 /* dbus-broker reports its controller in GetConnectionUnixProcessID */
                 broker->pid = getpid();
+                broker->listener_fd = c_close(broker->listener_fd);
         } else {
                 assert(broker->listener_fd < 0);
                 util_fork_daemon(event, broker->pipe_fds[1], &broker->child_pid);
@@ -386,7 +398,6 @@ static void *util_broker_thread(void *userdata) {
         r = sd_event_loop(event);
         assert(r >= 0);
 
-        broker->listener_fd = -1;
         broker->pipe_fds[0] = c_close(broker->pipe_fds[0]);
         return (void *)(uintptr_t)r;
 }
@@ -490,11 +501,29 @@ void util_broker_spawn(Broker *broker) {
         pthread_sigmask(SIG_SETMASK, &sigold, NULL);
 }
 
+void util_broker_spawn_and_settle(Broker *broker) {
+        int r;
+
+        util_broker_spawn(broker);
+
+        /*
+         * Do a barrier, by calling a method on the driver to make sure it is fully up
+         * and running.
+         */
+        util_broker_connect(broker, &broker->client);
+
+        r = sd_bus_call_method(broker->client, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus.Peer",
+                               "Ping", NULL, NULL, "");
+        assert(r >= 0);
+}
+
 void util_broker_terminate(Broker *broker) {
         void *value;
         int r;
 
         assert(broker->listener_fd >= 0 || broker->pipe_fds[0] >= 0);
+
+        broker->client = sd_bus_unref(broker->client);
 
         r = pthread_kill(broker->thread, SIGUSR1);
         assert(!r);

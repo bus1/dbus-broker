@@ -4,6 +4,7 @@
 
 sources_test = [
         'util-broker.c',
+        'util-message.c',
 ]
 
 deps_test = [
@@ -32,6 +33,22 @@ dep_test = declare_dependency(
 )
 
 #
+# target: tool-*
+#
+
+tool_flood = executable('tool-flood', ['tool-flood.c'], dependencies: [ dep_test ])
+
+#
+# target: bench-*
+#
+
+bench_connect = executable('bench-connect', ['bench-connect.c'], dependencies: [ dep_test ])
+benchmark('Connection', bench_connect)
+
+bench_message = executable('bench-message', ['bench-message.c'], dependencies: [ dep_test ])
+benchmark('Message passing', bench_message)
+
+#
 # target: test-*
 #
 
@@ -52,6 +69,9 @@ test('Signals and Matches', test_matches)
 
 if use_reference_test
         dbus_bin = dep_dbus.get_pkgconfig_variable('bindir') + '/dbus-daemon'
+
+        benchmark('dbus-daemon(1): Connection', bench_connect, env: [ 'DBUS_BROKER_TEST_DAEMON=' + dbus_bin ], timeout: 60)
+        benchmark('dbus-daemon(1): Message passing', bench_message, env: [ 'DBUS_BROKER_TEST_DAEMON=' + dbus_bin ], timeout: 120)
 
         test('dbus-daemon(1): Broker API', test_broker, env: [ 'DBUS_BROKER_TEST_DAEMON=' + dbus_bin ])
         test('dbus-daemon(1): Driver API', test_driver, env: [ 'DBUS_BROKER_TEST_DAEMON=' + dbus_bin ])
