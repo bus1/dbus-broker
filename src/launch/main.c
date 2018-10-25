@@ -3,12 +3,12 @@
  */
 
 #include <c-macro.h>
+#include <c-ini.h>
 #include <c-rbtree.h>
 #include <c-shquote.h>
 #include <c-string.h>
 #include <fcntl.h>
 #include <getopt.h>
-#include <glib.h>
 #include <grp.h>
 #include <pwd.h>
 #include <signal.h>
@@ -869,66 +869,110 @@ static int manager_on_message(sd_bus_message *m, void *userdata, sd_bus_error *e
         return error_trace(r);
 }
 
+static int manager_ini_reader_parse_file(CIniGroup **groupp, const char *path) {
+        _c_cleanup_(c_closep) int fd = -1;
+        _c_cleanup_(c_ini_reader_freep) CIniReader *reader = NULL;
+        _c_cleanup_(c_ini_domain_unrefp) CIniDomain *domain = NULL;
+        ssize_t len;
+        int r;
+
+        fd = open(path, O_RDONLY | O_CLOEXEC);
+        if (fd < 0) {
+                if (errno == ENOENT) {
+                        *groupp = NULL;
+                        return 0;
+                }
+
+                return error_origin(-errno);
+        }
+
+        r = c_ini_reader_new(&reader);
+        if (r)
+                return error_fold(r);
+
+        c_ini_reader_set_mode(reader,
+                              C_INI_MODE_EXTENDED_WHITESPACE |
+                              C_INI_MODE_MERGE_GROUPS |
+                              C_INI_MODE_OVERRIDE_ENTRIES);
+
+        for (;;) {
+                uint8_t buf[1024];
+                len = read(fd, buf, sizeof(buf));
+                if (len < 0)
+                        return error_origin(-errno);
+                else if (len == 0)
+                        break;
+
+                r = c_ini_reader_feed(reader, buf, len);
+                if (r)
+                        return error_fold(r);
+        }
+
+        r = c_ini_reader_seal(reader, &domain);
+        if (r)
+                return error_fold(r);
+
+        *groupp = c_ini_group_ref(c_ini_domain_find(domain, "D-BUS Service", -1));
+        return 0;
+}
+
 static int manager_load_service_file(Manager *manager, const char *path, NSSCache *nss_cache) {
-        gchar *name = NULL, *user = NULL, *unit = NULL, *exec = NULL;
+        _c_cleanup_(c_ini_group_unrefp) CIniGroup *group = NULL;
         _c_cleanup_(c_freep) char **argv = NULL;
-        size_t argc = 0;
         _c_cleanup_(service_freep) Service *service = NULL;
-        GKeyFile *f;
+        CIniEntry *name_entry = NULL, *unit_entry = NULL, *exec_entry = NULL, *user_entry = NULL;
+        const char *name = NULL, *unit = NULL, *exec = NULL, *user = NULL;
+        size_t argc = 0, n_exec;
         CRBNode **slot, *parent;
         uid_t uid;
         int r;
 
-        /*
-         * There seems to be no trivial way to properly parse D-Bus service
-         * files. Hence, we resort to glib GKeyFile to parse it as a Desktop
-         * File compatible ini-file.
-         *
-         * Preferably, we'd not have the glib dependency here, but it does not
-         * hurt much either. If anyone cares, feel free to provide `c-ini'.
-         */
-
-        f = g_key_file_new();
-
-        if (!g_key_file_load_from_file(f, path, G_KEY_FILE_NONE, NULL)) {
+        r = manager_ini_reader_parse_file(&group, path);
+        if (r) {
+                return error_trace(r);
+        } else if (!group) {
                 fprintf(stderr, "Cannot load service file '%s'\n", path);
-                r = 0;
-                goto exit;
+                return 0;
         }
 
-        name = g_key_file_get_string(f, "D-BUS Service", "Name", NULL);
-        user = g_key_file_get_string(f, "D-BUS Service", "User", NULL);
-        unit = g_key_file_get_string(f, "D-BUS Service", "SystemdService", NULL);
-        exec = g_key_file_get_string(f, "D-BUS Service", "Exec", NULL);
+        name_entry = c_ini_group_find(group, "Name", -1);
+        unit_entry = c_ini_group_find(group, "SystemdService", -1);
+        exec_entry = c_ini_group_find(group, "Exec", -1);
+        user_entry = c_ini_group_find(group, "User", -1);
 
-        if (!name) {
+        if (!name_entry) {
                 fprintf(stderr, "Missing name in service file '%s'\n", path);
-                r = 0;
-                goto exit;
+                return 0;
         }
 
-        if (!unit && !exec) {
+        if (!unit_entry && !exec_entry) {
                 fprintf(stderr, "Missing exec or unit in service file '%s'\n", path);
-                r = 0;
-                goto exit;
+                return 0;
         }
 
-        if (exec) {
-                r = c_shquote_parse_argv(&argv, &argc, exec, strlen(exec));
+        name = c_ini_entry_get_value(name_entry, NULL);
+
+        if (unit_entry)
+                unit = c_ini_entry_get_value(unit_entry, NULL);
+
+        if (exec_entry) {
+                exec = c_ini_entry_get_value(exec_entry, &n_exec);
+
+                r = c_shquote_parse_argv(&argv, &argc, exec, n_exec);
                 if (r) {
                         fprintf(stderr, "Invalid exec '%s' in service file '%s'\n", exec, path);
-                        r = 0;
-                        goto exit;
+                        return 0;
                 }
         }
 
-        if (user) {
+        if (user_entry) {
+                user = c_ini_entry_get_value(user_entry, NULL);
+
                 r = nss_cache_get_uid(nss_cache, &uid, NULL, user);
                 if (r) {
                         if (r == NSS_CACHE_E_INVALID_NAME) {
                                 fprintf(stderr, "Invalid user name '%s' in service file '%s'\n", user, path);
-                                r = 0;
-                                goto exit;
+                                return 0;
                         }
                 }
 
@@ -939,10 +983,8 @@ static int manager_load_service_file(Manager *manager, const char *path, NSSCach
         slot = c_rbtree_find_slot(&manager->services_by_name, service_compare_by_name, name, &parent);
         if (slot) {
                 r = service_new(&service, manager, name, slot, parent, unit, argc, argv, user, uid);
-                if (r) {
-                        r = error_trace(r);
-                        goto exit;
-                }
+                if (r)
+                        return error_trace(r);
         } else {
                 Service *old_service = c_container_of(parent, Service, rb_by_name);
 
@@ -950,24 +992,15 @@ static int manager_load_service_file(Manager *manager, const char *path, NSSCach
                         old_service->state = SERVICE_STATE_CURRENT;
                         r = service_update(old_service, unit, argc, argv, user, uid);
                         if (r)
-                                r = error_trace(r);
+                                return error_trace(r);
                 } else {
                         fprintf(stderr, "Ignoring duplicate name '%s' in service file '%s'\n", name, path);
-                        r = 0;
+                        return 0;
                 }
-                goto exit;
         }
 
         service = NULL;
-        r = 0;
-
-exit:
-        g_free(unit);
-        g_free(user);
-        g_free(name);
-        g_free(exec);
-        g_key_file_free(f);
-        return r;
+        return 0;
 }
 
 static int manager_load_service_dir(Manager *manager, const char *dirpath, NSSCache *nss_cache) {

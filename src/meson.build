@@ -139,10 +139,10 @@ if use_launcher
                 ],
                 dependencies: [
                         dep_bus,
+                        dep_cini,
                         dep_crbtree,
                         dep_cshquote,
                         dep_csundry,
-                        dep_glib,
                         dep_libsystemd,
                 ],
                 install: true,

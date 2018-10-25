@@ -40,7 +40,6 @@ REQUIREMENTS:
         Additionally, the compatibility launcher requires:
 
             dbus >= 1.10
-            glib >= 2.50
             systemd >= 230
             expat >= 2.2
 
