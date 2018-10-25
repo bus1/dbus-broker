@@ -16,3 +16,6 @@
 [submodule "subprojects/c-shquote"]
 	path = subprojects/c-shquote
 	url = https://github.com/c-util/c-shquote.git
+[submodule "subprojects/c-ini"]
+	path = subprojects/c-ini
+	url = https://github.com/c-util/c-ini.git

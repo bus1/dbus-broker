@@ -25,12 +25,14 @@ mod_pkgconfig = import('pkgconfig')
 #
 
 sub_cdvar = subproject('c-dvar', version: '>=1')
+sub_cini = subproject('c-ini', version: '>=1')
 sub_clist = subproject('c-list', version: '>=3')
 sub_crbtree = subproject('c-rbtree', version: '>=3')
 sub_cshquote = subproject('c-shquote', version: '>=1')
 sub_csundry = subproject('c-sundry', version: '>=1')
 
 dep_cdvar = sub_cdvar.get_variable('libcdvar_dep')
+dep_cini = sub_cini.get_variable('libcini_dep')
 dep_clist = sub_clist.get_variable('libclist_dep')
 dep_crbtree = sub_crbtree.get_variable('libcrbtree_dep')
 dep_cshquote = sub_cshquote.get_variable('libcshquote_dep')
@@ -65,7 +67,6 @@ use_launcher = get_option('launcher')
 if use_launcher
         dep_dbus = dependency('dbus-1', version: '>=1.10')
         dep_expat = dependency('expat', version: '>=2.2')
-        dep_glib = dependency('glib-2.0', version: '>=2.50')
         dep_libsystemd = dependency('libsystemd', version: '>=230')
         dep_systemd = dependency('systemd', version: '>=230')
 
