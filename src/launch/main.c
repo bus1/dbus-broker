@@ -4,6 +4,7 @@
 
 #include <c-macro.h>
 #include <c-rbtree.h>
+#include <c-shquote.h>
 #include <c-string.h>
 #include <fcntl.h>
 #include <getopt.h>
@@ -869,8 +870,9 @@ static int manager_on_message(sd_bus_message *m, void *userdata, sd_bus_error *e
 }
 
 static int manager_load_service_file(Manager *manager, const char *path, NSSCache *nss_cache) {
-        gchar *name = NULL, *user = NULL, *unit = NULL, *exec = NULL, **argv = NULL;
-        gint argc = 0;
+        gchar *name = NULL, *user = NULL, *unit = NULL, *exec = NULL;
+        _c_cleanup_(c_freep) char **argv = NULL;
+        size_t argc = 0;
         _c_cleanup_(service_freep) Service *service = NULL;
         GKeyFile *f;
         CRBNode **slot, *parent;
@@ -912,12 +914,9 @@ static int manager_load_service_file(Manager *manager, const char *path, NSSCach
         }
 
         if (exec) {
-                GError *error = NULL;
-
-                if (!g_shell_parse_argv(exec, &argc, &argv, &error)) {
-                        fprintf(stderr, "Invalid exec '%s' in service file '%s': %s\n", exec, path, error->message);
-
-                        g_error_free(error);
+                r = c_shquote_parse_argv(&argv, &argc, exec, strlen(exec));
+                if (r) {
+                        fprintf(stderr, "Invalid exec '%s' in service file '%s'\n", exec, path);
                         r = 0;
                         goto exit;
                 }
@@ -967,7 +966,6 @@ exit:
         g_free(user);
         g_free(name);
         g_free(exec);
-        g_strfreev(argv);
         g_key_file_free(f);
         return r;
 }

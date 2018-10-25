@@ -13,3 +13,6 @@
 [submodule "subprojects/c-utf8"]
 	path = subprojects/c-utf8
 	url = https://github.com/c-util/c-utf8.git
+[submodule "subprojects/c-shquote"]
+	path = subprojects/c-shquote
+	url = https://github.com/c-util/c-shquote.git
