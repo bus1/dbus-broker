@@ -140,6 +140,7 @@ if use_launcher
                 dependencies: [
                         dep_bus,
                         dep_crbtree,
+                        dep_cshquote,
                         dep_csundry,
                         dep_glib,
                         dep_libsystemd,
