@@ -159,8 +159,10 @@ test('Address Handling', test_address)
 test_apparmor = executable('test-apparmor', ['util/test-apparmor.c'], dependencies: dep_bus)
 test('AppArmor Handling', test_apparmor)
 
-test_config = executable('test-config', ['launch/test-config.c'], dependencies: dep_bus)
-test('Configuration Parser', test_config)
+if use_launcher
+        test_config = executable('test-config', ['launch/test-config.c'], dependencies: dep_bus)
+        test('Configuration Parser', test_config)
+endif
 
 test_dirwatch = executable('test-dirwatch', ['util/test-dirwatch.c'], dependencies: dep_bus)
 test('Directory Watch', test_dirwatch)
@@ -183,8 +185,10 @@ test('D-Bus Message Abstraction', test_message)
 test_name = executable('test-name', ['bus/test-name.c'], dependencies: dep_bus)
 test('Name Registry', test_name)
 
-test_nss_cache = executable('test-nss-cache', ['launch/test-nss-cache.c'], dependencies: dep_bus)
-test('NSS Cache', test_nss_cache)
+if use_launcher
+        test_nss_cache = executable('test-nss-cache', ['launch/test-nss-cache.c'], dependencies: dep_bus)
+        test('NSS Cache', test_nss_cache)
+endif
 
 test_peersec = executable('test-peersec', ['util/test-peersec.c'], dependencies: dep_bus)
 test('SO_PEERSEC Queries', test_peersec)
