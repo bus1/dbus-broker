@@ -65,7 +65,6 @@ endif
 
 use_launcher = get_option('launcher')
 if use_launcher
-        dep_dbus = dependency('dbus-1', version: '>=1.10')
         dep_expat = dependency('expat', version: '>=2.2')
         dep_libsystemd = dependency('libsystemd', version: '>=230')
         dep_systemd = dependency('systemd', version: '>=230')
@@ -80,6 +79,9 @@ endif
 #
 
 use_reference_test = get_option('reference-test')
+if use_reference_test
+        dep_dbus = dependency('dbus-1', version: '>=1.10')
+endif
 
 #
 # Config: selinux

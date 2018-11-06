@@ -39,7 +39,6 @@ REQUIREMENTS:
 
         Additionally, the compatibility launcher requires:
 
-            dbus >= 1.10
             systemd >= 230
             expat >= 2.2
 
@@ -49,6 +48,7 @@ REQUIREMENTS:
             pkg-config >= 0.29
             python-docutils >= 0.13
             linux-api-headers >= 4.13
+            dbus >= 1.10                (optional: only for tests)
 
 INSTALL:
         The meson build-system is used for dbus-broker. Contact upstream
