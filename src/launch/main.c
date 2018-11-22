@@ -46,6 +46,7 @@ enum {
         _MANAGER_E_SUCCESS,
 
         MANAGER_E_INVALID_CONFIG,
+        MANAGER_E_INVALID_SERVICE_FILE,
 };
 
 typedef enum {
@@ -873,6 +874,7 @@ static int manager_ini_reader_parse_file(CIniGroup **groupp, const char *path) {
         _c_cleanup_(c_closep) int fd = -1;
         _c_cleanup_(c_ini_reader_freep) CIniReader *reader = NULL;
         _c_cleanup_(c_ini_domain_unrefp) CIniDomain *domain = NULL;
+        CIniGroup *group;
         ssize_t len;
         int r;
 
@@ -912,7 +914,13 @@ static int manager_ini_reader_parse_file(CIniGroup **groupp, const char *path) {
         if (r)
                 return error_fold(r);
 
-        *groupp = c_ini_group_ref(c_ini_domain_find(domain, "D-BUS Service", -1));
+        group = c_ini_domain_find(domain, "D-BUS Service", -1);
+        if (!group) {
+                fprintf(stderr, "Missing 'D-Bus Service' section in service file '%s'\n", path);
+                return MANAGER_E_INVALID_SERVICE_FILE;
+        }
+
+        *groupp = c_ini_group_ref(group);
         return 0;
 }
 
@@ -928,12 +936,8 @@ static int manager_load_service_file(Manager *manager, const char *path, NSSCach
         int r;
 
         r = manager_ini_reader_parse_file(&group, path);
-        if (r) {
+        if (r)
                 return error_trace(r);
-        } else if (!group) {
-                fprintf(stderr, "Cannot load service file '%s'\n", path);
-                return 0;
-        }
 
         name_entry = c_ini_group_find(group, "Name", -1);
         unit_entry = c_ini_group_find(group, "SystemdService", -1);
@@ -942,12 +946,12 @@ static int manager_load_service_file(Manager *manager, const char *path, NSSCach
 
         if (!name_entry) {
                 fprintf(stderr, "Missing name in service file '%s'\n", path);
-                return 0;
+                return MANAGER_E_INVALID_SERVICE_FILE;
         }
 
         if (!unit_entry && !exec_entry) {
                 fprintf(stderr, "Missing exec or unit in service file '%s'\n", path);
-                return 0;
+                return MANAGER_E_INVALID_SERVICE_FILE;
         }
 
         name = c_ini_entry_get_value(name_entry, NULL);
@@ -960,8 +964,12 @@ static int manager_load_service_file(Manager *manager, const char *path, NSSCach
 
                 r = c_shquote_parse_argv(&argv, &argc, exec, n_exec);
                 if (r) {
-                        fprintf(stderr, "Invalid exec '%s' in service file '%s'\n", exec, path);
-                        return 0;
+                        if (r == C_SHQUOTE_E_BAD_QUOTING || r == C_SHQUOTE_E_CONTAINS_NULL) {
+                                fprintf(stderr, "Invalid exec '%s' in service file '%s'\n", exec, path);
+                                return MANAGER_E_INVALID_SERVICE_FILE;
+                        }
+
+                        return error_fold(r);
                 }
         }
 
@@ -972,8 +980,10 @@ static int manager_load_service_file(Manager *manager, const char *path, NSSCach
                 if (r) {
                         if (r == NSS_CACHE_E_INVALID_NAME) {
                                 fprintf(stderr, "Invalid user name '%s' in service file '%s'\n", user, path);
-                                return 0;
+                                return MANAGER_E_INVALID_SERVICE_FILE;
                         }
+
+                        return error_fold(r);
                 }
 
         } else {
@@ -995,7 +1005,7 @@ static int manager_load_service_file(Manager *manager, const char *path, NSSCach
                                 return error_trace(r);
                 } else {
                         fprintf(stderr, "Ignoring duplicate name '%s' in service file '%s'\n", name, path);
-                        return 0;
+                        return MANAGER_E_INVALID_SERVICE_FILE;
                 }
         }
 
@@ -1041,8 +1051,12 @@ static int manager_load_service_dir(Manager *manager, const char *dirpath, NSSCa
 
                 r = manager_load_service_file(manager, path, nss_cache);
                 free(path);
-                if (r)
+                if (r) {
+                        if (r == MANAGER_E_INVALID_SERVICE_FILE)
+                                continue;
+
                         return error_trace(r);
+                }
         }
         if (errno > 0)
                 return error_origin(-errno);
