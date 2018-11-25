@@ -312,7 +312,7 @@ int peer_request_name(Peer *peer, const char *name, uint32_t flags, NameChange *
 
         r = policy_snapshot_check_own(peer->policy, name);
         if (r) {
-                if (r == POLICY_E_ACCESS_DENIED || r == POLICY_E_ACCESS_DENIED)
+                if (r == POLICY_E_ACCESS_DENIED || r == POLICY_E_SELINUX_ACCESS_DENIED)
                         return PEER_E_NAME_REFUSED;
 
                 return error_fold(r);
