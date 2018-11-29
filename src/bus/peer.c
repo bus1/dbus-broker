@@ -116,7 +116,31 @@ int peer_dispatch(DispatchFile *file) {
                         connection_shutdown(&peer->connection);
                 } else if (r == PEER_E_QUOTA ||
                            r == PEER_E_PROTOCOL_VIOLATION) {
+                        NameSet peer_names = NAME_SET_INIT_FROM_OWNER(&peer->owned_names);
+
                         connection_close(&peer->connection);
+
+                        log_append_here(peer->bus->log, LOG_WARNING, 0);
+                        bus_log_append_sender(peer->bus, peer->id, &peer_names, peer->policy->seclabel);
+
+                        switch (r) {
+                        case PEER_E_QUOTA:
+                                r = log_commitf(peer->bus->log, "Peer :1.%llu is being disconnected as it does not have the resources to perform an operation.",
+                                                peer->id);
+                                if (r)
+                                        return error_fold(r);
+
+                                break;
+                        case PEER_E_PROTOCOL_VIOLATION:
+                                r = log_commitf(peer->bus->log, "Peer :1.%llu is being disconnected as it violated the protocol.",
+                                                peer->id);
+                                if (r)
+                                        return error_fold(r);
+
+                                break;
+                        default:
+                                assert(0);
+                        }
 
                         metrics_sample_start(&peer->bus->metrics);
                         r = driver_goodbye(peer, false);
