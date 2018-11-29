@@ -133,21 +133,12 @@ void bus_get_broadcast_destinations(Bus *bus, CList *destinations, MatchRegistry
         }
 }
 
-
-void bus_log_append_transaction(Bus *bus, uint64_t sender_id, uint64_t receiver_id,
-                                NameSet *sender_names, NameSet *receiver_names, const char *sender_label, const char *receiver_label,
-                                Message *message) {
+void bus_log_append_sender(Bus *bus, uint64_t sender_id, NameSet *sender_names, const char *sender_label) {
         Log *log = bus->log;
-
-        message_log_append(message, log);
 
         if (sender_label)
                 log_appendf(log, "DBUS_BROKER_SENDER_SECURITY_LABEL=%s\n",
                             sender_label);
-
-        if (receiver_label)
-                log_appendf(log, "DBUS_BROKER_RECEIVER_SECURITY_LABEL=%s\n",
-                            receiver_label);
 
         if (sender_id == ADDRESS_ID_INVALID) {
                 log_appendf(log,
@@ -156,15 +147,6 @@ void bus_log_append_transaction(Bus *bus, uint64_t sender_id, uint64_t receiver_
                 log_appendf(log,
                             "DBUS_BROKER_SENDER_UNIQUE_NAME=:1.%llu\n",
                             sender_id);
-        }
-
-        if (receiver_id == ADDRESS_ID_INVALID) {
-                log_appendf(log,
-                            "DBUS_BOKER_RECEIVER_UNIQUE_NAME=org.freedesktop.DBus\n");
-        } else {
-                log_appendf(log,
-                            "DBUS_BROKER_RECEIVER_UNIQUE_NAME=:1.%llu\n",
-                            receiver_id);
         }
 
         if (sender_names) {
@@ -185,6 +167,23 @@ void bus_log_append_transaction(Bus *bus, uint64_t sender_id, uint64_t receiver_
                                             i, sender_names->snapshot->names[i]->name);
                 }
         }
+}
+
+void bus_log_append_receiver(Bus *bus, uint64_t receiver_id, NameSet *receiver_names, const char *receiver_label) {
+        Log *log = bus->log;
+
+        if (receiver_label)
+                log_appendf(log, "DBUS_BROKER_RECEIVER_SECURITY_LABEL=%s\n",
+                            receiver_label);
+
+        if (receiver_id == ADDRESS_ID_INVALID) {
+                log_appendf(log,
+                            "DBUS_BOKER_RECEIVER_UNIQUE_NAME=org.freedesktop.DBus\n");
+        } else {
+                log_appendf(log,
+                            "DBUS_BROKER_RECEIVER_UNIQUE_NAME=:1.%llu\n",
+                            receiver_id);
+        }
 
         if (receiver_names) {
                 if (receiver_names->type == NAME_SET_TYPE_OWNER) {
@@ -204,6 +203,14 @@ void bus_log_append_transaction(Bus *bus, uint64_t sender_id, uint64_t receiver_
                                             i, receiver_names->snapshot->names[i]->name);
                 }
         }
+}
+
+void bus_log_append_transaction(Bus *bus, uint64_t sender_id, uint64_t receiver_id,
+                                NameSet *sender_names, NameSet *receiver_names, const char *sender_label, const char *receiver_label,
+                                Message *message) {
+        message_log_append(message, bus->log);
+        bus_log_append_sender(bus, sender_id, sender_names, sender_label);
+        bus_log_append_receiver(bus, receiver_id, receiver_names, receiver_label);
 }
 
 void bus_log_append_policy_send(Bus *bus, int policy_type, uint64_t sender_id, uint64_t receiver_id, NameSet *sender_names, NameSet *receiver_names, const char *sender_label, const char *receiver_label, Message *message) {
