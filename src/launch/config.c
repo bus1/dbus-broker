@@ -372,6 +372,14 @@ static int config_parser_attrs_limit(ConfigState *state, ConfigNode *node, const
                                 node->limit.name = CONFIG_LIMIT_MAX_MATCH_RULES_PER_CONNECTION;
                         else if (!strcmp(v, "max_replies_per_connection"))
                                 node->limit.name = CONFIG_LIMIT_MAX_REPLIES_PER_CONNECTION;
+                        else if (!strcmp(v, "max_containers_per_user"))
+                                node->limit.name = CONFIG_LIMIT_MAX_CONTAINERS_PER_USER;
+                        else if (!strcmp(v, "max_containers"))
+                                node->limit.name = CONFIG_LIMIT_MAX_CONTAINERS;
+                        else if (!strcmp(v, "max_connections_per_container"))
+                                node->limit.name = CONFIG_LIMIT_MAX_CONNECTIONS_PER_CONTAINER;
+                        else if (!strcmp(v, "max_container_metadata_bytes"))
+                                node->limit.name = CONFIG_LIMIT_MAX_CONTAINER_METADATA_BYTES;
                         else if (!strcmp(v, "reply_timeout"))
                                 node->limit.name = CONFIG_LIMIT_REPLY_TIMEOUT;
                         else
