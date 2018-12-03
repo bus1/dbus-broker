@@ -54,6 +54,7 @@ enum {
 
 struct SASLServer {
         unsigned int state;
+        bool fds_allowed;
         uid_t uid;
         char ok_response[sizeof("OK 0123456789abcdef0123456789abdcef") - 1];
 };

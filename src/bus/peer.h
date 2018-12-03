@@ -48,6 +48,8 @@ enum {
 
         PEER_E_EXPECTED_REPLY_EXISTS,
         PEER_E_UNEXPECTED_REPLY,
+
+        PEER_E_UNEXPECTED_FDS,
 };
 
 struct Peer {

@@ -167,7 +167,7 @@ static int controller_send_error(Connection *connection, uint32_t serial, const 
 
         r = connection_queue(connection, NULL, message);
         if (r) {
-                if (r == CONNECTION_E_QUOTA)
+                if (r == CONNECTION_E_QUOTA || r == CONNECTION_E_UNEXPECTED_FDS)
                         connection_close(connection);
                 else
                         return error_fold(r);
@@ -430,7 +430,7 @@ static int controller_handle_method(const ControllerMethod *method, Controller *
 
         r = connection_queue(&controller->connection, NULL, message_out);
         if (r) {
-                if (r == CONNECTION_E_QUOTA)
+                if (r == CONNECTION_E_QUOTA || r == CONNECTION_E_UNEXPECTED_FDS)
                         connection_close(&controller->connection);
                 else
                         return error_fold(r);
