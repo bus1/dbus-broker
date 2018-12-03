@@ -46,6 +46,8 @@ static int peer_dispatch_connection(Peer *peer, uint32_t events) {
                                 return PEER_E_EOF;
                         else if (r == CONNECTION_E_QUOTA)
                                 return PEER_E_QUOTA;
+                        else if (r == CONNECTION_E_PROTOCOL_VIOLATION)
+                                return CONNECTION_E_PROTOCOL_VIOLATION;
 
                         return error_fold(r);
                 }

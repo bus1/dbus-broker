@@ -103,16 +103,28 @@ static int connection_feed_sasl(Connection *connection, const char *input, size_
         assert(!connection->server || input);
         assert(!connection->authenticated);
 
-        if (connection->server)
+        if (connection->server) {
                 r = sasl_server_dispatch(&connection->sasl_server, input, n_input, &output, &n_output);
-        else
+                if (r) {
+                        switch (r) {
+                        case SASL_E_PROTOCOL_VIOLATION:
+                                return CONNECTION_E_PROTOCOL_VIOLATION;
+                        default:
+                                return error_fold(r);
+                        }
+                }
+        } else {
                 r = sasl_client_dispatch(&connection->sasl_client, input, n_input, &output, &n_output);
-
-        if (r > 0) {
-                connection_close(connection);
-                return CONNECTION_E_EOF;
-        } else if (r < 0) {
-                return error_fold(r);
+                if (r) {
+                        switch (r) {
+                        case SASL_E_FAILURE:
+                                return CONNECTION_E_SASL_FAILURE;
+                        case SASL_E_PROTOCOL_VIOLATION:
+                                return CONNECTION_E_PROTOCOL_VIOLATION;
+                        default:
+                                return error_fold(r);
+                        }
+                }
         }
 
         connection->authenticated = connection->server ?
@@ -156,10 +168,10 @@ int connection_open(Connection *connection) {
         assert(socket_is_running(&connection->socket));
 
         if (!connection->server) {
-                /* bootstrap client SASL */
+                /* bootstrap client SASL, this should always succeed */
                 r = connection_feed_sasl(connection, NULL, 0);
                 if (r)
-                        return error_trace(r);
+                        return error_fold(r);
         }
 
         dispatch_file_select(&connection->socket_file, EPOLLHUP | EPOLLIN);
