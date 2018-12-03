@@ -243,6 +243,7 @@ int sasl_server_dispatch(SASLServer *sasl, const char *input, size_t n_input, co
                 if (n_cmd == strlen("NEGOTIATE_UNIX_FD") && !strncmp(cmd, "NEGOTIATE_UNIX_FD", n_cmd) && !n_arg) {
                         *outputp = "AGREE_UNIX_FD";
                         *n_outputp = strlen("AGREE_UNIX_FD");
+                        sasl->fds_allowed = true;
                         sasl->state = SASL_SERVER_STATE_NEGOTIATED_FDS;
                 } else if (n_cmd == strlen("BEGIN") && !strncmp(cmd, "BEGIN", n_cmd) && !n_arg) {
                         *outputp = NULL;
@@ -252,6 +253,7 @@ int sasl_server_dispatch(SASLServer *sasl, const char *input, size_t n_input, co
                            (n_cmd == strlen("CANCEL") && !strncmp(cmd, "CANCEL", n_cmd) && !n_arg)) {
                         *outputp = "REJECTED EXTERNAL";
                         *n_outputp = strlen("REJECTED EXTERNAL");
+                        sasl->fds_allowed = false;
                         sasl->state = SASL_SERVER_STATE_AUTH;
                 } else {
                         *outputp = "ERROR";

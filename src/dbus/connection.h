@@ -23,6 +23,7 @@ enum {
 
         CONNECTION_E_EOF,
         CONNECTION_E_QUOTA,
+        CONNECTION_E_UNEXPECTED_FDS,
 };
 
 struct Connection {

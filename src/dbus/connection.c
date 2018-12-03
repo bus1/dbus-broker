@@ -228,6 +228,7 @@ int connection_dispatch(Connection *connection, uint32_t events) {
  * connection_dequeue() - XXX
  */
 int connection_dequeue(Connection *connection, Message **messagep) {
+        _c_cleanup_(message_unrefp) Message *message = NULL;
         const char *input;
         size_t n_input;
         int r;
@@ -249,7 +250,7 @@ int connection_dequeue(Connection *connection, Message **messagep) {
                 } while (!connection->authenticated);
         }
 
-        r = socket_dequeue(&connection->socket, messagep);
+        r = socket_dequeue(&connection->socket, &message);
         if (r) {
                 if (r == SOCKET_E_EOF)
                         return CONNECTION_E_EOF;
@@ -259,6 +260,13 @@ int connection_dequeue(Connection *connection, Message **messagep) {
                 return error_fold(r);
         }
 
+        if (connection->server &&
+            message && fdlist_count(message->fds) > 0 &&
+            _c_unlikely_(!connection->sasl_server.fds_allowed))
+                return CONNECTION_E_PROTOCOL_VIOLATION;
+
+        *messagep = message;
+        message = NULL;
         return 0;
 }
 
@@ -267,6 +275,22 @@ int connection_dequeue(Connection *connection, Message **messagep) {
  */
 int connection_queue(Connection *connection, User *user, Message *message) {
         int r;
+
+        /*
+         * On the client side we know wheter or not we want FD support, and if
+         * we do, we know we will rather fail the connection than not enabling
+         * FDs. However, on the server side, we don't know until SASL has
+         * completed, which means that we do not allow queueing messages with
+         * FDs until SASL completed. This is not ideal, but in the case of
+         * the broker it works out, as we know that we wil not attempt to
+         * queue messages with FDs before receiving the Hello() from the
+         * client, at which point we know that SASL has completed, so we
+         * know if FDs will be supported.
+         */
+        if (connection->server &&
+            fdlist_count(message->fds) > 0 &&
+            _c_unlikely_(!connection->sasl_server.fds_allowed))
+                return CONNECTION_E_UNEXPECTED_FDS;
 
         r = socket_queue(&connection->socket, user, message);
         if (r == SOCKET_E_QUOTA)

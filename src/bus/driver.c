@@ -293,6 +293,7 @@ static const char *driver_error_to_string(int r) {
                 [DRIVER_E_PEER_NOT_YET_REGISTERED]              = "Hello() was not yet called",
                 [DRIVER_E_PEER_ALREADY_REGISTERED]              = "Hello() already called",
                 [DRIVER_E_PEER_NOT_PRIVILEGED]                  = "The caller does not have the necessary privileged to call this method",
+                [DRIVER_E_UNEXPECTED_FDS]                       = "Peer does not support file descriptor passing.",
                 [DRIVER_E_UNEXPECTED_MESSAGE_TYPE]              = "Unexpected message type",
                 [DRIVER_E_UNEXPECTED_PATH]                      = "Invalid object path",
                 [DRIVER_E_UNEXPECTED_INTERFACE]                 = "Invalid interface",
@@ -348,7 +349,7 @@ static int driver_monitor(Bus *bus, Peer *sender, Message *message) {
 
                 r = connection_queue(&receiver->connection, NULL, message);
                 if (r) {
-                        if (r == CONNECTION_E_QUOTA) {
+                        if (r == CONNECTION_E_QUOTA || r == CONNECTION_E_UNEXPECTED_FDS) {
                                 NameSet sender_names = NAME_SET_INIT_FROM_OWNER(sender ? &sender->owned_names : NULL);
 
                                 connection_shutdown(&receiver->connection);
@@ -358,7 +359,10 @@ static int driver_monitor(Bus *bus, Peer *sender, Message *message) {
                                                            &sender_names, NULL,
                                                            sender ? sender->policy->seclabel : bus->seclabel, receiver->policy->seclabel,
                                                            message);
-                                r = log_commitf(bus->log, "Monitor :1.%llu is being disconnected as it does not have the resources to receive a message it subscribed to.", receiver->id);
+                                if (r == CONNECTION_E_QUOTA)
+                                        r = log_commitf(bus->log, "Monitor :1.%llu is being disconnected as it does not have the resources to receive a message it subscribed to.", receiver->id);
+                                else
+                                        r = log_commitf(bus->log, "Monitor :1.%llu is being disconnected as it does not support receiving file descriptors it subscribed to.", receiver->id);
                                 if (r)
                                         return error_fold(r);
                         } else {
@@ -379,7 +383,7 @@ static int driver_send_unicast(Peer *receiver, Message *message) {
 
         r = connection_queue(&receiver->connection, NULL, message);
         if (r) {
-                if (r == CONNECTION_E_QUOTA) {
+                if (r == CONNECTION_E_QUOTA || r == CONNECTION_E_UNEXPECTED_FDS) {
                         NameSet receiver_names = NAME_SET_INIT_FROM_OWNER(&receiver->owned_names);
 
                         connection_shutdown(&receiver->connection);
@@ -388,7 +392,10 @@ static int driver_send_unicast(Peer *receiver, Message *message) {
                         bus_log_append_transaction(receiver->bus, ADDRESS_ID_INVALID, receiver->id, NULL, &receiver_names,
                                                    receiver->bus->seclabel, receiver->policy->seclabel,
                                                    message);
-                        r = log_commitf(receiver->bus->log, "Peer :1.%llu is being disconnected as it does not have the resources to receive a reply or unicast signal it expects.", receiver->id);
+                        if (r == CONNECTION_E_QUOTA)
+                                r = log_commitf(receiver->bus->log, "Peer :1.%llu is being disconnected as it does not have the resources to receive a reply or unicast signal it expects.", receiver->id);
+                        else
+                                r = log_commitf(receiver->bus->log, "Peer :1.%llu is being disconnected as it does not support receiving file descriptors it expects.", receiver->id);
                         if (r)
                                 return error_fold(r);
                 } else {
@@ -642,7 +649,7 @@ static int driver_notify_name_owner_changed(Bus *bus, MatchRegistry *matches, co
 
                         r = connection_queue(&receiver->connection, NULL, message);
                         if (r) {
-                                if (r == CONNECTION_E_QUOTA) {
+                                if (r == CONNECTION_E_QUOTA || r == CONNECTION_E_UNEXPECTED_FDS) {
                                         NameSet receiver_names = NAME_SET_INIT_FROM_OWNER(&receiver->owned_names);
 
                                         connection_shutdown(&receiver->connection);
@@ -651,7 +658,10 @@ static int driver_notify_name_owner_changed(Bus *bus, MatchRegistry *matches, co
                                         bus_log_append_transaction(bus, ADDRESS_ID_INVALID, receiver->id, NULL, &receiver_names,
                                                                    receiver->bus->seclabel, receiver->policy->seclabel,
                                                                    message);
-                                        r = log_commitf(bus->log, "Peer :1.%llu is being disconnected as it does not have the resources to receive a signal it subscribed to.", receiver->id);
+                                        if (r == CONNECTION_E_QUOTA)
+                                                r = log_commitf(bus->log, "Peer :1.%llu is being disconnected as it does not have the resources to receive a signal it subscribed to.", receiver->id);
+                                        else
+                                                r = log_commitf(bus->log, "Peer :1.%llu is being disconnected as it does not support receiving the file descriptors it subscribed to.", receiver->id);
                                         if (r)
                                                 return error_fold(r);
                                 } else {
@@ -803,6 +813,15 @@ static int driver_name_activated(Activation *activation, Peer *receiver) {
                                         r = driver_send_error(sender, message_read_serial(message->message),
                                                               "org.freedesktop.DBus.Error.AccessDenied",
                                                               driver_error_to_string(DRIVER_E_SEND_DENIED));
+                                else
+                                        r = 0;
+
+                                break;
+                        case PEER_E_UNEXPECTED_FDS:
+                                if (sender)
+                                        r = driver_send_error(sender, message_read_serial(message->message),
+                                                              "org.freedesktop.DBus.Error.Failed",
+                                                              driver_error_to_string(DRIVER_E_UNEXPECTED_FDS));
                                 else
                                         r = 0;
 
@@ -2191,6 +2210,8 @@ static int driver_forward_unicast(Peer *sender, const char *destination, Message
                         return DRIVER_E_SEND_DENIED;
                 else if (r == PEER_E_RECEIVE_DENIED)
                         return DRIVER_E_RECEIVE_DENIED;
+                else if (r == PEER_E_UNEXPECTED_FDS)
+                        return DRIVER_E_UNEXPECTED_FDS;
                 else
                         return error_fold(r);
         }
@@ -2245,14 +2266,17 @@ static int driver_forward_broadcast(Peer *sender, Message *message) {
 
                 r = connection_queue(&receiver->connection, NULL, message);
                 if (r) {
-                        if (r == CONNECTION_E_QUOTA) {
+                        if (r == CONNECTION_E_QUOTA || r == CONNECTION_E_UNEXPECTED_FDS) {
                                 connection_shutdown(&receiver->connection);
 
                                 log_append_here(sender->bus->log, LOG_WARNING, 0);
                                 bus_log_append_transaction(sender->bus, sender->id, receiver->id, &sender_names, &receiver_names,
                                                            sender->policy->seclabel, receiver->policy->seclabel,
                                                            message);
-                                r = log_commitf(sender->bus->log, "Peer :1.%llu is being disconnected as it does not have the resources to receive a signal it subscribed to.", receiver->id);
+                                if (r == CONNECTION_E_QUOTA)
+                                        r = log_commitf(sender->bus->log, "Peer :1.%llu is being disconnected as it does not have the resources to receive a signal it subscribed to.", receiver->id);
+                                else
+                                        r = log_commitf(sender->bus->log, "Peer :1.%llu is being disconnected as it does not support receiveng the file descriptors it subscribed to.", receiver->id);
                                 if (r)
                                         return error_fold(r);
                         } else {
@@ -2366,6 +2390,7 @@ int driver_dispatch(Peer *peer, Message *message) {
         case DRIVER_E_INVALID_MESSAGE:
                 return DRIVER_E_PROTOCOL_VIOLATION;
         case DRIVER_E_PEER_ALREADY_REGISTERED:
+        case DRIVER_E_UNEXPECTED_FDS:
                 r = driver_send_error(peer, message_read_serial(message), "org.freedesktop.DBus.Error.Failed", driver_error_to_string(r));
                 break;
         case DRIVER_E_PEER_NOT_YET_REGISTERED:
