@@ -337,6 +337,9 @@ int socket_dequeue_line(Socket *socket, const char **linep, size_t *np) {
                         *linep = NULL;
                         *np = 0;
                         return 0;
+                } else if (r == IQUEUE_E_VIOLATION) {
+                        socket_close(socket);
+                        return SOCKET_E_EOF;
                 }
 
                 return error_fold(r);
