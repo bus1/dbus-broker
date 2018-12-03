@@ -252,13 +252,13 @@ int iqueue_pop_line(IQueue *iq, const char **linep, size_t *np) {
                  * before them. Hence, FDs are attached to the LAST byte of our
                  * input-queue, rather than the first.
                  *
-                 * During line-handling, we silently ignore any received FDs,
-                 * and the DBus spec clearly states that no extension shall
-                 * pass FDs during authentication.
+                 * During line-handling, we consider receiving FDs a protocl
+                 * violation, and the DBus spec clearly states that no
+                 * extension shall pass FDs during authentication.
                  */
                 if (iq->data_cursor + 1 >= iq->data_end) {
-                        iq->fds = fdlist_free(iq->fds);
-                        user_charge_deinit(&iq->charge_fds);
+                        if (_c_unlikely_(fdlist_count(iq->fds) > 0))
+                                return IQUEUE_E_VIOLATION;
                 }
 
                 /*
