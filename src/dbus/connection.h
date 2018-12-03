@@ -18,6 +18,9 @@ typedef struct User User;
 enum {
         _CONNECTION_E_SUCCESS,
 
+        CONNECTION_E_SASL_FAILURE,
+        CONNECTION_E_PROTOCOL_VIOLATION,
+
         CONNECTION_E_EOF,
         CONNECTION_E_QUOTA,
 };
