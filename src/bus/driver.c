@@ -2376,14 +2376,6 @@ int driver_dispatch(Peer *peer, Message *message) {
         if (peer_is_monitor(peer))
                 return DRIVER_E_PROTOCOL_VIOLATION;
 
-        r = message_parse_metadata(message);
-        if (r > 0)
-                return DRIVER_E_PROTOCOL_VIOLATION;
-        else if (r < 0)
-                return error_fold(r);
-
-        message_stitch_sender(message, peer->id);
-
         r = driver_dispatch_internal(peer, message);
         switch (r) {
         case DRIVER_E_PEER_NOT_REGISTERED:

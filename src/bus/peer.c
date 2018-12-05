@@ -52,6 +52,14 @@ static int peer_dispatch_connection(Peer *peer, uint32_t events) {
                         return error_fold(r);
                 }
 
+                r = message_parse_metadata(m);
+                if (r > 0)
+                        return PEER_E_PROTOCOL_VIOLATION;
+                else if (r < 0)
+                        return error_fold(r);
+
+                message_stitch_sender(m, peer->id);
+
                 metrics_sample_start(&peer->bus->metrics);
                 r = driver_dispatch(peer, m);
                 metrics_sample_end(&peer->bus->metrics);
