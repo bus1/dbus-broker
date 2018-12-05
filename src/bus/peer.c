@@ -41,22 +41,64 @@ static int peer_dispatch_connection(Peer *peer, uint32_t events) {
                 _c_cleanup_(message_unrefp) Message *m = NULL;
 
                 r = connection_dequeue(&peer->connection, &m);
-                if (r || !m) {
-                        if (r == CONNECTION_E_EOF)
-                                return PEER_E_EOF;
-                        else if (r == CONNECTION_E_QUOTA)
+                if (r == CONNECTION_E_EOF) {
+                        return PEER_E_EOF;
+                } else if (r) {
+                        NameSet peer_names = NAME_SET_INIT_FROM_OWNER(&peer->owned_names);
+
+                        if (r == CONNECTION_E_QUOTA) {
+                                log_append_here(peer->bus->log, LOG_WARNING, 0);
+                                bus_log_append_sender(peer->bus, peer->id, &peer_names, peer->policy->seclabel);
+
+                                r = log_commitf(peer->bus->log, "Peer :1.%llu is being disconnected as it does not have the resources to perform an operation.",
+                                                peer->id);
+                                if (r)
+                                        return error_fold(r);
+
                                 return PEER_E_QUOTA;
-                        else if (r == CONNECTION_E_PROTOCOL_VIOLATION)
+                        } else if (r == CONNECTION_E_PROTOCOL_VIOLATION) {
+                                log_append_here(peer->bus->log, LOG_WARNING, 0);
+                                bus_log_append_sender(peer->bus, peer->id, &peer_names, peer->policy->seclabel);
+
+                                r = log_commitf(peer->bus->log, "Peer :1.%llu is being disconnected as it violated the protocol.",
+                                                peer->id);
+                                if (r)
+                                        return error_fold(r);
+
                                 return PEER_E_PROTOCOL_VIOLATION;
+                        }
 
                         return error_fold(r);
+                } else if (!m) {
+                        return 0;
                 }
 
                 r = message_parse_metadata(m);
-                if (r > 0)
+                if (r) {
+                        NameSet peer_names = NAME_SET_INIT_FROM_OWNER(&peer->owned_names);
+
+                        if (r == MESSAGE_E_INVALID_HEADER) {
+                                log_append_here(peer->bus->log, LOG_WARNING, 0);
+                                bus_log_append_sender(peer->bus, peer->id, &peer_names, peer->policy->seclabel);
+
+                                r = log_commitf(peer->bus->log, "Peer :1.%llu is being disconnected as it sent a message with an invalid header.",
+                                                peer->id);
+                                if (r)
+                                        return error_fold(r);
+                        } else if (r == MESSAGE_E_INVALID_BODY) {
+                                log_append_here(peer->bus->log, LOG_WARNING, 0);
+                                bus_log_append_sender(peer->bus, peer->id, &peer_names, peer->policy->seclabel);
+
+                                r = log_commitf(peer->bus->log, "Peer :1.%llu is being disconnected as it sent a message with an invalid body.",
+                                                peer->id);
+                                if (r)
+                                        return error_fold(r);
+                        } else {
+                                return error_fold(r);
+                        }
+
                         return PEER_E_PROTOCOL_VIOLATION;
-                else if (r < 0)
-                        return error_fold(r);
+                }
 
                 message_stitch_sender(m, peer->id);
 
@@ -64,8 +106,20 @@ static int peer_dispatch_connection(Peer *peer, uint32_t events) {
                 r = driver_dispatch(peer, m);
                 metrics_sample_end(&peer->bus->metrics);
                 if (r) {
-                        if (r == DRIVER_E_PROTOCOL_VIOLATION)
+                        NameSet peer_names = NAME_SET_INIT_FROM_OWNER(&peer->owned_names);
+
+                        if (r == DRIVER_E_PROTOCOL_VIOLATION) {
+                                log_append_here(peer->bus->log, LOG_WARNING, 0);
+                                bus_log_append_sender(peer->bus, peer->id, &peer_names, peer->policy->seclabel);
+                                message_log_append(m, peer->bus->log);
+
+                                r = log_commitf(peer->bus->log, "Peer :1.%llu is being disconnected as it violated the high-level protocol.",
+                                                peer->id);
+                                if (r)
+                                        return error_fold(r);
+
                                 return PEER_E_PROTOCOL_VIOLATION;
+                        }
 
                         return error_fold(r);
                 }
@@ -126,31 +180,7 @@ int peer_dispatch(DispatchFile *file) {
                         connection_shutdown(&peer->connection);
                 } else if (r == PEER_E_QUOTA ||
                            r == PEER_E_PROTOCOL_VIOLATION) {
-                        NameSet peer_names = NAME_SET_INIT_FROM_OWNER(&peer->owned_names);
-
                         connection_close(&peer->connection);
-
-                        log_append_here(peer->bus->log, LOG_WARNING, 0);
-                        bus_log_append_sender(peer->bus, peer->id, &peer_names, peer->policy->seclabel);
-
-                        switch (r) {
-                        case PEER_E_QUOTA:
-                                r = log_commitf(peer->bus->log, "Peer :1.%llu is being disconnected as it does not have the resources to perform an operation.",
-                                                peer->id);
-                                if (r)
-                                        return error_fold(r);
-
-                                break;
-                        case PEER_E_PROTOCOL_VIOLATION:
-                                r = log_commitf(peer->bus->log, "Peer :1.%llu is being disconnected as it violated the protocol.",
-                                                peer->id);
-                                if (r)
-                                        return error_fold(r);
-
-                                break;
-                        default:
-                                assert(0);
-                        }
 
                         metrics_sample_start(&peer->bus->metrics);
                         r = driver_goodbye(peer, false);
