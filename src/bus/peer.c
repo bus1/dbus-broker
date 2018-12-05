@@ -56,11 +56,21 @@ static int peer_dispatch_connection(Peer *peer, uint32_t events) {
                                         return error_fold(r);
 
                                 return PEER_E_QUOTA;
-                        } else if (r == CONNECTION_E_PROTOCOL_VIOLATION) {
+                        } else if (r == CONNECTION_E_SASL_VIOLATION) {
                                 log_append_here(peer->bus->log, LOG_WARNING, 0);
                                 bus_log_append_sender(peer->bus, peer->id, &peer_names, peer->policy->seclabel);
 
-                                r = log_commitf(peer->bus->log, "Peer :1.%llu is being disconnected as it violated the protocol.",
+                                r = log_commitf(peer->bus->log, "Peer :1.%llu is being disconnected as it violated the SASL protocol.",
+                                                peer->id);
+                                if (r)
+                                        return error_fold(r);
+
+                                return PEER_E_PROTOCOL_VIOLATION;
+                        } else if (r == CONNECTION_E_UNEXPECTED_FDS) {
+                                log_append_here(peer->bus->log, LOG_WARNING, 0);
+                                bus_log_append_sender(peer->bus, peer->id, &peer_names, peer->policy->seclabel);
+
+                                r = log_commitf(peer->bus->log, "Peer :1.%llu is being disconnected as it attempted to pass file descriptors without negotiating support for it.",
                                                 peer->id);
                                 if (r)
                                         return error_fold(r);

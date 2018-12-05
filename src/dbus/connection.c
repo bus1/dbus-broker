@@ -108,7 +108,7 @@ static int connection_feed_sasl(Connection *connection, const char *input, size_
                 if (r) {
                         switch (r) {
                         case SASL_E_PROTOCOL_VIOLATION:
-                                return CONNECTION_E_PROTOCOL_VIOLATION;
+                                return CONNECTION_E_SASL_VIOLATION;
                         default:
                                 return error_fold(r);
                         }
@@ -120,7 +120,7 @@ static int connection_feed_sasl(Connection *connection, const char *input, size_
                         case SASL_E_FAILURE:
                                 return CONNECTION_E_SASL_FAILURE;
                         case SASL_E_PROTOCOL_VIOLATION:
-                                return CONNECTION_E_PROTOCOL_VIOLATION;
+                                return CONNECTION_E_SASL_VIOLATION;
                         default:
                                 return error_fold(r);
                         }
@@ -263,7 +263,7 @@ int connection_dequeue(Connection *connection, Message **messagep) {
         if (connection->server &&
             message && fdlist_count(message->fds) > 0 &&
             _c_unlikely_(!connection->sasl_server.fds_allowed))
-                return CONNECTION_E_PROTOCOL_VIOLATION;
+                return CONNECTION_E_UNEXPECTED_FDS;
 
         *messagep = message;
         message = NULL;
