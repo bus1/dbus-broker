@@ -29,6 +29,8 @@ enum {
         MESSAGE_E_TOO_LARGE,
         MESSAGE_E_INVALID_HEADER,
         MESSAGE_E_INVALID_BODY,
+
+        MESSAGE_E_MISSING_FDS,
 };
 
 struct MessageMetadata {

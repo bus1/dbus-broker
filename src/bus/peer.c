@@ -103,6 +103,14 @@ static int peer_dispatch_connection(Peer *peer, uint32_t events) {
                                                 peer->id);
                                 if (r)
                                         return error_fold(r);
+                        } else if (r == MESSAGE_E_MISSING_FDS) {
+                                log_append_here(peer->bus->log, LOG_WARNING, 0);
+                                bus_log_append_sender(peer->bus, peer->id, &peer_names, peer->policy->seclabel);
+
+                                r = log_commitf(peer->bus->log, "Peer :1.%llu is being disconnected as it passed fewer file descriptors than its header declared.",
+                                                peer->id);
+                                if (r)
+                                        return error_fold(r);
                         } else {
                                 return error_fold(r);
                         }

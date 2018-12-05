@@ -280,7 +280,7 @@ static int message_parse_header(Message *message, MessageMetadata *metadata) {
                         c_dvar_read(&v, "<u>)", c_dvar_type_u, &metadata->fields.unix_fds);
 
                         if (metadata->fields.unix_fds > fdlist_count(message->fds))
-                                return MESSAGE_E_INVALID_HEADER;
+                                return MESSAGE_E_MISSING_FDS;
 
                         break;
 
