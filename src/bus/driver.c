@@ -2028,6 +2028,7 @@ static const DriverMethod properties_methods[] = {
         { "Get",                                        true,   "/org/freedesktop/DBus",        driver_method_get,                                              driver_type_in_ss,      driver_type_out_v },
         { "Set",                                        true,   "/org/freedesktop/DBus",        driver_method_set,                                              driver_type_in_ssv,     driver_type_out_unit },
         { "GetAll",                                     true,   "/org/freedesktop/DBus",        driver_method_get_all,                                          driver_type_in_s,       driver_type_out_apsv },
+        { },
 };
 
 static int driver_dispatch_method(Peer *peer, const DriverMethod *methods, uint32_t serial, const char *method, const char *path, const char *signature, Message *message) {
