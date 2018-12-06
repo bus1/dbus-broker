@@ -288,7 +288,6 @@ static void driver_write_signal_header(CDVar *var, Peer *peer, const char *membe
 
 static const char *driver_error_to_string(int r) {
         static const char *error_strings[_DRIVER_E_MAX] = {
-                [DRIVER_E_INVALID_MESSAGE]                      = "Invalid message body",
                 [DRIVER_E_PEER_NOT_REGISTERED]                  = "Message forwarding attempted without calling Hello()",
                 [DRIVER_E_PEER_NOT_YET_REGISTERED]              = "Hello() was not yet called",
                 [DRIVER_E_PEER_ALREADY_REGISTERED]              = "Hello() already called",
@@ -841,14 +840,16 @@ static int driver_name_activated(Activation *activation, Peer *receiver) {
 static int driver_end_read(CDVar *var) {
         int r;
 
+        /*
+         * Messages passed to the driver have already been verified,
+         * so we simply fold away any errors here as they would be
+         * caused by our own programming errors.
+         */
         r = c_dvar_end_read(var);
-        switch (r) {
-        case C_DVAR_E_CORRUPT_DATA:
-        case C_DVAR_E_OUT_OF_BOUNDS:
-                return DRIVER_E_INVALID_MESSAGE;
-        default:
-                return error_origin(r);
-        }
+        if (r)
+                return error_fold(r);
+
+        return 0;
 }
 
 static int driver_method_hello(Peer *peer, const char *path, CDVar *in_v, uint32_t serial, CDVar *out_v) {
@@ -1990,8 +1991,10 @@ static int driver_handle_method(const DriverMethod *method, Peer *peer, const ch
         /*
          * Write the generic reply-header and then call into the method-handler
          * of the specific driver method. Note that the driver-methods are
-         * responsible to call driver_end_read(var_in), to verify all read data
-         * was correct.
+         * responsible to call c_dvar_end_read(var_in), to assert that all read
+         * data was correct. We already verify that the payload matches the
+         * signature, and that the signature matches the method call, so this
+         * is just to catch programming errors in the broker.
          */
 
         c_dvar_write(&var_out, "(");
@@ -2379,7 +2382,6 @@ int driver_dispatch(Peer *peer, Message *message) {
         r = driver_dispatch_internal(peer, message);
         switch (r) {
         case DRIVER_E_PEER_NOT_REGISTERED:
-        case DRIVER_E_INVALID_MESSAGE:
                 return DRIVER_E_PROTOCOL_VIOLATION;
         case DRIVER_E_PEER_ALREADY_REGISTERED:
         case DRIVER_E_UNEXPECTED_FDS:
