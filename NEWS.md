@@ -1,6 +1,7 @@
-dbus-broker - Linux D-Bus Message Broker
+# dbus-broker - Linux D-Bus Message Broker
 
-CHANGES WITH 16:
+
+## CHANGES WITH 16:
 
         * Explicitly mention our mailing-list in the README:
 
@@ -24,7 +25,7 @@ CHANGES WITH 16:
 
         - Tübingen, 2018-10-09
 
-CHANGES WITH 15:
+## CHANGES WITH 15:
 
         * Fix dbus-broker-launch to retain CAP_AUDIT_WRITE in its ambient
           capability set, so dbus-broker will get it as well.
@@ -36,7 +37,7 @@ CHANGES WITH 15:
 
         - Tübingen, 2018-08-08
 
-CHANGES WITH 14:
+## CHANGES WITH 14:
 
         * The broker now implements the org.freedesktop.DBus.Peer, and
           org.freedesktop.DBus.Properties interfaces.
@@ -68,7 +69,7 @@ CHANGES WITH 14:
 
         - Tübingen, 2018-07-03
 
-CHANGES WITH 13:
+## CHANGES WITH 13:
 
         * The --verbose command-line switch was dropped from both the broker
           and the launcher. Its behavior is now the default.
@@ -93,7 +94,7 @@ CHANGES WITH 13:
 
         - Tübingen, 2018-04-23
 
-CHANGES WITH 12:
+## CHANGES WITH 12:
 
         * Building documentation is now optional. Use -Ddocs=true with meson
           to build documentation. It is disabled by default.
@@ -112,7 +113,7 @@ CHANGES WITH 12:
 
         - Tübingen, 2018-04-17
 
-CHANGES WITH 11:
+## CHANGES WITH 11:
 
         * Building now requires linux-api-headers>=4.13. We expect the
           SO_PEERGROUPS socket-option to be defined in the kernel headers.
@@ -174,7 +175,7 @@ CHANGES WITH 11:
 
         - Tübingen, 2018-02-21
 
-CHANGES WITH 10:
+## CHANGES WITH 10:
 
         * Fix RequestName() / ReleaseName() to send signals before their reply,
           to match dbus-daemon behavior.
@@ -185,7 +186,7 @@ CHANGES WITH 10:
 
         - Tübingen, 2018-02-07
 
-CHANGES WITH 9:
+## CHANGES WITH 9:
 
         * A configuration reload of the launcher can now be triggered via its
           managing systemd instance. The ExecReload= key is hooked up to
@@ -208,7 +209,7 @@ CHANGES WITH 9:
 
         - Tübingen, 2017-11-30
 
-CHANGES WITH 8:
+## CHANGES WITH 8:
 
         * The launcher now uses instantiated systemd template units when
           activating a service that has no associated systemd service file.
@@ -236,7 +237,7 @@ CHANGES WITH 8:
 
         - Tübingen, 2017-11-07
 
-CHANGES WITH 7:
+## CHANGES WITH 7:
 
         * More bugfixes for 32bit architectures.
 
@@ -244,7 +245,7 @@ CHANGES WITH 7:
 
         - Berlin, 2017-10-17
 
-CHANGES WITH 6:
+## CHANGES WITH 6:
 
         * Bugfixes for 32bit architectures.
 
@@ -252,7 +253,7 @@ CHANGES WITH 6:
 
         - Tübingen, 2017-10-15
 
-CHANGES WITH 5:
+## CHANGES WITH 5:
 
         * Man-pages for dbus-broker and dbus-broker-launch are now built via
           meson and installed into `$prefix/man' by default.
@@ -286,7 +287,7 @@ CHANGES WITH 5:
 
         - Tübingen, 2017-10-10
 
-CHANGES WITH 4:
+## CHANGES WITH 4:
 
         * Add optional libaudit support in combination with SELinux. If
           enabled, SELinux AVC violations will end up in the audit log, rather
@@ -333,7 +334,7 @@ CHANGES WITH 4:
 
         - Tübingen, 2017-09-07
 
-CHANGES WITH 3:
+## CHANGES WITH 3:
 
         * Added manpages.
 
@@ -341,7 +342,7 @@ CHANGES WITH 3:
 
         - Oslo, 2017-08-18
 
-CHANGES WITH 2:
+## CHANGES WITH 2:
 
         * Added SELinux support.
 
@@ -349,7 +350,7 @@ CHANGES WITH 2:
 
         - Oslo, 2017-08-16
 
-CHANGES WITH 1:
+## CHANGES WITH 1:
 
         * Initial release of dbus-broker.
 
