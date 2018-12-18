@@ -2276,7 +2276,7 @@ static int driver_forward_broadcast(Peer *sender, Message *message) {
                                 if (r == CONNECTION_E_QUOTA)
                                         r = log_commitf(sender->bus->log, "Peer :1.%llu is being disconnected as it does not have the resources to receive a signal it subscribed to.", receiver->id);
                                 else
-                                        r = log_commitf(sender->bus->log, "Peer :1.%llu is being disconnected as it does not support receiveng the file descriptors it subscribed to.", receiver->id);
+                                        r = log_commitf(sender->bus->log, "Peer :1.%llu is being disconnected as it does not support receiving the file descriptors it subscribed to.", receiver->id);
                                 if (r)
                                         return error_fold(r);
                         } else {

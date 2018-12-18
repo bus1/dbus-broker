@@ -260,11 +260,32 @@ int connection_dequeue(Connection *connection, Message **messagep) {
                 return error_fold(r);
         }
 
-        if (connection->server &&
-            message && fdlist_count(message->fds) > 0 &&
-            _c_unlikely_(!connection->sasl_server.fds_allowed))
-                return CONNECTION_E_PROTOCOL_VIOLATION;
+        /* If there is no message pending, return NULL to the caller. */
+        if (!message)
+                goto exit;
 
+        /*
+         * We now dequeued a message from the socket layer. The socket layer
+         * only tokenizes messages, and ensures stream integrity. Here in the
+         * connection layer, we can verify further properties. We mainly verify
+         * the messages do not violate the negotiations that we got from SASL.
+         */
+
+        if (fdlist_count(message->fds) > 0) {
+                /*
+                 * If the message carries FDs, but we never negotiated FD
+                 * passing, this constitutes a protocol violation. Reject it
+                 * and tell the caller.
+                 */
+                if (connection->server) {
+                        if (_c_unlikely_(!connection->sasl_server.fds_allowed))
+                                return CONNECTION_E_PROTOCOL_VIOLATION;
+                } else {
+                        /* We always forcibly enable FD-passing as client. */
+                }
+        }
+
+exit:
         *messagep = message;
         message = NULL;
         return 0;
@@ -276,21 +297,27 @@ int connection_dequeue(Connection *connection, Message **messagep) {
 int connection_queue(Connection *connection, User *user, Message *message) {
         int r;
 
-        /*
-         * On the client side we know wheter or not we want FD support, and if
-         * we do, we know we will rather fail the connection than not enabling
-         * FDs. However, on the server side, we don't know until SASL has
-         * completed, which means that we do not allow queueing messages with
-         * FDs until SASL completed. This is not ideal, but in the case of
-         * the broker it works out, as we know that we wil not attempt to
-         * queue messages with FDs before receiving the Hello() from the
-         * client, at which point we know that SASL has completed, so we
-         * know if FDs will be supported.
-         */
-        if (connection->server &&
-            fdlist_count(message->fds) > 0 &&
-            _c_unlikely_(!connection->sasl_server.fds_allowed))
-                return CONNECTION_E_UNEXPECTED_FDS;
+        if (fdlist_count(message->fds) > 0) {
+                /*
+                 * We must not send messages out that carry FDs, unless FD
+                 * passing was successfully negotiated. The negotiation must be
+                 * triggered by a client during SASL. Any message following the
+                 * negotiation is allowed to carry FDs.
+                 *
+                 * From an API viewpoint, this is not ideal, since we do not
+                 * expose this flag to the caller. However, in case of the
+                 * broker it does not matter, since we only ever send messages
+                 * when triggered by the client. Hence, we never accidentally
+                 * send FDs out, racing a possible pending FD negotiation in
+                 * SASL.
+                 */
+                if (connection->server) {
+                        if (_c_unlikely_(!connection->sasl_server.fds_allowed))
+                                return CONNECTION_E_UNEXPECTED_FDS;
+                } else {
+                        /* We always forcibly enable FD-passing as client. */
+                }
+        }
 
         r = socket_queue(&connection->socket, user, message);
         if (r == SOCKET_E_QUOTA)
