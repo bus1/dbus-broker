@@ -135,12 +135,12 @@ static int peer_dispatch_connection(Peer *peer, uint32_t events) {
                                                 peer->id);
                                 if (r)
                                         return error_fold(r);
-                        } else if (r == DRIVER_E_PEER_IS_MONITOR) {
+                        } else if (r == DRIVER_E_MONITOR_READ_ONLY) {
                                 log_append_here(peer->bus->log, LOG_WARNING, 0);
                                 bus_log_append_sender(peer->bus, peer->id, &peer_names, peer->policy->seclabel);
                                 message_log_append(m, peer->bus->log);
 
-                                r = log_commitf(peer->bus->log, "Monitor :1.%llu is being disconnected as it sent a message.",
+                                r = log_commitf(peer->bus->log, "Monitor :1.%llu is being disconnected as it attempted to send a message.",
                                                 peer->id);
                                 if (r)
                                         return error_fold(r);
