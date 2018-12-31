@@ -1,5 +1,42 @@
 # dbus-broker - Linux D-Bus Message Broker
 
+## CHANGES WITH 17:
+
+        * The `g_shell` subsystem of glib was replaced with a new submodule
+          from the c-util suite, called `c-shquote`. It is a small project that
+          implements POSIX-Shell compatible quoting. This is required by the
+          dbus compatibility launcher to parse activation files.
+
+          Furthermore, the `g_key_file` subsystem of glib was replaced with a
+          submodule called `c-ini`, which implements a key-value file-parser.
+
+          Both submodules need to be added if you compile from git. With this
+          change, dbus-broker no longer requires glib.
+
+        * The new configuration options introduced in dbus-1.12 are now
+          recognized by the compatibility launcher and will no longer trigger
+          warnings.
+
+        * The systemd units shipped with dbus-broker now put the broker into
+          more isolated environments, hopefully reducing the impact of possible
+          security breaches. This requires semi-recent systemd releases to have
+          an effect. Older systemd release will ignore these new sandboxing
+          features.
+
+        * In case of forced client disconnects, the broker will now be a lot
+          more verbose and specific in its log-messages, describing exactly why
+          a client was disconnected. This hopefully aids debugging of
+          misbehaving clients.
+
+        * Messages with file-descriptors will now be refused if the client did
+          not negotiate file-descriptor passing before. This aligns the
+          behavior of the broker with the reference implementation. Before, all
+          clients were treated as if they support file-desciptor passing. This
+          is no longer the case.
+
+        Contributions from: David Herrmann, Jacob Alzen, Tom Gundersen
+
+        - Tübingen, 2018-12-31
 
 ## CHANGES WITH 16:
 
