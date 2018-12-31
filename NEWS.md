@@ -34,7 +34,7 @@
           clients were treated as if they support file-desciptor passing. This
           is no longer the case.
 
-        Contributions from: David Herrmann, Jacob Alzen, Tom Gundersen
+        Contributions from: David Herrmann, Jacob Alzén, Tom Gundersen
 
         - Tübingen, 2018-12-31
 
