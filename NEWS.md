@@ -36,7 +36,7 @@
 
         Contributions from: David Herrmann, Jacob Alzén, Tom Gundersen
 
-        - Tübingen, 2018-12-31
+        - Tübingen, 2019-01-01
 
 ## CHANGES WITH 16:
 
