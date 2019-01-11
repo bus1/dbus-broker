@@ -880,12 +880,24 @@ static int manager_ini_reader_parse_file(CIniGroup **groupp, const char *path) {
 
         fd = open(path, O_RDONLY | O_CLOEXEC);
         if (fd < 0) {
-                if (errno == ENOENT) {
-                        *groupp = NULL;
-                        return 0;
-                }
+                /*
+                 * For compatibility reasons we have to accept any failure
+                 * during open(2). dbus-daemon(1) simply ignores those errors
+                 * and skips the service file in question.
+                 *
+                 * We would very much prefer to whitelist specific error codes
+                 * here, but we would be playing whack-a-mole, so lets just
+                 * treat it as soft-error.
+                 */
+                if (errno == ENOENT)
+                        fprintf(stderr, "Original source was unlinked while parsing service file '%s'\n", path);
+                else if (errno == EACCES)
+                        fprintf(stderr, "Read access denied for service file '%s'\n", path);
+                else
+                        fprintf(stderr, "Unable to open service file '%s' (%d): %m\n", path, errno);
 
-                return error_origin(-errno);
+                *groupp = NULL;
+                return 0;
         }
 
         r = c_ini_reader_new(&reader);
