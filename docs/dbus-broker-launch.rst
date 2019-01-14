@@ -21,7 +21,7 @@ DESCRIPTION
 ===========
 
 **dbus-broker-launch** is a launcher for **dbus-broker**, spawning and managing
-a D-Bus Message Bus. The launcher aims to be fully compatible to the D-Bus
+a D-Bus Message Bus. The launcher aims to be fully compatible with the D-Bus
 reference implementation **dbus-daemon**\(1), supporting the same configuration
 syntax and runtime environment.
 
@@ -45,7 +45,7 @@ is not listed here, the launcher will deny startup and exit with an error.
 --config-file=PATH              config file to use (**Default**:
                                 */usr/share/dbus-1/{system,session}.conf*)
 --scope=SCOPE                   select scope to run in (one of: *system*,
-                                *user*; **Default**: *system*)
+                                *user*; **Default**: unset)
 
 LOGGING
 =======
@@ -78,6 +78,9 @@ if none is specified on the command-line.
 The selected scope does not have any further effect. It is only needed to
 define the activation environment for loaded service definitions. If no
 activatable services are declared, the scope will have no effect at all.
+
+If no scope is specified, then the effect is as if no activatable services
+are declared.
 
 SOCKETS
 =======

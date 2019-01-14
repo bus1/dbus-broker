@@ -49,6 +49,12 @@ enum {
         MANAGER_E_INVALID_SERVICE_FILE,
 };
 
+enum {
+        MANAGER_SCOPE_NONE,
+        MANAGER_SCOPE_USER,
+        MANAGER_SCOPE_SYSTEM,
+};
+
 typedef enum {
         SERVICE_STATE_PENDING,
         SERVICE_STATE_CURRENT,
@@ -102,7 +108,7 @@ static const uint64_t main_max_match_rules_per_connection = 256;
 static bool             main_arg_audit = false;
 static const char *     main_arg_broker = BINDIR "/dbus-broker";
 static const char *     main_arg_configfile = NULL;
-static bool             main_arg_user_scope = false;
+static unsigned int     main_arg_scope = MANAGER_SCOPE_NONE;
 static Log              main_log = LOG_NULL;
 
 static sd_bus *bus_close_unref(sd_bus *bus) {
@@ -801,6 +807,14 @@ static int manager_on_set_activation_environment(Manager *manager, sd_bus_messag
         _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *method_call = NULL;
         int r;
 
+        if (main_arg_scope == MANAGER_SCOPE_NONE)
+                /*
+                 * systemd activation is not supported, so we simply ignore
+                 * changes to the activation environment. This is what
+                 * dbus-daemon does too.
+                 */
+                return 0;
+
         r = sd_bus_message_new_method_call(manager->bus_regular, &method_call,
                                            "org.freedesktop.systemd1",
                                            "/org/freedesktop/systemd1",
@@ -1032,6 +1046,11 @@ static int manager_load_service_dir(Manager *manager, const char *dirpath, NSSCa
         char *path;
         size_t n;
         int r;
+
+        if (main_arg_scope == MANAGER_SCOPE_NONE) {
+                fprintf(stderr, "Ignoring the service directory '%s', as name activation is not supported.\n", dirpath);
+                return 0;
+        }
 
         dir = opendir(dirpath);
         if (!dir) {
@@ -1320,16 +1339,18 @@ static int manager_parse_config(Manager *manager, ConfigRoot **rootp, NSSCache *
         ConfigNode *cnode;
         int r;
 
+        if (main_arg_configfile)
+                configfile = main_arg_configfile;
+        else if (main_arg_scope == MANAGER_SCOPE_USER)
+                configfile = "/usr/share/dbus-1/session.conf";
+        else if (main_arg_scope == MANAGER_SCOPE_SYSTEM)
+                configfile = "/usr/share/dbus-1/system.conf";
+        else
+                return 0;
+
         r = dirwatch_new(&dirwatch);
         if (r)
                 return error_fold(r);
-
-        if (main_arg_configfile)
-                configfile = main_arg_configfile;
-        else if (main_arg_user_scope)
-                configfile = "/usr/share/dbus-1/session.conf";
-        else
-                configfile = "/usr/share/dbus-1/system.conf";
 
         config_parser_init(&parser);
 
@@ -1551,12 +1572,21 @@ static int manager_connect(Manager *manager) {
 
         assert(!manager->bus_regular);
 
-        if (main_arg_user_scope) {
+        if (main_arg_scope == MANAGER_SCOPE_USER) {
                 r = sd_bus_open_user(&manager->bus_regular);
                 if (r < 0)
                         return error_origin(r);
-        } else {
+        } else if (main_arg_scope == MANAGER_SCOPE_SYSTEM) {
                 r = sd_bus_open_system(&manager->bus_regular);
+                if (r < 0)
+                        return error_origin(r);
+        } else {
+                /*
+                 * This is just a dummy object, which should not be used for
+                 * anything other than making sure we get more helpful error
+                 * messages in case we inadvertently use it.
+                 */
+                r = sd_bus_new(&manager->bus_regular);
                 if (r < 0)
                         return error_origin(r);
         }
@@ -1790,9 +1820,9 @@ static int parse_argv(int argc, char *argv[]) {
 
                 case ARG_SCOPE:
                         if (!strcmp(optarg, "system")) {
-                                main_arg_user_scope = false;
+                                main_arg_scope = MANAGER_SCOPE_SYSTEM;
                         } else if (!strcmp(optarg, "user")) {
-                                main_arg_user_scope = true;
+                                main_arg_scope = MANAGER_SCOPE_USER;
                         } else {
                                 fprintf(stderr, "%s: invalid message bus scope -- '%s'\n", program_invocation_name, optarg);
                                 return MAIN_FAILED;
