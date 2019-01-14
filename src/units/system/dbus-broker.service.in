@@ -14,7 +14,6 @@ LimitNOFILE=16384
 ProtectSystem=full
 PrivateTmp=true
 PrivateDevices=true
-PrivateNetwork=true
 ExecStart=@bindir@/dbus-broker-launch --scope system --audit
 ExecReload=@bindir@/busctl call org.freedesktop.DBus /org/freedesktop/DBus org.freedesktop.DBus ReloadConfig
 
