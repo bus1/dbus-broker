@@ -198,7 +198,7 @@ static int message_parse_header(Message *message, MessageMetadata *metadata) {
                 c_dvar_read(&v, "(y", &field);
 
                 if (field >= _DBUS_MESSAGE_FIELD_N) {
-                        c_dvar_skip(&v, "v)");
+                        c_dvar_skip(&v, "*)");
                         continue;
                 }
 
