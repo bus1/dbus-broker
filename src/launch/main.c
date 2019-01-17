@@ -108,6 +108,7 @@ static const uint64_t main_max_match_rules_per_connection = 256;
 static bool             main_arg_audit = false;
 static const char *     main_arg_broker = BINDIR "/dbus-broker";
 static const char *     main_arg_configfile = NULL;
+static int              main_arg_listen = -1;
 static unsigned int     main_arg_scope = MANAGER_SCOPE_NONE;
 static Log              main_log = LOG_NULL;
 
@@ -349,6 +350,13 @@ static int manager_listen_inherit(Manager *manager) {
         if (n < 0)
                 return error_origin(n);
 
+        if (main_arg_listen >= 0) {
+                s = main_arg_listen;
+                ++n;
+        } else {
+                s = SD_LISTEN_FDS_START;
+        }
+
         if (n == 0) {
                 fprintf(stderr, "No listener socket inherited\n");
                 return MAIN_FAILED;
@@ -357,8 +365,6 @@ static int manager_listen_inherit(Manager *manager) {
                 fprintf(stderr, "More than one listener socket passed\n");
                 return MAIN_FAILED;
         }
-
-        s = SD_LISTEN_FDS_START;
 
         r = sd_is_socket(s, PF_UNIX, SOCK_STREAM, 1);
         if (r < 0)
@@ -1773,6 +1779,7 @@ static void help(void) {
                "     --version          Show package version\n"
                "     --audit            Enable audit support\n"
                "     --config-file PATH Specify path to configuration file\n"
+               "     --listen FD        Specify listen file-descriptor\n"
                "     --scope SCOPE      Scope of message bus\n"
                , program_invocation_short_name);
 }
@@ -1783,6 +1790,7 @@ static int parse_argv(int argc, char *argv[]) {
                 ARG_VERBOSE,
                 ARG_AUDIT,
                 ARG_CONFIG,
+                ARG_LISTEN,
                 ARG_SCOPE,
         };
         static const struct option options[] = {
@@ -1791,6 +1799,7 @@ static int parse_argv(int argc, char *argv[]) {
                 { "verbose",            no_argument,            NULL,   ARG_VERBOSE             },
                 { "audit",              no_argument,            NULL,   ARG_AUDIT               },
                 { "config-file",        required_argument,      NULL,   ARG_CONFIG,             },
+                { "listen",             required_argument,      NULL,   ARG_LISTEN,             },
                 { "scope",              required_argument,      NULL,   ARG_SCOPE               },
                 {}
         };
@@ -1817,6 +1826,21 @@ static int parse_argv(int argc, char *argv[]) {
                 case ARG_CONFIG:
                         main_arg_configfile = optarg;
                         break;
+
+                case ARG_LISTEN: {
+                        unsigned long vul;
+                        char *end;
+
+                        errno = 0;
+                        vul = strtoul(optarg, &end, 10);
+                        if (errno != 0 || *end || optarg == end || vul > INT_MAX) {
+                                fprintf(stderr, "%s: invalid listen file-descriptor -- '%s'\n", program_invocation_short_name, optarg);
+                                return MAIN_FAILED;
+                        }
+
+                        main_arg_listen = vul;
+                        break;
+                }
 
                 case ARG_SCOPE:
                         if (!strcmp(optarg, "system")) {

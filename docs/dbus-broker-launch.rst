@@ -44,6 +44,8 @@ is not listed here, the launcher will deny startup and exit with an error.
                                 **Default**: off)
 --config-file=PATH              config file to use (**Default**:
                                 */usr/share/dbus-1/{system,session}.conf*)
+--listen=FD                     file descriptor number to listen on
+                                (**Default**: unset)
 --scope=SCOPE                   select scope to run in (one of: *system*,
                                 *user*; **Default**: unset)
 
@@ -86,9 +88,11 @@ SOCKETS
 =======
 
 The socket to listen on for client connections must be created and passed to
-**dbus-broker-launch** by its parent process. The protocol must follow the
-socket-activation as defined by **systemd.socket**\(1). Only a single socket is
-supported right now.
+**dbus-broker-launch** by its parent process. The file-descriptor number of the
+listening socket may be specified using the **--listen** parameter.
+Alternatively the socket-activation protocol as defined by
+**systemd.socket**\(1) must be used. Only a single socket is supported right
+now.
 
 Additional *<listen>%path%</listen>* attributes in the configuration are
 ignored.
