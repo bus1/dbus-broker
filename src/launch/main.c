@@ -1063,12 +1063,8 @@ static int manager_load_service_dir(Manager *manager, const char *dirpath, NSSCa
 
                 r = manager_load_service_file(manager, path, nss_cache);
                 free(path);
-                if (r) {
-                        if (r == MANAGER_E_INVALID_SERVICE_FILE)
-                                continue;
-
+                if (r && r != MANAGER_E_INVALID_SERVICE_FILE)
                         return error_trace(r);
-                }
         }
         if (errno > 0)
                 return error_origin(-errno);
