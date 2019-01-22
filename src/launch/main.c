@@ -901,7 +901,7 @@ static int manager_ini_reader_parse_file(CIniGroup **groupp, const char *path) {
 
         r = c_ini_reader_new(&reader);
         if (r)
-                return error_fold(r);
+                return error_origin(r);
 
         c_ini_reader_set_mode(reader,
                               C_INI_MODE_EXTENDED_WHITESPACE |
@@ -910,6 +910,7 @@ static int manager_ini_reader_parse_file(CIniGroup **groupp, const char *path) {
 
         for (;;) {
                 uint8_t buf[1024];
+
                 len = read(fd, buf, sizeof(buf));
                 if (len < 0)
                         return error_origin(-errno);
@@ -918,12 +919,12 @@ static int manager_ini_reader_parse_file(CIniGroup **groupp, const char *path) {
 
                 r = c_ini_reader_feed(reader, buf, len);
                 if (r)
-                        return error_fold(r);
+                        return error_origin(r);
         }
 
         r = c_ini_reader_seal(reader, &domain);
         if (r)
-                return error_fold(r);
+                return error_origin(r);
 
         group = c_ini_domain_find(domain, "D-BUS Service", -1);
         if (!group) {
@@ -980,7 +981,7 @@ static int manager_load_service_file(Manager *manager, const char *path, NSSCach
                                 return MANAGER_E_INVALID_SERVICE_FILE;
                         }
 
-                        return error_fold(r);
+                        return error_origin(r);
                 }
         }
 
