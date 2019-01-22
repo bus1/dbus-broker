@@ -896,7 +896,6 @@ static int manager_ini_reader_parse_file(CIniGroup **groupp, const char *path) {
                 else
                         fprintf(stderr, "Unable to open service file '%s' (%d): %m\n", path, errno);
 
-                *groupp = NULL;
                 return MANAGER_E_INVALID_SERVICE_FILE;
         }
 
