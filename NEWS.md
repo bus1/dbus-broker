@@ -1,5 +1,22 @@
 # dbus-broker - Linux D-Bus Message Broker
 
+## CHANGES WITH 18:
+
+        * The handling of configuration parsing errors of the compatibility
+          launcher is now aligned with dbus-daemon. This means, non-existant
+          service files and file-system errors are now ignored and do not cause
+          the launcher to refuse to start.
+
+        * The compatibility launcher is no longer isolated in its own network
+          namespace, since the SELinux APIs require access to the root network
+          namespace. If you package the launcher with SELinux disabled, you can
+          get back the old behavior by using `PrivateNetwork=true` in your dbus
+          service file.
+
+        Contributions from: David Herrmann, Tom Gundersen, Yanko Kaneti
+
+        - Tübingen, 2019-02-20
+
 ## CHANGES WITH 17:
 
         * The `g_shell` subsystem of glib was replaced with a new submodule
