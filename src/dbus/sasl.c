@@ -50,14 +50,49 @@ static void sasl_split(const char *input, size_t n_input,
         }
 }
 
+/**
+ * sasl_client_init() - initialize SASL client
+ * @sasl:               the client to operate on
+ *
+ * This initializes the SASL client object @sasl.
+ */
 void sasl_client_init(SASLClient *sasl) {
         sasl->state = SASL_CLIENT_STATE_INIT;
 }
 
+/**
+ * sasl_client_deinit() - deinitialize SASL client
+ * @sasl:               the client to operate on
+ *
+ * This deinitializes the SASL client object @sasl. It is safe to call deinit several times.
+ */
 void sasl_client_deinit(SASLClient *sasl) {
         *sasl = (SASLClient){};
 }
 
+/**
+ * sasl_client_dispatch() - dispatch SASL client
+ * @sasl:               the client to dispatch
+ * @input:              the input to consume
+ * @n_input:            the length of the input
+ * @outputp:            return pointer to the output
+ * @n_outputp:          return pointer to the size of the output
+ *
+ * This dispatches the SASL object, consuming the given input string and providing a pointer to
+ * an output string to send, if applicable. Neither input nor output strings are nul-terminated.
+ *
+ * We hardcode the EXTERNAL mechanism, relying on the UDS providing the credentials, so not
+ * attaching them ourselves. Note that we do not necessarily know the UID the remote end will
+ * see us as, in the case of crossing a namespace boundary, so providing an UID is not
+ * straight-forward. We also hard-code the requirement for unix FD support.
+ *
+ * If either the EXTERNAL mechanism or FD support is not supported by the remote side, we fail
+ * the negotiation, we do not fall back to anything else.
+ *
+ * Return: SASL_E_FAILURE if the server did not support what we requested,
+ *         SASL_E_PROTOCOL_VIOLATION if the server violated the protocol, or
+ *         0 on success.
+ */
 int sasl_client_dispatch(SASLClient *sasl, const char *input, size_t n_input, const char **outputp, size_t *n_outputp) {
         static const char request[] = {
                 "\0AUTH EXTERNAL\r\n"
@@ -126,6 +161,17 @@ int sasl_client_dispatch(SASLClient *sasl, const char *input, size_t n_input, co
         return 0;
 }
 
+/**
+ * sasl_server_init() - initialize SASL server
+ * @sasl:               the server to operate on
+ * @uid:                the UID of the connecting client
+ * @guid:               the GUID associated with the listening socket
+ *
+ * This initializes the SASL server object @sasl, for authenticating with UID
+ * @uid. The GUID @guid is used to identify the connection. This should be
+ * unique per listening socket, but shared beteewn all connections to the same
+ * socket.
+ */
 void sasl_server_init(SASLServer *sasl, uid_t uid, const char *guid) {
         *sasl = (SASLServer){};
         sasl->uid = uid;
@@ -135,6 +181,12 @@ void sasl_server_init(SASLServer *sasl, uid_t uid, const char *guid) {
         c_string_to_hex(guid, 16, &sasl->ok_response[3]);
 };
 
+/**
+ * sasl_server_deinit() - deinitialize SASL server
+ * @sasl:               the server to operate on
+ *
+ * This deinitializes the SASL server object @sasl. It is safe to call deinit several times.
+ */
 void sasl_server_deinit(SASLServer *sasl) {
         *sasl = (SASLServer){};
 };
@@ -190,6 +242,30 @@ static void sasl_server_handle_auth(SASLServer *sasl, const char *input, size_t 
         }
 }
 
+/**
+ * sasl_server_dispatch() - dispatch SASL server
+ * @sasl:               the server to dispatch
+ * @input:              the input to consume
+ * @n_input:            the length of the input
+ * @outputp:            return pointer to the output
+ * @n_outputp:          return pointer to the size of the output
+ *
+ * This dispatches the SASL object, consuming the given input string and providing a pointer to
+ * an output string to send, if applicable. Neither input nor output strings are nul-terminated.
+ *
+ * Only the EXTERNAL mechanism is supported, so if the client tries to use anything else, we
+ * reject that and inform them that only EXTERNAL is supported. If the client provides their
+ * UID, then we verify that this is as expected, but if it is ommitted, we use the expected
+ * one.
+ *
+ * We will optionally allow unix FD support to be negotiated if the client requests that.
+ *
+ * Note that even though each output string has a fixed size, the server will potentially
+ * produce an unbounded amount of output over all, as it will only terminate the exchange
+ * in case it succeeded or the protocol was violated.
+ *
+ * Return: SASL_E_PROTOCOL_VIOLATION if the client violated the protocol, or 0 on success.
+ */
 int sasl_server_dispatch(SASLServer *sasl, const char *input, size_t n_input, const char **outputp, size_t *n_outputp) {
         const char *cmd, *arg;
         size_t n_cmd, n_arg;

@@ -207,8 +207,6 @@ static void socket_discard_output(Socket *socket) {
  * (and accounted on it), and @fd will be used as socket file descriptor. Not
  * that @fd is still owned by the caller and must not be closed while the
  * socket is used.
- *
- * Return: 0 on success, negative error code on failure.
  */
 void socket_init(Socket *socket, User *user, int fd) {
         *socket = (Socket)SOCKET_NULL(*socket);
