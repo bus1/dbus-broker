@@ -1,5 +1,8 @@
 /*
  * D-Bus Messages
+ *
+ * This encapsulates incoming and outgoing D-Bus messages. This is used to hold the
+ * message data, the attached FDs and optional the cached metadata.
  */
 
 #include <c-dvar.h>
@@ -34,7 +37,17 @@ static int message_new(Message **messagep, bool big_endian, size_t n_extra) {
 }
 
 /**
- * message_new_incoming() - XXX
+ * message_new_incoming() - create new incoming message object
+ * @messagep:           output pointer to new message object
+ * @header:             header of new message
+ *
+ * This creates a new message object in @messagep, to hold an incoming message with
+ * header @header. Only the header is initialized, the backing memory for the message
+ * payload is allocated, but not yet initialized.
+ *
+ * Return: 0 on success, MESSAGE_E_CORRUPT_HEADER if unknown endianness,
+ *         MESSAGE_E_TOO_LARGE if the declared message size violates the spec,
+ *         or a negative error code on failure.
  */
 int message_new_incoming(Message **messagep, MessageHeader header) {
         _c_cleanup_(message_unrefp) Message *message = NULL;
@@ -79,7 +92,15 @@ int message_new_incoming(Message **messagep, MessageHeader header) {
 }
 
 /**
- * message_new_outgoing() - XXX
+ * message_new_outgoing() - create a new outgoing message object
+ * @messagep:           return pointer to new message object
+ * @data:               the message contents
+ * @n_data:             the size of the message contents
+ *
+ * The consumes the provided @data, which must be a valid D-Bus message and
+ * creates an outgoing message representing it.
+ *
+ * Return: 0 on success, or a negative error code on failure.
  */
 int message_new_outgoing(Message **messagep, void *data, size_t n_data) {
         _c_cleanup_(message_unrefp) Message *message = NULL;
@@ -402,7 +423,19 @@ static int message_parse_body(Message *message, MessageMetadata *metadata) {
 }
 
 /**
- * message_parse_metadata() - XXX
+ * message_parse_metadata() - parse message metadata
+ * @message:            message to operate on
+ *
+ * This parses the message, verifies its complience to the spec, and caches its metadata. If
+ * the message contains more FDs than expected, the excess ones are dropped, otherwise the
+ * message object is not altered.
+ *
+ * This method is idempotent.
+ *
+ * Return: 0 on success,
+ *         MESSAGE_E_MISSING_FDS if the message contains fewer FDs than declared in the metadata,
+ *         MESSAGE_E_INVALID_HEADER if the header violates the spec in other ways,
+ *         MESSAGE_E_INVALID_BODY if the body could not be parsed.
  */
 int message_parse_metadata(Message *message) {
         void *p;
@@ -604,6 +637,14 @@ void message_stitch_sender(Message *message, uint64_t sender_id) {
                 message->header->n_fields = htole32(message->n_header - sizeof(*message->header));
 }
 
+/**
+ * message_log_append() - append message metadata to the log
+ * @message:            message to operate on
+ * @log:                log to append to
+ *
+ * This appends the metadata of @message to the next log message written
+ * to @log.
+ */
 void message_log_append(Message *message, Log *log) {
         log_appendf(log,
                     "DBUS_BROKER_MESSAGE_DESTINATION=%s\n"
