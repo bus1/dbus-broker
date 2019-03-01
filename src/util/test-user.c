@@ -90,8 +90,46 @@ static void test_quota(void) {
         user_registry_deinit(&registry);
 }
 
+static void test_overflow(void) {
+        UserRegistry registry;
+        User *entry1, *entry2;
+        UserCharge charge1;
+        int r;
+
+        r = user_registry_init(&registry, NULL, _USER_SLOT_N, (unsigned int[]){ 1024, 1024, 1024, 1024, 1024 });
+        assert(!r);
+
+        r = user_registry_ref_user(&registry, &entry1, 1);
+        assert(r == 0);
+
+        r = user_registry_ref_user(&registry, &entry2, 2);
+        assert(r == 0);
+
+        user_charge_init(&charge1);
+
+        /* first actor gets exactly 512 bytes */
+        r = user_charge(entry1, &charge1, entry2, USER_SLOT_BYTES, 513);
+        assert(r == USER_E_QUOTA);
+        r = user_charge(entry1, &charge1, entry2, USER_SLOT_BYTES, 1024);
+        assert(r == USER_E_QUOTA);
+        r = user_charge(entry1, &charge1, entry2, USER_SLOT_BYTES, 1025);
+        assert(r == USER_E_QUOTA);
+        r = user_charge(entry1, &charge1, entry2, USER_SLOT_BYTES, 2048);
+        assert(r == USER_E_QUOTA);
+        r = user_charge(entry1, &charge1, entry2, USER_SLOT_BYTES, (unsigned int)-1);
+        assert(r == USER_E_QUOTA);
+        r = user_charge(entry1, &charge1, entry2, USER_SLOT_BYTES, 512);
+        assert(!r);
+
+        user_charge_deinit(&charge1);
+        user_unref(entry2);
+        user_unref(entry1);
+        user_registry_deinit(&registry);
+}
+
 int main(int argc, char **argv) {
         test_setup();
         test_quota();
+        test_overflow();
         return 0;
 }
