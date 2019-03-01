@@ -139,10 +139,33 @@ static int user_charge_check(unsigned int remaining,
                              unsigned int users,
                              unsigned int share,
                              unsigned int charge) {
-        if (remaining - charge < (share + charge) * users)
-                return USER_E_QUOTA;
+        unsigned int limit;
 
-        return 0;
+        /*
+         * For a given allocation scheme `A(users)`, a single allocation is
+         * allowed to request anything less than, or equal to:
+         *
+         *               remaining + share
+         *     charge <= ~~~~~~~~~~~~~~~~~ - share
+         *                   A(users)
+         *
+         * We want to avoid a division, so instead we modify the equation to
+         * end up as:
+         *
+         *     A(users) * (charge + share) - share <= remaining
+         *
+         * Note that currently we use an allocator with polynomial guarantees:
+         *
+         *     A(users) = users + 1
+         */
+
+        if (!__builtin_add_overflow(share, charge, &limit) &&
+            !__builtin_mul_overflow(limit, users + 1, &limit) &&
+            !__builtin_sub_overflow(limit, share, &limit) &&
+            limit <= remaining)
+                return 0;
+
+        return USER_E_QUOTA;
 }
 
 static void user_link(User *user, CRBNode *parent, CRBNode **slot) {
