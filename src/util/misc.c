@@ -11,13 +11,20 @@
 #include "util/error.h"
 #include "util/misc.h"
 
-
+/**
+ * util_umul64_saturating() - saturating multiplication
+ * @a:                  first operand
+ * @b:                  second operand
+ *
+ * This calculates @a multiplied by @b and returns the result. In case of an
+ * integer overflow, it will return `UINT64_MAX`.
+ *
+ * Return: The saturated result is returned.
+ */
 uint64_t util_umul64_saturating(uint64_t a, uint64_t b) {
-        unsigned long long res;
+        uint64_t res;
 
-        static_assert(sizeof(uint64_t) <= sizeof(res), "unsigned long long is smaller than 64 bits");
-
-        if (!__builtin_umulll_overflow(a, b, &res) || res > UINT64_MAX)
+        if (__builtin_mul_overflow(a, b, &res))
                 res = UINT64_MAX;
 
         return res;
