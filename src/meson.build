@@ -182,6 +182,9 @@ test('D-Bus Match Handling', test_match)
 test_message = executable('test-message', ['dbus/test-message.c'], dependencies: dep_bus)
 test('D-Bus Message Abstraction', test_message)
 
+test_misc = executable('test-misc', ['util/test-misc.c'], dependencies: dep_bus)
+test('Miscellaneous Helpers', test_misc)
+
 test_name = executable('test-name', ['bus/test-name.c'], dependencies: dep_bus)
 test('Name Registry', test_name)
 
