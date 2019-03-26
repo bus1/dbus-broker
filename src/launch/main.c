@@ -508,7 +508,17 @@ static int manager_start_unit_handler(sd_bus_message *message, void *userdata, s
                 /* unit started successfully */
                 return 1;
 
-        fprintf(stderr, "Activation request for '%s' failed: %s\n", service->name, error->message);
+        if (strcmp(error->name, "org.freedesktop.systemd1.TransactionIsDestructive") != 0) {
+                /*
+                 * Only log on unexpected errors. Failing to start a service due to
+                 * the transaction being destructive means that there is already a
+                 * concurrent job to stop the service. This is expected behavior
+                 * especially during shutdown and not something worth logging about.
+                 * PID1 will still log that this has happened.
+                 */
+                fprintf(stderr, "Activation request for '%s' failed: %s\n", service->name, error->message);
+        }
+
 
         /* unit failed, so reset pending activation requsets in the broker */
         r = asprintf(&object_path, "/org/bus1/DBus/Name/%s", service->id);
