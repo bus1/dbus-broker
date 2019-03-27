@@ -1,5 +1,20 @@
 # dbus-broker - Linux D-Bus Message Broker
 
+## CHANGES WITH 19:
+
+        * Fix a possible integer overflow in resource quota calculations.
+          Before this, it was possible to exceed the assigned resource limits
+          by crafting messages that trigger this integer overflow. This
+          effectively allows machine-local resource exhaustion.
+
+        * Fix the resource limit calculation. Previously, resource limits were
+          incorrectly calculated, leading too limits that were higher than
+          intended.
+
+        Contributions from: David Herrmann, Tom Gundersen
+
+        - Tübingen, 2019-03-28
+
 ## CHANGES WITH 18:
 
         * The handling of configuration parsing errors of the compatibility
