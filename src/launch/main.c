@@ -508,13 +508,31 @@ static int manager_start_unit_handler(sd_bus_message *message, void *userdata, s
                 /* unit started successfully */
                 return 1;
 
+        /*
+         * We always forward activation failure to the broker, which then
+         * forwards it as error reply to all pending messages on that
+         * activation. We augment this with a detailed error message in all
+         * cases where we consider the error non-recoverable. In case of
+         * recoverable situations, we want to stay silent and simply forward
+         * the information to the sender of the activation message.
+         */
         if (strcmp(error->name, "org.freedesktop.systemd1.TransactionIsDestructive") != 0) {
                 /*
-                 * Only log on unexpected errors. Failing to start a service due to
-                 * the transaction being destructive means that there is already a
-                 * concurrent job to stop the service. This is expected behavior
-                 * especially during shutdown and not something worth logging about.
-                 * PID1 will still log that this has happened.
+                 * We currently use a whitelist of situations where we consider
+                 * the activation failure recoverable. These currently include:
+                 *
+                 *  * `TransactionIsDestructive` from systemd tells us that the
+                 *    start request was valid, but was denied because a
+                 *    non-recoverable conflicting stop request is currently
+                 *    pending. Most common scenario is the service manager
+                 *    shutting down, but any systemd-job can theoretically
+                 *    select this mode.
+                 *    Since this indicates that our request was valid and
+                 *    properly configured, we treat this as recoverable error.
+                 *
+                 * In any other situation we log an error message, since these
+                 * are non-recoverable and indicate system configuration
+                 * errors.
                  */
                 fprintf(stderr, "Activation request for '%s' failed: %s\n", service->name, error->message);
         }
@@ -525,6 +543,7 @@ static int manager_start_unit_handler(sd_bus_message *message, void *userdata, s
         if (r < 0)
                 return error_origin(-errno);
 
+        /* XXX: We should forward error-information to the activator. */
         r = sd_bus_call_method(service->manager->bus_controller,
                                NULL,
                                object_path,
