@@ -68,6 +68,7 @@ struct Service {
         char *user;
         uid_t uid;
         uint64_t instance;
+        uint64_t n_missing_unit;
         char id[];
 };
 
@@ -529,12 +530,27 @@ static int manager_start_unit_handler(sd_bus_message *message, void *userdata, s
                  *    select this mode.
                  *    Since this indicates that our request was valid and
                  *    properly configured, we treat this as recoverable error.
+                 *  * `NoSuchUnit` from systemd tells us that the unit file
+                 *    was not found. This may indicate that the service was
+                 *    disabled, which is a supported configuration. In this
+                 *    case we only log once.
                  *
                  * In any other situation we log an error message, since these
                  * are non-recoverable and indicate system configuration
                  * errors.
                  */
-                fprintf(stderr, "Activation request for '%s' failed: %s\n", service->name, error->message);
+                if (strcmp(error->name, "org.freedesktop.systemd1.NoSuchUnit") == 0) {
+                        if (!service->n_missing_unit++)
+                                fprintf(stderr,
+                                        "Activation request for '%s' failed. The corresponding systemd unit was not found: %s\n",
+                                        service->name,
+                                        error->message);
+                } else {
+                        fprintf(stderr,
+                                "Activation request for '%s' failed: %s\n",
+                                service->name,
+                                error->message);
+                }
         }
 
 
