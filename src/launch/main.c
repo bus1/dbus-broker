@@ -126,6 +126,62 @@ static sd_bus *bus_close_unref(sd_bus *bus) {
         return sd_bus_unref(bus);
 }
 
+static void log_append_bus_error(Log *log, const sd_bus_error *error) {
+        log_appendf(log, "DBUS_BROKER_LAUNCH_BUS_ERROR_NAME=%s\n", error->name);
+        log_appendf(log, "DBUS_BROKER_LAUNCH_BUS_ERROR_MESSAGE=%s\n", error->message);
+}
+
+static void log_append_siginfo(Log *log, const siginfo_t *si) {
+        log_appendf(log, "DBUS_BROKER_LAUNCH_SIGNAL_SIGNO=%d\n", si->si_signo);
+        log_appendf(log, "DBUS_BROKER_LAUNCH_SIGNAL_CODE=%d\n", si->si_code);
+        log_appendf(log, "DBUS_BROKER_LAUNCH_SIGNAL_PID=%"PRIu32"\n", si->si_pid);
+        log_appendf(log, "DBUS_BROKER_LAUNCH_SIGNAL_UID=%"PRIu32"\n", si->si_uid);
+}
+
+static void log_append_signalfd_siginfo(Log *log, const struct signalfd_siginfo *ssi) {
+        siginfo_t si = {
+                .si_signo = ssi->ssi_signo,
+                .si_code = ssi->ssi_code,
+                .si_pid = ssi->ssi_pid,
+                .si_uid = ssi->ssi_uid,
+        };
+        log_append_siginfo(log, &si);
+}
+
+static void log_append_service_path(Log *log, const char *path) {
+        if (path)
+                log_appendf(log, "DBUS_BROKER_LAUNCH_SERVICE_PATH=%s\n", path);
+}
+
+static void log_append_service_name(Log *log, const char *name) {
+        if (name)
+                log_appendf(log, "DBUS_BROKER_LAUNCH_SERVICE_NAME=%s\n", name);
+}
+
+static void log_append_service_unit(Log *log, const char *unit) {
+        if (unit)
+                log_appendf(log, "DBUS_BROKER_LAUNCH_SERVICE_UNIT=%s\n", unit);
+}
+
+static void log_append_service_user(Log *log, const char *user) {
+        if (user)
+                log_appendf(log, "DBUS_BROKER_LAUNCH_SERVICE_USER=%s\n", user);
+}
+
+static void log_append_service(Log *log, Service *service) {
+        log_append_service_path(log, service->path);
+        log_append_service_name(log, service->name);
+        log_append_service_unit(log, service->unit);
+        log_append_service_user(log, service->user);
+
+        log_appendf(log, "DBUS_BROKER_LAUNCH_SERVICE_UID=%"PRIu32"\n", service->uid);
+        log_appendf(log, "DBUS_BROKER_LAUNCH_SERVICE_INSTANCE=%"PRIu64"\n", service->instance);
+        log_appendf(log, "DBUS_BROKER_LAUNCH_SERVICE_ID=%s\n", service->id);
+
+        for (size_t i = 0; i < service->argc; ++i)
+                log_appendf(log, "DBUS_BROKER_LAUNCH_ARG%zu=%s\n", i, service->argv[i]);
+}
+
 static int service_compare(CRBTree *t, void *k, CRBNode *n) {
         Service *service = c_container_of(n, Service, rb);
 
@@ -273,14 +329,24 @@ static int manager_on_sighup(sd_event_source *s, const struct signalfd_siginfo *
         Manager *manager = userdata;
         int r;
 
-        fprintf(stderr, "Caught SIGHUP\n");
+        log_append_here(&main_log, LOG_INFO, si->ssi_errno);
+        log_append_signalfd_siginfo(&main_log, si);
+
+        r = log_commitf(&main_log, "Caught SIGHUP, trigger reload.\n");
+        if (r)
+                return error_fold(r);
 
         r = manager_reload_config(manager);
         if (r) {
-                if (r == MANAGER_E_INVALID_CONFIG)
-                        fprintf(stderr, "Invalid configuration, ignored.\n");
-                else
+                if (r == MANAGER_E_INVALID_CONFIG) {
+                        log_append_here(&main_log, LOG_WARNING, 0);
+
+                         r = log_commitf(&main_log, "Invalid configuration, ignored.\n");
+                         if (r)
+                                 return error_fold(r);
+                } else {
                         return error_fold(r);
+                }
         }
 
         return 1;
@@ -294,14 +360,23 @@ static int manager_on_dirwatch(sd_event_source *s, int fd, uint32_t revents, voi
         if (r != DIRWATCH_E_TRIGGERED)
                 return error_fold(r);
 
-        fprintf(stderr, "Noticed file-system modification, trigger reload\n");
+        log_append_here(&main_log, LOG_INFO, 0);
+
+        r = log_commitf(&main_log, "Noticed file-system modification, trigger reload.\n");
+        if (r)
+                return error_fold(r);
 
         r = manager_reload_config(manager);
         if (r) {
-                if (r == MANAGER_E_INVALID_CONFIG)
-                        fprintf(stderr, "Invalid configuration, ignored.\n");
-                else
+                if (r == MANAGER_E_INVALID_CONFIG) {
+                        log_append_here(&main_log, LOG_WARNING, 0);
+
+                        r = log_commitf(&main_log, "Invalid configuration, ignored.\n");
+                        if (r)
+                                return error_fold(r);
+                } else {
                         return error_fold(r);
+                }
         }
 
         return 1;
@@ -481,7 +556,14 @@ exit:
 }
 
 static int manager_on_child_exit(sd_event_source *source, const siginfo_t *si, void *userdata) {
-        fprintf(stderr, "Caught SIGCHLD of broker\n");
+        int r;
+
+        log_append_here(&main_log, LOG_INFO, si->si_errno);
+        log_append_siginfo(&main_log, si);
+
+        r = log_commitf(&main_log, "Caught SIGCHLD of broker.\n");
+        if (r)
+                return error_fold(r);
 
         return sd_event_exit(sd_event_source_get_event(source),
                              (si->si_code == CLD_EXITED) ? si->si_status : EXIT_FAILURE);
@@ -550,16 +632,28 @@ static int manager_start_unit_handler(sd_bus_message *message, void *userdata, s
                  * errors.
                  */
                 if (strcmp(error->name, "org.freedesktop.systemd1.NoSuchUnit") == 0) {
-                        if (!service->n_missing_unit++)
-                                fprintf(stderr,
-                                        "Activation request for '%s' failed. The corresponding systemd unit was not found: %s\n",
-                                        service->name,
-                                        error->message);
+                        if (!service->n_missing_unit++) {
+                                log_append_here(&main_log, LOG_WARNING, 0);
+                                log_append_bus_error(&main_log, error);
+                                log_append_service(&main_log, service);
+
+                                r = log_commitf(&main_log,
+                                                "Activation request for '%s' failed: The systemd unit '%s' could not be found.\n",
+                                                service->name,
+                                                service->unit);
+                                if (r)
+                                        return error_fold(r);
+                        }
                 } else {
-                        fprintf(stderr,
-                                "Activation request for '%s' failed: %s\n",
-                                service->name,
-                                error->message);
+                        log_append_here(&main_log, LOG_ERR, 0);
+                        log_append_bus_error(&main_log, error);
+                        log_append_service(&main_log, service);
+
+                        r = log_commitf(&main_log,
+                                        "Activation request for '%s' failed.\n",
+                                        service->name);
+                        if (r)
+                                return error_fold(r);
                 }
         }
 
@@ -819,7 +913,12 @@ static int manager_on_name_activate(Manager *manager, sd_bus_message *m, const c
                                       Service,
                                       rb);
         if (!service) {
-                fprintf(stderr, "Activation request on unknown name '%s'\n", id);
+                log_append_here(&main_log, LOG_ERR, 0);
+
+                r = log_commitf(&main_log, "Activation request on unknown name '%s'.\n", id);
+                if (r)
+                        return error_fold(r);
+
                 return 0;
         } else if (!strcmp(service->name, "org.freedesktop.systemd1")) {
                 /* pid1 activation requests are silently ignored */
@@ -841,13 +940,19 @@ static int manager_on_name_activate(Manager *manager, sd_bus_message *m, const c
 
 static int manager_set_environment_handler(sd_bus_message *message, void *userdata, sd_bus_error *errorp) {
         const sd_bus_error *error;
+        int r;
 
         error = sd_bus_message_get_error(message);
         if (!error)
                 /* environment set successfully */
                 return 1;
 
-        fprintf(stderr, "Updating activation environment failed: %s\n", error->message);
+        log_append_here(&main_log, LOG_ERR, 0);
+        log_append_bus_error(&main_log, error);
+
+        r = log_commitf(&main_log, "Updating activation environment failed.\n");
+        if (r)
+                return error_fold(r);
 
         return 1;
 }
@@ -944,12 +1049,21 @@ static int manager_ini_reader_parse_file(CIniGroup **groupp, const char *path) {
                  * here, but we would be playing whack-a-mole, so lets just
                  * treat it as soft-error.
                  */
-                if (errno == ENOENT)
-                        fprintf(stderr, "Original source was unlinked while parsing service file '%s'\n", path);
-                else if (errno == EACCES)
-                        fprintf(stderr, "Read access denied for service file '%s'\n", path);
-                else
-                        fprintf(stderr, "Unable to open service file '%s' (%d): %m\n", path, errno);
+                log_append_here(&main_log, LOG_ERR, errno);
+                log_append_service_path(&main_log, path);
+                if (errno == ENOENT) {
+                        r = log_commitf(&main_log, "Original source was unlinked while parsing service file '%s'\n", path);
+                        if (r)
+                                return error_fold(r);
+                } else if (errno == EACCES) {
+                        r = log_commitf(&main_log, "Read access denied for service file '%s'\n", path);
+                        if (r)
+                                return error_fold(r);
+                } else {
+                        r = log_commitf(&main_log, "Unable to open service file '%s': %m\n", path);
+                        if (r)
+                                return error_fold(r);
+                }
 
                 return MANAGER_E_INVALID_SERVICE_FILE;
         }
@@ -983,7 +1097,13 @@ static int manager_ini_reader_parse_file(CIniGroup **groupp, const char *path) {
 
         group = c_ini_domain_find(domain, "D-BUS Service", -1);
         if (!group) {
-                fprintf(stderr, "Missing 'D-Bus Service' section in service file '%s'\n", path);
+                log_append_here(&main_log, LOG_ERR, 0);
+                log_append_service_path(&main_log, path);
+
+                r = log_commitf(&main_log, "Missing 'D-Bus Service' section in service file '%s'\n", path);
+                if (r)
+                        return error_fold(r);
+
                 return MANAGER_E_INVALID_SERVICE_FILE;
         }
 
@@ -1012,12 +1132,24 @@ static int manager_load_service_file(Manager *manager, const char *path, NSSCach
         user_entry = c_ini_group_find(group, "User", -1);
 
         if (!name_entry) {
-                fprintf(stderr, "Missing name in service file '%s'\n", path);
+                log_append_here(&main_log, LOG_ERR, 0);
+                log_append_service_path(&main_log, path);
+
+                r = log_commitf(&main_log, "Missing name in service file '%s'\n", path);
+                if (r)
+                        return error_fold(r);
+
                 return MANAGER_E_INVALID_SERVICE_FILE;
         }
 
         if (!unit_entry && !exec_entry) {
-                fprintf(stderr, "Missing exec or unit in service file '%s'\n", path);
+                log_append_here(&main_log, LOG_ERR, 0);
+                log_append_service_path(&main_log, path);
+
+                r = log_commitf(&main_log, "Missing exec or unit in service file '%s'\n", path);
+                if (r)
+                        return error_fold(r);
+
                 return MANAGER_E_INVALID_SERVICE_FILE;
         }
 
@@ -1032,7 +1164,13 @@ static int manager_load_service_file(Manager *manager, const char *path, NSSCach
                 r = c_shquote_parse_argv(&argv, &argc, exec, n_exec);
                 if (r) {
                         if (r == C_SHQUOTE_E_BAD_QUOTING || r == C_SHQUOTE_E_CONTAINS_NULL) {
-                                fprintf(stderr, "Invalid exec '%s' in service file '%s'\n", exec, path);
+                                log_append_here(&main_log, LOG_ERR, 0);
+                                log_append_service_path(&main_log, path);
+
+                                r = log_commitf(&main_log, "Invalid exec '%s' in service file '%s'\n", exec, path);
+                                if (r)
+                                        return error_fold(r);
+
                                 return MANAGER_E_INVALID_SERVICE_FILE;
                         }
 
@@ -1046,7 +1184,14 @@ static int manager_load_service_file(Manager *manager, const char *path, NSSCach
                 r = nss_cache_get_uid(nss_cache, &uid, NULL, user);
                 if (r) {
                         if (r == NSS_CACHE_E_INVALID_NAME) {
-                                fprintf(stderr, "Invalid user name '%s' in service file '%s'\n", user, path);
+                                log_append_here(&main_log, LOG_ERR, 0);
+                                log_append_service_path(&main_log, path);
+                                log_append_service_user(&main_log, user);
+
+                                r = log_commitf(&main_log, "Invalid user name '%s' in service file '%s'\n", user, path);
+                                if (r)
+                                        return error_fold(r);
+
                                 return MANAGER_E_INVALID_SERVICE_FILE;
                         }
 
@@ -1071,7 +1216,14 @@ static int manager_load_service_file(Manager *manager, const char *path, NSSCach
                         if (r)
                                 return error_trace(r);
                 } else {
-                        fprintf(stderr, "Ignoring duplicate name '%s' in service file '%s'\n", name, path);
+                        log_append_here(&main_log, LOG_ERR, 0);
+                        log_append_service_path(&main_log, path);
+                        log_append_service_name(&main_log, name);
+
+                        r = log_commitf(&main_log, "Ignoring duplicate name '%s' in service file '%s'\n", name, path);
+                        if (r)
+                                return error_fold(r);
+
                         return MANAGER_E_INVALID_SERVICE_FILE;
                 }
         }
@@ -1784,6 +1936,9 @@ static int open_log(void) {
 
         log_init_journal_consume(&main_log, fd);
         fd = -1;
+
+        log_set_lossy(&main_log, true);
+
         return 0;
 }
 
