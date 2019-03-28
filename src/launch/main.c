@@ -61,6 +61,7 @@ struct Service {
         sd_bus_slot *slot;
         CRBNode rb;
         CRBNode rb_by_name;
+        char *path;
         char *name;
         char *unit;
         size_t argc;
@@ -149,6 +150,7 @@ static Service *service_free(Service *service) {
         free(service->argv);
         free(service->unit);
         free(service->name);
+        free(service->path);
         sd_bus_slot_unref(service->slot);
         free(service);
 
@@ -157,12 +159,19 @@ static Service *service_free(Service *service) {
 
 C_DEFINE_CLEANUP(Service *, service_free);
 
-static int service_update(Service *service, const char *unit, size_t argc, char **argv, const char *user, uid_t uid) {
+static int service_update(Service *service, const char *path, const char *unit, size_t argc, char **argv, const char *user, uid_t uid) {
+        service->path = c_free(service->path);
         service->unit = c_free(service->unit);
         service->argc = 0;
         service->argv = c_free(service->argv);
         service->user = c_free(service->user);
         service->uid = uid;
+
+        if (path) {
+                service->path = strdup(path);
+                if (!service->path)
+                        return error_origin(-ENOMEM);
+        }
 
         if (unit) {
                 service->unit = strdup(unit);
@@ -198,6 +207,7 @@ static int service_new(Service **servicep,
                        const char *name,
                        CRBNode **slot_by_name,
                        CRBNode *parent_by_name,
+                       const char *path,
                        const char *unit,
                        size_t argc,
                        char **argv,
@@ -220,7 +230,7 @@ static int service_new(Service **servicep,
         if (!service->name)
                 return error_origin(-ENOMEM);
 
-        r = service_update(service, unit, argc, argv, user, uid);
+        r = service_update(service, path, unit, argc, argv, user, uid);
         if (r)
                 return error_trace(r);
 
@@ -1049,7 +1059,7 @@ static int manager_load_service_file(Manager *manager, const char *path, NSSCach
 
         slot = c_rbtree_find_slot(&manager->services_by_name, service_compare_by_name, name, &parent);
         if (slot) {
-                r = service_new(&service, manager, name, slot, parent, unit, argc, argv, user, uid);
+                r = service_new(&service, manager, name, slot, parent, path, unit, argc, argv, user, uid);
                 if (r)
                         return error_trace(r);
         } else {
@@ -1057,7 +1067,7 @@ static int manager_load_service_file(Manager *manager, const char *path, NSSCach
 
                 if (old_service->state == SERVICE_STATE_DEFUNCT) {
                         old_service->state = SERVICE_STATE_CURRENT;
-                        r = service_update(old_service, unit, argc, argv, user, uid);
+                        r = service_update(old_service, path, unit, argc, argv, user, uid);
                         if (r)
                                 return error_trace(r);
                 } else {
