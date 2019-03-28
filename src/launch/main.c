@@ -23,6 +23,7 @@
 #include <systemd/sd-event.h>
 #include <systemd/sd-id128.h>
 #include <unistd.h>
+#include "catalog/catalog-ids.h"
 #include "launch/config.h"
 #include "launch/nss-cache.h"
 #include "launch/policy.h"
@@ -329,7 +330,7 @@ static int manager_on_sighup(sd_event_source *s, const struct signalfd_siginfo *
         Manager *manager = userdata;
         int r;
 
-        log_append_here(&main_log, LOG_INFO, si->ssi_errno);
+        log_append_here(&main_log, LOG_INFO, si->ssi_errno, NULL);
         log_append_signalfd_siginfo(&main_log, si);
 
         r = log_commitf(&main_log, "Caught SIGHUP, trigger reload.\n");
@@ -339,7 +340,7 @@ static int manager_on_sighup(sd_event_source *s, const struct signalfd_siginfo *
         r = manager_reload_config(manager);
         if (r) {
                 if (r == MANAGER_E_INVALID_CONFIG) {
-                        log_append_here(&main_log, LOG_WARNING, 0);
+                        log_append_here(&main_log, LOG_WARNING, 0, NULL);
 
                          r = log_commitf(&main_log, "Invalid configuration, ignored.\n");
                          if (r)
@@ -360,7 +361,7 @@ static int manager_on_dirwatch(sd_event_source *s, int fd, uint32_t revents, voi
         if (r != DIRWATCH_E_TRIGGERED)
                 return error_fold(r);
 
-        log_append_here(&main_log, LOG_INFO, 0);
+        log_append_here(&main_log, LOG_INFO, 0, NULL);
 
         r = log_commitf(&main_log, "Noticed file-system modification, trigger reload.\n");
         if (r)
@@ -369,7 +370,7 @@ static int manager_on_dirwatch(sd_event_source *s, int fd, uint32_t revents, voi
         r = manager_reload_config(manager);
         if (r) {
                 if (r == MANAGER_E_INVALID_CONFIG) {
-                        log_append_here(&main_log, LOG_WARNING, 0);
+                        log_append_here(&main_log, LOG_WARNING, 0, NULL);
 
                         r = log_commitf(&main_log, "Invalid configuration, ignored.\n");
                         if (r)
@@ -558,7 +559,7 @@ exit:
 static int manager_on_child_exit(sd_event_source *source, const siginfo_t *si, void *userdata) {
         int r;
 
-        log_append_here(&main_log, LOG_INFO, si->si_errno);
+        log_append_here(&main_log, LOG_INFO, si->si_errno, NULL);
         log_append_siginfo(&main_log, si);
 
         r = log_commitf(&main_log, "Caught SIGCHLD of broker.\n");
@@ -633,7 +634,7 @@ static int manager_start_unit_handler(sd_bus_message *message, void *userdata, s
                  */
                 if (strcmp(error->name, "org.freedesktop.systemd1.NoSuchUnit") == 0) {
                         if (!service->n_missing_unit++) {
-                                log_append_here(&main_log, LOG_WARNING, 0);
+                                log_append_here(&main_log, LOG_WARNING, 0, DBUS_BROKER_CATALOG_ACTIVATE_NO_UNIT);
                                 log_append_bus_error(&main_log, error);
                                 log_append_service(&main_log, service);
 
@@ -645,7 +646,7 @@ static int manager_start_unit_handler(sd_bus_message *message, void *userdata, s
                                         return error_fold(r);
                         }
                 } else {
-                        log_append_here(&main_log, LOG_ERR, 0);
+                        log_append_here(&main_log, LOG_ERR, 0, NULL);
                         log_append_bus_error(&main_log, error);
                         log_append_service(&main_log, service);
 
@@ -913,7 +914,7 @@ static int manager_on_name_activate(Manager *manager, sd_bus_message *m, const c
                                       Service,
                                       rb);
         if (!service) {
-                log_append_here(&main_log, LOG_ERR, 0);
+                log_append_here(&main_log, LOG_ERR, 0, NULL);
 
                 r = log_commitf(&main_log, "Activation request on unknown name '%s'.\n", id);
                 if (r)
@@ -947,7 +948,7 @@ static int manager_set_environment_handler(sd_bus_message *message, void *userda
                 /* environment set successfully */
                 return 1;
 
-        log_append_here(&main_log, LOG_ERR, 0);
+        log_append_here(&main_log, LOG_ERR, 0, NULL);
         log_append_bus_error(&main_log, error);
 
         r = log_commitf(&main_log, "Updating activation environment failed.\n");
@@ -1049,7 +1050,7 @@ static int manager_ini_reader_parse_file(CIniGroup **groupp, const char *path) {
                  * here, but we would be playing whack-a-mole, so lets just
                  * treat it as soft-error.
                  */
-                log_append_here(&main_log, LOG_ERR, errno);
+                log_append_here(&main_log, LOG_ERR, errno, NULL);
                 log_append_service_path(&main_log, path);
                 if (errno == ENOENT) {
                         r = log_commitf(&main_log, "Original source was unlinked while parsing service file '%s'\n", path);
@@ -1097,7 +1098,7 @@ static int manager_ini_reader_parse_file(CIniGroup **groupp, const char *path) {
 
         group = c_ini_domain_find(domain, "D-BUS Service", -1);
         if (!group) {
-                log_append_here(&main_log, LOG_ERR, 0);
+                log_append_here(&main_log, LOG_ERR, 0, NULL);
                 log_append_service_path(&main_log, path);
 
                 r = log_commitf(&main_log, "Missing 'D-Bus Service' section in service file '%s'\n", path);
@@ -1132,7 +1133,7 @@ static int manager_load_service_file(Manager *manager, const char *path, NSSCach
         user_entry = c_ini_group_find(group, "User", -1);
 
         if (!name_entry) {
-                log_append_here(&main_log, LOG_ERR, 0);
+                log_append_here(&main_log, LOG_ERR, 0, NULL);
                 log_append_service_path(&main_log, path);
 
                 r = log_commitf(&main_log, "Missing name in service file '%s'\n", path);
@@ -1143,7 +1144,7 @@ static int manager_load_service_file(Manager *manager, const char *path, NSSCach
         }
 
         if (!unit_entry && !exec_entry) {
-                log_append_here(&main_log, LOG_ERR, 0);
+                log_append_here(&main_log, LOG_ERR, 0, NULL);
                 log_append_service_path(&main_log, path);
 
                 r = log_commitf(&main_log, "Missing exec or unit in service file '%s'\n", path);
@@ -1164,7 +1165,7 @@ static int manager_load_service_file(Manager *manager, const char *path, NSSCach
                 r = c_shquote_parse_argv(&argv, &argc, exec, n_exec);
                 if (r) {
                         if (r == C_SHQUOTE_E_BAD_QUOTING || r == C_SHQUOTE_E_CONTAINS_NULL) {
-                                log_append_here(&main_log, LOG_ERR, 0);
+                                log_append_here(&main_log, LOG_ERR, 0, NULL);
                                 log_append_service_path(&main_log, path);
 
                                 r = log_commitf(&main_log, "Invalid exec '%s' in service file '%s'\n", exec, path);
@@ -1184,7 +1185,7 @@ static int manager_load_service_file(Manager *manager, const char *path, NSSCach
                 r = nss_cache_get_uid(nss_cache, &uid, NULL, user);
                 if (r) {
                         if (r == NSS_CACHE_E_INVALID_NAME) {
-                                log_append_here(&main_log, LOG_ERR, 0);
+                                log_append_here(&main_log, LOG_ERR, 0, NULL);
                                 log_append_service_path(&main_log, path);
                                 log_append_service_user(&main_log, user);
 
@@ -1216,7 +1217,7 @@ static int manager_load_service_file(Manager *manager, const char *path, NSSCach
                         if (r)
                                 return error_trace(r);
                 } else {
-                        log_append_here(&main_log, LOG_ERR, 0);
+                        log_append_here(&main_log, LOG_ERR, 0, NULL);
                         log_append_service_path(&main_log, path);
                         log_append_service_name(&main_log, name);
 

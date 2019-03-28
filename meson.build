@@ -72,6 +72,7 @@ if use_launcher
         add_project_arguments('-DSYSTEMUIDMAX=' + dep_systemd.get_pkgconfig_variable('systemuidmax'), language: 'c')
         conf.set('systemunitdir', dep_systemd.get_pkgconfig_variable('systemdsystemunitdir'))
         conf.set('userunitdir', dep_systemd.get_pkgconfig_variable('systemduserunitdir'))
+        conf.set('catalogdir', dep_systemd.get_pkgconfig_variable('catalogdir'))
 endif
 
 #

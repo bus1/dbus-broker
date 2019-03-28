@@ -3,6 +3,7 @@
 #
 
 if use_launcher
+        subdir('catalog')
         subdir('units/system')
         subdir('units/user')
 endif

@@ -7,6 +7,7 @@
 #include <pwd.h>
 #include <stdlib.h>
 #include <sys/socket.h>
+#include "catalog/catalog-ids.h"
 #include "util/error.h"
 #include "util/log.h"
 #include "util/sockopt.h"
@@ -121,12 +122,9 @@ int sockopt_get_peergroups(int fd, Log *log, uid_t uid, gid_t gid, gid_t **gidsp
 
                 if (!warned) {
                         warned = true;
-                        log_append_here(log, LOG_ERR, 0);
-                        log_commitf(log, "Falling back to resolving auxiliary "
-                                         "groups using nss, this is racy and "
-                                         "may cause deadlocks. Update to a "
-                                         "kernel with SO_PEERGROUPS "
-                                         "support.\n");
+                        log_append_here(log, LOG_ERR, 0, DBUS_BROKER_CATALOG_NO_SOPEERGROUP);
+                        log_commitf(log, "Falling back to racy auxiliary groups"
+                                         "resolution using nss.\n");
                 }
         }
 

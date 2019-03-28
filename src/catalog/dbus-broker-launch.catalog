@@ -1,0 +1,14 @@
+-- 7fc63312330b479bb32e598d47cef1a8
+Subject: Activation request failed due to missing unit
+Defined-By: dbus-broker
+Support: https://groups.google.com/forum/#!forum/bus1-devel
+
+systemd failed to activate the name @DBUS_BROKER_LAUNCH_SERVICE_NAME@
+because the service @DBUS_BROKER_LAUNCH_SERVICE_UNIT@ could not be found.
+
+A possible reason for this is that @DBUS_BROKER_LAUNCH_SERVICE_UNIT@ is an
+alias to a disabled service. This is allowed by design, to give the
+administrator a way to disable name activation for a given service while
+still allowing it to be installed and potentially started in other ways.
+
+In order not to flood the logs, this message is only emitted once per name.
