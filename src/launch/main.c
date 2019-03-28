@@ -58,6 +58,7 @@ typedef enum {
 struct Service {
         Manager *manager;
         ServiceState state;
+        bool not_found;
         sd_bus_slot *slot;
         CRBNode rb;
         CRBNode rb_by_name;
@@ -529,12 +530,23 @@ static int manager_start_unit_handler(sd_bus_message *message, void *userdata, s
                  *    select this mode.
                  *    Since this indicates that our request was valid and
                  *    properly configured, we treat this as recoverable error.
+                 *  * `NoSuchUnit` from systemd tells us that the unit file
+                 *    was not found. This may indicate that the service was
+                 *    disabled, which is a supported configuration. In this
+                 *    case we only log once.
                  *
                  * In any other situation we log an error message, since these
                  * are non-recoverable and indicate system configuration
                  * errors.
                  */
-                fprintf(stderr, "Activation request for '%s' failed: %s\n", service->name, error->message);
+                if (strcmp(error->name, "org.freedesktop.systemd1.NoSuchUnit") == 0) {
+                        if (!service->not_found) {
+                                service->not_found = true;
+                                fprintf(stderr, "Activation request for '%s' failed. The corresponding systemd unit may not be enabled: %s\n", service->name, error->message);
+                        }
+                } else {
+                        fprintf(stderr, "Activation request for '%s' failed: %s\n", service->name, error->message);
+                }
         }
 
 
