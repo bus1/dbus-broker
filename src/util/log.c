@@ -606,6 +606,7 @@ void log_vappendf(Log *log, const char *format, va_list args) {
  * @log:                log to operate on
  * @level:              syslog level indicator
  * @error:              errno-style error code
+ * @id:                 log message ID, or NULL
  * @file:               source file
  * @line:               source line
  * @func:               source function
@@ -616,6 +617,7 @@ void log_vappendf(Log *log, const char *format, va_list args) {
 void log_append_common(Log *log,
                        int level,
                        int error,
+                       const char *id,
                        const char *file,
                        int line,
                        const char *func) {
@@ -639,7 +641,7 @@ void log_append_common(Log *log,
          * If we have a journal-entry (or successfully allocated one), simply
          * append the known, common fields.
          */
-        if (log_alloc(log))
+        if (log_alloc(log)) {
                 log_appendf(log,
                             "PRIORITY=%i\n"
                             "SYSLOG_FACILITY=%i\n"
@@ -657,4 +659,7 @@ void log_append_common(Log *log,
                             line,
                             func,
                             log->n_dropped);
+                if (id)
+                        log_appendf(log, "MESSAGE_ID=%s\n", id);
+        }
 }

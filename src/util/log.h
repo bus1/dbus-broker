@@ -63,6 +63,7 @@ void log_vappendf(Log *log, const char *format, va_list args);
 void log_append_common(Log *log,
                        int level,
                        int error,
+                       const char *id,
                        const char *file,
                        int line,
                        const char *func);
@@ -96,5 +97,5 @@ static inline void log_appendf(Log *log, const char *format, ...) {
         va_end(args);
 }
 
-#define log_append_here(_log, _level, _r) \
-        log_append_common((_log), (_level), (_r), __FILE__, __LINE__, __func__)
+#define log_append_here(_log, _level, _r, _id) \
+        log_append_common((_log), (_level), (_r), (_id), __FILE__, __LINE__, __func__)

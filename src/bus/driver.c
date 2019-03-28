@@ -354,7 +354,7 @@ static int driver_monitor(Bus *bus, Peer *sender, Message *message) {
 
                                 connection_shutdown(&receiver->connection);
 
-                                log_append_here(bus->log, LOG_WARNING, 0);
+                                log_append_here(bus->log, LOG_WARNING, 0, NULL);
                                 bus_log_append_transaction(bus, sender ? sender->id : ADDRESS_ID_INVALID, receiver->id,
                                                            &sender_names, NULL,
                                                            sender ? sender->policy->seclabel : bus->seclabel, receiver->policy->seclabel,
@@ -388,7 +388,7 @@ static int driver_send_unicast(Peer *receiver, Message *message) {
 
                         connection_shutdown(&receiver->connection);
 
-                        log_append_here(receiver->bus->log, LOG_WARNING, 0);
+                        log_append_here(receiver->bus->log, LOG_WARNING, 0, NULL);
                         bus_log_append_transaction(receiver->bus, ADDRESS_ID_INVALID, receiver->id, NULL, &receiver_names,
                                                    receiver->bus->seclabel, receiver->policy->seclabel,
                                                    message);
@@ -654,7 +654,7 @@ static int driver_notify_name_owner_changed(Bus *bus, MatchRegistry *matches, co
 
                                         connection_shutdown(&receiver->connection);
 
-                                        log_append_here(bus->log, LOG_WARNING, 0);
+                                        log_append_here(bus->log, LOG_WARNING, 0, NULL);
                                         bus_log_append_transaction(bus, ADDRESS_ID_INVALID, receiver->id, NULL, &receiver_names,
                                                                    receiver->bus->seclabel, receiver->policy->seclabel,
                                                                    message);
@@ -2085,7 +2085,7 @@ static int driver_dispatch_interface(Peer *peer, uint32_t serial, const char *in
                 if (r == POLICY_E_ACCESS_DENIED || r == POLICY_E_SELINUX_ACCESS_DENIED) {
                         NameSet names = NAME_SET_INIT_FROM_OWNER(&peer->owned_names);
 
-                        log_append_here(peer->bus->log, LOG_WARNING, 0);
+                        log_append_here(peer->bus->log, LOG_WARNING, 0, NULL);
                         bus_log_append_policy_send(peer->bus,
                                                    (r == POLICY_E_ACCESS_DENIED ? BUS_LOG_POLICY_TYPE_INTERNAL : BUS_LOG_POLICY_TYPE_SELINUX),
                                                    peer->id, ADDRESS_ID_INVALID, &names, NULL, peer->policy->seclabel, peer->bus->seclabel, message);
@@ -2273,7 +2273,7 @@ static int driver_forward_broadcast(Peer *sender, Message *message) {
                         if (r == CONNECTION_E_QUOTA || r == CONNECTION_E_UNEXPECTED_FDS) {
                                 connection_shutdown(&receiver->connection);
 
-                                log_append_here(sender->bus->log, LOG_WARNING, 0);
+                                log_append_here(sender->bus->log, LOG_WARNING, 0, NULL);
                                 bus_log_append_transaction(sender->bus, sender->id, receiver->id, &sender_names, &receiver_names,
                                                            sender->policy->seclabel, receiver->policy->seclabel,
                                                            message);

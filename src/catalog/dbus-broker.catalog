@@ -1,0 +1,31 @@
+-- 7fc63312330b479bb32e598d47cef1a8
+Subject: Falling back to resolving auxiliary groups using NSS
+Defined-By: dbus-broker
+Documentation: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/net/core/sock.c?id=28b5ba2aa0f55d80adb2624564ed2b170c19519e
+Support: https://groups.google.com/forum/#!forum/bus1-devel
+
+In order to determine the policy to apply to a peer we need to
+know the owning user as well as the users auxiliary groups.
+
+The user and group ids are provided to us by the SO_PEERCREDS
+sockopt, and on newer kernels we also get the auxiliary groups
+via the SO_PEERGROUPS sockopts.
+
+However, on older kernels where the SO_PEERGROUPS sockopt is not
+available, we fall back to query the auxiliary groups over NSS.
+This is racy as the auxiliary groups may change, and the groups
+we end up with may not be the ones at the time the socket was
+opened by the client. This is highly discouraged, and upating
+to a kernel with SO_PEERGROUPS support is recommended.
+
+-- 8af3357071af4153af414daae07d38e7
+Subject: Dispatched @DBUS_BROKER_METRICS_DISPATCH_COUNT@ messages
+Defined-By: dbus-broker
+Support: https://groups.google.com/forum/#!forum/bus1-devel
+
+The broker is shutting down after dispatching @DBUS_BROKER_METRICS_DISPATCH_COUNT@
+incoming messages.
+
+The time measurements exclude the time spent on writing and
+reading data to the kernel, but includes the shutdown handling
+as if the peer closing their socket counts as sending a message.

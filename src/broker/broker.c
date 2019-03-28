@@ -14,6 +14,7 @@
 #include "broker/controller.h"
 #include "broker/main.h"
 #include "bus/bus.h"
+#include "catalog/catalog-ids.h"
 #include "dbus/connection.h"
 #include "dbus/message.h"
 #include "util/dispatch.h"
@@ -172,7 +173,7 @@ static int broker_log_metrics(Broker *broker) {
                     metrics->maximum,
                     metrics->average,
                     stddev);
-        log_append_here(broker->bus.log, LOG_INFO, 0);
+        log_append_here(broker->bus.log, LOG_INFO, 0, DBUS_BROKER_CATALOG_DISPATCH_STATS);
         r = log_commitf(broker->bus.log,
                        "Dispatched %"PRIu64" messages @ %"PRIu64"(±%.0f)μs / message.",
                        metrics->count,
