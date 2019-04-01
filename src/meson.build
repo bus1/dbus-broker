@@ -137,6 +137,8 @@ if use_launcher
                 'dbus-broker-launch',
                 [
                         'launch/main.c',
+                        'launch/launcher.c',
+                        'launch/service.c',
                 ],
                 dependencies: [
                         dep_bus,
