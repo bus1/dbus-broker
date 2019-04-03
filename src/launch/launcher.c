@@ -102,7 +102,7 @@ static int launcher_on_sighup(sd_event_source *s, const struct signalfd_siginfo 
         Launcher *launcher = userdata;
         int r;
 
-        log_append_here(&launcher->log, LOG_INFO, si->ssi_errno, NULL);
+        log_append_here(&launcher->log, LOG_INFO, si->ssi_errno, DBUS_BROKER_CATALOG_SIGHUP);
         log_append_signalfd_siginfo(&launcher->log, si);
 
         r = log_commitf(&launcher->log, "Caught SIGHUP, trigger reload.\n");
@@ -133,7 +133,7 @@ static int launcher_on_dirwatch(sd_event_source *s, int fd, uint32_t revents, vo
         if (r != DIRWATCH_E_TRIGGERED)
                 return error_fold(r);
 
-        log_append_here(&launcher->log, LOG_INFO, 0, NULL);
+        log_append_here(&launcher->log, LOG_INFO, 0, DBUS_BROKER_CATALOG_DIRWATCH);
 
         r = log_commitf(&launcher->log, "Noticed file-system modification, trigger reload.\n");
         if (r)
@@ -351,7 +351,7 @@ static int launcher_on_child_exit(sd_event_source *source, const siginfo_t *si, 
         Launcher *launcher = userdata;
         int r;
 
-        log_append_here(&launcher->log, LOG_INFO, si->si_errno, NULL);
+        log_append_here(&launcher->log, LOG_INFO, si->si_errno, DBUS_BROKER_CATALOG_BROKER_EXITED);
         log_append_siginfo(&launcher->log, si);
 
         r = log_commitf(&launcher->log, "Caught SIGCHLD of broker.\n");
@@ -519,7 +519,7 @@ static int launcher_ini_reader_parse_file(Launcher *launcher, CIniGroup **groupp
                  * here, but we would be playing whack-a-mole, so lets just
                  * treat it as soft-error.
                  */
-                log_append_here(&launcher->log, LOG_ERR, errno, NULL);
+                log_append_here(&launcher->log, LOG_ERR, errno, DBUS_BROKER_CATALOG_SERVICE_FAILED_OPEN);
                 log_append_service_path(&launcher->log, path);
                 if (errno == ENOENT) {
                         r = log_commitf(&launcher->log, "Original source was unlinked while parsing service file '%s'\n", path);
@@ -567,7 +567,7 @@ static int launcher_ini_reader_parse_file(Launcher *launcher, CIniGroup **groupp
 
         group = c_ini_domain_find(domain, "D-BUS Service", -1);
         if (!group) {
-                log_append_here(&launcher->log, LOG_ERR, 0, NULL);
+                log_append_here(&launcher->log, LOG_ERR, 0, DBUS_BROKER_CATALOG_SERVICE_INVALID);
                 log_append_service_path(&launcher->log, path);
 
                 r = log_commitf(&launcher->log, "Missing 'D-Bus Service' section in service file '%s'\n", path);
@@ -602,7 +602,7 @@ static int launcher_load_service_file(Launcher *launcher, const char *path, NSSC
         user_entry = c_ini_group_find(group, "User", -1);
 
         if (!name_entry) {
-                log_append_here(&launcher->log, LOG_ERR, 0, NULL);
+                log_append_here(&launcher->log, LOG_ERR, 0, DBUS_BROKER_CATALOG_SERVICE_INVALID);
                 log_append_service_path(&launcher->log, path);
 
                 r = log_commitf(&launcher->log, "Missing name in service file '%s'\n", path);
@@ -613,7 +613,7 @@ static int launcher_load_service_file(Launcher *launcher, const char *path, NSSC
         }
 
         if (!unit_entry && !exec_entry) {
-                log_append_here(&launcher->log, LOG_ERR, 0, NULL);
+                log_append_here(&launcher->log, LOG_ERR, 0, DBUS_BROKER_CATALOG_SERVICE_INVALID);
                 log_append_service_path(&launcher->log, path);
 
                 r = log_commitf(&launcher->log, "Missing exec or unit in service file '%s'\n", path);
@@ -634,7 +634,7 @@ static int launcher_load_service_file(Launcher *launcher, const char *path, NSSC
                 r = c_shquote_parse_argv(&argv, &argc, exec, n_exec);
                 if (r) {
                         if (r == C_SHQUOTE_E_BAD_QUOTING || r == C_SHQUOTE_E_CONTAINS_NULL) {
-                                log_append_here(&launcher->log, LOG_ERR, 0, NULL);
+                                log_append_here(&launcher->log, LOG_ERR, 0, DBUS_BROKER_CATALOG_SERVICE_INVALID);
                                 log_append_service_path(&launcher->log, path);
 
                                 r = log_commitf(&launcher->log, "Invalid exec '%s' in service file '%s'\n", exec, path);
@@ -654,7 +654,7 @@ static int launcher_load_service_file(Launcher *launcher, const char *path, NSSC
                 r = nss_cache_get_uid(nss_cache, &uid, NULL, user);
                 if (r) {
                         if (r == NSS_CACHE_E_INVALID_NAME) {
-                                log_append_here(&launcher->log, LOG_ERR, 0, NULL);
+                                log_append_here(&launcher->log, LOG_ERR, 0, DBUS_BROKER_CATALOG_SERVICE_INVALID);
                                 log_append_service_path(&launcher->log, path);
                                 log_append_service_user(&launcher->log, user);
 
@@ -686,7 +686,7 @@ static int launcher_load_service_file(Launcher *launcher, const char *path, NSSC
                         if (r)
                                 return error_trace(r);
                 } else {
-                        log_append_here(&launcher->log, LOG_ERR, 0, NULL);
+                        log_append_here(&launcher->log, LOG_ERR, 0, DBUS_BROKER_CATALOG_SERVICE_INVALID);
                         log_append_service_path(&launcher->log, path);
                         log_append_service_name(&launcher->log, name);
 

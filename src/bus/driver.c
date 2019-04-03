@@ -14,6 +14,7 @@
 #include "bus/driver.h"
 #include "bus/match.h"
 #include "bus/peer.h"
+#include "catalog/catalog-ids.h"
 #include "dbus/address.h"
 #include "dbus/message.h"
 #include "dbus/protocol.h"
@@ -354,7 +355,7 @@ static int driver_monitor(Bus *bus, Peer *sender, Message *message) {
 
                                 connection_shutdown(&receiver->connection);
 
-                                log_append_here(bus->log, LOG_WARNING, 0, NULL);
+                                log_append_here(bus->log, LOG_WARNING, 0, DBUS_BROKER_CATALOG_RECEIVE_FAILED);
                                 bus_log_append_transaction(bus, sender ? sender->id : ADDRESS_ID_INVALID, receiver->id,
                                                            &sender_names, NULL,
                                                            sender ? sender->policy->seclabel : bus->seclabel, receiver->policy->seclabel,
@@ -388,7 +389,7 @@ static int driver_send_unicast(Peer *receiver, Message *message) {
 
                         connection_shutdown(&receiver->connection);
 
-                        log_append_here(receiver->bus->log, LOG_WARNING, 0, NULL);
+                        log_append_here(receiver->bus->log, LOG_WARNING, 0, DBUS_BROKER_CATALOG_RECEIVE_FAILED);
                         bus_log_append_transaction(receiver->bus, ADDRESS_ID_INVALID, receiver->id, NULL, &receiver_names,
                                                    receiver->bus->seclabel, receiver->policy->seclabel,
                                                    message);
@@ -654,7 +655,7 @@ static int driver_notify_name_owner_changed(Bus *bus, MatchRegistry *matches, co
 
                                         connection_shutdown(&receiver->connection);
 
-                                        log_append_here(bus->log, LOG_WARNING, 0, NULL);
+                                        log_append_here(bus->log, LOG_WARNING, 0, DBUS_BROKER_CATALOG_RECEIVE_FAILED);
                                         bus_log_append_transaction(bus, ADDRESS_ID_INVALID, receiver->id, NULL, &receiver_names,
                                                                    receiver->bus->seclabel, receiver->policy->seclabel,
                                                                    message);
@@ -2273,7 +2274,7 @@ static int driver_forward_broadcast(Peer *sender, Message *message) {
                         if (r == CONNECTION_E_QUOTA || r == CONNECTION_E_UNEXPECTED_FDS) {
                                 connection_shutdown(&receiver->connection);
 
-                                log_append_here(sender->bus->log, LOG_WARNING, 0, NULL);
+                                log_append_here(sender->bus->log, LOG_WARNING, 0, DBUS_BROKER_CATALOG_RECEIVE_FAILED);
                                 bus_log_append_transaction(sender->bus, sender->id, receiver->id, &sender_names, &receiver_names,
                                                            sender->policy->seclabel, receiver->policy->seclabel,
                                                            message);

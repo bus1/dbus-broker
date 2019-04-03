@@ -12,3 +12,65 @@ administrator a way to disable name activation for a given service while
 still allowing it to be installed and potentially started in other ways.
 
 In order not to flood the logs, this message is only emitted once per name.
+
+-- f15d2347662d483ea9bcd8aa1a691d28
+Subject: dbus-broker-launch received a SIGHUP
+Defined-By: dbus-broker
+Support: https://groups.google.com/forum/#!forum/bus1-devel
+
+The HUP signal was sent to the dbus-broker-launch process from PID @DBUS_BROKER_LAUNCH_SIGNAL_PID@,
+triggering a configuration reload.
+
+Note that SIGHUP is delivered asynchronously, so the caller doesn't know
+when the requested reload has completed. It is therefore recommended
+to use the org.freedekstop.DBus.ReloadConfig method call on the driver
+instead.
+
+-- c8c6cde1c488439aba371a664353d9d8
+Subject: A configuration directory was written to
+Defined-By: dbus-broker
+Support: https://groups.google.com/forum/#!forum/bus1-devel
+
+A write was detected to one of the directories containing D-Bus configuration
+files, triggering a configuration reload.
+
+This functionality exists for backwards compatibility to pick up changes to
+D-Bus configuration without an explicit reolad request. Typically when
+installing or removing third-party software causes D-Bus configuration files
+to be added or removed.
+
+It is worth noting that this may cause partial configuration to be loaded in
+case dispatching this notification races with the writing of the configuration
+files. However, a future notification will then cause the configuration to be
+reladed again.
+
+-- 0ce0fa61d1a9433dabd67417f6b8e535
+Subject: Failed to open service file
+Defined-By: dbus-broker
+Support: https://groups.google.com/forum/#!forum/bus1-devel
+
+A service file could not be opened for reading. For compatibility reasons the
+error is ignored and loading of the other service files continues.
+
+Failure to open the file file may be caused by for instance, a concurrent
+removal of the file, the file mistakenly not being readable.
+
+-- 24dc708d9e6a4226a3efe2033bb744de
+Subject: Invalid service file
+Defined-By: dbus-broker
+Support: https://groups.google.com/forum/#!forum/bus1-devel
+
+A service file is a ini-type configuration file. It has one required section
+named [D-BUS Service]. The section contains the required key 'Name', which
+must be unique across all service files. It also contains at least one of
+the two optional keys 'SystemdService' and 'Exec', as well as optionally
+the key 'User'. Exec must be a valid shell command and User must be a valid
+user on the system.
+
+-- a0fa58cafd6f4f0c8d003d16ccf9e797
+Subject: dbus-broker process exited
+Defined-By: dbus-broker
+Support: https://groups.google.com/forum/#!forum/bus1-devel
+
+The dbus-broker-launch process was notified that its child, dbus-broker
+exited.

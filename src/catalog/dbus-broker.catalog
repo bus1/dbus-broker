@@ -1,4 +1,4 @@
--- 7fc63312330b479bb32e598d47cef1a8
+-- 199d4300277f495f84ba4028c984214c
 Subject: Falling back to resolving auxiliary groups using NSS
 Defined-By: dbus-broker
 Documentation: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/net/core/sock.c?id=28b5ba2aa0f55d80adb2624564ed2b170c19519e
@@ -30,3 +30,22 @@ The message lists the number of dispatched messages
 (in this case @DBUS_BROKER_METRICS_DISPATCH_COUNT@) as well as the mean time to
 handling a single message. The time measurements exclude the time spent on
 writing to and reading from the kernel.
+
+-- b209c0d9d1764ab38d13b8e00d1784d6
+Subject: Peer @DBUS_BROKER_SENDER_UNIQUE_NAME@ violated the D-Bus protocol
+Defined-By: dbus-broker
+Support: https://groups.google.com/forum/#!forum/bus1-devel
+
+The peer @DBUS_BROKER_SENDER_UNIQUE_NAME@ attempted to vioalet the protocol
+and is therefore disconnected.
+
+-- 6fa70fa776044fa28be7a21daf42a108
+Subject: Peer @DBUS_BROKER_RECEIVER_UNIQUE_NAME@ could not receive a requested message
+Defined-By: dbus-broker
+Support: https://groups.google.com/forum/#!forum/bus1-devel
+
+The peer @DBUS_BROKER_SENDER_UNIQUE_NAME@ failed to receive a message it requested
+and is therefore disconnected. The message in question could be a method
+error or reply or a broadcast the peer has subscribed to.
+
+Disconnecting the peer ensures that no messages are silently dropped.

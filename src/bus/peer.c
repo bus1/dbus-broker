@@ -15,6 +15,7 @@
 #include "bus/peer.h"
 #include "bus/policy.h"
 #include "bus/reply.h"
+#include "catalog/catalog-ids.h"
 #include "dbus/address.h"
 #include "dbus/message.h"
 #include "dbus/protocol.h"
@@ -57,7 +58,7 @@ static int peer_dispatch_connection(Peer *peer, uint32_t events) {
 
                                 return PEER_E_QUOTA;
                         } else if (r == CONNECTION_E_SASL_VIOLATION) {
-                                log_append_here(peer->bus->log, LOG_WARNING, 0, NULL);
+                                log_append_here(peer->bus->log, LOG_WARNING, 0, DBUS_BROKER_CATALOG_PROTOCOL_VIOLATION);
                                 bus_log_append_sender(peer->bus, peer->id, &peer_names, peer->policy->seclabel);
 
                                 r = log_commitf(peer->bus->log, "Peer :1.%llu is being disconnected as it violated the SASL protocol.",
@@ -67,7 +68,7 @@ static int peer_dispatch_connection(Peer *peer, uint32_t events) {
 
                                 return PEER_E_PROTOCOL_VIOLATION;
                         } else if (r == CONNECTION_E_UNEXPECTED_FDS) {
-                                log_append_here(peer->bus->log, LOG_WARNING, 0, NULL);
+                                log_append_here(peer->bus->log, LOG_WARNING, 0, DBUS_BROKER_CATALOG_PROTOCOL_VIOLATION);
                                 bus_log_append_sender(peer->bus, peer->id, &peer_names, peer->policy->seclabel);
 
                                 r = log_commitf(peer->bus->log, "Peer :1.%llu is being disconnected as it attempted to pass file descriptors without negotiating support for it.",
@@ -88,7 +89,7 @@ static int peer_dispatch_connection(Peer *peer, uint32_t events) {
                         NameSet peer_names = NAME_SET_INIT_FROM_OWNER(&peer->owned_names);
 
                         if (r == MESSAGE_E_INVALID_HEADER) {
-                                log_append_here(peer->bus->log, LOG_WARNING, 0, NULL);
+                                log_append_here(peer->bus->log, LOG_WARNING, 0, DBUS_BROKER_CATALOG_PROTOCOL_VIOLATION);
                                 bus_log_append_sender(peer->bus, peer->id, &peer_names, peer->policy->seclabel);
 
                                 r = log_commitf(peer->bus->log, "Peer :1.%llu is being disconnected as it sent a message with an invalid header.",
@@ -98,7 +99,7 @@ static int peer_dispatch_connection(Peer *peer, uint32_t events) {
 
                                 return PEER_E_PROTOCOL_VIOLATION;
                         } else if (r == MESSAGE_E_INVALID_BODY) {
-                                log_append_here(peer->bus->log, LOG_WARNING, 0, NULL);
+                                log_append_here(peer->bus->log, LOG_WARNING, 0, DBUS_BROKER_CATALOG_PROTOCOL_VIOLATION);
                                 bus_log_append_sender(peer->bus, peer->id, &peer_names, peer->policy->seclabel);
 
                                 r = log_commitf(peer->bus->log, "Peer :1.%llu is being disconnected as it sent a message with an invalid body.",
@@ -108,7 +109,7 @@ static int peer_dispatch_connection(Peer *peer, uint32_t events) {
 
                                 return PEER_E_PROTOCOL_VIOLATION;
                         } else if (r == MESSAGE_E_MISSING_FDS) {
-                                log_append_here(peer->bus->log, LOG_WARNING, 0, NULL);
+                                log_append_here(peer->bus->log, LOG_WARNING, 0, DBUS_BROKER_CATALOG_PROTOCOL_VIOLATION);
                                 bus_log_append_sender(peer->bus, peer->id, &peer_names, peer->policy->seclabel);
 
                                 r = log_commitf(peer->bus->log, "Peer :1.%llu is being disconnected as it passed fewer file descriptors than its header declared.",
@@ -131,7 +132,7 @@ static int peer_dispatch_connection(Peer *peer, uint32_t events) {
                         NameSet peer_names = NAME_SET_INIT_FROM_OWNER(&peer->owned_names);
 
                         if (r == DRIVER_E_PEER_NOT_REGISTERED) {
-                                log_append_here(peer->bus->log, LOG_WARNING, 0, NULL);
+                                log_append_here(peer->bus->log, LOG_WARNING, 0, DBUS_BROKER_CATALOG_PROTOCOL_VIOLATION);
                                 bus_log_append_sender(peer->bus, peer->id, &peer_names, peer->policy->seclabel);
                                 message_log_append(m, peer->bus->log);
 
@@ -142,7 +143,7 @@ static int peer_dispatch_connection(Peer *peer, uint32_t events) {
 
                                 return PEER_E_PROTOCOL_VIOLATION;
                         } else if (r == DRIVER_E_MONITOR_READ_ONLY) {
-                                log_append_here(peer->bus->log, LOG_WARNING, 0, NULL);
+                                log_append_here(peer->bus->log, LOG_WARNING, 0, DBUS_BROKER_CATALOG_PROTOCOL_VIOLATION);
                                 bus_log_append_sender(peer->bus, peer->id, &peer_names, peer->policy->seclabel);
                                 message_log_append(m, peer->bus->log);
 
@@ -821,7 +822,7 @@ int peer_queue_reply(Peer *sender, const char *destination, uint32_t reply_seria
 
                         connection_shutdown(&receiver->connection);
 
-                        log_append_here(receiver->bus->log, LOG_WARNING, 0, NULL);
+                        log_append_here(receiver->bus->log, LOG_WARNING, 0, DBUS_BROKER_CATALOG_RECEIVE_FAILED);
                         bus_log_append_transaction(receiver->bus, sender->id, receiver->id, &sender_names, &receiver_names,
                                                    sender->policy->seclabel, receiver->policy->seclabel, message);
                         if (r == CONNECTION_E_QUOTA)
