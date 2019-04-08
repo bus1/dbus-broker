@@ -1329,6 +1329,10 @@ int launcher_run(Launcher *launcher) {
         if (r)
                 return error_trace(r);
 
+        r = log_commitf(&launcher->log, "Connected\n");
+        if (r)
+                return error_fold(r);
+
         r = sd_bus_attach_event(launcher->bus_controller, launcher->event, SD_EVENT_PRIORITY_NORMAL);
         if (r < 0)
                 return error_origin(r);
