@@ -15,6 +15,7 @@
 #include <systemd/sd-event.h>
 #include <systemd/sd-id128.h>
 #include "catalog/catalog-ids.h"
+#include "dbus/protocol.h"
 #include "launch/config.h"
 #include "launch/launcher.h"
 #include "launch/nss-cache.h"
@@ -587,7 +588,7 @@ static int launcher_load_service_file(Launcher *launcher, const char *path, NSSC
         _c_cleanup_(service_freep) Service *service = NULL;
         CIniEntry *name_entry = NULL, *unit_entry = NULL, *exec_entry = NULL, *user_entry = NULL;
         const char *name = NULL, *unit = NULL, *exec = NULL, *user = NULL;
-        size_t argc = 0, n_exec;
+        size_t argc = 0, n_exec, n_name;
         CRBNode **slot, *parent;
         uid_t uid;
         int r;
@@ -623,7 +624,18 @@ static int launcher_load_service_file(Launcher *launcher, const char *path, NSSC
                 return LAUNCHER_E_INVALID_SERVICE_FILE;
         }
 
-        name = c_ini_entry_get_value(name_entry, NULL);
+        name = c_ini_entry_get_value(name_entry, &n_name);
+        if (!dbus_validate_name(name, n_name)) {
+                log_append_here(&launcher->log, LOG_ERR, 0, DBUS_BROKER_CATALOG_SERVICE_INVALID);
+                log_append_service_path(&launcher->log, path);
+                log_append_service_name(&launcher->log, name);
+
+                r = log_commitf(&launcher->log, "Invalid D-Bus name '%s' in service file '%s'\n", name, path);
+                if (r)
+                        return error_fold(r);
+
+                return LAUNCHER_E_INVALID_SERVICE_FILE;
+        }
 
         if (unit_entry)
                 unit = c_ini_entry_get_value(unit_entry, NULL);
