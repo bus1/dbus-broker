@@ -53,19 +53,27 @@ A service file could not be opened for reading. For compatibility reasons the
 error is ignored and loading of the other service files continues.
 
 Failure to open the file file may be caused by for instance, a concurrent
-removal of the file, the file mistakenly not being readable.
+removal of the file or the file not being readable.
 
 -- 24dc708d9e6a4226a3efe2033bb744de
 Subject: Invalid service file
 Defined-By: dbus-broker
 Support: https://groups.google.com/forum/#!forum/bus1-devel
 
-A service file is a ini-type configuration file. It has one required section
+A service file is a ini-type configuration file.
+
+It has one required section
 named [D-BUS Service]. The section contains the required key 'Name', which
-must be unique across all service files. It also contains at least one of
-the two optional keys 'SystemdService' and 'Exec', as well as optionally
-the key 'User'. Exec must be a valid shell command and User must be a valid
-user on the system.
+must be a valid D-Bus name that is unique across all service files. It also
+contains at least one of the two optional keys 'SystemdService' and 'Exec',
+as well as optionally the key 'User'. Exec must be a valid shell command and
+User must be a valid user on the system.
+
+A service file should be named after the D-Bus name it configures. That is
+a file containing Name=org.foo.bar1 should be named org.foo.bar1.service.
+For backwards compatibility, we only warn when files do not follow this
+convention when run as a user bus. The system bus considers this an error
+and ignores the service file.
 
 -- a0fa58cafd6f4f0c8d003d16ccf9e797
 Subject: dbus-broker process exited

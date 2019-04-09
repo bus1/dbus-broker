@@ -582,7 +582,7 @@ static int launcher_ini_reader_parse_file(Launcher *launcher, CIniGroup **groupp
         return 0;
 }
 
-static int launcher_load_service_file(Launcher *launcher, const char *path, NSSCache *nss_cache) {
+static int launcher_load_service_file(Launcher *launcher, const char *path, const char *basename, size_t n_basename, NSSCache *nss_cache) {
         _c_cleanup_(c_ini_group_unrefp) CIniGroup *group = NULL;
         _c_cleanup_(c_freep) char **argv = NULL;
         _c_cleanup_(service_freep) Service *service = NULL;
@@ -635,6 +635,28 @@ static int launcher_load_service_file(Launcher *launcher, const char *path, NSSC
                         return error_fold(r);
 
                 return LAUNCHER_E_INVALID_SERVICE_FILE;
+        } else if (n_name != n_basename || strncmp(name, basename, n_name) != 0) {
+                if (launcher->user_scope) {
+                        log_append_here(&launcher->log, LOG_WARNING, 0, DBUS_BROKER_CATALOG_SERVICE_INVALID);
+                        log_append_service_path(&launcher->log, path);
+                        log_append_service_name(&launcher->log, name);
+
+                        r = log_commitf(&launcher->log, "Service file '%s' is not named after the D-Bus name '%s'.\n", path, name);
+                        if (r)
+                                return error_fold(r);
+
+                        /* For backwards compatibilty, we do not fail in the user-scope. */
+                } else {
+                        log_append_here(&launcher->log, LOG_ERR, 0, DBUS_BROKER_CATALOG_SERVICE_INVALID);
+                        log_append_service_path(&launcher->log, path);
+                        log_append_service_name(&launcher->log, name);
+
+                        r = log_commitf(&launcher->log, "Service file '%s' is not named after the D-Bus name '%s'.\n", path, name);
+                        if (r)
+                                return error_fold(r);
+
+                        return LAUNCHER_E_INVALID_SERVICE_FILE;
+                }
         }
 
         if (unit_entry)
@@ -750,7 +772,7 @@ static int launcher_load_service_dir(Launcher *launcher, const char *dirpath, NS
                 if (r < 0)
                         return error_origin(-ENOMEM);
 
-                r = launcher_load_service_file(launcher, path, nss_cache);
+                r = launcher_load_service_file(launcher, path, de->d_name, n - strlen(suffix), nss_cache);
                 free(path);
                 if (r && r != LAUNCHER_E_INVALID_SERVICE_FILE)
                         return error_trace(r);
