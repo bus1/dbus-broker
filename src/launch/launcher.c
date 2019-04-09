@@ -990,6 +990,7 @@ static int launcher_parse_config(Launcher *launcher, ConfigRoot **rootp, NSSCach
         uint64_t max_connections_per_user = main_max_connections_per_user;
         uint64_t max_outgoing_unix_fds = main_max_outgoing_unix_fds;
         uint64_t max_outgoing_bytes = main_max_outgoing_bytes;
+        bool at_console = false;
         const char *configfile;
         ConfigNode *cnode;
         int r;
@@ -1056,6 +1057,11 @@ static int launcher_parse_config(Launcher *launcher, ConfigRoot **rootp, NSSCach
                         }
 
                         break;
+                case CONFIG_NODE_POLICY:
+                        if (cnode->policy.context == CONFIG_POLICY_AT_CONSOLE)
+                                at_console = true;
+
+                        break;
                 default:
                         /* ignored */
                         break;
@@ -1066,6 +1072,9 @@ static int launcher_parse_config(Launcher *launcher, ConfigRoot **rootp, NSSCach
         launcher->max_bytes = util_umul64_saturating(max_connections_per_user, max_outgoing_bytes);
         launcher->max_fds = util_umul64_saturating(max_connections_per_user, max_outgoing_unix_fds);
         launcher->max_matches = util_umul64_saturating(max_connections_per_user, max_match_rules_per_connection);
+
+        /* Remember if our at_console compat logic is needed */
+        launcher->at_console = at_console;
 
         return 0;
 }
@@ -1141,7 +1150,7 @@ static int launcher_reload_config(Launcher *launcher) {
         _c_cleanup_(policy_deinit) Policy policy = POLICY_INIT(policy);
         _c_cleanup_(nss_cache_deinit) NSSCache nss_cache = NSS_CACHE_INIT;
         _c_cleanup_(c_freep) uint32_t *system_console_users = NULL;
-        size_t n_system_console_users;
+        size_t n_system_console_users = 0;
         Service *service;
         int r, res;
 
@@ -1160,11 +1169,13 @@ static int launcher_reload_config(Launcher *launcher) {
         if (r)
                 goto out;
 
-        r = nss_cache_resolve_system_console_users(&nss_cache,
-                                                   &system_console_users,
-                                                   &n_system_console_users);
-        if (r)
-                return error_trace(r);
+        if (launcher->at_console) {
+                r = nss_cache_resolve_system_console_users(&nss_cache,
+                                                           &system_console_users,
+                                                           &n_system_console_users);
+                if (r)
+                        return error_trace(r);
+        }
 
         r = launcher_load_services(launcher, root, &nss_cache);
         if (r)
@@ -1266,7 +1277,7 @@ int launcher_run(Launcher *launcher) {
         _c_cleanup_(policy_deinit) Policy policy = POLICY_INIT(policy);
         _c_cleanup_(nss_cache_deinit) NSSCache nss_cache = NSS_CACHE_INIT;
         _c_cleanup_(c_freep) uint32_t *system_console_users = NULL;
-        size_t n_system_console_users;
+        size_t n_system_console_users = 0;
         int r, controller[2];
 
         r = nss_cache_populate(&nss_cache);
@@ -1277,11 +1288,13 @@ int launcher_run(Launcher *launcher) {
         if (r)
                 return error_trace(r);
 
-        r = nss_cache_resolve_system_console_users(&nss_cache,
-                                                   &system_console_users,
-                                                   &n_system_console_users);
-        if (r)
-                return error_trace(r);
+        if (launcher->at_console) {
+                r = nss_cache_resolve_system_console_users(&nss_cache,
+                                                           &system_console_users,
+                                                           &n_system_console_users);
+                if (r)
+                        return error_trace(r);
+        }
 
         r = launcher_load_services(launcher, root, &nss_cache);
         if (r)

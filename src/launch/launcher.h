@@ -41,6 +41,7 @@ struct Launcher {
         uint64_t max_bytes;
         uint64_t max_fds;
         uint64_t max_matches;
+        bool at_console;
 };
 
 int launcher_new(Launcher **launcherp, int listen_fd, bool audit, const char *configfile, bool user_scope);
