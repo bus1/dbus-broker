@@ -4,6 +4,7 @@
  * Raw message helpers
  */
 
+#include <c-stdaux.h>
 #include <stdlib.h>
 
 void test_message_append_sasl(void **buf, size_t *n_buf);

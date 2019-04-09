@@ -22,12 +22,12 @@
  * of the local UID's resources at the time of accounting.
  */
 
-#include <c-macro.h>
-#include <c-ref.h>
+#include <c-stdaux.h>
 #include <stdlib.h>
 #include <sys/types.h>
 #include "util/error.h"
 #include "util/log.h"
+#include "util/ref.h"
 #include "util/user.h"
 
 struct UserUsage {
@@ -58,7 +58,7 @@ static int user_usage_new(UserUsage **usagep, User *user, uid_t uid) {
         if (!usage)
                 return error_origin(-ENOMEM);
 
-        usage->n_refs = C_REF_INIT;
+        usage->n_refs = REF_INIT;
         usage->user = user;
         usage->uid = uid;
         usage->user_node = (CRBNode)C_RBNODE_INIT(usage->user_node);
@@ -80,13 +80,13 @@ static void user_usage_free(_Atomic unsigned long *n_refs, void *userdata) {
 
 static UserUsage *user_usage_ref(UserUsage *usage) {
         if (usage)
-                c_ref_inc(&usage->n_refs);
+                ref_inc(&usage->n_refs);
         return usage;
 }
 
 static UserUsage *user_usage_unref(UserUsage *usage) {
         if (usage)
-                c_ref_dec(&usage->n_refs, user_usage_free, NULL);
+                ref_dec(&usage->n_refs, user_usage_free, NULL);
         return NULL;
 }
 
@@ -184,7 +184,7 @@ static int user_new(User **userp, UserRegistry *registry, uid_t uid) {
         if (!user)
                 return error_origin(-ENOMEM);
 
-        user->n_refs = C_REF_INIT;
+        user->n_refs = REF_INIT;
         user->registry = registry;
         user->uid = uid;
         user->registry_node = (CRBNode)C_RBNODE_INIT(user->registry_node);

@@ -4,10 +4,10 @@
  * Name Registry
  */
 
-#include <c-macro.h>
-#include <c-ref.h>
+#include <c-stdaux.h>
 #include <stdlib.h>
 #include "bus/match.h"
+#include "util/ref.h"
 #include "util/user.h"
 
 typedef struct Activation Activation;
@@ -68,7 +68,7 @@ struct Name {
 };
 
 #define NAME_INIT(_x) {                                                                                 \
-                .n_refs = C_REF_INIT,                                                                   \
+                .n_refs = REF_INIT,                                                                     \
                 .registry_node = C_RBNODE_INIT((_x).registry_node),                                     \
                 .sender_matches = MATCH_REGISTRY_INIT((_x).sender_matches),                             \
                 .name_owner_changed_matches = MATCH_REGISTRY_INIT((_x).name_owner_changed_matches),     \
@@ -171,13 +171,13 @@ C_DEFINE_CLEANUP(NameSnapshot *, name_snapshot_free);
 
 static inline Name *name_ref(Name *name) {
         if (name)
-                c_ref_inc(&name->n_refs);
+                ref_inc(&name->n_refs);
         return name;
 }
 
 static inline Name *name_unref(Name *name) {
         if (name)
-                c_ref_dec(&name->n_refs, name_free, NULL);
+                ref_dec(&name->n_refs, name_free, NULL);
         return NULL;
 }
 

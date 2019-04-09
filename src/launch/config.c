@@ -3,7 +3,7 @@
  */
 
 #include <c-list.h>
-#include <c-macro.h>
+#include <c-stdaux.h>
 #include <expat.h>
 #include <stdlib.h>
 #include "dbus/protocol.h"

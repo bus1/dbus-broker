@@ -2,7 +2,7 @@
  * DBus Protocol Constants and Definitions
  */
 
-#include <c-macro.h>
+#include <c-stdaux.h>
 #include <stdlib.h>
 #include "dbus/protocol.h"
 

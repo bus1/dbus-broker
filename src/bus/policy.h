@@ -6,11 +6,11 @@
 
 #include <c-dvar.h>
 #include <c-list.h>
-#include <c-macro.h>
 #include <c-rbtree.h>
-#include <c-ref.h>
+#include <c-stdaux.h>
 #include <stdlib.h>
 #include "dbus/protocol.h"
+#include "util/ref.h"
 
 typedef struct BusSELinuxRegistry BusSELinuxRegistry;
 typedef struct NameSet NameSet;
@@ -83,7 +83,7 @@ struct PolicyBatch {
 };
 
 #define POLICY_BATCH_NULL(_x) {                                                 \
-                .n_refs = C_REF_INIT,                                           \
+                .n_refs = REF_INIT,                                             \
                 .connect_verdict = POLICY_VERDICT_INIT,                         \
                 .name_tree = C_RBTREE_INIT,                                     \
         }
@@ -185,13 +185,13 @@ C_DEFINE_CLEANUP(PolicySnapshot *, policy_snapshot_free);
 
 static inline PolicyBatch *policy_batch_ref(PolicyBatch *batch) {
         if (batch)
-                c_ref_inc(&batch->n_refs);
+                ref_inc(&batch->n_refs);
         return batch;
 }
 
 static inline PolicyBatch *policy_batch_unref(PolicyBatch *batch) {
         if (batch)
-                c_ref_dec(&batch->n_refs, policy_batch_free, NULL);
+                ref_dec(&batch->n_refs, policy_batch_free, NULL);
         return NULL;
 }
 

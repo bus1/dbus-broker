@@ -2,7 +2,8 @@
  * Test Dispatcher
  */
 
-#include <c-macro.h>
+#undef NDEBUG
+#include <c-stdaux.h>
 #include <linux/sockios.h>
 #include <stdlib.h>
 #include <sys/epoll.h>

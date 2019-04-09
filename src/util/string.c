@@ -2,7 +2,7 @@
  * String Helpers
  */
 
-#include <c-macro.h>
+#include <c-stdaux.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include "util/error.h"

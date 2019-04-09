@@ -4,7 +4,7 @@
  * Bus SELinux Helpers
  */
 
-#include <c-macro.h>
+#include <c-stdaux.h>
 #include <stdlib.h>
 
 typedef struct BusSELinuxRegistry BusSELinuxRegistry;

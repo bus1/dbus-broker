@@ -7,8 +7,7 @@
 
 #include <c-dvar.h>
 #include <c-dvar-type.h>
-#include <c-macro.h>
-#include <c-ref.h>
+#include <c-stdaux.h>
 #include <endian.h>
 #include <stdlib.h>
 #include "dbus/message.h"
@@ -25,7 +24,7 @@ static int message_new(Message **messagep, bool big_endian, size_t n_extra) {
         static_assert(alignof(message->extra) >= 8,
                       "Message payload has insufficient alignment");
 
-        message = malloc(sizeof(*message) + c_align8(n_extra));
+        message = malloc(sizeof(*message) + c_align_to(n_extra, 8));
         if (!message)
                 return error_origin(-ENOMEM);
 
@@ -64,7 +63,7 @@ int message_new_incoming(Message **messagep, MessageHeader header) {
                 return MESSAGE_E_CORRUPT_HEADER;
         }
 
-        n_data = c_align8(n_header) + n_body;
+        n_data = c_align_to(n_header, 8) + n_body;
         if (n_data > MESSAGE_SIZE_MAX)
                 return MESSAGE_E_TOO_LARGE;
 
@@ -77,8 +76,8 @@ int message_new_incoming(Message **messagep, MessageHeader header) {
         message->n_body = n_body;
         message->data = message->extra;
         message->header = (void *)message->data;
-        message->body = message->data + c_align8(n_header);
-        message->vecs[0] = (struct iovec){ message->header, c_align8(n_header) };
+        message->body = message->data + c_align_to(n_header, 8);
+        message->vecs[0] = (struct iovec){ message->header, c_align_to(n_header, 8) };
         message->vecs[1] = (struct iovec){ NULL, 0 };
         message->vecs[2] = (struct iovec){ NULL, 0 };
         message->vecs[3] = (struct iovec){ message->body, n_body };
@@ -112,12 +111,12 @@ int message_new_outgoing(Message **messagep, void *data, size_t n_data) {
         assert(!((unsigned long)data & 0x7));
         assert((header->endian == 'B') == (__BYTE_ORDER == __BIG_ENDIAN) &&
                (header->endian == 'l') == (__BYTE_ORDER == __LITTLE_ENDIAN));
-        assert(n_data >= sizeof(MessageHeader) + c_align8(header->n_fields));
+        assert(n_data >= sizeof(MessageHeader) + c_align_to(header->n_fields, 8));
 
         n_header = sizeof(MessageHeader) + header->n_fields;
-        n_body = n_data - c_align8(n_header);
+        n_body = n_data - c_align_to(n_header, 8);
 
-        header->n_body = n_data - sizeof(MessageHeader) - c_align8(header->n_fields);
+        header->n_body = n_data - sizeof(MessageHeader) - c_align_to(header->n_fields, 8);
 
         r = message_new(&message, (header->endian == 'B'), 0);
         if (r)
@@ -129,8 +128,8 @@ int message_new_outgoing(Message **messagep, void *data, size_t n_data) {
         message->n_body = n_body;
         message->data = data;
         message->header = (void *)message->data;
-        message->body = message->data + c_align8(n_header);
-        message->vecs[0] = (struct iovec){ message->header, c_align8(n_header) };
+        message->body = message->data + c_align_to(n_header, 8);
+        message->vecs[0] = (struct iovec){ message->header, c_align_to(n_header, 8) };
         message->vecs[1] = (struct iovec){ NULL, 0 };
         message->vecs[2] = (struct iovec){ NULL, 0 };
         message->vecs[3] = (struct iovec){ message->body, n_body };
@@ -551,7 +550,7 @@ void message_stitch_sender(Message *message, uint64_t sender_id) {
          */
         n_sender = strlen(sender);
         n_field = 1 + 3 + 4 + n_sender + 1;
-        n_stitch = c_align8(n_field);
+        n_stitch = c_align_to(n_field, 8);
 
         /*
          * The patch buffer is pre-allocated. Verify its size is sufficient to
@@ -575,14 +574,14 @@ void message_stitch_sender(Message *message, uint64_t sender_id) {
                  * See above for size-calculations of `(yv)' fields.
                  */
                 n = strlen(message->original_sender);
-                end = (void *)message->header + c_align8(message->n_header);
+                end = (void *)message->header + c_align_to(message->n_header, 8);
                 field = message->original_sender - (1 + 3 + 4);
 
                 assert(message->original_sender >= (void *)message->header);
                 assert(message->original_sender + n + 1 <= end);
 
                 /* fold remaining fields into following vector */
-                message->vecs[1].iov_base = field + c_align8(1 + 3 + 4 + n + 1);
+                message->vecs[1].iov_base = field + c_align_to(1 + 3 + 4 + n + 1, 8);
                 message->vecs[1].iov_len = message->vecs[0].iov_len;
                 message->vecs[1].iov_len -= message->vecs[1].iov_base - message->vecs[0].iov_base;
 
@@ -629,7 +628,7 @@ void message_stitch_sender(Message *message, uint64_t sender_id) {
         message->n_header = message->vecs[0].iov_len +
                             message->vecs[1].iov_len +
                             n_field;
-        message->n_data = c_align8(message->n_header) + message->n_body;
+        message->n_data = c_align_to(message->n_header, 8) + message->n_body;
 
         if (message->big_endian)
                 message->header->n_fields = htobe32(message->n_header - sizeof(*message->header));

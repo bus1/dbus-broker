@@ -2,7 +2,7 @@
  * Audit Helpers
  */
 
-#include <c-macro.h>
+#include <c-stdaux.h>
 #include <cap-ng.h>
 #include <grp.h>
 #include <libaudit.h>

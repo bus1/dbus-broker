@@ -14,13 +14,13 @@
  * bytes from the beginning of the first message it receives.
  */
 
-#include <c-macro.h>
-#include <c-string.h>
+#include <c-stdaux.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
 #include "dbus/sasl.h"
 #include "util/error.h"
+#include "util/string.h"
 
 static void sasl_split(const char *input, size_t n_input,
                        const char **cmd, size_t *n_cmd,
@@ -178,7 +178,7 @@ void sasl_server_init(SASLServer *sasl, uid_t uid, const char *guid) {
         sasl->ok_response[0] = 'O';
         sasl->ok_response[1] = 'K';
         sasl->ok_response[2] = ' ';
-        c_string_to_hex(guid, 16, &sasl->ok_response[3]);
+        string_to_hex(guid, 16, &sasl->ok_response[3]);
 };
 
 /**
@@ -206,7 +206,7 @@ static void sasl_server_handle_data(SASLServer *sasl, const char *input, size_t 
                 n = snprintf(uidbuf, sizeof(uidbuf), "%" PRIu32, sasl->uid);
                 assert(n >= 0 && (size_t)n < sizeof(uidbuf));
 
-                c_string_to_hex(uidbuf, n, hexbuf);
+                string_to_hex(uidbuf, n, hexbuf);
                 if (n_input != 2 * (size_t)n || memcmp(input, hexbuf, 2 * n))
                         failed = true;
         }

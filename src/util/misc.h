@@ -4,7 +4,7 @@
  * Miscellaneous Helpers
  */
 
-#include <c-macro.h>
+#include <c-stdaux.h>
 #include <stdlib.h>
 
 uint64_t util_umul64_saturating(uint64_t a, uint64_t b);

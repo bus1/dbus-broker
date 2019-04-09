@@ -4,7 +4,7 @@
 
 #include <c-dvar.h>
 #include <c-dvar-type.h>
-#include <c-macro.h>
+#include <c-stdaux.h>
 #include <stdlib.h>
 #include <sys/socket.h>
 #include <sys/types.h>

@@ -2,7 +2,7 @@
  * D-Bus Broker Launch Main Entry
  */
 
-#include <c-macro.h>
+#include <c-stdaux.h>
 #include <fcntl.h>
 #include <getopt.h>
 #include <stdlib.h>

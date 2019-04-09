@@ -2,8 +2,8 @@
  * Test Infrastructure around dbus-broker
  */
 
-#include <c-macro.h>
-#include <c-syscall.h>
+#undef NDEBUG
+#include <c-stdaux.h>
 #include <pthread.h>
 #include <signal.h>
 #include <stdlib.h>
@@ -15,6 +15,7 @@
 #include <systemd/sd-bus.h>
 #include <systemd/sd-event.h>
 #include "dbus/protocol.h"
+#include "util/syscall.h"
 #include "util-broker.h"
 
 void util_event_new(sd_event **eventp) {
@@ -299,7 +300,7 @@ void util_fork_daemon(sd_event *event, int pipe_fd, pid_t *pidp) {
                 assert(r >= 0);
 
                 /* write config into memfd (don't set MFD_CLOEXEC) */
-                fd = c_syscall_memfd_create("dbus-daemon-config-file", 0);
+                fd = syscall_memfd_create("dbus-daemon-config-file", 0);
                 assert(fd >= 0);
                 n = write(fd, config, strlen(config));
                 assert(n == (ssize_t)strlen(config));

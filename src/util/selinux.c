@@ -2,14 +2,14 @@
  * BusSELinuxRegistry Helpers
  */
 
-#include <c-macro.h>
 #include <c-rbtree.h>
-#include <c-ref.h>
+#include <c-stdaux.h>
 #include <selinux/selinux.h>
 #include <selinux/avc.h>
 #include <stdlib.h>
 #include "util/audit.h"
 #include "util/error.h"
+#include "util/ref.h"
 #include "util/selinux.h"
 
 struct BusSELinuxRegistry {
@@ -102,7 +102,7 @@ int bus_selinux_registry_new(BusSELinuxRegistry **registryp, const char *fallbac
         if (!registry)
                 return error_origin(-ENOMEM);
 
-        registry->n_refs = C_REF_INIT;
+        registry->n_refs = REF_INIT;
         registry->fallback_context = (const char *)(registry + 1);
         registry->names = (CRBTree)C_RBTREE_INIT;
         memcpy((char *)registry->fallback_context, fallback_context, n_fallback_context);
@@ -124,14 +124,14 @@ static void bus_selinux_registry_free(_Atomic unsigned long *n_refs, void *userd
 
 BusSELinuxRegistry *bus_selinux_registry_ref(BusSELinuxRegistry *registry) {
         if (registry)
-                c_ref_inc(&registry->n_refs);
+                ref_inc(&registry->n_refs);
 
         return registry;
 }
 
 BusSELinuxRegistry *bus_selinux_registry_unref(BusSELinuxRegistry *registry) {
         if (registry)
-                c_ref_dec(&registry->n_refs, bus_selinux_registry_free, NULL);
+                ref_dec(&registry->n_refs, bus_selinux_registry_free, NULL);
 
         return NULL;
 }

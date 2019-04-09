@@ -14,7 +14,7 @@
  * parsed data.
  */
 
-#include <c-macro.h>
+#include <c-stdaux.h>
 #include <stdlib.h>
 #include "dbus/address.h"
 

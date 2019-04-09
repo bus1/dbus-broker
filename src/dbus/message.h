@@ -4,11 +4,11 @@
  * D-Bus Messages
  */
 
-#include <c-macro.h>
-#include <c-ref.h>
+#include <c-stdaux.h>
 #include <stdlib.h>
 #include "dbus/address.h"
 #include "dbus/protocol.h"
+#include "util/ref.h"
 
 typedef struct FDList FDList;
 typedef struct Log Log;
@@ -93,7 +93,7 @@ struct Message {
 };
 
 #define MESSAGE_INIT(_big_endian) {                     \
-                .n_refs = C_REF_INIT,                   \
+                .n_refs = REF_INIT,                     \
                 .big_endian = _big_endian,              \
                 .metadata = MESSAGE_METADATA_INIT,      \
         }
@@ -124,7 +124,7 @@ void message_log_append(Message *message, Log *log);
  */
 static inline Message *message_ref(Message *message) {
         if (message)
-                c_ref_inc(&message->n_refs);
+                ref_inc(&message->n_refs);
         return message;
 }
 
@@ -133,7 +133,7 @@ static inline Message *message_ref(Message *message) {
  */
 static inline Message *message_unref(Message *message) {
         if (message)
-                c_ref_dec(&message->n_refs, message_free, NULL);
+                ref_dec(&message->n_refs, message_free, NULL);
         return NULL;
 }
 

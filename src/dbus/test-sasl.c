@@ -2,7 +2,8 @@
  * Test SASL Parser
  */
 
-#include <c-macro.h>
+#undef NDEBUG
+#include <c-stdaux.h>
 #include <stdlib.h>
 #include "dbus/sasl.h"
 

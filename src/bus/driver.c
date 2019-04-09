@@ -4,8 +4,7 @@
 
 #include <c-dvar.h>
 #include <c-dvar-type.h>
-#include <c-macro.h>
-#include <c-string.h>
+#include <c-stdaux.h>
 #include <stdlib.h>
 #include <sys/epoll.h>
 #include "broker/broker.h"
@@ -21,6 +20,7 @@
 #include "dbus/socket.h"
 #include "util/error.h"
 #include "util/selinux.h"
+#include "util/string.h"
 
 typedef struct DriverInterface DriverInterface;
 typedef struct DriverMethod DriverMethod;
@@ -1547,7 +1547,7 @@ static int driver_method_get_id(Peer *peer, const char *path, CDVar *in_v, uint3
                 return error_trace(r);
 
         /* write the output message */
-        c_string_to_hex(peer->bus->guid, sizeof(peer->bus->guid), buffer);
+        string_to_hex(peer->bus->guid, sizeof(peer->bus->guid), buffer);
         c_dvar_write(out_v, "(s)", buffer);
 
         r = driver_send_reply(peer, out_v, serial);
@@ -2319,7 +2319,7 @@ static int driver_dispatch_internal(Peer *peer, Message *message) {
                                                           message));
         }
 
-        if (c_string_equal(message->metadata.fields.destination, "org.freedesktop.DBus")) {
+        if (string_equal(message->metadata.fields.destination, "org.freedesktop.DBus")) {
                 r = driver_dispatch_interface(peer,
                                               message_read_serial(message),
                                               message->metadata.fields.interface,

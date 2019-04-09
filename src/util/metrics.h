@@ -4,7 +4,7 @@
  * Metrics Helper
  */
 
-#include <c-macro.h>
+#include <c-stdaux.h>
 #include <stdlib.h>
 #include <time.h>
 

@@ -10,7 +10,7 @@
  * applicable policy.
  */
 
-#include <c-macro.h>
+#include <c-stdaux.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include "util/apparmor.h"

@@ -2,7 +2,8 @@
  * Message Passing Benchmarks
  */
 
-#include <c-macro.h>
+#undef NDEBUG
+#include <c-stdaux.h>
 #include <math.h>
 #include <stdlib.h>
 #include "util/metrics.h"

@@ -5,8 +5,7 @@
  */
 
 #include <c-list.h>
-#include <c-macro.h>
-#include <c-ref.h>
+#include <c-stdaux.h>
 #include <stdlib.h>
 
 enum {

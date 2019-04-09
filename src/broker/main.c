@@ -2,7 +2,7 @@
  * D-Bus Broker Main Entry
  */
 
-#include <c-macro.h>
+#include <c-stdaux.h>
 #include <getopt.h>
 #include <limits.h>
 #include <stdlib.h>

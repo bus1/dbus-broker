@@ -4,7 +4,7 @@
  * DBus Protocol Constants
  */
 
-#include <c-macro.h>
+#include <c-stdaux.h>
 #include <stdlib.h>
 
 enum {

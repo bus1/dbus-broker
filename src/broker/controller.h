@@ -4,8 +4,8 @@
  * Broker Controller
  */
 
-#include <c-macro.h>
 #include <c-rbtree.h>
+#include <c-stdaux.h>
 #include <stdlib.h>
 #include <sys/types.h>
 #include "bus/activation.h"

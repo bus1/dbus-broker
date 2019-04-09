@@ -2,7 +2,8 @@
  * Test User Accounting
  */
 
-#include <c-macro.h>
+#undef NDEBUG
+#include <c-stdaux.h>
 #include <stdlib.h>
 #include "util/user.h"
 

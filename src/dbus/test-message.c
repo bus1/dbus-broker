@@ -2,7 +2,8 @@
  * Test D-Bus Message Abstraction
  */
 
-#include <c-macro.h>
+#undef NDEBUG
+#include <c-stdaux.h>
 #include <stdlib.h>
 #include "dbus/message.h"
 

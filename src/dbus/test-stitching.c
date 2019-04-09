@@ -2,9 +2,10 @@
  * Test D-Bus Message Sender Stitching
  */
 
+#undef NDEBUG
 #include <c-dvar.h>
 #include <c-dvar-type.h>
-#include <c-macro.h>
+#include <c-stdaux.h>
 #include <stdlib.h>
 #include "dbus/address.h"
 #include "dbus/message.h"

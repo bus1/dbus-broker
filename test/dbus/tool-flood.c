@@ -2,7 +2,8 @@
  * Flood destination with pings
  */
 
-#include <c-macro.h>
+#undef NDEBUG
+#include <c-stdaux.h>
 #include <math.h>
 #include <stdlib.h>
 #include "util-broker.h"

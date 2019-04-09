@@ -10,7 +10,7 @@
  * direct watches without detailed reporting are supported.
  */
 
-#include <c-macro.h>
+#include <c-stdaux.h>
 #include <limits.h>
 #include <stdlib.h>
 #include <sys/inotify.h>

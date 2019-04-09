@@ -4,11 +4,11 @@
  * User Accounting
  */
 
-#include <c-macro.h>
 #include <c-rbtree.h>
-#include <c-ref.h>
+#include <c-stdaux.h>
 #include <stdlib.h>
 #include <sys/types.h>
+#include "util/ref.h"
 
 typedef struct Log Log;
 typedef struct UserCharge UserCharge;
@@ -100,13 +100,13 @@ int user_registry_ref_user(UserRegistry *registry, User **userp, uid_t uid);
 
 static inline User *user_ref(User *user) {
         if (user)
-                c_ref_inc(&user->n_refs);
+                ref_inc(&user->n_refs);
         return user;
 }
 
 static inline User *user_unref(User *user) {
         if (user)
-                c_ref_dec(&user->n_refs, user_free, NULL);
+                ref_dec(&user->n_refs, user_free, NULL);
         return NULL;
 }
 

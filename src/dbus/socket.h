@@ -5,7 +5,7 @@
  */
 
 #include <c-list.h>
-#include <c-macro.h>
+#include <c-stdaux.h>
 #include <stdlib.h>
 #include "dbus/message.h"
 #include "dbus/queue.h"

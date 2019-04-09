@@ -9,7 +9,7 @@
  * Hence, it stores FDs as a cmsghdr entry, ready to be used with sendmsg(2).
  */
 
-#include <c-macro.h>
+#include <c-stdaux.h>
 #include <stdlib.h>
 #include <sys/socket.h>
 #include "util/error.h"

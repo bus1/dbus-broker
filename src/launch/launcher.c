@@ -5,7 +5,7 @@
 #include <c-ini.h>
 #include <c-rbtree.h>
 #include <c-shquote.h>
-#include <c-string.h>
+#include <c-stdaux.h>
 #include <pwd.h>
 #include <stdlib.h>
 #include <sys/prctl.h>
@@ -27,6 +27,7 @@
 #include "util/error.h"
 #include "util/log.h"
 #include "util/misc.h"
+#include "util/string.h"
 
 /*
  * These are the default limits used when spawning dbus-broker. They are
@@ -489,7 +490,7 @@ static int launcher_on_message(sd_bus_message *m, void *userdata, sd_bus_error *
         if (!path)
                 return 0;
 
-        suffix = c_string_prefix(path, "/org/bus1/DBus/Name/");
+        suffix = string_prefix(path, "/org/bus1/DBus/Name/");
         if (suffix) {
                 if (sd_bus_message_is_signal(m, "org.bus1.DBus.Name", "Activate"))
                         r = launcher_on_name_activate(launcher, m, suffix);

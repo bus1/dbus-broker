@@ -12,7 +12,7 @@
  */
 
 #include <c-list.h>
-#include <c-macro.h>
+#include <c-stdaux.h>
 #include <linux/sockios.h>
 #include <stdlib.h>
 #include <sys/epoll.h>

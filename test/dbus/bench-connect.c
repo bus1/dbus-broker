@@ -2,7 +2,8 @@
  * Connection Benchmarks
  */
 
-#include <c-macro.h>
+#undef NDEBUG
+#include <c-stdaux.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

@@ -4,7 +4,7 @@
  * Broker
  */
 
-#include <c-macro.h>
+#include <c-stdaux.h>
 #include <stdlib.h>
 #include "broker/controller.h"
 #include "bus/bus.h"

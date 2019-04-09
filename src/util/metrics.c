@@ -15,7 +15,7 @@
  * W. P. Welford, 1962.
  */
 
-#include <c-macro.h>
+#include <c-stdaux.h>
 #include <math.h>
 #include <stdlib.h>
 #include <time.h>

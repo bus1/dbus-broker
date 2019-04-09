@@ -76,8 +76,7 @@
  *                                dropped so far due to excessive logging.
  */
 
-#include <c-macro.h>
-#include <c-syscall.h>
+#include <c-stdaux.h>
 #include <linux/sockios.h>
 #include <stdlib.h>
 #include <sys/ioctl.h>
@@ -86,6 +85,7 @@
 #include <sys/syslog.h>
 #include "util/error.h"
 #include "util/log.h"
+#include "util/syscall.h"
 
 /* lets retrict log records to 256MiB */
 #define LOG_SIZE_MAX (256ULL * 1024ULL * 1024ULL)
@@ -223,7 +223,7 @@ static bool log_alloc(Log *log) {
          *      our CI infrastructure does not provide linux/memfd.h, yet. We
          *      really ought to fix this!
          */
-        mem_fd = c_syscall_memfd_create("dbus-broker-log", 0x3);
+        mem_fd = syscall_memfd_create("dbus-broker-log", 0x3);
         if (mem_fd < 0) {
                 log->error = error_origin(-errno);
                 return false;

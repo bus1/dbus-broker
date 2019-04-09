@@ -8,7 +8,7 @@
  * See util/audit.c for details.
  */
 
-#include <c-macro.h>
+#include <c-stdaux.h>
 #include <grp.h>
 #include <stdlib.h>
 #include <unistd.h>

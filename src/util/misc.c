@@ -4,7 +4,7 @@
  * These are helpers that have no other obvious home.
  */
 
-#include <c-macro.h>
+#include <c-stdaux.h>
 #include <grp.h>
 #include <stdlib.h>
 #include <unistd.h>

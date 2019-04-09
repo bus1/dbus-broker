@@ -2,7 +2,8 @@
  * Basic Broker Driver API Tests
  */
 
-#include <c-macro.h>
+#undef NDEBUG
+#include <c-stdaux.h>
 #include <stdlib.h>
 #include "dbus/protocol.h"
 #include "util/proc.h"

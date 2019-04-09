@@ -3,7 +3,7 @@
  */
 
 #include <c-list.h>
-#include <c-macro.h>
+#include <c-stdaux.h>
 #include <signal.h>
 #include <stdlib.h>
 #include <sys/epoll.h>

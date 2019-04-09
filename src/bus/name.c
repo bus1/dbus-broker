@@ -2,10 +2,9 @@
  * Name Registry
  */
 
-#include <c-macro.h>
-#include <c-rbtree.h>
-#include <c-ref.h>
 #include <c-list.h>
+#include <c-rbtree.h>
+#include <c-stdaux.h>
 #include <stdlib.h>
 #include "bus/name.h"
 #include "dbus/protocol.h"

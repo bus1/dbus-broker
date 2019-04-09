@@ -2,7 +2,7 @@
  * Socket Options Helpers
  */
 
-#include <c-macro.h>
+#include <c-stdaux.h>
 #include <grp.h>
 #include <pwd.h>
 #include <stdlib.h>

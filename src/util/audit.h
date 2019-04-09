@@ -4,7 +4,7 @@
  * Audit Helpers
  */
 
-#include <c-macro.h>
+#include <c-stdaux.h>
 #include <stdlib.h>
 
 int util_audit_drop_permissions(uint32_t uid, uint32_t gid);

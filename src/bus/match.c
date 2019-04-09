@@ -4,14 +4,14 @@
 
 #include <c-dvar.h>
 #include <c-list.h>
-#include <c-macro.h>
 #include <c-rbtree.h>
-#include <c-string.h>
+#include <c-stdaux.h>
 #include "bus/match.h"
 #include "dbus/address.h"
 #include "dbus/message.h"
 #include "dbus/protocol.h"
 #include "util/error.h"
+#include "util/string.h"
 
 static bool match_key_equal(const char *key1, const char *key2, size_t n_key2) {
         if (strlen(key1) != n_key2)
@@ -380,7 +380,7 @@ static bool match_string_prefix(const char *string, const char *prefix, char del
         if (!string || !prefix)
                 return false;
 
-        tail = c_string_prefix(string, prefix);
+        tail = string_prefix(string, prefix);
         if (!tail)
                 return false;
 
@@ -409,7 +409,7 @@ static bool match_keys_match_metadata(MatchKeys *keys, MessageMetadata *metadata
                 return false;
 
         for (unsigned int i = 0; i < keys->filter.n_args || i < keys->filter.n_argpaths; i ++) {
-                if (keys->filter.args[i] && !(metadata->args[0].element == 's' && c_string_equal(keys->filter.args[i], metadata->args[i].value)))
+                if (keys->filter.args[i] && !(metadata->args[0].element == 's' && string_equal(keys->filter.args[i], metadata->args[i].value)))
                         return false;
 
                 if (keys->filter.argpaths[i]) {
@@ -425,13 +425,13 @@ static bool match_keys_match_metadata(MatchKeys *keys, MessageMetadata *metadata
         if (keys->filter.sender != ADDRESS_ID_INVALID && keys->filter.sender != metadata->sender_id)
                 return false;
 
-        if (keys->filter.interface && !c_string_equal(keys->filter.interface, metadata->fields.interface))
+        if (keys->filter.interface && !string_equal(keys->filter.interface, metadata->fields.interface))
                 return false;
 
-        if (keys->filter.member && !c_string_equal(keys->filter.member, metadata->fields.member))
+        if (keys->filter.member && !string_equal(keys->filter.member, metadata->fields.member))
                 return false;
 
-        if (keys->filter.path && !c_string_equal(keys->filter.path, metadata->fields.path))
+        if (keys->filter.path && !string_equal(keys->filter.path, metadata->fields.path))
                 return false;
 
         return true;
@@ -612,13 +612,13 @@ static void match_registry_by_member_link(MatchRegistryByMember *registry, Match
 static int match_keys_compare(MatchKeys *key1, MatchKeys *key2) {
         int r;
 
-        if ((r = c_string_compare(key1->sender, key2->sender)) ||
-            (r = c_string_compare(key1->destination, key2->destination)) ||
-            (r = c_string_compare(key1->filter.interface, key2->filter.interface)) ||
-            (r = c_string_compare(key1->filter.member, key2->filter.member)) ||
-            (r = c_string_compare(key1->filter.path, key2->filter.path)) ||
-            (r = c_string_compare(key1->path_namespace, key2->path_namespace)) ||
-            (r = c_string_compare(key1->arg0namespace, key2->arg0namespace)))
+        if ((r = string_compare(key1->sender, key2->sender)) ||
+            (r = string_compare(key1->destination, key2->destination)) ||
+            (r = string_compare(key1->filter.interface, key2->filter.interface)) ||
+            (r = string_compare(key1->filter.member, key2->filter.member)) ||
+            (r = string_compare(key1->filter.path, key2->filter.path)) ||
+            (r = string_compare(key1->path_namespace, key2->path_namespace)) ||
+            (r = string_compare(key1->arg0namespace, key2->arg0namespace)))
                 return r;
 
         if (key1->filter.type > key2->filter.type)
@@ -637,8 +637,8 @@ static int match_keys_compare(MatchKeys *key1, MatchKeys *key2) {
                 return 1;
 
         for (size_t i = 0; i < key1->filter.n_args || i < key1->filter.n_argpaths; i ++) {
-                if ((r = c_string_compare(key1->filter.args[i], key2->filter.args[i])) ||
-                    (r = c_string_compare(key1->filter.argpaths[i], key2->filter.argpaths[i])))
+                if ((r = string_compare(key1->filter.args[i], key2->filter.args[i])) ||
+                    (r = string_compare(key1->filter.argpaths[i], key2->filter.argpaths[i])))
                         return r;
         }
 

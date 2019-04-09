@@ -82,7 +82,7 @@
  * gracefully handled will be suitable for this.
  */
 
-#include <c-macro.h>
+#include <c-stdaux.h>
 #include <stdlib.h>
 #include "util/error.h"
 

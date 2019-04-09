@@ -2,7 +2,8 @@
  * Test D-Bus Socket Abstraction
  */
 
-#include <c-macro.h>
+#undef NDEBUG
+#include <c-stdaux.h>
 #include <stdlib.h>
 #include <sys/epoll.h>
 #include <sys/types.h>

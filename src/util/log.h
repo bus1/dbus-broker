@@ -4,7 +4,7 @@
  * Log Context
  */
 
-#include <c-macro.h>
+#include <c-stdaux.h>
 #include <stdlib.h>
 #include <sys/mman.h>
 #include <sys/syslog.h>

@@ -2,7 +2,8 @@
  * Test Error Handling
  */
 
-#include <c-macro.h>
+#undef NDEBUG
+#include <c-stdaux.h>
 #include <stdlib.h>
 #include "util/error.h"
 

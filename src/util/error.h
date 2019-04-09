@@ -9,7 +9,7 @@
  * be caught and handled by the caller.
  */
 
-#include <c-macro.h>
+#include <c-stdaux.h>
 #include <stdlib.h>
 
 int error_slow_origin(int r, const char *function, const char *file, int line);

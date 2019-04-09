@@ -4,7 +4,8 @@
  * Test Infrastructure around dbus-broker
  */
 
-#include <c-macro.h>
+#undef NDEBUG
+#include <c-stdaux.h>
 #include <pthread.h>
 #include <stdlib.h>
 #include <sys/socket.h>

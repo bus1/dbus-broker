@@ -3,8 +3,8 @@
  */
 
 #include <c-list.h>
-#include <c-macro.h>
 #include <c-rbtree.h>
+#include <c-stdaux.h>
 #include <stdlib.h>
 #include <systemd/sd-bus.h>
 #include "dbus/protocol.h"

@@ -10,7 +10,8 @@
  *      data on both. This is still open for discussion, though.
  */
 
-#include <c-macro.h>
+#undef NDEBUG
+#include <c-stdaux.h>
 #include <stdlib.h>
 #include <sys/auxv.h>
 #include <sys/socket.h>

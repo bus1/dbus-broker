@@ -2,7 +2,8 @@
  * Test miscellaneous helpers
  */
 
-#include <c-macro.h>
+#undef NDEBUG
+#include <c-stdaux.h>
 #include <stdlib.h>
 #include "util/misc.h"
 

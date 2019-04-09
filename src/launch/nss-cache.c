@@ -12,8 +12,8 @@
  * The root user is hardcoded to always return UID 0, see passwd(5).
  */
 
-#include <c-macro.h>
 #include <c-rbtree.h>
+#include <c-stdaux.h>
 #include <grp.h>
 #include <pwd.h>
 #include <stdlib.h>

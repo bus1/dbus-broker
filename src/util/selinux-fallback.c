@@ -8,7 +8,7 @@
  * See util/selinux.c for details.
  */
 
-#include <c-macro.h>
+#include <c-stdaux.h>
 #include <stdlib.h>
 #include "util/selinux.h"
 

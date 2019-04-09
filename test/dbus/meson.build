@@ -10,7 +10,6 @@ sources_test = [
 deps_test = [
         dep_bus,
         dep_cstdaux,
-        dep_csundry,
         dep_libsystemd,
         dep_thread,
 ]

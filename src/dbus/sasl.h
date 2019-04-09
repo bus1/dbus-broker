@@ -4,6 +4,7 @@
  * Server-Side SASL Parser
  */
 
+#include <c-stdaux.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <sys/types.h>

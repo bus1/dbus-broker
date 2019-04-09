@@ -4,8 +4,8 @@
  * Launcher
  */
 
-#include <c-macro.h>
 #include <c-rbtree.h>
+#include <c-stdaux.h>
 #include <stdlib.h>
 #include <systemd/sd-bus.h>
 #include <systemd/sd-event.h>

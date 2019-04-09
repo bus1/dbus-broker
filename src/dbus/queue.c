@@ -2,7 +2,7 @@
  * D-Bus Input/Output Queues
  */
 
-#include <c-macro.h>
+#include <c-stdaux.h>
 #include <stdlib.h>
 #include "dbus/queue.h"
 #include "util/fdlist.h"

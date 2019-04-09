@@ -4,6 +4,7 @@
  * DBus Driver
  */
 
+#include <c-stdaux.h>
 #include <stdlib.h>
 
 typedef struct Bus Bus;

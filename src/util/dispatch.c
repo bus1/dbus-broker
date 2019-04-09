@@ -43,8 +43,7 @@
  */
 
 #include <c-list.h>
-#include <c-macro.h>
-#include <c-ref.h>
+#include <c-stdaux.h>
 #include <stdlib.h>
 #include <sys/epoll.h>
 #include "util/dispatch.h"

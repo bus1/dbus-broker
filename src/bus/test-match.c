@@ -2,7 +2,8 @@
  * Test Bus Context
  */
 
-#include <c-macro.h>
+#undef NDEBUG
+#include <c-stdaux.h>
 #include <stdlib.h>
 #include <sys/types.h>
 #include <sys/socket.h>

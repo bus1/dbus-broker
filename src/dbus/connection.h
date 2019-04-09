@@ -4,7 +4,7 @@
  * Connection
  */
 
-#include <c-list.h>
+#include <c-stdaux.h>
 #include <stdlib.h>
 #include <sys/types.h>
 #include "dbus/sasl.h"
