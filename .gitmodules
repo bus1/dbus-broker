@@ -19,3 +19,6 @@
 [submodule "subprojects/c-ini"]
 	path = subprojects/c-ini
 	url = https://github.com/c-util/c-ini.git
+[submodule "subprojects/c-stdaux"]
+	path = subprojects/c-stdaux
+	url = https://github.com/c-util/c-stdaux.git

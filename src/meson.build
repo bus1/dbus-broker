@@ -47,6 +47,7 @@ deps_bus = [
         dep_cdvar,
         dep_clist,
         dep_crbtree,
+        dep_cstdaux,
         dep_csundry,
         dep_math,
 ]
@@ -123,6 +124,7 @@ exe_dbus_broker = executable(
         dependencies: [
                 dep_bus,
                 dep_cdvar,
+                dep_cstdaux,
                 dep_csundry,
         ],
         install: true,
@@ -145,6 +147,7 @@ if use_launcher
                         dep_cini,
                         dep_crbtree,
                         dep_cshquote,
+                        dep_cstdaux,
                         dep_csundry,
                         dep_libsystemd,
                 ],
