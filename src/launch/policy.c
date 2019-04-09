@@ -656,6 +656,12 @@ int policy_import(Policy *policy, ConfigRoot *root) {
                         continue;
                 }
 
+                if (i_cnode->type == CONFIG_NODE_POLICY &&
+                    i_cnode->policy.context  == CONFIG_POLICY_AT_CONSOLE) {
+                        fprintf(stderr, "Deprecated policy context in %s +%lu. The 'at_console' context is deprecated and will be ignored in the future.\n",
+                                i_cnode->file, i_cnode->lineno);
+                }
+
                 if (i_cnode->type != CONFIG_NODE_ALLOW &&
                     i_cnode->type != CONFIG_NODE_DENY)
                         continue;
