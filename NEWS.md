@@ -1,5 +1,22 @@
 # dbus-broker - Linux D-Bus Message Broker
 
+## CHANGES WITH 20:
+
+        * Major improvements in the logging infrastructure of the launcher.
+          Messages are now directly forwarded to the journal and amended with
+          additional fields. The journal-catalog now contains entries with
+          background information on runtime log messages. Lastly, many of the
+          log-messages were overhauled to be more descriptive.
+
+        * The `c-sundry` submodule was dropped and replaced by `c-stdaux`. This
+          is a much smaller project with a clearly stated goal. The old dumping
+          gound `c-sundry` is no longer needed (remaining bits were moved into
+          the dbus-broker codebase).
+
+        Contributions from: David Herrmann, Tom Gundersen
+
+        - Tübingen, 2019-04-10
+
 ## CHANGES WITH 19:
 
         * Fix a possible integer overflow in resource quota calculations.
