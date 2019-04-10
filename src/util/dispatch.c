@@ -83,8 +83,8 @@ int dispatch_file_init(DispatchFile *file,
                        uint32_t events) {
         int r;
 
-        assert(!(mask & EPOLLET));
-        assert(!(events & ~mask));
+        c_assert(!(mask & EPOLLET));
+        c_assert(!(events & ~mask));
 
         r = epoll_ctl(ctx->epoll_fd,
                       EPOLL_CTL_ADD,
@@ -139,7 +139,7 @@ void dispatch_file_deinit(DispatchFile *file) {
                  * you did something wrong and better fix it.
                  */
                 r = epoll_ctl(file->context->epoll_fd, EPOLL_CTL_DEL, file->fd, NULL);
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 --file->context->n_files;
                 c_list_unlink(&file->ready_link);
@@ -168,7 +168,7 @@ void dispatch_file_deinit(DispatchFile *file) {
  * when the kernel signalls it again.
  */
 void dispatch_file_select(DispatchFile *file, uint32_t mask) {
-        assert(!(mask & ~file->kernel_mask));
+        c_assert(!(mask & ~file->kernel_mask));
 
         file->user_mask |= mask;
         if ((file->user_mask & file->events) && !c_list_is_linked(&file->ready_link))
@@ -184,7 +184,7 @@ void dispatch_file_select(DispatchFile *file, uint32_t mask) {
  * from the user-mask. The callback will no longer be invoked for those events.
  */
 void dispatch_file_deselect(DispatchFile *file, uint32_t mask) {
-        assert(!(mask & ~file->kernel_mask));
+        c_assert(!(mask & ~file->kernel_mask));
 
         file->user_mask &= ~mask;
         if (!(file->events & file->user_mask))
@@ -201,7 +201,7 @@ void dispatch_file_deselect(DispatchFile *file, uint32_t mask) {
  * them again to reconsider them.
  */
 void dispatch_file_clear(DispatchFile *file, uint32_t mask) {
-        assert(!(mask & ~file->kernel_mask));
+        c_assert(!(mask & ~file->kernel_mask));
 
         file->events &= ~mask;
         if (!(file->events & file->user_mask))
@@ -237,8 +237,8 @@ int dispatch_context_init(DispatchContext *ctx) {
  * safe to call this function multiple times.
  */
 void dispatch_context_deinit(DispatchContext *ctx) {
-        assert(!ctx->n_files);
-        assert(c_list_is_empty(&ctx->ready_list));
+        c_assert(!ctx->n_files);
+        c_assert(c_list_is_empty(&ctx->ready_list));
 
         ctx->epoll_fd = c_close(ctx->epoll_fd);
 }
@@ -288,7 +288,7 @@ int dispatch_context_poll(DispatchContext *ctx, int timeout) {
                 e = &events[--r];
                 f = e->data.ptr;
 
-                assert(f->context == ctx);
+                c_assert(f->context == ctx);
 
                 f->events |= e->events & f->kernel_mask;
                 if ((f->events & f->user_mask) && !c_list_is_linked(&f->ready_link))
@@ -347,6 +347,6 @@ int dispatch_context_dispatch(DispatchContext *ctx) {
                 }
         }
 
-        assert(c_list_is_empty(&todo));
+        c_assert(c_list_is_empty(&todo));
         return r;
 }

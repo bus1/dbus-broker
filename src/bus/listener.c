@@ -113,7 +113,7 @@ int listener_init_with_fd(Listener *l,
  * listener_deinit() - XXX
  */
 void listener_deinit(Listener *listener) {
-        assert(c_list_is_empty(&listener->peer_list));
+        c_assert(c_list_is_empty(&listener->peer_list));
 
         policy_registry_free(listener->policy);
         dispatch_file_deinit(&listener->socket_file);

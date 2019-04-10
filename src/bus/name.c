@@ -47,7 +47,7 @@ static int name_ownership_compare(CRBTree *tree, void *k, CRBNode *rb) {
 }
 
 static void name_ownership_link(NameOwnership *ownership, CRBNode *parent, CRBNode **slot) {
-        assert(!c_rbnode_is_linked(&ownership->owner_node));
+        c_assert(!c_rbnode_is_linked(&ownership->owner_node));
 
         c_rbtree_add(&ownership->owner->ownership_tree, parent, slot, &ownership->owner_node);
 }
@@ -56,7 +56,7 @@ static NameOwnership *name_ownership_free(NameOwnership *ownership) {
         if (!ownership)
                 return NULL;
 
-        assert(!c_list_is_linked(&ownership->name_link));
+        c_assert(!c_list_is_linked(&ownership->name_link));
 
         user_charge_deinit(&ownership->charge);
         c_rbnode_unlink(&ownership->owner_node);
@@ -115,9 +115,9 @@ bool name_ownership_is_primary(NameOwnership *ownership) {
 void name_ownership_release(NameOwnership *ownership, NameChange *change) {
         NameOwnership *primary;
 
-        assert(!change->name);
-        assert(!change->old_owner);
-        assert(!change->new_owner);
+        c_assert(!change->name);
+        c_assert(!change->old_owner);
+        c_assert(!change->new_owner);
 
         primary = name_primary(ownership->name);
         c_list_unlink(&ownership->name_link);
@@ -138,9 +138,9 @@ static int name_ownership_update(NameOwnership *ownership, uint32_t flags, NameC
         NameOwnership *primary;
         int r;
 
-        assert(!change->name);
-        assert(!change->old_owner);
-        assert(!change->new_owner);
+        c_assert(!change->name);
+        c_assert(!change->old_owner);
+        c_assert(!change->new_owner);
 
         primary = name_primary(name);
         ownership->flags = flags;
@@ -152,7 +152,7 @@ static int name_ownership_update(NameOwnership *ownership, uint32_t flags, NameC
                 change->new_owner = ownership->owner;
 
                 /* @owner cannot already be linked */
-                assert(!c_list_is_linked(&ownership->name_link));
+                c_assert(!c_list_is_linked(&ownership->name_link));
 
                 c_list_link_front(&name->ownership_list, &ownership->name_link);
                 r = 0;
@@ -197,7 +197,7 @@ static int name_compare(CRBTree *tree, void *k, CRBNode *rb) {
 }
 
 static void name_link(Name *name, CRBNode *parent, CRBNode **slot) {
-        assert(!c_rbnode_is_linked(&name->registry_node));
+        c_assert(!c_rbnode_is_linked(&name->registry_node));
 
         c_rbtree_add(&name->registry->name_tree, parent, slot, &name->registry_node);
 }
@@ -223,8 +223,8 @@ static int name_new(Name **namep, NameRegistry *registry, const char *name_str) 
 void name_free(_Atomic unsigned long *n_refs, void *userdata) {
         Name *name = c_container_of(n_refs, Name, n_refs);
 
-        assert(c_list_is_empty(&name->ownership_list));
-        assert(!name->activation);
+        c_assert(c_list_is_empty(&name->ownership_list));
+        c_assert(!name->activation);
 
         match_registry_deinit(&name->name_owner_changed_matches);
         match_registry_deinit(&name->sender_matches);
@@ -250,7 +250,7 @@ void name_owner_init(NameOwner *owner) {
  * context is unused and does not own any names.
  */
 void name_owner_deinit(NameOwner *owner) {
-        assert(c_rbtree_is_empty(&owner->ownership_tree));
+        c_assert(c_rbtree_is_empty(&owner->ownership_tree));
 }
 
 /**
@@ -271,7 +271,7 @@ void name_registry_init(NameRegistry *registry) {
  * registry is unused and none of its names is pinned, anymore.
  */
 void name_registry_deinit(NameRegistry *registry) {
-        assert(c_rbtree_is_empty(&registry->name_tree));
+        c_assert(c_rbtree_is_empty(&registry->name_tree));
 }
 
 /**
@@ -435,7 +435,7 @@ int name_snapshot_new(NameSnapshot **snapshotp, NameOwner *owner) {
         c_rbtree_for_each_entry(ownership, &owner->ownership_tree, owner_node)
                 snapshot->names[snapshot->n_names++] = name_ref(ownership->name);
 
-        assert(n_names == snapshot->n_names);
+        c_assert(n_names == snapshot->n_names);
 
         *snapshotp = snapshot;
         return 0;

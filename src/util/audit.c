@@ -128,7 +128,7 @@ int util_audit_log(const char *message, uid_t uid) {
 int util_audit_init_global(void) {
         int r;
 
-        assert(audit_fd < 0);
+        c_assert(audit_fd < 0);
 
         r = capng_have_capability(CAPNG_EFFECTIVE, CAP_AUDIT_WRITE);
         if (r == 0)

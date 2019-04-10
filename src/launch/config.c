@@ -179,7 +179,7 @@ ConfigNode *config_node_free(ConfigNode *node) {
         free(node->cdata);
         config_path_unref(node->path);
 
-        assert(!node->n_children);
+        c_assert(!node->n_children);
         if (node->parent)
                 --node->parent->n_children;
 
@@ -219,8 +219,8 @@ ConfigRoot *config_root_free(ConfigRoot *root) {
         while ((i_node = c_list_last_entry(&root->node_list, ConfigNode, root_link)))
                 config_node_free(i_node);
 
-        assert(c_list_is_empty(&root->node_list));
-        assert(c_list_is_empty(&root->include_list));
+        c_assert(c_list_is_empty(&root->node_list));
+        c_assert(c_list_is_empty(&root->include_list));
 
         free(root);
 
@@ -672,7 +672,7 @@ static void config_parser_begin_fn(void *userdata, const XML_Char *name, const X
         ConfigState *state = userdata;
         int r = 0;
 
-        assert(state->current);
+        c_assert(state->current);
 
         /*
          * Whenever we hit a fatal error, we remember it in @state and simply
@@ -978,8 +978,8 @@ static void config_parser_begin_fn(void *userdata, const XML_Char *name, const X
                 goto failed;
         }
 
-        assert(node);
-        assert(node->parent);
+        c_assert(node);
+        c_assert(node->parent);
 
         c_list_link_after(&state->last->root_link, &node->root_link);
         state->current = node;
@@ -1172,9 +1172,9 @@ static void config_parser_end_fn(void *userdata, const XML_Char *name) {
          * That is, set the parent as the new current node and decrement the
          * depth.
          */
-        assert(state->n_depth);
-        assert(state->current);
-        assert(state->current->parent);
+        c_assert(state->n_depth);
+        c_assert(state->current);
+        c_assert(state->current->parent);
 
         --state->n_depth;
         state->current = state->current->parent;
@@ -1229,8 +1229,8 @@ static int config_parser_include(ConfigParser *parser, ConfigRoot *root, ConfigN
         ssize_t len;
         int r;
 
-        assert(node->type == CONFIG_NODE_INCLUDE);
-        assert(node->include.file);
+        c_assert(node->type == CONFIG_NODE_INCLUDE);
+        c_assert(node->include.file);
 
         memset(&parser->state, 0, sizeof(parser->state));
         parser->state.nss = nss_cache;
@@ -1282,8 +1282,8 @@ static int config_parser_include(ConfigParser *parser, ConfigRoot *root, ConfigN
                         return error_trace(parser->state.error);
         } while (len);
 
-        assert(!parser->state.n_depth);
-        assert(!parser->state.n_failed);
+        c_assert(!parser->state.n_depth);
+        c_assert(!parser->state.n_failed);
 
         return 0;
 }

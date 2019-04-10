@@ -90,24 +90,24 @@ static const CDVarType controller_type_out_unit[] = {
 static void controller_dvar_write_signature_out(CDVar *var, const CDVarType *type) {
         char signature[C_DVAR_TYPE_LENGTH_MAX + 1];
 
-        assert(type->length < sizeof(signature) + strlen("((yyyyuua(yv))())"));
-        assert(type[0].element == '(');
-        assert(type[1].element == '(');
-        assert(type[2].element == 'y');
-        assert(type[3].element == 'y');
-        assert(type[4].element == 'y');
-        assert(type[5].element == 'y');
-        assert(type[6].element == 'u');
-        assert(type[7].element == 'u');
-        assert(type[8].element == 'a');
-        assert(type[9].element == '(');
-        assert(type[10].element == 'y');
-        assert(type[11].element == 'v');
-        assert(type[12].element == ')');
-        assert(type[13].element == ')');
-        assert(type[14].element == '(');
-        assert(type[type->length - 2].element == ')');
-        assert(type[type->length - 1].element == ')');
+        c_assert(type->length < sizeof(signature) + strlen("((yyyyuua(yv))())"));
+        c_assert(type[0].element == '(');
+        c_assert(type[1].element == '(');
+        c_assert(type[2].element == 'y');
+        c_assert(type[3].element == 'y');
+        c_assert(type[4].element == 'y');
+        c_assert(type[5].element == 'y');
+        c_assert(type[6].element == 'u');
+        c_assert(type[7].element == 'u');
+        c_assert(type[8].element == 'a');
+        c_assert(type[9].element == '(');
+        c_assert(type[10].element == 'y');
+        c_assert(type[11].element == 'v');
+        c_assert(type[12].element == ')');
+        c_assert(type[13].element == ')');
+        c_assert(type[14].element == '(');
+        c_assert(type[type->length - 2].element == ')');
+        c_assert(type[type->length - 1].element == ')');
 
         for (unsigned int i = strlen("((yyyyuua(yv))("), j = 0; i < type->length - strlen("))"); i++, j++)
                 signature[j] = type[i].element;
@@ -121,8 +121,8 @@ static int controller_dvar_verify_signature_in(const CDVarType *type, const char
         if (type->length != strlen(signature) + 2)
                 return CONTROLLER_E_UNEXPECTED_SIGNATURE;
 
-        assert(type[0].element == '(');
-        assert(type[type->length - 1].element == ')');
+        c_assert(type[0].element == '(');
+        c_assert(type[type->length - 1].element == ')');
 
         for (unsigned int i = 1; i + 1 < type->length; i++)
                 if (signature[i - 1] != type[i].element)

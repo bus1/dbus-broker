@@ -326,7 +326,7 @@ int peer_new_with_fd(Peer **peerp,
 
         peer->id = bus->peers.ids++;
         slot = c_rbtree_find_slot(&bus->peers.peer_tree, peer_compare, &peer->id, &parent);
-        assert(slot); /* peer->id is guaranteed to be unique */
+        c_assert(slot); /* peer->id is guaranteed to be unique */
         c_rbtree_add(&bus->peers.peer_tree, parent, slot, &peer->registry_node);
 
         *peerp = peer;
@@ -343,7 +343,7 @@ Peer *peer_free(Peer *peer) {
         if (!peer)
                 return NULL;
 
-        assert(!peer->registered);
+        c_assert(!peer->registered);
 
         c_rbnode_unlink(&peer->registry_node);
         c_list_unlink(&peer->listener_link);
@@ -376,15 +376,15 @@ int peer_spawn(Peer *peer) {
 }
 
 void peer_register(Peer *peer) {
-        assert(!peer->registered);
-        assert(!peer->monitor);
+        c_assert(!peer->registered);
+        c_assert(!peer->monitor);
 
         peer->registered = true;
 }
 
 void peer_unregister(Peer *peer) {
-        assert(peer->registered);
-        assert(!peer->monitor);
+        c_assert(peer->registered);
+        c_assert(!peer->monitor);
 
         peer->registered = false;
 }
@@ -658,9 +658,9 @@ int peer_become_monitor(Peer *peer, MatchOwner *owned_matches) {
         MatchRule *rule;
         int r, poison = 0;
 
-        assert(!peer->registered);
-        assert(!peer->monitor);
-        assert(c_rbtree_is_empty(&peer->owned_matches.rule_tree));
+        c_assert(!peer->registered);
+        c_assert(!peer->monitor);
+        c_assert(c_rbtree_is_empty(&peer->owned_matches.rule_tree));
 
         /* only fatal errors may occur after this point */
         match_owner_move(&peer->owned_matches, owned_matches);
@@ -685,9 +685,9 @@ int peer_become_monitor(Peer *peer, MatchOwner *owned_matches) {
 }
 
 void peer_stop_monitor(Peer *peer) {
-        assert(!peer->registered);
-        assert(peer->monitor);
-        assert(c_rbtree_is_empty(&peer->owned_matches.rule_tree));
+        c_assert(!peer->registered);
+        c_assert(peer->monitor);
+        c_assert(c_rbtree_is_empty(&peer->owned_matches.rule_tree));
 
         peer->monitor = false;
         --peer->bus->n_monitors;
@@ -847,7 +847,7 @@ void peer_registry_init(PeerRegistry *registry) {
 }
 
 void peer_registry_deinit(PeerRegistry *registry) {
-        assert(c_rbtree_is_empty(&registry->peer_tree));
+        c_assert(c_rbtree_is_empty(&registry->peer_tree));
         registry->ids = 0;
 }
 
@@ -857,7 +857,7 @@ void peer_registry_flush(PeerRegistry *registry) {
 
         c_rbtree_for_each_entry_safe_postorder_unlink(peer, safe, &registry->peer_tree, registry_node) {
                 r = driver_goodbye(peer, true);
-                assert(!r); /* can not fail in silent mode */
+                c_assert(!r); /* can not fail in silent mode */
                 peer_free(peer);
         }
 }

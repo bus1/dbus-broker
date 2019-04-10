@@ -228,10 +228,10 @@ static int policy_at_gid(Policy *policy, PolicyNode **nodep, uint32_t gid) {
 static void policy_import_verdict(Policy *policy,
                                   PolicyRecord *record,
                                   ConfigNode *cnode) {
-        assert(cnode->parent);
-        assert(cnode->parent->type == CONFIG_NODE_POLICY);
-        assert(cnode->parent->policy.context);
-        assert(cnode->parent->policy.context < _CONFIG_POLICY_N);
+        c_assert(cnode->parent);
+        c_assert(cnode->parent->type == CONFIG_NODE_POLICY);
+        c_assert(cnode->parent->policy.context);
+        c_assert(cnode->parent->policy.context < _CONFIG_POLICY_N);
 
         record->verdict = (cnode->type == CONFIG_NODE_ALLOW);
         record->priority = UINT64_MAX / _CONFIG_POLICY_N *
@@ -274,8 +274,8 @@ static int policy_import_connect(Policy *policy, ConfigNode *cnode) {
         PolicyNode *node;
         int r;
 
-        assert(cnode->parent);
-        assert(cnode->parent->type == CONFIG_NODE_POLICY);
+        c_assert(cnode->parent);
+        c_assert(cnode->parent->type == CONFIG_NODE_POLICY);
 
         if ((cnode->allow_deny.user == cnode->allow_deny.group) ||
             cnode->allow_deny.own ||
@@ -339,8 +339,8 @@ static int policy_import_own(Policy *policy, ConfigNode *cnode) {
         PolicyNode *node;
         int r;
 
-        assert(cnode->parent);
-        assert(cnode->parent->type == CONFIG_NODE_POLICY);
+        c_assert(cnode->parent);
+        c_assert(cnode->parent->type == CONFIG_NODE_POLICY);
 
         if ((!cnode->allow_deny.own == !cnode->allow_deny.own_prefix) ||
             cnode->allow_deny.user ||
@@ -416,8 +416,8 @@ static int policy_import_send(Policy *policy, ConfigNode *cnode) {
         PolicyNode *node;
         int r;
 
-        assert(cnode->parent);
-        assert(cnode->parent->type == CONFIG_NODE_POLICY);
+        c_assert(cnode->parent);
+        c_assert(cnode->parent->type == CONFIG_NODE_POLICY);
 
         if (cnode->allow_deny.user ||
             cnode->allow_deny.group ||
@@ -508,8 +508,8 @@ static int policy_import_recv(Policy *policy, ConfigNode *cnode) {
         PolicyNode *node;
         int r;
 
-        assert(cnode->parent);
-        assert(cnode->parent->type == CONFIG_NODE_POLICY);
+        c_assert(cnode->parent);
+        c_assert(cnode->parent->type == CONFIG_NODE_POLICY);
 
         if (cnode->allow_deny.user ||
             cnode->allow_deny.group ||
@@ -599,8 +599,8 @@ static int policy_import_selinux(Policy *policy, ConfigNode *cnode) {
         _c_cleanup_(policy_record_freep) PolicyRecord *record = NULL;
         int r;
 
-        assert(cnode->parent);
-        assert(cnode->parent->type == CONFIG_NODE_SELINUX);
+        c_assert(cnode->parent);
+        c_assert(cnode->parent->type == CONFIG_NODE_SELINUX);
 
         if (!cnode->associate.own ||
             !cnode->associate.context) {
@@ -808,13 +808,13 @@ static int policy_export_connect(Policy *policy, CList *default_list, CList *spe
         if (specific_list) {
                 top = c_list_first_entry(specific_list, PolicyRecord, link);
                 /* list must be empty or singular */
-                assert(top == c_list_last_entry(specific_list, PolicyRecord, link));
+                c_assert(top == c_list_last_entry(specific_list, PolicyRecord, link));
         }
 
         if (!top && default_list) {
                 top = c_list_first_entry(default_list, PolicyRecord, link);
                 /* list must be empty or singular */
-                assert(top == c_list_last_entry(default_list, PolicyRecord, link));
+                c_assert(top == c_list_last_entry(default_list, PolicyRecord, link));
         }
 
         if (top)
@@ -936,7 +936,7 @@ static int policy_export_xmit(Policy *policy, CList *list1, CList *list2, sd_bus
 static int policy_export_console(Policy *policy, sd_bus_message *m, PolicyEntries *entries, uint32_t uid_start, uint32_t n_uid) {
         int r;
 
-        assert(((uint32_t)-1) - n_uid + 1 >= uid_start);
+        c_assert(((uint32_t)-1) - n_uid + 1 >= uid_start);
 
         if (n_uid == 0)
                 return 0;

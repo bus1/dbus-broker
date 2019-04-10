@@ -100,8 +100,8 @@ static int connection_feed_sasl(Connection *connection, const char *input, size_
         int r;
 
         /* client SASL allows NULL input as bootstrap */
-        assert(!connection->server || input);
-        assert(!connection->authenticated);
+        c_assert(!connection->server || input);
+        c_assert(!connection->authenticated);
 
         if (connection->server) {
                 r = sasl_server_dispatch(&connection->sasl_server, input, n_input, &output, &n_output);
@@ -165,7 +165,7 @@ static int connection_feed_sasl(Connection *connection, const char *input, size_
 int connection_open(Connection *connection) {
         int r;
 
-        assert(socket_is_running(&connection->socket));
+        c_assert(socket_is_running(&connection->socket));
 
         if (!connection->server) {
                 /* bootstrap client SASL, this should always succeed */

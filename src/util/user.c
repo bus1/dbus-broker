@@ -72,7 +72,7 @@ static void user_usage_free(_Atomic unsigned long *n_refs, void *userdata) {
         size_t i;
 
         for (i = 0; i < usage->user->registry->n_slots; ++i)
-                assert(!usage->slots[i]);
+                c_assert(!usage->slots[i]);
 
         user_usage_unlink(usage);
         free(usage);
@@ -131,7 +131,7 @@ void user_charge_deinit(UserCharge *charge) {
                 charge->slot = 0;
                 charge->charge = 0;
         } else {
-                assert(!charge->charge);
+                c_assert(!charge->charge);
         }
 }
 
@@ -203,11 +203,11 @@ void user_free(_Atomic unsigned long *n_refs, void *userdata) {
         User *user = c_container_of(n_refs, User, n_refs);
         size_t i;
 
-        assert(c_rbtree_is_empty(&user->usage_tree));
-        assert(user->n_usages == 0);
+        c_assert(c_rbtree_is_empty(&user->usage_tree));
+        c_assert(user->n_usages == 0);
 
         for (i = 0; i < user->registry->n_slots; ++i)
-                assert(user->slots[i].n == user->slots[i].max);
+                c_assert(user->slots[i].n == user->slots[i].max);
 
         user_unlink(user);
         free(user);
@@ -243,7 +243,7 @@ static int user_charge_commit_log(Log *log, User *user, UserCharge *charge, User
         if (charge->usage->logged)
                 return 0;
 
-        assert(slot < user->registry->n_slots);
+        c_assert(slot < user->registry->n_slots);
 
         log_appendf(log, "DBUS_BROKER_USER_CHARGE_USER=%u\n", user->uid);
         log_appendf(log, "DBUS_BROKER_USER_CHARGE_ACTOR=%u\n", actor->uid);
@@ -307,9 +307,9 @@ int user_charge(User *user, UserCharge *charge, User *actor, size_t slot, unsign
                 actor = user;
 
         if (charge->usage) {
-                assert(user == charge->usage->user);
-                assert(actor->uid == charge->usage->uid);
-                assert(slot == charge->slot);
+                c_assert(user == charge->usage->user);
+                c_assert(actor->uid == charge->usage->uid);
+                c_assert(slot == charge->slot);
                 usage = user_usage_ref(charge->usage);
         } else {
                 r = user_ref_usage(user, &usage, actor);
@@ -317,7 +317,7 @@ int user_charge(User *user, UserCharge *charge, User *actor, size_t slot, unsign
                         return error_trace(r);
         }
 
-        assert(slot < user->registry->n_slots);
+        c_assert(slot < user->registry->n_slots);
         user_slot = &user->slots[slot].n;
         usage_slot = &usage->slots[slot];
 
@@ -413,7 +413,7 @@ int user_registry_init(UserRegistry *registry,
  * have been destroyed before the registry is deinitialized.
  */
 void user_registry_deinit(UserRegistry *registry) {
-        assert(c_rbtree_is_empty(&registry->user_tree));
+        c_assert(c_rbtree_is_empty(&registry->user_tree));
 
         free(registry->maxima);
         *registry = (UserRegistry)USER_REGISTRY_NULL;

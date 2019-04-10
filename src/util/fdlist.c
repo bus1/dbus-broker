@@ -112,7 +112,7 @@ void fdlist_truncate(FDList *list, size_t n_fds) {
         p = fdlist_data(list);
         n = fdlist_count(list);
 
-        assert(n_fds <= n);
+        c_assert(n_fds <= n);
 
         if (list->consumed)
                 for (i = n_fds; i < n; ++i)

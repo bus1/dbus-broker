@@ -676,7 +676,7 @@ int policy_snapshot_new(PolicySnapshot **snapshotp,
                         snapshot->batches[snapshot->n_batches++] = policy_batch_ref(node->batch);
         }
 
-        assert(snapshot->n_batches <= n_batches);
+        c_assert(snapshot->n_batches <= n_batches);
 
         *snapshotp = snapshot;
         snapshot = NULL;
@@ -942,7 +942,7 @@ static void policy_snapshot_check_xmit(PolicyBatch *batch,
                                                         broadcast,
                                                         n_fds);
         } else if (nameset->type != NAME_SET_TYPE_EMPTY) {
-                assert(0);
+                c_assert(0);
         }
 }
 

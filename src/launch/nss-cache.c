@@ -83,10 +83,10 @@ void nss_cache_deinit(NSSCache *cache) {
                                                       rb_by_name)
                 nss_cache_node_free(node);
 
-        assert(c_rbtree_is_empty(&cache->user_tree));
-        assert(c_rbtree_is_empty(&cache->uid_tree));
-        assert(c_rbtree_is_empty(&cache->group_tree));
-        assert(c_rbtree_is_empty(&cache->gid_tree));
+        c_assert(c_rbtree_is_empty(&cache->user_tree));
+        c_assert(c_rbtree_is_empty(&cache->uid_tree));
+        c_assert(c_rbtree_is_empty(&cache->group_tree));
+        c_assert(c_rbtree_is_empty(&cache->gid_tree));
 }
 
 static int nss_cache_node_compare_name(CRBTree *t, void *k, CRBNode *rb) {

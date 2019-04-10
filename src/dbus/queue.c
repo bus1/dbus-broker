@@ -22,9 +22,9 @@ void iqueue_init(IQueue *iq, User *user) {
 void iqueue_deinit(IQueue *iq) {
         iqueue_flush(iq);
 
-        assert(!iq->fds);
-        assert(!iq->pending.data);
-        assert(!iq->pending.fds);
+        c_assert(!iq->fds);
+        c_assert(!iq->pending.data);
+        c_assert(!iq->pending.fds);
 
         if (iq->data != iq->buffer) {
                 free(iq->data);
@@ -65,8 +65,8 @@ void iqueue_flush(IQueue *iq) {
 int iqueue_set_target(IQueue *iq, void *data, size_t n_data) {
         int r;
 
-        assert(data);
-        assert(!iq->pending.data);
+        c_assert(data);
+        c_assert(!iq->pending.data);
 
         /*
          * This temporarily charges the pending buffer on @iq->user, so a
@@ -167,15 +167,15 @@ int iqueue_get_cursor(IQueue *iq,
                 }
 
                 /* we always shift so data_start must be 0 */
-                assert(!iq->data_start);
-                assert(iq->data == iq->buffer);
+                c_assert(!iq->data_start);
+                c_assert(iq->data == iq->buffer);
 
                 memcpy(p, iq->data, iq->data_end);
                 iq->data = p;
                 iq->data_size = IQUEUE_LINE_MAX;
         } else if (_c_unlikely_(iq->data != iq->buffer && iq->pending.data)) {
-                assert(!iq->data_start);
-                assert(iq->data_end <= sizeof(iq->buffer));
+                c_assert(!iq->data_start);
+                c_assert(iq->data_end <= sizeof(iq->buffer));
 
                 memcpy(iq->buffer, iq->data, iq->data_end);
                 free(iq->data);
@@ -238,7 +238,7 @@ int iqueue_pop_line(IQueue *iq, const char **linep, size_t *np) {
         char *line;
         size_t n;
 
-        assert(!iq->pending.data);
+        c_assert(!iq->pending.data);
 
         /*
          * Advance our cursor byte by byte and look for an end-of-line. We
@@ -299,8 +299,8 @@ int iqueue_pop_line(IQueue *iq, const char **linep, size_t *np) {
 int iqueue_pop_data(IQueue *iq, FDList **fdsp) {
         size_t n, n_data;
 
-        assert(iq->pending.data);
-        assert(iq->pending.n_copied <= iq->pending.n_data);
+        c_assert(iq->pending.data);
+        c_assert(iq->pending.n_copied <= iq->pending.n_data);
 
         n_data = iq->data_end - iq->data_start;
 

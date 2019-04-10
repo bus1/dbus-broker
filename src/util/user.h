@@ -36,7 +36,8 @@ static inline const char *user_slot_to_string(size_t slot) {
         case USER_SLOT_OBJECTS:
                 return "objects";
         default:
-                assert(0);
+                c_assert(0);
+                abort();
         }
 }
 

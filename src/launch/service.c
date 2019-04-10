@@ -168,7 +168,7 @@ int service_new(Service **servicep,
                 return error_trace(r);
 
         slot = c_rbtree_find_slot(&launcher->services, service_compare, service->id, &parent);
-        assert(slot);
+        c_assert(slot);
         c_rbtree_add(&launcher->services, parent, slot, &service->rb);
         c_rbtree_add(&launcher->services_by_name, parent_by_name, slot_by_name, &service->rb_by_name);
 
@@ -503,7 +503,7 @@ int service_activate(Service *service) {
                 return 0;
         }
 
-        assert(service->state == SERVICE_STATE_CURRENT);
+        c_assert(service->state == SERVICE_STATE_CURRENT);
 
         if (service->unit) {
                 r = service_start_unit(service);

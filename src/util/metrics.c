@@ -26,7 +26,7 @@ void metrics_init(Metrics *metrics, clockid_t id) {
 }
 
 void metrics_deinit(Metrics *metrics) {
-        assert(!metrics->timestamp);
+        c_assert(!metrics->timestamp);
         metrics_init(metrics, metrics->id);
 }
 
@@ -42,7 +42,7 @@ uint64_t metrics_get_time(Metrics *metrics) {
         int r;
 
         r = clock_gettime(metrics->id, &ts);
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         return ts.tv_sec * UINT64_C(1000000000) + ts.tv_nsec;
 }
@@ -82,7 +82,7 @@ void metrics_sample_add(Metrics *metrics, uint64_t timestamp) {
  * a sample is not currently running.
  */
 void metrics_sample_start(Metrics *metrics) {
-        assert(!metrics->timestamp);
+        c_assert(!metrics->timestamp);
         metrics->timestamp = metrics_get_time(metrics);
 }
 
@@ -93,7 +93,7 @@ void metrics_sample_start(Metrics *metrics) {
  * End a currently running sample, and update the internal state.
  */
 void metrics_sample_end(Metrics *metrics) {
-        assert(metrics->timestamp);
+        c_assert(metrics->timestamp);
 
         metrics_sample_add(metrics, metrics->timestamp);
 

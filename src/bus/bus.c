@@ -36,7 +36,7 @@ int bus_init(Bus *bus,
         memcpy(bus->machine_id, machine_id, sizeof(bus->machine_id));
 
         random = (void *)getauxval(AT_RANDOM);
-        assert(random);
+        c_assert(random);
         memcpy(bus->guid, random, sizeof(bus->guid));
 
         static_assert(_USER_SLOT_N == C_ARRAY_SIZE(maxima),
@@ -223,7 +223,8 @@ void bus_log_append_policy_send(Bus *bus, int policy_type, uint64_t sender_id, u
                 log_appendf(bus->log, "DBUS_BROKER_POLICY_TYPE=selinux\n");
                 break;
         default:
-                assert(0);
+                c_assert(0);
+                abort();
         }
 
         log_appendf(bus->log, "DBUS_BROKER_TRANSMIT_ACTION=send\n");

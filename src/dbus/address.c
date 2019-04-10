@@ -111,12 +111,12 @@ const char *address_to_string(Address *address) {
         switch (address->type) {
         case ADDRESS_TYPE_ID:
                 r = snprintf(address->buffer, sizeof(address->buffer), ":1.%"PRIu64, address->id);
-                assert(r >= 0 && r < (ssize_t)sizeof(address->buffer));
+                c_assert(r >= 0 && r < (ssize_t)sizeof(address->buffer));
                 return address->buffer;
         case ADDRESS_TYPE_NAME:
                 return address->name;
         default:
-                assert(0);
+                c_assert(0);
                 return ":<garbage>";
         }
 }
@@ -140,14 +140,14 @@ void address_write(Address *address, char *buffer, size_t n_buffer) {
         switch (address->type) {
         case ADDRESS_TYPE_ID:
                 r = snprintf(buffer, n_buffer, ":1.%"PRIu64, address->id);
-                assert(r >= 0 && r < (ssize_t)n_buffer);
+                c_assert(r >= 0 && r < (ssize_t)n_buffer);
                 break;
         case ADDRESS_TYPE_NAME:
-                assert(n_buffer > strlen(address->name));
+                c_assert(n_buffer > strlen(address->name));
                 strcpy(buffer, address->name);
                 break;
         default:
-                assert(0);
+                c_assert(0);
                 strcpy(buffer, ":<garbage>");
                 break;
         }

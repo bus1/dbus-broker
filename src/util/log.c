@@ -116,7 +116,7 @@ void log_init(Log *log) {
  * not consumed, but ownership is retained by the caller.
  */
 void log_init_stderr(Log *log, int stderr_fd) {
-        assert(stderr_fd >= 0);
+        c_assert(stderr_fd >= 0);
         *log = (Log)LOG_NULL;
         log->log_fd = stderr_fd;
         log->mode = LOG_MODE_STDERR;
@@ -132,7 +132,7 @@ void log_init_stderr(Log *log, int stderr_fd) {
  * socket @journal_fd to be used for log-messages.
  */
 void log_init_journal(Log *log, int journal_fd) {
-        assert(journal_fd >= 0);
+        c_assert(journal_fd >= 0);
         *log = (Log)LOG_NULL;
         log->log_fd = journal_fd;
         log->mode = LOG_MODE_JOURNAL;
@@ -148,7 +148,7 @@ void log_init_journal(Log *log, int journal_fd) {
  * socket @journal_fd to be used for log-messages.
  */
 void log_init_journal_consume(Log *log, int journal_fd) {
-        assert(journal_fd >= 0);
+        c_assert(journal_fd >= 0);
         *log = (Log)LOG_NULL;
         log->log_fd = journal_fd;
         log->mode = LOG_MODE_JOURNAL;
@@ -216,7 +216,7 @@ static bool log_alloc(Log *log) {
         if (log->mem_fd >= 0)
                 return true;
 
-        assert(!log->offset);
+        c_assert(!log->offset);
 
         /*
          * XXX: We hard-code the flags as 0x3 (CLOEXEC + ALLOW_SEALING), since

@@ -107,11 +107,11 @@ int message_new_outgoing(Message **messagep, void *data, size_t n_data) {
         uint64_t n_header, n_body;
         int r;
 
-        assert(n_data >= sizeof(MessageHeader));
-        assert(!((unsigned long)data & 0x7));
-        assert((header->endian == 'B') == (__BYTE_ORDER == __BIG_ENDIAN) &&
+        c_assert(n_data >= sizeof(MessageHeader));
+        c_assert(!((unsigned long)data & 0x7));
+        c_assert((header->endian == 'B') == (__BYTE_ORDER == __BIG_ENDIAN) &&
                (header->endian == 'l') == (__BYTE_ORDER == __LITTLE_ENDIAN));
-        assert(n_data >= sizeof(MessageHeader) + c_align_to(header->n_fields, 8));
+        c_assert(n_data >= sizeof(MessageHeader) + c_align_to(header->n_fields, 8));
 
         n_header = sizeof(MessageHeader) + header->n_fields;
         n_body = n_data - c_align_to(n_header, 8);
@@ -375,7 +375,7 @@ static int message_parse_body(Message *message, MessageMetadata *metadata) {
          */
 
         n_signature = strlen(signature);
-        assert(n_signature < 256);
+        c_assert(n_signature < 256);
         types = alloca(n_signature * sizeof(CDVarType));
         n_types = 0;
 
@@ -515,9 +515,9 @@ void message_stitch_sender(Message *message, uint64_t sender_id) {
          * the original header and body to stitch the sender field. The caller
          * must have parsed the metadata before.
          */
-        assert(message->parsed);
-        assert(!message->vecs[1].iov_base && !message->vecs[1].iov_len);
-        assert(!message->vecs[2].iov_base && !message->vecs[2].iov_len);
+        c_assert(message->parsed);
+        c_assert(!message->vecs[1].iov_base && !message->vecs[1].iov_len);
+        c_assert(!message->vecs[2].iov_base && !message->vecs[2].iov_len);
 
         /*
          * Convert the sender id to a unique name. This should never fail on
@@ -556,8 +556,8 @@ void message_stitch_sender(Message *message, uint64_t sender_id) {
          * The patch buffer is pre-allocated. Verify its size is sufficient to
          * hold the stitched sender.
          */
-        assert(n_stitch <= sizeof(message->patch));
-        assert(n_sender <= ADDRESS_ID_STRING_MAX);
+        c_assert(n_stitch <= sizeof(message->patch));
+        c_assert(n_sender <= ADDRESS_ID_STRING_MAX);
         static_assert(1 + 3 + 4 + ADDRESS_ID_STRING_MAX + 1 <= sizeof(message->patch),
                       "Message patch buffer has insufficient size");
         static_assert(alignof(message->patch) >= 8,
@@ -577,8 +577,8 @@ void message_stitch_sender(Message *message, uint64_t sender_id) {
                 end = (void *)message->header + c_align_to(message->n_header, 8);
                 field = message->original_sender - (1 + 3 + 4);
 
-                assert(message->original_sender >= (void *)message->header);
-                assert(message->original_sender + n + 1 <= end);
+                c_assert(message->original_sender >= (void *)message->header);
+                c_assert(message->original_sender + n + 1 <= end);
 
                 /* fold remaining fields into following vector */
                 message->vecs[1].iov_base = field + c_align_to(1 + 3 + 4 + n + 1, 8);

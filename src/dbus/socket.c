@@ -141,7 +141,7 @@ static int socket_buffer_new_message(SocketBuffer **bufferp,
 static size_t socket_buffer_get_line_space(SocketBuffer *buffer) {
         size_t n_remaining;
 
-        assert(!buffer->message);
+        c_assert(!buffer->message);
 
         n_remaining = buffer->n_total;
         n_remaining -= (char *)buffer->vecs[0].iov_base - socket_buffer_get_base(buffer);
@@ -151,7 +151,7 @@ static size_t socket_buffer_get_line_space(SocketBuffer *buffer) {
 }
 
 static void socket_buffer_get_line_cursor(SocketBuffer *buffer, char **datap, size_t **posp) {
-        assert(!buffer->message);
+        c_assert(!buffer->message);
 
         *datap = buffer->vecs[0].iov_base + buffer->vecs[0].iov_len;
         *posp = &buffer->vecs[0].iov_len;
@@ -180,7 +180,7 @@ static bool socket_buffer_consume(SocketBuffer *buffer, size_t n) {
                         break;
         }
 
-        assert(!n);
+        c_assert(!n);
 
         return socket_buffer_is_consumed(buffer);
 }
@@ -235,9 +235,9 @@ void socket_deinit(Socket *socket) {
         while ((buffer = c_list_first_entry(&socket->out.pending, SocketBuffer, link)))
                 socket_buffer_free(buffer);
 
-        assert(c_list_is_empty(&socket->out.pending));
-        assert(c_list_is_empty(&socket->out.queue));
-        assert(!socket->in.message);
+        c_assert(c_list_is_empty(&socket->out.pending));
+        c_assert(c_list_is_empty(&socket->out.queue));
+        c_assert(!socket->in.message);
 
         iqueue_deinit(&socket->in.queue);
         socket->fd = -1;
@@ -284,11 +284,11 @@ static void socket_hangup_output(Socket *socket) {
 static void socket_shutdown_now(Socket *socket) {
         int r;
 
-        assert(socket->shutdown);
+        c_assert(socket->shutdown);
 
         if (!socket->hup_out) {
                 r = shutdown(socket->fd, SHUT_WR);
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 socket_hangup_output(socket);
         }
@@ -412,7 +412,7 @@ int socket_dequeue(Socket *socket, Message **messagep) {
                 socket->in.message = message;
         }
 
-        assert(socket->in.message);
+        c_assert(socket->in.message);
 
         r = iqueue_pop_data(&socket->in.queue, &socket->in.message->fds);
         if (r == IQUEUE_E_PENDING) {
@@ -526,7 +526,7 @@ static int socket_recvmsg(Socket *socket,
         size_t n_fds = 0;
         ssize_t l;
 
-        assert(to > *from);
+        c_assert(to > *from);
 
         msg = (struct msghdr){
                 .msg_iov = &(struct iovec){
@@ -584,10 +584,10 @@ static int socket_recvmsg(Socket *socket,
                          * Kernel breaks after SKB+fd, so we never get more
                          * than one SCM_RIGHTS array.
                          */
-                        assert(!n_fds);
+                        c_assert(!n_fds);
                         fds = (void *)CMSG_DATA(cmsg);
                         n_fds = (cmsg->cmsg_len - CMSG_LEN(0)) / sizeof(int);
-                        assert(n_fds <= SOCKET_FD_MAX);
+                        c_assert(n_fds <= SOCKET_FD_MAX);
                 }
         }
 
@@ -852,7 +852,7 @@ static int socket_dispatch_write(Socket *socket) {
 
                 ++i;
         }
-        assert(i == n_msgs);
+        c_assert(i == n_msgs);
 
         if (c_list_is_empty(&socket->out.queue)) {
                 if (_c_unlikely_(socket->shutdown))

@@ -98,7 +98,7 @@ void reply_registry_init(ReplyRegistry *registry) {
 }
 
 void reply_registry_deinit(ReplyRegistry *registry) {
-        assert(c_rbtree_is_empty(&registry->reply_tree));
+        c_assert(c_rbtree_is_empty(&registry->reply_tree));
 }
 
 void reply_owner_init(ReplyOwner *owner) {
@@ -106,5 +106,5 @@ void reply_owner_init(ReplyOwner *owner) {
 }
 
 void reply_owner_deinit(ReplyOwner *owner) {
-        assert(c_list_is_empty(&owner->reply_list));
+        c_assert(c_list_is_empty(&owner->reply_list));
 }

@@ -52,7 +52,7 @@ static BusSELinuxName *bus_selinux_name_free(BusSELinuxName *name) {
         if (!name)
                 return NULL;
 
-        assert(!c_rbnode_is_linked(&name->rb));
+        c_assert(!c_rbnode_is_linked(&name->rb));
 
         free(name->context);
         free(name);

@@ -215,24 +215,24 @@ static void driver_dvar_write_unique_name(CDVar *var, Peer *peer) {
 static void driver_dvar_write_signature_out(CDVar *var, const CDVarType *type) {
         char signature[C_DVAR_TYPE_LENGTH_MAX + 1];
 
-        assert(type->length < sizeof(signature) + strlen("((yyyyuua(yv))())"));
-        assert(type[0].element == '(');
-        assert(type[1].element == '(');
-        assert(type[2].element == 'y');
-        assert(type[3].element == 'y');
-        assert(type[4].element == 'y');
-        assert(type[5].element == 'y');
-        assert(type[6].element == 'u');
-        assert(type[7].element == 'u');
-        assert(type[8].element == 'a');
-        assert(type[9].element == '(');
-        assert(type[10].element == 'y');
-        assert(type[11].element == 'v');
-        assert(type[12].element == ')');
-        assert(type[13].element == ')');
-        assert(type[14].element == '(');
-        assert(type[type->length - 2].element == ')');
-        assert(type[type->length - 1].element == ')');
+        c_assert(type->length < sizeof(signature) + strlen("((yyyyuua(yv))())"));
+        c_assert(type[0].element == '(');
+        c_assert(type[1].element == '(');
+        c_assert(type[2].element == 'y');
+        c_assert(type[3].element == 'y');
+        c_assert(type[4].element == 'y');
+        c_assert(type[5].element == 'y');
+        c_assert(type[6].element == 'u');
+        c_assert(type[7].element == 'u');
+        c_assert(type[8].element == 'a');
+        c_assert(type[9].element == '(');
+        c_assert(type[10].element == 'y');
+        c_assert(type[11].element == 'v');
+        c_assert(type[12].element == ')');
+        c_assert(type[13].element == ')');
+        c_assert(type[14].element == '(');
+        c_assert(type[type->length - 2].element == ')');
+        c_assert(type[type->length - 1].element == ')');
 
         for (unsigned int i = strlen("((yyyyuua(yv))("), j = 0; i < type->length - strlen("))"); i++, j++)
                 signature[j] = type[i].element;
@@ -246,8 +246,8 @@ static int driver_dvar_verify_signature_in(const CDVarType *type, const char *si
         if (type->length != strlen(signature) + 2)
                 return DRIVER_E_UNEXPECTED_SIGNATURE;
 
-        assert(type[0].element == '(');
-        assert(type[type->length - 1].element == ')');
+        c_assert(type[0].element == '(');
+        c_assert(type[type->length - 1].element == ')');
 
         for (unsigned int i = 1; i + 1 < type->length; i++)
                 if (signature[i - 1] != type[i].element)
@@ -324,7 +324,7 @@ static const char *driver_error_to_string(int r) {
                 [DRIVER_E_ADT_NOT_SUPPORTED]                    = "Solaris ADT is not supported",
                 [DRIVER_E_SELINUX_NOT_SUPPORTED]                = "SELinux is not supported",
         };
-        assert(r >= 0 && r < _DRIVER_E_MAX && error_strings[r]);
+        c_assert(r >= 0 && r < _DRIVER_E_MAX && error_strings[r]);
 
         return error_strings[r];
 }
@@ -679,8 +679,8 @@ static int driver_name_owner_changed(Bus *bus, MatchRegistry *matches, const cha
         const char *old_owner_str, *new_owner_str;
         int r;
 
-        assert(old_owner || new_owner);
-        assert(name || !old_owner || !new_owner);
+        c_assert(old_owner || new_owner);
+        c_assert(name || !old_owner || !new_owner);
 
         old_owner_str = old_owner ? address_to_string(&(Address)ADDRESS_INIT_ID(old_owner->id)) : "";
         new_owner_str = new_owner ? address_to_string(&(Address)ADDRESS_INIT_ID(new_owner->id)) : "";

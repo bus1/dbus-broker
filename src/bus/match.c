@@ -233,7 +233,7 @@ static int match_keys_parse(MatchKeys *keys, const char *string) {
 
         n_buffer = p - keys->buffer;
 
-        assert(n_buffer <= keys->n_buffer);
+        c_assert(n_buffer <= keys->n_buffer);
 
         keys->n_buffer = p - keys->buffer;
 
@@ -250,8 +250,8 @@ static int match_keys_init(MatchKeys *k, const char *string, size_t n_string) {
         _c_cleanup_(match_keys_deinitp) MatchKeys *keys = k;
         int r;
 
-        assert(n_string > 0);
-        assert(n_string - 1 <= MATCH_RULE_LENGTH_MAX);
+        c_assert(n_string > 0);
+        c_assert(n_string - 1 <= MATCH_RULE_LENGTH_MAX);
 
         *keys = (MatchKeys)MATCH_KEYS_NULL;
         keys->n_buffer = n_string;
@@ -330,7 +330,7 @@ static int match_keys_clone(MatchKeys *k, MatchKeys *old) {
 
         n_buffer = p - keys->buffer;
 
-        assert(n_buffer <= keys->n_buffer);
+        c_assert(n_buffer <= keys->n_buffer);
 
         keys->n_buffer = p - keys->buffer;
 
@@ -468,7 +468,7 @@ static MatchRegistryByPath *match_registry_by_path_ref(MatchRegistryByPath *regi
         if (!registry)
                 return NULL;
 
-        assert(registry->n_refs > 0);
+        c_assert(registry->n_refs > 0);
 
         ++registry->n_refs;
 
@@ -479,7 +479,7 @@ static MatchRegistryByPath *match_registry_by_path_unref(MatchRegistryByPath *re
         if (!registry || --registry->n_refs > 0)
                 return NULL;
 
-        assert(c_rbtree_is_empty(&registry->interface_tree));
+        c_assert(c_rbtree_is_empty(&registry->interface_tree));
 
         c_rbnode_unlink(&registry->registry_node);
         free(registry);
@@ -524,7 +524,7 @@ static MatchRegistryByInterface *match_registry_by_interface_ref(MatchRegistryBy
         if (!registry)
                 return NULL;
 
-        assert(registry->n_refs > 0);
+        c_assert(registry->n_refs > 0);
 
         ++registry->n_refs;
 
@@ -535,7 +535,7 @@ static MatchRegistryByInterface *match_registry_by_interface_unref(MatchRegistry
         if (!registry || --registry->n_refs > 0)
                 return NULL;
 
-        assert(c_rbtree_is_empty(&registry->member_tree));
+        c_assert(c_rbtree_is_empty(&registry->member_tree));
 
         c_rbnode_unlink(&registry->registry_node);
         match_registry_by_path_unref(registry->registry_by_path);
@@ -582,7 +582,7 @@ static MatchRegistryByMember *match_registry_by_member_ref(MatchRegistryByMember
         if (!registry)
                 return NULL;
 
-        assert(registry->n_refs > 0);
+        c_assert(registry->n_refs > 0);
 
         ++registry->n_refs;
 
@@ -593,7 +593,7 @@ static MatchRegistryByMember *match_registry_by_member_unref(MatchRegistryByMemb
         if (!registry || --registry->n_refs > 0)
                 return NULL;
 
-        assert(c_rbtree_is_empty(&registry->keys_tree));
+        c_assert(c_rbtree_is_empty(&registry->keys_tree));
 
         c_rbnode_unlink(&registry->registry_node);
         match_registry_by_interface_unref(registry->registry_by_interface);
@@ -670,7 +670,7 @@ static MatchRegistryByKeys *match_registry_by_keys_ref(MatchRegistryByKeys *regi
         if (!registry)
                 return NULL;
 
-        assert(registry->n_refs > 0);
+        c_assert(registry->n_refs > 0);
 
         ++registry->n_refs;
 
@@ -681,7 +681,7 @@ static MatchRegistryByKeys *match_registry_by_keys_unref(MatchRegistryByKeys *re
         if (!registry || --registry->n_refs > 0)
                 return NULL;
 
-        assert(c_list_is_empty(&registry->rule_list));
+        c_assert(c_list_is_empty(&registry->rule_list));
 
         c_rbnode_unlink(&registry->registry_node);
         match_registry_by_member_unref(registry->registry_by_member);
@@ -708,7 +708,7 @@ static MatchRule *match_rule_free(MatchRule *rule) {
         if (!rule)
                 return NULL;
 
-        assert(!rule->n_user_refs);
+        c_assert(!rule->n_user_refs);
 
         match_keys_deinit(&rule->keys);
         user_charge_deinit(&rule->charge[1]);
@@ -759,7 +759,7 @@ MatchRule *match_rule_user_ref(MatchRule *rule) {
         if (!rule)
                 return NULL;
 
-        assert(rule->n_user_refs > 0);
+        c_assert(rule->n_user_refs > 0);
 
         ++rule->n_user_refs;
 
@@ -773,7 +773,7 @@ MatchRule *match_rule_user_unref(MatchRule *rule) {
         if (!rule)
                 return NULL;
 
-        assert(rule->n_user_refs > 0);
+        c_assert(rule->n_user_refs > 0);
 
         --rule->n_user_refs;
 
@@ -865,8 +865,8 @@ int match_rule_link(MatchRule *rule, MatchRegistry *registry, bool monitor) {
         int r;
 
         if (rule->registry) {
-                assert(registry == rule->registry);
-                assert(c_list_is_linked(&rule->registry_link));
+                c_assert(registry == rule->registry);
+                c_assert(c_list_is_linked(&rule->registry_link));
 
                 return 0;
         }
@@ -917,8 +917,8 @@ void match_owner_init(MatchOwner *owner) {
  * match_owner_deinit() - XXX
  */
 void match_owner_deinit(MatchOwner *owner) {
-        assert(c_rbtree_is_empty(&owner->rule_tree));
-        assert(!c_list_is_linked(&owner->destinations_link));
+        c_assert(c_rbtree_is_empty(&owner->rule_tree));
+        c_assert(!c_list_is_linked(&owner->destinations_link));
 }
 
 /**
@@ -983,8 +983,8 @@ void match_registry_init(MatchRegistry *registry) {
  * match_registry_deinit() - XXX
  */
 void match_registry_deinit(MatchRegistry *registry) {
-        assert(c_rbtree_is_empty(&registry->subscription_tree));
-        assert(c_rbtree_is_empty(&registry->monitor_tree));
+        c_assert(c_rbtree_is_empty(&registry->subscription_tree));
+        c_assert(c_rbtree_is_empty(&registry->monitor_tree));
 }
 
 static void match_registry_by_keys_get_destinations(MatchRegistryByKeys *registry, CList *destinations) {
@@ -1068,7 +1068,7 @@ static void match_registry_by_keys_flush(MatchRegistryByKeys *registry) {
         c_list_for_each_entry_safe(rule, rule_safe, &registry->rule_list, registry_link)
                 match_rule_unlink(rule);
 
-        assert(c_list_is_empty(&registry->rule_list));
+        c_assert(c_list_is_empty(&registry->rule_list));
 }
 
 static void match_registry_by_member_flush(MatchRegistryByMember *registry) {
@@ -1080,7 +1080,7 @@ static void match_registry_by_member_flush(MatchRegistryByMember *registry) {
                 match_registry_by_keys_unref(registry_by_keys);
         }
 
-        assert(c_rbtree_is_empty(&registry->keys_tree));
+        c_assert(c_rbtree_is_empty(&registry->keys_tree));
 }
 
 static void match_registry_by_interface_flush(MatchRegistryByInterface *registry) {
@@ -1092,7 +1092,7 @@ static void match_registry_by_interface_flush(MatchRegistryByInterface *registry
                 match_registry_by_member_unref(registry_by_member);
         }
 
-        assert(c_rbtree_is_empty(&registry->member_tree));
+        c_assert(c_rbtree_is_empty(&registry->member_tree));
 }
 
 static void match_registry_by_path_flush(MatchRegistryByPath *registry) {
@@ -1104,7 +1104,7 @@ static void match_registry_by_path_flush(MatchRegistryByPath *registry) {
                 match_registry_by_interface_unref(registry_by_interface);
         }
 
-        assert(c_rbtree_is_empty(&registry->interface_tree));
+        c_assert(c_rbtree_is_empty(&registry->interface_tree));
 }
 
 /**
@@ -1119,5 +1119,5 @@ void match_registry_flush(MatchRegistry *registry) {
                 match_registry_by_path_unref(registry_by_path);
         }
 
-        assert(c_rbtree_is_empty(&registry->subscription_tree));
+        c_assert(c_rbtree_is_empty(&registry->subscription_tree));
 }

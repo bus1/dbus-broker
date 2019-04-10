@@ -165,7 +165,7 @@ static int launcher_open_log(Launcher *launcher) {
         };
         int r;
 
-        assert(log_get_fd(&launcher->log) < 0);
+        c_assert(log_get_fd(&launcher->log) < 0);
 
         fd = socket(PF_UNIX, SOCK_DGRAM | SOCK_CLOEXEC, 0);
         if (fd < 0)
@@ -241,7 +241,7 @@ Launcher *launcher_free(Launcher *launcher) {
 
         c_rbtree_for_each_entry_safe_postorder_unlink(service, safe, &launcher->services, rb)
                 service_free(service);
-        assert(c_rbtree_is_empty(&launcher->services_by_name));
+        c_assert(c_rbtree_is_empty(&launcher->services_by_name));
 
         sd_event_source_unref(launcher->dirwatch_src);
         dirwatch_free(launcher->dirwatch);
@@ -328,19 +328,19 @@ static noreturn void launcher_run_child(Launcher *launcher, int fd_log, int fd_c
         sd_id128_to_string(machine_id, str_machine_id);
 
         r = snprintf(str_log, sizeof(str_log), "%d", fd_log);
-        assert(r < (ssize_t)sizeof(str_log));
+        c_assert(r < (ssize_t)sizeof(str_log));
 
         r = snprintf(str_controller, sizeof(str_controller), "%d", fd_controller);
-        assert(r < (ssize_t)sizeof(str_controller));
+        c_assert(r < (ssize_t)sizeof(str_controller));
 
         r = snprintf(str_max_bytes, sizeof(str_max_bytes), "%"PRIu64, launcher->max_bytes);
-        assert(r < (ssize_t)sizeof(str_max_bytes));
+        c_assert(r < (ssize_t)sizeof(str_max_bytes));
 
         r = snprintf(str_max_fds, sizeof(str_max_fds), "%"PRIu64, launcher->max_fds);
-        assert(r < (ssize_t)sizeof(str_max_fds));
+        c_assert(r < (ssize_t)sizeof(str_max_fds));
 
         r = snprintf(str_max_matches, sizeof(str_max_matches), "%"PRIu64, launcher->max_matches);
-        assert(r < (ssize_t)sizeof(str_max_matches));
+        c_assert(r < (ssize_t)sizeof(str_max_matches));
 
         r = execve(main_arg_broker, (char * const *)argv, environ);
         r = error_origin(-errno);
@@ -1234,7 +1234,7 @@ out:
 static int launcher_connect(Launcher *launcher) {
         int r;
 
-        assert(!launcher->bus_regular);
+        c_assert(!launcher->bus_regular);
 
         if (launcher->user_scope) {
                 r = sd_bus_open_user(&launcher->bus_regular);
@@ -1332,7 +1332,7 @@ int launcher_run(Launcher *launcher) {
                 return 0;
         }
 
-        assert(launcher->fd_listen >= 0);
+        c_assert(launcher->fd_listen >= 0);
 
         r = socketpair(PF_UNIX, SOCK_STREAM | SOCK_CLOEXEC | SOCK_NONBLOCK, 0, controller);
         if (r < 0)

@@ -12,6 +12,7 @@
  */
 
 #include <assert.h>
+#include <c-stdaux.h>
 #include <stdatomic.h>
 #include <stdlib.h>
 #include <stdnoreturn.h>
@@ -43,7 +44,7 @@ typedef void (*RefFn) (_Atomic unsigned long *ref, void *userdata);
 static inline _Atomic unsigned long *ref_add(_Atomic unsigned long *ref, unsigned long n) {
         unsigned long n_refs;
 
-        assert(n > 0);
+        c_assert(n > 0);
 
         if (ref) {
                 /*
@@ -52,7 +53,7 @@ static inline _Atomic unsigned long *ref_add(_Atomic unsigned long *ref, unsigne
                  * need to order it.
                  */
                 n_refs = atomic_fetch_add_explicit(ref, n, memory_order_relaxed);
-                assert(n_refs > 0);
+                c_assert(n_refs > 0);
         }
 
         return ref;
@@ -84,7 +85,7 @@ static inline _Atomic unsigned long *ref_add(_Atomic unsigned long *ref, unsigne
 static inline _Atomic unsigned long *ref_add_unless_zero(_Atomic unsigned long *ref, unsigned long n) {
         unsigned long n_refs;
 
-        assert(n > 0);
+        c_assert(n > 0);
 
         if (ref) {
                 /*
@@ -150,7 +151,7 @@ static inline _Atomic unsigned long *ref_inc_unless_zero(_Atomic unsigned long *
  * actually called.
  */
 noreturn static inline void ref_unreachable(_Atomic unsigned long *ref, void *userdata) {
-        assert(0);
+        c_assert(0);
         abort();
 }
 
@@ -190,7 +191,7 @@ static inline _Atomic unsigned long *ref_sub(_Atomic unsigned long *ref, unsigne
                  * it is only needed there.
                  */
                 n_refs = atomic_fetch_sub_explicit(ref, n, memory_order_release);
-                assert(n_refs >= n);
+                c_assert(n_refs >= n);
                 if (n_refs == n) {
                         atomic_thread_fence(memory_order_acquire);
                         if (func)

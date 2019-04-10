@@ -28,13 +28,13 @@ static int broker_dispatch_signals(DispatchFile *file) {
         struct signalfd_siginfo si;
         ssize_t l;
 
-        assert(dispatch_file_events(file) == EPOLLIN);
+        c_assert(dispatch_file_events(file) == EPOLLIN);
 
         l = read(broker->signals_fd, &si, sizeof(si));
         if (l < 0)
                 return error_origin(-errno);
 
-        assert(l == sizeof(si));
+        c_assert(l == sizeof(si));
 
         return DISPATCH_E_EXIT;
 }
