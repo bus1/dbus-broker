@@ -19,19 +19,19 @@ static void test_basic(void) {
         reply_owner_init(&owner);
 
         r = reply_slot_new(&slot1, &registry, &owner, NULL, NULL, 1, 1);
-        assert(!r);
+        c_assert(!r);
 
         r = reply_slot_new(&slot1, &registry, &owner, NULL, NULL, 1, 1);
-        assert(r == REPLY_E_EXISTS);
+        c_assert(r == REPLY_E_EXISTS);
 
         slot2 = reply_slot_get_by_id(&registry, 1, 1);
-        assert(slot2 == slot1);
+        c_assert(slot2 == slot1);
 
         slot2 = reply_slot_get_by_id(&registry, 1, 2);
-        assert(!slot2);
+        c_assert(!slot2);
 
         slot2 = reply_slot_get_by_id(&registry, 2, 1);
-        assert(!slot2);
+        c_assert(!slot2);
 
         reply_slot_free(slot1);
         reply_owner_deinit(&owner);

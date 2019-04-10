@@ -116,7 +116,7 @@ static void test_server_conversations(void) {
         size_t i;
         int r;
 
-        assert(C_ARRAY_SIZE(requests) == C_ARRAY_SIZE(replies));
+        c_assert(C_ARRAY_SIZE(requests) == C_ARRAY_SIZE(replies));
 
         for (i = 0; i < C_ARRAY_SIZE(requests); ++i) {
                 if (requests[i]) {
@@ -128,18 +128,18 @@ static void test_server_conversations(void) {
                                                  strlen(requests[i] + 1) + 1,
                                                  &reply,
                                                  &n_reply);
-                        assert(!r);
+                        c_assert(!r);
 
                         if (replies[i]) {
-                                assert(n_reply == strlen(replies[i]));
-                                assert(strcmp(reply, replies[i]) == 0);
+                                c_assert(n_reply == strlen(replies[i]));
+                                c_assert(strcmp(reply, replies[i]) == 0);
                         } else {
-                                assert(!n_reply);
-                                assert(!reply);
-                                assert(sasl_server_is_done(&sasl));
+                                c_assert(!n_reply);
+                                c_assert(!reply);
+                                c_assert(sasl_server_is_done(&sasl));
                         }
                 } else {
-                        assert(!replies[i]);
+                        c_assert(!replies[i]);
                         sasl_server_deinit(&sasl);
                         sasl_server_init(&sasl, 1, "0123456789abcdef");
                 }
@@ -155,18 +155,18 @@ static void test_client_run(void) {
         sasl_client_init(&sasl);
 
         r = sasl_client_dispatch(&sasl, NULL, 0, &output, &n_output);
-        assert(!r);
-        assert(n_output == 46);
-        assert(!memcmp(output, "\0AUTH EXTERNAL\r\nDATA\r\nNEGOTIATE_UNIX_FD\r\nBEGIN", 46));
+        c_assert(!r);
+        c_assert(n_output == 46);
+        c_assert(!memcmp(output, "\0AUTH EXTERNAL\r\nDATA\r\nNEGOTIATE_UNIX_FD\r\nBEGIN", 46));
 
         r = sasl_client_dispatch(&sasl, "DATA", 4, &output, &n_output);
-        assert(!r && !n_output && !output);
+        c_assert(!r && !n_output && !output);
         r = sasl_client_dispatch(&sasl, "OK 30313233343536373839616263646566", 35, &output, &n_output);
-        assert(!r && !n_output && !output);
+        c_assert(!r && !n_output && !output);
         r = sasl_client_dispatch(&sasl, "AGREE_UNIX_FD", 13, &output, &n_output);
-        assert(!r && !n_output && !output);
+        c_assert(!r && !n_output && !output);
 
-        assert(sasl_client_is_done(&sasl));
+        c_assert(sasl_client_is_done(&sasl));
 }
 
 int main(int argc, char **argv) {

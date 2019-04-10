@@ -25,16 +25,16 @@ static void test_connect_blocking_fd(Broker *broker, int *fdp) {
         test_message_append_hello(&hello, &n_hello);
 
         fd = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
-        assert(fd >= 0);
+        c_assert(fd >= 0);
 
         r = connect(fd, (struct sockaddr *)&broker->address, broker->n_address);
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         len = write(fd, hello, n_hello);
-        assert(len == (ssize_t)n_hello);
+        c_assert(len == (ssize_t)n_hello);
 
         len = recv(fd, reply, sizeof(reply), MSG_WAITALL);
-        assert(len == (ssize_t)sizeof(reply));
+        c_assert(len == (ssize_t)sizeof(reply));
 
         *fdp = fd;
         fd = -1;
@@ -62,12 +62,12 @@ static void test_message_transaction(Metrics *metrics, size_t n_matches, size_t 
                         _c_cleanup_(c_freep) char *match = NULL;
 
                         r = asprintf(&match, "path=/org/example/Foo%u", i);
-                        assert(r >= 0);
+                        c_assert(r >= 0);
 
                         r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                                "AddMatch", NULL, NULL,
                                                "s", match);
-                        assert(r >= 0);
+                        c_assert(r >= 0);
                 }
         }
 
@@ -84,10 +84,10 @@ static void test_message_transaction(Metrics *metrics, size_t n_matches, size_t 
                         test_message_append_ping(&ping, &n_ping, ++serial, 2, 2);
 
                         len = write(fd2, ping, n_ping);
-                        assert(len == (ssize_t)n_ping);
+                        c_assert(len == (ssize_t)n_ping);
 
                         r = recv(fd2, reply, sizeof(reply), MSG_WAITALL);
-                        assert(r == sizeof(reply));
+                        c_assert(r == sizeof(reply));
                 }
         }
 
@@ -95,10 +95,10 @@ static void test_message_transaction(Metrics *metrics, size_t n_matches, size_t 
                 metrics_sample_start(metrics);
 
                 len = write(fd1, input, n_input);
-                assert(len == (ssize_t)n_input);
+                c_assert(len == (ssize_t)n_input);
 
                 len = recv(fd1, output, sizeof(output), MSG_WAITALL);
-                assert(len == (ssize_t)sizeof(output));
+                c_assert(len == (ssize_t)sizeof(output));
 
                 metrics_sample_end(metrics);
         }

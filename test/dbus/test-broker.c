@@ -39,8 +39,8 @@ static void test_connect(void) {
                 util_broker_connect(broker, &bus);
 
                 r = sd_bus_get_unique_name(bus, &unique);
-                assert(!r);
-                assert(unique);
+                c_assert(!r);
+                c_assert(unique);
         }
 
         util_broker_terminate(broker);
@@ -65,7 +65,7 @@ static void test_self_ping(void) {
                 util_broker_connect(broker, &bus);
 
                 r = sd_bus_get_unique_name(bus, &unique);
-                assert(!r);
+                c_assert(!r);
 
                 r = sd_bus_call_method(bus,
                                        unique,
@@ -76,7 +76,7 @@ static void test_self_ping(void) {
                                        NULL,
                                        NULL);
                 /* sd-bus detects self-calls and returns ELOOP */
-                assert(r == -ELOOP);
+                c_assert(r == -ELOOP);
         }
 
         util_broker_terminate(broker);
@@ -87,7 +87,7 @@ static int test_ping_pong_fn(sd_bus_message *m, void *userdata, sd_bus_error *er
         const sd_bus_error *e;
 
         e = sd_bus_message_get_error(m);
-        assert(!e);
+        c_assert(!e);
 
         return sd_event_exit(event, 0);
 }
@@ -109,21 +109,21 @@ static void test_ping_pong(void) {
         /* setup sd-event */
         {
                 r = sd_event_new(&event);
-                assert(!r);
+                c_assert(!r);
         }
 
         /* setup server */
         {
                 util_broker_connect(broker, &server);
                 r = sd_bus_attach_event(server, event, SD_EVENT_PRIORITY_NORMAL);
-                assert(!r);
+                c_assert(!r);
         }
 
         /* setup client */
         {
                 util_broker_connect(broker, &client);
                 r = sd_bus_attach_event(client, event, SD_EVENT_PRIORITY_NORMAL);
-                assert(!r);
+                c_assert(!r);
         }
 
         /* send PING */
@@ -131,7 +131,7 @@ static void test_ping_pong(void) {
                 const char *unique = NULL;
 
                 r = sd_bus_get_unique_name(server, &unique);
-                assert(!r);
+                c_assert(!r);
 
                 r = sd_bus_call_method_async(client,
                                              NULL,
@@ -142,13 +142,13 @@ static void test_ping_pong(void) {
                                              test_ping_pong_fn,
                                              event,
                                              NULL);
-                assert(r == 1);
+                c_assert(r == 1);
         }
 
         /* loop */
         {
                 r = sd_event_loop(event);
-                assert(!r);
+                c_assert(!r);
         }
 
         util_broker_terminate(broker);

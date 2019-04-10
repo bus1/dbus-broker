@@ -66,21 +66,21 @@ static void test_fd_stream_send(Connection *c, unsigned int unix_fds, unsigned i
                      DBUS_MESSAGE_FIELD_UNIX_FDS, c_dvar_type_u, unix_fds);
 
         r = c_dvar_end_write(&v, &data, &n_data);
-        assert(!r);
+        c_assert(!r);
 
         r = message_new_outgoing(&m, data, n_data);
-        assert(!r);
+        c_assert(!r);
 
         if (n_fds > 0) {
                 int fds[n_fds];
 
                 memset(fds, 0, sizeof(fds));
                 r = fdlist_new_with_fds(&m->fds, fds, n_fds);
-                assert(!r);
+                c_assert(!r);
         }
 
         r = connection_queue(c, NULL, m);
-        assert(!r);
+        c_assert(!r);
 }
 
 static void test_fd_stream_hello(Connection *c) {
@@ -122,13 +122,13 @@ static void test_fd_stream_hello(Connection *c) {
                      DBUS_MESSAGE_FIELD_MEMBER, c_dvar_type_s, "Hello");
 
         r = c_dvar_end_write(&v, &data, &n_data);
-        assert(!r);
+        c_assert(!r);
 
         r = message_new_outgoing(&m, data, n_data);
-        assert(!r);
+        c_assert(!r);
 
         r = connection_queue(c, NULL, m);
-        assert(!r);
+        c_assert(!r);
 }
 
 static int test_fd_stream_fn(DispatchFile *file) {
@@ -136,7 +136,7 @@ static int test_fd_stream_fn(DispatchFile *file) {
         int r;
 
         r = connection_dispatch(c, dispatch_file_events(file));
-        assert(!r);
+        c_assert(!r);
 
         do {
                 _c_cleanup_(message_unrefp) Message *m = NULL;
@@ -147,13 +147,13 @@ static int test_fd_stream_fn(DispatchFile *file) {
                                 break;
 
                         r = message_parse_metadata(m);
-                        assert(!r);
-                        assert(m->metadata.fields.unix_fds == fdlist_count(m->fds));
+                        c_assert(!r);
+                        c_assert(m->metadata.fields.unix_fds == fdlist_count(m->fds));
 
                         if (m->metadata.fields.reply_serial == 1) {
 
-                                assert(!strcmp(m->metadata.args[0].value, ":1.0"));
-                                assert(!m->metadata.fields.unix_fds);
+                                c_assert(!strcmp(m->metadata.args[0].value, ":1.0"));
+                                c_assert(!m->metadata.fields.unix_fds);
                                 ++test_fd_stream_got;
 
                                 if (test_fd_stream_mode == TEST_FD_STREAM_SEQUENTIAL)
@@ -164,7 +164,7 @@ static int test_fd_stream_fn(DispatchFile *file) {
                         } else if (m->metadata.header.type == DBUS_MESSAGE_TYPE_METHOD_CALL &&
                                    m->metadata.header.serial == 2) {
 
-                                assert(!m->metadata.fields.unix_fds);
+                                c_assert(!m->metadata.fields.unix_fds);
                                 ++test_fd_stream_got;
 
                                 if (test_fd_stream_mode == TEST_FD_STREAM_SEQUENTIAL)
@@ -175,14 +175,14 @@ static int test_fd_stream_fn(DispatchFile *file) {
                         } else if (m->metadata.header.type == DBUS_MESSAGE_TYPE_METHOD_CALL &&
                                    m->metadata.header.serial == 3) {
 
-                                assert(test_fd_stream_mode != TEST_FD_STREAM_SPLIT);
-                                assert(m->metadata.fields.unix_fds == 1);
+                                c_assert(test_fd_stream_mode != TEST_FD_STREAM_SPLIT);
+                                c_assert(m->metadata.fields.unix_fds == 1);
                                 ++test_fd_stream_got;
 
                                 connection_shutdown(c);
 
                         } else {
-                                assert(m->metadata.header.type == DBUS_MESSAGE_TYPE_SIGNAL);
+                                c_assert(m->metadata.header.type == DBUS_MESSAGE_TYPE_SIGNAL);
                         }
                 }
         } while (!r);
@@ -192,7 +192,7 @@ static int test_fd_stream_fn(DispatchFile *file) {
                 return connection_is_running(c) ? 0 : DISPATCH_E_EXIT;
         }
 
-        assert(!r);
+        c_assert(!r);
         return 0;
 }
 
@@ -230,15 +230,15 @@ static void test_fd_stream(void) {
         /* setup client connection */
         {
                 r = dispatch_context_init(&d);
-                assert(!r);
+                c_assert(!r);
 
                 util_broker_connect_fd(broker, &fd);
 
                 r = connection_init_client(&c, &d, test_fd_stream_fn, NULL, fd);
-                assert(!r);
+                c_assert(!r);
 
                 r = connection_open(&c);
-                assert(!r);
+                c_assert(!r);
         }
 
         /* send initial messages */
@@ -254,7 +254,7 @@ static void test_fd_stream(void) {
         {
                 do {
                         r = dispatch_context_dispatch(&d);
-                        assert(!r || r == DISPATCH_E_EXIT);
+                        c_assert(!r || r == DISPATCH_E_EXIT);
                 } while (!r);
         }
 
@@ -283,13 +283,13 @@ int main(int argc, char **argv) {
 
                 test_fd_stream();
 
-                assert(test_fd_stream_mode == i);
-                assert(test_fd_stream_seq == 3);
+                c_assert(test_fd_stream_mode == i);
+                c_assert(test_fd_stream_seq == 3);
 
                 if (test_fd_stream_mode == TEST_FD_STREAM_SPLIT)
-                        assert(test_fd_stream_got == 2);
+                        c_assert(test_fd_stream_got == 2);
                 else
-                        assert(test_fd_stream_got == 3);
+                        c_assert(test_fd_stream_got == 3);
         }
 
         return 0;

@@ -18,10 +18,10 @@ static void test_connect_blocking_fd(Broker *broker, int *fdp) {
         int r;
 
         fd = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
-        assert(fd >= 0);
+        c_assert(fd >= 0);
 
         r = connect(fd, (struct sockaddr *)&broker->address, broker->n_address);
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         *fdp = fd;
         fd = -1;
@@ -42,10 +42,10 @@ static void test_connect_one(Metrics *metrics, void *input, ssize_t n_input, ssi
         test_connect_blocking_fd(broker, &fd);
 
         len = write(fd, input, n_input);
-        assert(len == (ssize_t)n_input);
+        c_assert(len == (ssize_t)n_input);
 
         len = recv(fd, output, sizeof(output), MSG_WAITALL);
-        assert(len == (ssize_t)n_output);
+        c_assert(len == (ssize_t)n_output);
 
         metrics_sample_end(metrics);
 

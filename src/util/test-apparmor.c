@@ -12,7 +12,7 @@ static void test_basic(void) {
         int r;
 
         r = bus_apparmor_is_enabled(&enabled);
-        assert(!r);
+        c_assert(!r);
 }
 
 int main(int argc, char **argv) {

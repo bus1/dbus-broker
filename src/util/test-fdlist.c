@@ -13,10 +13,10 @@ static void test_setup(void) {
         int r;
 
         r = fdlist_new_with_fds(&l, NULL, 0);
-        assert(!r);
+        c_assert(!r);
 
         l = fdlist_free(l);
-        assert(!l);
+        c_assert(!l);
 }
 
 static void test_dummy(void) {
@@ -33,12 +33,12 @@ static void test_dummy(void) {
 
         for (i = 0; i < C_ARRAY_SIZE(dummies) + 1; ++i) {
                 r = fdlist_new_with_fds(&l, dummies, i);
-                assert(!r);
+                c_assert(!r);
 
-                assert(fdlist_count(l) == i);
+                c_assert(fdlist_count(l) == i);
 
                 for (j = 0; j < i; ++j)
-                        assert((size_t)fdlist_get(l, j) == C_ARRAY_SIZE(dummies) - j - 1);
+                        c_assert((size_t)fdlist_get(l, j) == C_ARRAY_SIZE(dummies) - j - 1);
 
                 l = fdlist_free(l);
         }
@@ -58,26 +58,26 @@ static void test_consumer(void) {
          */
 
         prev = epoll_create1(EPOLL_CLOEXEC);
-        assert(prev >= 0);
+        c_assert(prev >= 0);
 
         p[0] = epoll_create1(EPOLL_CLOEXEC);
-        assert(p[0] >= 0);
-        assert(p[0] == prev + 1);
+        c_assert(p[0] >= 0);
+        c_assert(p[0] == prev + 1);
 
         p[1] = epoll_create1(EPOLL_CLOEXEC);
-        assert(p[1] >= 0);
-        assert(p[1] == prev + 2);
+        c_assert(p[1] >= 0);
+        c_assert(p[1] == prev + 2);
 
         r = fdlist_new_consume_fds(&l, p, C_ARRAY_SIZE(p));
-        assert(!r);
+        c_assert(!r);
 
-        assert(fdlist_count(l) == C_ARRAY_SIZE(p));
-        assert(!memcmp(fdlist_data(l), p, sizeof(p)));
+        c_assert(fdlist_count(l) == C_ARRAY_SIZE(p));
+        c_assert(!memcmp(fdlist_data(l), p, sizeof(p)));
 
         fdlist_truncate(l, 0);
 
         r = epoll_create1(EPOLL_CLOEXEC);
-        assert(r == prev + 1);
+        c_assert(r == prev + 1);
         close(r);
 
         close(prev);

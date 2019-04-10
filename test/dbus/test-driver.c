@@ -27,8 +27,8 @@ static void test_unknown(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.Foo",
                                        "GetId", &error, NULL,
                                        "");
-                assert(r < 0);
-                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.UnknownInterface"));
+                c_assert(r < 0);
+                c_assert(!strcmp(error.name, "org.freedesktop.DBus.Error.UnknownInterface"));
         }
 
         /* call unknown method */
@@ -41,8 +41,8 @@ static void test_unknown(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "Foo", &error, NULL,
                                        "");
-                assert(r < 0);
-                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.UnknownMethod"));
+                c_assert(r < 0);
+                c_assert(!strcmp(error.name, "org.freedesktop.DBus.Error.UnknownMethod"));
         }
 
         /* call unknown method without interface */
@@ -55,8 +55,8 @@ static void test_unknown(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", NULL,
                                        "Foo", &error, NULL,
                                        "");
-                assert(r < 0);
-                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.UnknownMethod"));
+                c_assert(r < 0);
+                c_assert(!strcmp(error.name, "org.freedesktop.DBus.Error.UnknownMethod"));
         }
 
         util_broker_terminate(broker);
@@ -84,15 +84,15 @@ static void test_hello(void) {
                                        "");
 
                 r = sd_bus_message_read(reply, "s", &unique_name);
-                assert(r >= 0);
-                assert(!strcmp(unique_name, ":1.0"));
+                c_assert(r >= 0);
+                c_assert(!strcmp(unique_name, ":1.0"));
 
                 /* calling Hello() again is not valid */
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "Hello", &error, NULL,
                                        "");
-                assert(r < 0);
-                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.Failed"));
+                c_assert(r < 0);
+                c_assert(!strcmp(error.name, "org.freedesktop.DBus.Error.Failed"));
         }
 
         /* try to call a hypothetical future Hello2() and check that falling back to Hello() works when Hello2() fails */
@@ -108,22 +108,22 @@ static void test_hello(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "Foo", &error, NULL,
                                        "");
-                assert(r < 0);
-                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
+                c_assert(r < 0);
+                c_assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
 
                 /* same without an interface */
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", NULL,
                                        "Foo", &error, NULL,
                                        "");
-                assert(r < 0);
-                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
+                c_assert(r < 0);
+                c_assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
 
                 /* the same again, but Hello() on an alternative interface */
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.Foo",
                                        "Hello", &error, NULL,
                                        "");
-                assert(r < 0);
-                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
+                c_assert(r < 0);
+                c_assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
 
                 /* falling back to Hello() works */
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
@@ -131,8 +131,8 @@ static void test_hello(void) {
                                        "");
 
                 r = sd_bus_message_read(reply, "s", &unique_name);
-                assert(r >= 0);
-                assert(!strcmp(unique_name, ":1.1"));
+                c_assert(r >= 0);
+                c_assert(!strcmp(unique_name, ":1.1"));
         }
 
         /* try to send a message on the bus before Hello(), see that it fails and the client is disconnected */
@@ -146,13 +146,13 @@ static void test_hello(void) {
                 r = sd_bus_call_method(bus, "com.example.foobar", "/com/example/foo", "com.example.Foo",
                                        "Bar", &error, NULL,
                                        "");
-                assert(r == -ECONNRESET);
+                c_assert(r == -ECONNRESET);
 
                 /* now try to call Hello() (or anything else), to verify that the client was disconnected */
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "Hello", NULL, NULL,
                                        "");
-                assert(r == -ENOTCONN);
+                c_assert(r == -ENOTCONN);
         }
 
         util_broker_terminate(broker);
@@ -177,7 +177,7 @@ static void test_request_name(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "RequestName", &error, NULL,
                                        "su", "com.example.foo", 0);
-                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
+                c_assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
         }
 
         /* request valid well-known name and release it again */
@@ -189,25 +189,25 @@ static void test_request_name(void) {
                 util_broker_connect(broker, &bus);
 
                 r = sd_bus_get_unique_name(bus, &unique_name);
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "RequestName", NULL, NULL,
                                        "su", "com.example.foo", 0);
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "GetNameOwner", NULL, &reply,
                                        "s", "com.example.foo");
-                assert(r >= 0);
+                c_assert(r >= 0);
                 r = sd_bus_message_read(reply, "s", &owner);
-                assert(r >= 0);
-                assert(!strcmp(owner, unique_name));
+                c_assert(r >= 0);
+                c_assert(!strcmp(owner, unique_name));
 
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "ReleaseName", NULL, NULL,
                                        "s", "com.example.foo");
-                assert(r >= 0);
+                c_assert(r >= 0);
         }
 
         /* request currently owned name and replace its owner */
@@ -225,38 +225,38 @@ static void test_request_name(void) {
                 r = sd_bus_call_method(bus1, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "RequestName", NULL, NULL,
                                        "su", "com.example.foo", DBUS_NAME_FLAG_ALLOW_REPLACEMENT);
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 r = sd_bus_call_method(bus2, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "RequestName", NULL, NULL,
                                        "su", "com.example.foo", DBUS_NAME_FLAG_REPLACE_EXISTING);
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 r = sd_bus_call_method(bus2, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "GetNameOwner", NULL, &reply1,
                                        "s", "com.example.foo");
-                assert(r >= 0);
+                c_assert(r >= 0);
                 r = sd_bus_message_read(reply1, "s", &owner);
-                assert(r >= 0);
-                assert(!strcmp(owner, unique_name2));
+                c_assert(r >= 0);
+                c_assert(!strcmp(owner, unique_name2));
 
                 r = sd_bus_call_method(bus2, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "ReleaseName", NULL, NULL,
                                        "s", "com.example.foo");
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 r = sd_bus_call_method(bus1, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "GetNameOwner", NULL, &reply2,
                                        "s", "com.example.foo");
-                assert(r >= 0);
+                c_assert(r >= 0);
                 r = sd_bus_message_read(reply2, "s", &owner);
-                assert(r >= 0);
-                assert(!strcmp(owner, unique_name1));
+                c_assert(r >= 0);
+                c_assert(!strcmp(owner, unique_name1));
 
                 r = sd_bus_call_method(bus1, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "ReleaseName", NULL, NULL,
                                        "s", "com.example.foo");
-                assert(r >= 0);
+                c_assert(r >= 0);
         }
 
         /* request currently owned name and fail to replace it */
@@ -274,38 +274,38 @@ static void test_request_name(void) {
                 r = sd_bus_call_method(bus1, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "RequestName", NULL, NULL,
                                        "su", "com.example.foo", 0);
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 r = sd_bus_call_method(bus2, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "RequestName", NULL, NULL,
                                        "su", "com.example.foo", DBUS_NAME_FLAG_REPLACE_EXISTING);
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 r = sd_bus_call_method(bus2, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "GetNameOwner", NULL, &reply1,
                                        "s", "com.example.foo");
-                assert(r >= 0);
+                c_assert(r >= 0);
                 r = sd_bus_message_read(reply1, "s", &owner);
-                assert(r >= 0);
-                assert(!strcmp(owner, unique_name1));
+                c_assert(r >= 0);
+                c_assert(!strcmp(owner, unique_name1));
 
                 r = sd_bus_call_method(bus1, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "ReleaseName", NULL, NULL,
                                        "s", "com.example.foo");
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 r = sd_bus_call_method(bus1, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "GetNameOwner", NULL, &reply2,
                                        "s", "com.example.foo");
-                assert(r >= 0);
+                c_assert(r >= 0);
                 r = sd_bus_message_read(reply2, "s", &owner);
-                assert(r >= 0);
-                assert(!strcmp(owner, unique_name2));
+                c_assert(r >= 0);
+                c_assert(!strcmp(owner, unique_name2));
 
                 r = sd_bus_call_method(bus2, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "ReleaseName", NULL, NULL,
                                        "s", "com.example.foo");
-                assert(r >= 0);
+                c_assert(r >= 0);
         }
 
         /* request currently owned name, but don't try to replace it */
@@ -318,45 +318,45 @@ static void test_request_name(void) {
                 util_broker_connect(broker, &bus2);
 
                 r = sd_bus_get_unique_name(bus1, &unique_name1);
-                assert(r >= 0);
+                c_assert(r >= 0);
                 r = sd_bus_get_unique_name(bus2, &unique_name2);
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 r = sd_bus_call_method(bus1, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "RequestName", NULL, NULL,
                                        "su", "com.example.foo", 0);
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 r = sd_bus_call_method(bus2, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "RequestName", NULL, NULL,
                                        "su", "com.example.foo", 0);
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 r = sd_bus_call_method(bus2, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "GetNameOwner", NULL, &reply1,
                                        "s", "com.example.foo");
-                assert(r >= 0);
+                c_assert(r >= 0);
                 r = sd_bus_message_read(reply1, "s", &owner);
-                assert(r >= 0);
-                assert(!strcmp(owner, unique_name1));
+                c_assert(r >= 0);
+                c_assert(!strcmp(owner, unique_name1));
 
                 r = sd_bus_call_method(bus1, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "ReleaseName", NULL, NULL,
                                        "s", "com.example.foo");
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 r = sd_bus_call_method(bus1, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "GetNameOwner", NULL, &reply2,
                                        "s", "com.example.foo");
-                assert(r >= 0);
+                c_assert(r >= 0);
                 r = sd_bus_message_read(reply2, "s", &owner);
-                assert(r >= 0);
-                assert(!strcmp(owner, unique_name2));
+                c_assert(r >= 0);
+                c_assert(!strcmp(owner, unique_name2));
 
                 r = sd_bus_call_method(bus2, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "ReleaseName", NULL, NULL,
                                        "s", "com.example.foo");
-                assert(r >= 0);
+                c_assert(r >= 0);
         }
 
         /* request reserved well-known name */
@@ -369,8 +369,8 @@ static void test_request_name(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "RequestName", &error, NULL,
                                        "su", "org.freedesktop.DBus", 0);
-                assert(r < 0);
-                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.InvalidArgs"));
+                c_assert(r < 0);
+                c_assert(!strcmp(error.name, "org.freedesktop.DBus.Error.InvalidArgs"));
         }
 
         /* request our own unique-name */
@@ -382,13 +382,13 @@ static void test_request_name(void) {
                 util_broker_connect(broker, &bus);
 
                 r = sd_bus_get_unique_name(bus, &unique_name);
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "RequestName", &error, NULL,
                                        "su", unique_name, 0);
-                assert(r < 0);
-                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.InvalidArgs"));
+                c_assert(r < 0);
+                c_assert(!strcmp(error.name, "org.freedesktop.DBus.Error.InvalidArgs"));
         }
 
         /* request invalid name */
@@ -401,8 +401,8 @@ static void test_request_name(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "RequestName", &error, NULL,
                                        "su", "org", 0);
-                assert(r < 0);
-                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.InvalidArgs"));
+                c_assert(r < 0);
+                c_assert(!strcmp(error.name, "org.freedesktop.DBus.Error.InvalidArgs"));
         }
 
         util_broker_terminate(broker);
@@ -425,7 +425,7 @@ static void test_release_name(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "ReleaseName", &error, NULL,
                                        "s", "com.example.foo");
-                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
+                c_assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
         }
 
         /* release valid well-known name that does not exist on the bus */
@@ -438,13 +438,13 @@ static void test_release_name(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "GetNameOwner", &error, NULL,
                                        "s", "com.example.foo");
-                assert(r < 0);
-                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.NameHasNoOwner"));
+                c_assert(r < 0);
+                c_assert(!strcmp(error.name, "org.freedesktop.DBus.Error.NameHasNoOwner"));
 
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "ReleaseName", NULL, NULL,
                                        "s", "com.example.foo");
-                assert(r >= 0);
+                c_assert(r >= 0);
         }
 
         /* request valid well-known name and release it again */
@@ -457,18 +457,18 @@ static void test_release_name(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "RequestName", NULL, NULL,
                                        "su", "com.example.foo", 0);
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "ReleaseName", NULL, NULL,
                                        "s", "com.example.foo");
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "GetNameOwner", &error, NULL,
                                        "s", "com.example.foo");
-                assert(r < 0);
-                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.NameHasNoOwner"));
+                c_assert(r < 0);
+                c_assert(!strcmp(error.name, "org.freedesktop.DBus.Error.NameHasNoOwner"));
         }
 
         /* request valid well-known name and try to release it from a different peer */
@@ -481,30 +481,30 @@ static void test_release_name(void) {
                 util_broker_connect(broker, &bus2);
 
                 r = sd_bus_get_unique_name(bus1, &unique_name);
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 r = sd_bus_call_method(bus1, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "RequestName", NULL, NULL,
                                        "su", "com.example.foo", 0);
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 r = sd_bus_call_method(bus2, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "ReleaseName", NULL, NULL,
                                        "s", "com.example.foo");
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 r = sd_bus_call_method(bus1, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "GetNameOwner", NULL, &reply,
                                        "s", "com.example.foo");
-                assert(r >= 0);
+                c_assert(r >= 0);
                 r = sd_bus_message_read(reply, "s", &owner);
-                assert(r >= 0);
-                assert(!strcmp(owner, unique_name));
+                c_assert(r >= 0);
+                c_assert(!strcmp(owner, unique_name));
 
                 r = sd_bus_call_method(bus2, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "ReleaseName", NULL, NULL,
                                        "s", "com.example.foo");
-                assert(r >= 0);
+                c_assert(r >= 0);
         }
 
         /* release reserved well-known name */
@@ -517,8 +517,8 @@ static void test_release_name(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "ReleaseName", &error, NULL,
                                        "s", "org.freedesktop.DBus");
-                assert(r < 0);
-                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.InvalidArgs"));
+                c_assert(r < 0);
+                c_assert(!strcmp(error.name, "org.freedesktop.DBus.Error.InvalidArgs"));
         }
 
         /* release our own unique-name */
@@ -530,13 +530,13 @@ static void test_release_name(void) {
                 util_broker_connect(broker, &bus);
 
                 r = sd_bus_get_unique_name(bus, &unique_name);
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "ReleaseName", &error, NULL,
                                        "s", unique_name);
-                assert(r < 0);
-                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.InvalidArgs"));
+                c_assert(r < 0);
+                c_assert(!strcmp(error.name, "org.freedesktop.DBus.Error.InvalidArgs"));
         }
 
         /* release invalid name */
@@ -549,8 +549,8 @@ static void test_release_name(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "ReleaseName", &error, NULL,
                                        "s", "org");
-                assert(r < 0);
-                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.InvalidArgs"));
+                c_assert(r < 0);
+                c_assert(!strcmp(error.name, "org.freedesktop.DBus.Error.InvalidArgs"));
         }
 
         util_broker_terminate(broker);
@@ -573,7 +573,7 @@ static void test_get_name_owner(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "GetNameOwner", &error, NULL,
                                        "s", "com.example.foo");
-                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
+                c_assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
         }
 
         /* get non-existent name */
@@ -586,8 +586,8 @@ static void test_get_name_owner(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "GetNameOwner", &error, NULL,
                                        "s", "com.example.foo");
-                assert(r < 0);
-                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.NameHasNoOwner"));
+                c_assert(r < 0);
+                c_assert(!strcmp(error.name, "org.freedesktop.DBus.Error.NameHasNoOwner"));
         }
 
         /* get by unique name */
@@ -599,14 +599,14 @@ static void test_get_name_owner(void) {
                 util_broker_connect(broker, &bus);
 
                 r = sd_bus_get_unique_name(bus, &unique_name);
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "GetNameOwner", NULL, &reply,
                                        "s", unique_name);
-                assert(r >= 0);
+                c_assert(r >= 0);
                 r = sd_bus_message_read(reply, "s", &owner);
-                assert(!strcmp(owner, unique_name));
+                c_assert(!strcmp(owner, unique_name));
         }
 
         /* get by well-known name */
@@ -618,24 +618,24 @@ static void test_get_name_owner(void) {
                 util_broker_connect(broker, &bus);
 
                 r = sd_bus_get_unique_name(bus, &unique_name);
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "RequestName", NULL, NULL,
                                        "su", "com.example.foo", 0);
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "GetNameOwner", NULL, &reply,
                                        "s", "com.example.foo");
-                assert(r >= 0);
+                c_assert(r >= 0);
                 r = sd_bus_message_read(reply, "s", &owner);
-                assert(!strcmp(owner, unique_name));
+                c_assert(!strcmp(owner, unique_name));
 
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "ReleaseName", NULL, NULL,
                                        "s", "com.example.foo");
-                assert(r >= 0);
+                c_assert(r >= 0);
         }
 
         /* get driver name */
@@ -649,9 +649,9 @@ static void test_get_name_owner(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "GetNameOwner", NULL, &reply,
                                        "s", "org.freedesktop.DBus");
-                assert(r >= 0);
+                c_assert(r >= 0);
                 r = sd_bus_message_read(reply, "s", &owner);
-                assert(!strcmp(owner, "org.freedesktop.DBus"));
+                c_assert(!strcmp(owner, "org.freedesktop.DBus"));
         }
 
         /* get invalid name */
@@ -664,8 +664,8 @@ static void test_get_name_owner(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "GetNameOwner", &error, NULL,
                                        "s", "org");
-                assert(r < 0);
-                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.NameHasNoOwner"));
+                c_assert(r < 0);
+                c_assert(!strcmp(error.name, "org.freedesktop.DBus.Error.NameHasNoOwner"));
         }
 
         util_broker_terminate(broker);
@@ -688,7 +688,7 @@ static void test_name_has_owner(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "NameHasOwner", &error, NULL,
                                        "s", "com.example.foo");
-                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
+                c_assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
         }
 
         /* check non-existent name */
@@ -702,10 +702,10 @@ static void test_name_has_owner(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "NameHasOwner", NULL, &reply,
                                        "s", "com.example.foo");
-                assert(r >= 0);
+                c_assert(r >= 0);
                 r = sd_bus_message_read(reply, "b", &owned);
-                assert(r >= 0);
-                assert(!owned);
+                c_assert(r >= 0);
+                c_assert(!owned);
         }
 
         /* check unique name */
@@ -718,15 +718,15 @@ static void test_name_has_owner(void) {
                 util_broker_connect(broker, &bus);
 
                 r = sd_bus_get_unique_name(bus, &unique_name);
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "NameHasOwner", NULL, &reply,
                                        "s", unique_name);
-                assert(r >= 0);
+                c_assert(r >= 0);
                 r = sd_bus_message_read(reply, "b", &owned);
-                assert(r >= 0);
-                assert(owned);
+                c_assert(r >= 0);
+                c_assert(owned);
         }
 
         /* check well-known name */
@@ -740,20 +740,20 @@ static void test_name_has_owner(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "RequestName", NULL, NULL,
                                        "su", "com.example.foo", 0);
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "NameHasOwner", NULL, &reply,
                                        "s", "com.example.foo");
-                assert(r >= 0);
+                c_assert(r >= 0);
                 r = sd_bus_message_read(reply, "b", &owned);
-                assert(r >= 0);
-                assert(owned);
+                c_assert(r >= 0);
+                c_assert(owned);
 
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "ReleaseName", NULL, NULL,
                                        "s", "com.example.foo");
-                assert(r >= 0);
+                c_assert(r >= 0);
         }
 
         /* check driver name */
@@ -767,10 +767,10 @@ static void test_name_has_owner(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "NameHasOwner", NULL, &reply,
                                        "s", "org.freedesktop.DBus");
-                assert(r >= 0);
+                c_assert(r >= 0);
                 r = sd_bus_message_read(reply, "b", &owned);
-                assert(r >= 0);
-                assert(owned);
+                c_assert(r >= 0);
+                c_assert(owned);
         }
 
         /* check invalid name */
@@ -784,10 +784,10 @@ static void test_name_has_owner(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "NameHasOwner", NULL, &reply,
                                        "s", "org");
-                assert(r >= 0);
+                c_assert(r >= 0);
                 r = sd_bus_message_read(reply, "b", &owned);
-                assert(r >= 0);
-                assert(!owned);
+                c_assert(r >= 0);
+                c_assert(!owned);
         }
 
         util_broker_terminate(broker);
@@ -812,7 +812,7 @@ static void test_start_service_by_name(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "StartServiceByName", &error, NULL,
                                        "su", "com.example.foo", 0);
-                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
+                c_assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
         }
 
         /* start non-existent name */
@@ -825,8 +825,8 @@ static void test_start_service_by_name(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "StartServiceByName", &error, NULL,
                                        "su", "com.example.foo", 0);
-                assert(r < 0);
-                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.ServiceUnknown"));
+                c_assert(r < 0);
+                c_assert(!strcmp(error.name, "org.freedesktop.DBus.Error.ServiceUnknown"));
         }
 
         /* start own unique name */
@@ -838,13 +838,13 @@ static void test_start_service_by_name(void) {
                 util_broker_connect(broker, &bus);
 
                 r = sd_bus_get_unique_name(bus, &unique_name);
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "StartServiceByName", &error, NULL,
                                        "su", unique_name, 0);
-                assert(r < 0);
-                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.ServiceUnknown"));
+                c_assert(r < 0);
+                c_assert(!strcmp(error.name, "org.freedesktop.DBus.Error.ServiceUnknown"));
         }
 
         /* XXX: start actual name, config must be pushed into the driver/broker first */
@@ -859,8 +859,8 @@ static void test_start_service_by_name(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "StartServiceByName", &error, NULL,
                                        "su", "org.freedesktop.DBus", 0);
-                assert(r < 0);
-                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.ServiceUnknown"));
+                c_assert(r < 0);
+                c_assert(!strcmp(error.name, "org.freedesktop.DBus.Error.ServiceUnknown"));
         }
 
         /* start invalid name */
@@ -873,8 +873,8 @@ static void test_start_service_by_name(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "StartServiceByName", &error, NULL,
                                        "su", "org", 0);
-                assert(r < 0);
-                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.ServiceUnknown"));
+                c_assert(r < 0);
+                c_assert(!strcmp(error.name, "org.freedesktop.DBus.Error.ServiceUnknown"));
         }
 
         util_broker_terminate(broker);
@@ -897,7 +897,7 @@ static void test_update_activation_environment(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "UpdateActivationEnvironment", &error, NULL,
                                        "a{ss}", 0);
-                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
+                c_assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
         }
 
         {
@@ -908,7 +908,7 @@ static void test_update_activation_environment(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "UpdateActivationEnvironment", NULL, NULL,
                                        "a{ss}", 1, "foo", "bar");
-                assert(r >= 0);
+                c_assert(r >= 0);
         }
 
         util_broker_terminate(broker);
@@ -931,7 +931,7 @@ static void test_list_names(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "ListNames", &error, NULL,
                                        "");
-                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
+                c_assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
         }
 
         {
@@ -943,49 +943,49 @@ static void test_list_names(void) {
                 util_broker_connect(broker, &bus);
 
                 r = sd_bus_get_unique_name(bus, &unique_name);
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 /* request a name */
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "RequestName", NULL, NULL,
                                        "su", "com.example.foo", 0);
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 /* list names */
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "ListNames", NULL, &reply,
                                        "");
-                assert(r >= 0);
+                c_assert(r >= 0);
                 r = sd_bus_message_enter_container(reply, 'a', "s");
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 while (!sd_bus_message_at_end(reply, false)) {
                         r = sd_bus_message_read(reply, "s", &name);
-                        assert(r >= 0);
+                        c_assert(r >= 0);
                         if (!strcmp(name, "org.freedesktop.DBus")) {
-                                assert(!found_driver_name);
+                                c_assert(!found_driver_name);
                                 found_driver_name = true;
                         } else if (!strcmp(name, "com.example.foo")) {
-                                assert(!found_well_known_name);
+                                c_assert(!found_well_known_name);
                                 found_well_known_name = true;
                         } else if (!strcmp(name, unique_name)) {
-                                assert(!found_unique_name);
+                                c_assert(!found_unique_name);
                                 found_unique_name = true;
                         } else if (name[0] != ':')
                                 found_unexpected_name = true;
                 }
 
                 r = sd_bus_message_exit_container(reply);
-                assert(r >= 0);
+                c_assert(r >= 0);
 
-                assert(found_driver_name && found_well_known_name && found_unique_name);
-                assert(!found_unexpected_name);
+                c_assert(found_driver_name && found_well_known_name && found_unique_name);
+                c_assert(!found_unexpected_name);
 
                 /* clean up the name */
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "ReleaseName", NULL, NULL,
                                        "s", "com.example.foo");
-                assert(r >= 0);
+                c_assert(r >= 0);
         }
 
         util_broker_terminate(broker);
@@ -1008,7 +1008,7 @@ static void test_list_activatable_names(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "ListActivatableNames", &error, NULL,
                                        "");
-                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
+                c_assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
         }
 
         {
@@ -1022,7 +1022,7 @@ static void test_list_activatable_names(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "RequestName", NULL, NULL,
                                        "su", "com.example.foo", 0);
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 /*
                  * List activatable names, we don't have any real ones to test, so just verify that the driver is
@@ -1031,20 +1031,20 @@ static void test_list_activatable_names(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "ListActivatableNames", NULL, &reply,
                                        "");
-                assert(r >= 0);
+                c_assert(r >= 0);
                 r = sd_bus_message_enter_container(reply, 'a', "s");
-                assert(r >= 0);
+                c_assert(r >= 0);
                 r = sd_bus_message_read(reply, "s", &name);
-                assert(r >= 0);
-                assert(!strcmp(name, "org.freedesktop.DBus"));
+                c_assert(r >= 0);
+                c_assert(!strcmp(name, "org.freedesktop.DBus"));
                 r = sd_bus_message_exit_container(reply);
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 /* clean up the name */
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "ReleaseName", NULL, NULL,
                                        "s", "com.example.foo");
-                assert(r >= 0);
+                c_assert(r >= 0);
         }
 
         util_broker_terminate(broker);
@@ -1067,7 +1067,7 @@ static void test_add_match(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "AddMatch", &error, NULL,
                                        "s", "");
-                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
+                c_assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
         }
 
         /* add invalid match */
@@ -1080,8 +1080,8 @@ static void test_add_match(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "AddMatch", &error, NULL,
                                        "s", "foo");
-                assert(r < 0);
-                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.MatchRuleInvalid"));
+                c_assert(r < 0);
+                c_assert(!strcmp(error.name, "org.freedesktop.DBus.Error.MatchRuleInvalid"));
         }
 
         /* add match */
@@ -1093,12 +1093,12 @@ static void test_add_match(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "AddMatch", NULL, NULL,
                                        "s", "sender=org.freedesktop.DBus");
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "RemoveMatch", NULL, NULL,
                                        "s", "sender=org.freedesktop.DBus");
-                assert(r >= 0);
+                c_assert(r >= 0);
         }
 
         util_broker_terminate(broker);
@@ -1121,7 +1121,7 @@ static void test_remove_match(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "RemoveMatch", &error, NULL,
                                        "s", "");
-                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
+                c_assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
         }
 
         /* remove invalid match */
@@ -1134,8 +1134,8 @@ static void test_remove_match(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "RemoveMatch", &error, NULL,
                                        "s", "foo");
-                assert(r < 0);
-                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.MatchRuleInvalid"));
+                c_assert(r < 0);
+                c_assert(!strcmp(error.name, "org.freedesktop.DBus.Error.MatchRuleInvalid"));
         }
 
         /* remove non-existent match */
@@ -1150,8 +1150,8 @@ static void test_remove_match(void) {
                                        "s", "sender=org.freedesktop.DBus");
                 if (!getenv("DBUS_BROKER_TEST_DAEMON")) {
                         /* XXX: dbus-daemon is buggy, ignore for now. See <https://bugs.freedesktop.org/show_bug.cgi?id=101161> */
-                        assert(r < 0);
-                        assert(!strcmp(error.name, "org.freedesktop.DBus.Error.MatchRuleNotFound"));
+                        c_assert(r < 0);
+                        c_assert(!strcmp(error.name, "org.freedesktop.DBus.Error.MatchRuleNotFound"));
                 }
         }
 
@@ -1165,20 +1165,20 @@ static void test_remove_match(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "AddMatch", NULL, NULL,
                                        "s", "sender=org.freedesktop.DBus");
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "RemoveMatch", NULL, NULL,
                                        "s", "sender=org.freedesktop.DBus");
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "RemoveMatch", &error, NULL,
                                        "s", "sender=org.freedesktop.DBus");
                 if (!getenv("DBUS_BROKER_TEST_DAEMON")) {
                         /* XXX: ignore bug in dbus-daemon, as above */
-                        assert(r < 0);
-                        assert(!strcmp(error.name, "org.freedesktop.DBus.Error.MatchRuleNotFound"));
+                        c_assert(r < 0);
+                        c_assert(!strcmp(error.name, "org.freedesktop.DBus.Error.MatchRuleNotFound"));
                 }
         }
 
@@ -1191,22 +1191,22 @@ static void test_remove_match(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "AddMatch", NULL, NULL,
                                        "s", "sender=org.freedesktop.DBus");
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "AddMatch", NULL, NULL,
                                        "s", "sender=org.freedesktop.DBus");
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "RemoveMatch", NULL, NULL,
                                        "s", "sender=org.freedesktop.DBus");
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "RemoveMatch", NULL, NULL,
                                        "s", "sender=org.freedesktop.DBus");
-                assert(r >= 0);
+                c_assert(r >= 0);
         }
 
         /* verify equality */
@@ -1218,12 +1218,12 @@ static void test_remove_match(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "AddMatch", NULL, NULL,
                                        "s", "sender=org.freedesktop.DBus,interface=org.freedesktop.DBus");
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "RemoveMatch", NULL, NULL,
                                        "s", "interface=org.freedesktop.DBus,sender=org.freedesktop.DBus");
-                assert(r >= 0);
+                c_assert(r >= 0);
         }
 
         util_broker_terminate(broker);
@@ -1246,7 +1246,7 @@ static void test_list_queued_owners(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "ListQueuedOwners", &error, NULL,
                                        "s", "com.example.foo");
-                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
+                c_assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
         }
 
         /* list queued owners of a well-known name */
@@ -1259,10 +1259,10 @@ static void test_list_queued_owners(void) {
                 util_broker_connect(broker, &bus2);
 
                 r = sd_bus_get_unique_name(bus1, &unique_name1);
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 r = sd_bus_get_unique_name(bus2, &unique_name2);
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 /*
                  * Request the same name twice, make sure that the order of the queue is different from the order
@@ -1271,38 +1271,38 @@ static void test_list_queued_owners(void) {
                 r = sd_bus_call_method(bus1, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "RequestName", NULL, NULL,
                                        "su", "com.example.foo", DBUS_NAME_FLAG_ALLOW_REPLACEMENT);
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 r = sd_bus_call_method(bus2, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "RequestName", NULL, NULL,
                                        "su", "com.example.foo", DBUS_NAME_FLAG_REPLACE_EXISTING);
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 /* get the owners */
                 r = sd_bus_call_method(bus1, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "ListQueuedOwners", NULL, &reply,
                                        "s", "com.example.foo");
-                assert(r >= 0);
+                c_assert(r >= 0);
                 r = sd_bus_message_enter_container(reply, 'a', "s");
-                assert(r >= 0);
+                c_assert(r >= 0);
                 r = sd_bus_message_read(reply, "s", &owner);
-                assert(r >= 0);
-                assert(!strcmp(owner, unique_name2));
+                c_assert(r >= 0);
+                c_assert(!strcmp(owner, unique_name2));
                 r = sd_bus_message_read(reply, "s", &owner);
-                assert(r >= 0);
-                assert(!strcmp(owner, unique_name1));
+                c_assert(r >= 0);
+                c_assert(!strcmp(owner, unique_name1));
                 r = sd_bus_message_exit_container(reply);
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 r = sd_bus_call_method(bus2, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "ReleaseName", NULL, NULL,
                                        "s", "com.example.foo");
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 r = sd_bus_call_method(bus1, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "ReleaseName", NULL, NULL,
                                        "s", "com.example.foo");
-                assert(r >= 0);
+                c_assert(r >= 0);
         }
 
         /* list queued owners of a unique name */
@@ -1314,19 +1314,19 @@ static void test_list_queued_owners(void) {
                 util_broker_connect(broker, &bus);
 
                 r = sd_bus_get_unique_name(bus, &unique_name);
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "ListQueuedOwners", NULL, &reply,
                                        "s", unique_name);
-                assert(r >= 0);
+                c_assert(r >= 0);
                 r = sd_bus_message_enter_container(reply, 'a', "s");
-                assert(r >= 0);
+                c_assert(r >= 0);
                 r = sd_bus_message_read(reply, "s", &owner);
-                assert(r >= 0);
-                assert(!strcmp(owner, unique_name));
+                c_assert(r >= 0);
+                c_assert(!strcmp(owner, unique_name));
                 r = sd_bus_message_exit_container(reply);
-                assert(r >= 0);
+                c_assert(r >= 0);
         }
 
         /* list queued owners of the driver */
@@ -1340,14 +1340,14 @@ static void test_list_queued_owners(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "ListQueuedOwners", NULL, &reply,
                                        "s", "org.freedesktop.DBus");
-                assert(r >= 0);
+                c_assert(r >= 0);
                 r = sd_bus_message_enter_container(reply, 'a', "s");
-                assert(r >= 0);
+                c_assert(r >= 0);
                 r = sd_bus_message_read(reply, "s", &owner);
-                assert(r >= 0);
-                assert(!strcmp(owner, "org.freedesktop.DBus"));
+                c_assert(r >= 0);
+                c_assert(!strcmp(owner, "org.freedesktop.DBus"));
                 r = sd_bus_message_exit_container(reply);
-                assert(r >= 0);
+                c_assert(r >= 0);
         }
 
         /* list queued owners of a name that does not exist */
@@ -1360,8 +1360,8 @@ static void test_list_queued_owners(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "ListQueuedOwners", &error, NULL,
                                        "s", "com.example.foo");
-                assert(r < 0);
-                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.NameHasNoOwner"));
+                c_assert(r < 0);
+                c_assert(!strcmp(error.name, "org.freedesktop.DBus.Error.NameHasNoOwner"));
         }
 
         /* list queued owners of invalid name */
@@ -1374,8 +1374,8 @@ static void test_list_queued_owners(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "ListQueuedOwners", &error, NULL,
                                        "s", "org");
-                assert(r < 0);
-                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.NameHasNoOwner"));
+                c_assert(r < 0);
+                c_assert(!strcmp(error.name, "org.freedesktop.DBus.Error.NameHasNoOwner"));
         }
 
         util_broker_terminate(broker);
@@ -1398,7 +1398,7 @@ static void test_get_connection_unix_user(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "GetConnectionUnixUser", &error, NULL,
                                        "s", "com.example.foo");
-                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
+                c_assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
         }
 
         /* get uid of well-known name */
@@ -1412,20 +1412,20 @@ static void test_get_connection_unix_user(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "RequestName", NULL, NULL,
                                        "su", "com.example.foo", 0);
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "GetConnectionUnixUser", NULL, &reply,
                                        "s", "com.example.foo");
-                assert(r >= 0);
+                c_assert(r >= 0);
                 r = sd_bus_message_read(reply, "u", &uid);
-                assert(r >= 0);
-                assert(uid == getuid());
+                c_assert(r >= 0);
+                c_assert(uid == getuid());
 
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "ReleaseName", NULL, NULL,
                                        "s", "com.example.foo");
-                assert(r >= 0);
+                c_assert(r >= 0);
         }
 
         /* get uid of driver */
@@ -1439,10 +1439,10 @@ static void test_get_connection_unix_user(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "GetConnectionUnixUser", NULL, &reply,
                                        "s", "org.freedesktop.DBus");
-                assert(r >= 0);
+                c_assert(r >= 0);
                 r = sd_bus_message_read(reply, "u", &uid);
-                assert(r >= 0);
-                assert(uid == getuid());
+                c_assert(r >= 0);
+                c_assert(uid == getuid());
         }
 
         /* get uid of unique name */
@@ -1455,15 +1455,15 @@ static void test_get_connection_unix_user(void) {
                 util_broker_connect(broker, &bus);
 
                 r = sd_bus_get_unique_name(bus, &unique_name);
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "GetConnectionUnixUser", NULL, &reply,
                                        "s", unique_name);
-                assert(r >= 0);
+                c_assert(r >= 0);
                 r = sd_bus_message_read(reply, "u", &uid);
-                assert(r >= 0);
-                assert(uid == getuid());
+                c_assert(r >= 0);
+                c_assert(uid == getuid());
         }
 
         /* get uid of name that does not exist */
@@ -1476,8 +1476,8 @@ static void test_get_connection_unix_user(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "GetConnectionUnixUser", &error, NULL,
                                        "s", "com.example.foo");
-                assert(r < 0);
-                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.NameHasNoOwner"));
+                c_assert(r < 0);
+                c_assert(!strcmp(error.name, "org.freedesktop.DBus.Error.NameHasNoOwner"));
         }
 
         /* get uid of invalid name */
@@ -1490,8 +1490,8 @@ static void test_get_connection_unix_user(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "GetConnectionUnixUser", &error, NULL,
                                        "s", "org");
-                assert(r < 0);
-                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.NameHasNoOwner"));
+                c_assert(r < 0);
+                c_assert(!strcmp(error.name, "org.freedesktop.DBus.Error.NameHasNoOwner"));
         }
 
         util_broker_terminate(broker);
@@ -1514,7 +1514,7 @@ static void test_get_connection_unix_process_id(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "GetConnectionUnixProcessID", &error, NULL,
                                        "s", "com.example.foo");
-                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
+                c_assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
         }
 
         /* get pid of well-known name */
@@ -1528,20 +1528,20 @@ static void test_get_connection_unix_process_id(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "RequestName", NULL, NULL,
                                        "su", "com.example.foo", 0);
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "GetConnectionUnixProcessID", NULL, &reply,
                                        "s", "com.example.foo");
-                assert(r >= 0);
+                c_assert(r >= 0);
                 r = sd_bus_message_read(reply, "u", &pid);
-                assert(r >= 0);
-                assert(pid == getpid());
+                c_assert(r >= 0);
+                c_assert(pid == getpid());
 
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "ReleaseName", NULL, NULL,
                                        "s", "com.example.foo");
-                assert(r >= 0);
+                c_assert(r >= 0);
         }
 
         /* get pid of driver */
@@ -1555,10 +1555,10 @@ static void test_get_connection_unix_process_id(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "GetConnectionUnixProcessID", NULL, &reply,
                                        "s", "org.freedesktop.DBus");
-                assert(r >= 0);
+                c_assert(r >= 0);
                 r = sd_bus_message_read(reply, "u", &pid);
-                assert(r >= 0);
-                assert(pid == broker->pid);
+                c_assert(r >= 0);
+                c_assert(pid == broker->pid);
         }
 
         /* get pid of unique name */
@@ -1571,15 +1571,15 @@ static void test_get_connection_unix_process_id(void) {
                 util_broker_connect(broker, &bus);
 
                 r = sd_bus_get_unique_name(bus, &unique_name);
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "GetConnectionUnixProcessID", NULL, &reply,
                                        "s", unique_name);
-                assert(r >= 0);
+                c_assert(r >= 0);
                 r = sd_bus_message_read(reply, "u", &pid);
-                assert(r >= 0);
-                assert(pid == getpid());
+                c_assert(r >= 0);
+                c_assert(pid == getpid());
         }
 
         /* get pid of name that does not exist */
@@ -1592,8 +1592,8 @@ static void test_get_connection_unix_process_id(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "GetConnectionUnixProcessID", &error, NULL,
                                        "s", "com.example.foo");
-                assert(r < 0);
-                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.NameHasNoOwner"));
+                c_assert(r < 0);
+                c_assert(!strcmp(error.name, "org.freedesktop.DBus.Error.NameHasNoOwner"));
         }
 
         /* get pid of invalid name */
@@ -1606,8 +1606,8 @@ static void test_get_connection_unix_process_id(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "GetConnectionUnixProcessID", &error, NULL,
                                        "s", "org");
-                assert(r < 0);
-                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.NameHasNoOwner"));
+                c_assert(r < 0);
+                c_assert(!strcmp(error.name, "org.freedesktop.DBus.Error.NameHasNoOwner"));
         }
 
         util_broker_terminate(broker);
@@ -1619,22 +1619,22 @@ static void test_verify_selinux_context(sd_bus_message *reply) {
         int r;
 
         r = proc_get_seclabel(PROC_SELF, &own_context, &n_own_context);
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         r = sd_bus_message_enter_container(reply, 'a', "y");
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         for (unsigned int i = 0; i < n_own_context; ++i) {
                 char c;
 
                 r = sd_bus_message_read(reply, "y", &c);
-                assert(r >= 0);
+                c_assert(r >= 0);
 
-                assert(own_context[i] == c);
+                c_assert(own_context[i] == c);
         }
 
         r = sd_bus_message_exit_container(reply);
-        assert(r >= 0);
+        c_assert(r >= 0);
 }
 
 static void test_verify_credentials(sd_bus_message *message) {
@@ -1644,19 +1644,19 @@ static void test_verify_credentials(sd_bus_message *message) {
         /* We do not fail on unexpected credentials. */
 
         r = sd_bus_message_enter_container(message, 'a', "{sv}");
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         while ((r = sd_bus_message_enter_container(message, 'e', "sv")) > 0) {
                 const char *key;
 
                 r = sd_bus_message_read(message, "s", &key);
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 r = sd_bus_message_skip(message, "v");
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 r = sd_bus_message_exit_container(message);
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 if (strcmp(key, "UnixUserID") == 0)
                         got_uid = true;
@@ -1665,10 +1665,10 @@ static void test_verify_credentials(sd_bus_message *message) {
         }
 
         r = sd_bus_message_exit_container(message);
-        assert(r >= 0);
+        c_assert(r >= 0);
 
-        assert(got_uid);
-        assert(got_pid);
+        c_assert(got_uid);
+        c_assert(got_pid);
 
         /*
          * XXX: verify that we get the security label at least when SELinux is enabled
@@ -1693,7 +1693,7 @@ static void test_get_connection_credentials(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "GetConnectionCredentials", &error, NULL,
                                        "s", "com.example.foo");
-                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
+                c_assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
         }
 
         /* get connection credentials of well-known name */
@@ -1706,19 +1706,19 @@ static void test_get_connection_credentials(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "RequestName", NULL, NULL,
                                        "su", "com.example.foo", 0);
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "GetConnectionCredentials", NULL, &reply,
                                        "s", "com.example.foo");
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 test_verify_credentials(reply);
 
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "ReleaseName", NULL, NULL,
                                        "s", "com.example.foo");
-                assert(r >= 0);
+                c_assert(r >= 0);
         }
 
         /* get connection credentials of driver */
@@ -1731,7 +1731,7 @@ static void test_get_connection_credentials(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "GetConnectionCredentials", NULL, &reply,
                                        "s", "org.freedesktop.DBus");
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 test_verify_credentials(reply);
         }
@@ -1745,12 +1745,12 @@ static void test_get_connection_credentials(void) {
                 util_broker_connect(broker, &bus);
 
                 r = sd_bus_get_unique_name(bus, &unique_name);
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "GetConnectionCredentials", NULL, &reply,
                                        "s", unique_name);
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 test_verify_credentials(reply);
 
@@ -1766,8 +1766,8 @@ static void test_get_connection_credentials(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "GetConnectionCredentials", &error, NULL,
                                        "s", "com.example.foo");
-                assert(r < 0);
-                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.NameHasNoOwner"));
+                c_assert(r < 0);
+                c_assert(!strcmp(error.name, "org.freedesktop.DBus.Error.NameHasNoOwner"));
         }
 
         /* get connection credentials of invalid name */
@@ -1780,8 +1780,8 @@ static void test_get_connection_credentials(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "GetConnectionCredentials", &error, NULL,
                                        "s", "org");
-                assert(r < 0);
-                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.NameHasNoOwner"));
+                c_assert(r < 0);
+                c_assert(!strcmp(error.name, "org.freedesktop.DBus.Error.NameHasNoOwner"));
         }
 
         util_broker_terminate(broker);
@@ -1805,7 +1805,7 @@ static void test_get_connection_selinux_security_context(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "GetConnectionSELinuxSecurityContext", &error, NULL,
                                        "s", "com.example.foo");
-                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
+                c_assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
         }
 
         /* get selinux context of well-known name */
@@ -1819,7 +1819,7 @@ static void test_get_connection_selinux_security_context(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "RequestName", NULL, NULL,
                                        "su", "com.example.foo", 0);
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "GetConnectionSELinuxSecurityContext", &error, &reply,
@@ -1827,14 +1827,14 @@ static void test_get_connection_selinux_security_context(void) {
                 if (bus_selinux_is_enabled()) {
                         test_verify_selinux_context(reply);
                 } else {
-                        assert(r < 0);
-                        assert(!strcmp(error.name, "org.freedesktop.DBus.Error.SELinuxSecurityContextUnknown"));
+                        c_assert(r < 0);
+                        c_assert(!strcmp(error.name, "org.freedesktop.DBus.Error.SELinuxSecurityContextUnknown"));
                 }
 
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "ReleaseName", NULL, NULL,
                                        "s", "com.example.foo");
-                assert(r >= 0);
+                c_assert(r >= 0);
         }
 
         /* get selinux security context of driver */
@@ -1852,8 +1852,8 @@ static void test_get_connection_selinux_security_context(void) {
                         /* XXX: figure out how to get the expected context */
                         //test_verify_selinux_context(reply);
                 } else {
-                        assert(r < 0);
-                        assert(!strcmp(error.name, "org.freedesktop.DBus.Error.SELinuxSecurityContextUnknown"));
+                        c_assert(r < 0);
+                        c_assert(!strcmp(error.name, "org.freedesktop.DBus.Error.SELinuxSecurityContextUnknown"));
                 }
         }
 
@@ -1867,7 +1867,7 @@ static void test_get_connection_selinux_security_context(void) {
                 util_broker_connect(broker, &bus);
 
                 r = sd_bus_get_unique_name(bus, &unique_name);
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "GetConnectionSELinuxSecurityContext", &error, &reply,
@@ -1875,8 +1875,8 @@ static void test_get_connection_selinux_security_context(void) {
                 if (bus_selinux_is_enabled()) {
                         test_verify_selinux_context(reply);
                 } else {
-                        assert(r < 0);
-                        assert(!strcmp(error.name, "org.freedesktop.DBus.Error.SELinuxSecurityContextUnknown"));
+                        c_assert(r < 0);
+                        c_assert(!strcmp(error.name, "org.freedesktop.DBus.Error.SELinuxSecurityContextUnknown"));
         }
 
         }
@@ -1891,8 +1891,8 @@ static void test_get_connection_selinux_security_context(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "GetConnectionSELinuxSecurityContext", &error, NULL,
                                        "s", "com.example.foo");
-                assert(r < 0);
-                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.NameHasNoOwner"));
+                c_assert(r < 0);
+                c_assert(!strcmp(error.name, "org.freedesktop.DBus.Error.NameHasNoOwner"));
         }
 
         /* get selinux security context of invalid name */
@@ -1905,8 +1905,8 @@ static void test_get_connection_selinux_security_context(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "GetConnectionSELinuxSecurityContext", &error, NULL,
                                        "s", "org");
-                assert(r < 0);
-                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.NameHasNoOwner"));
+                c_assert(r < 0);
+                c_assert(!strcmp(error.name, "org.freedesktop.DBus.Error.NameHasNoOwner"));
         }
 
         util_broker_terminate(broker);
@@ -1929,7 +1929,7 @@ static void test_get_adt_audit_session_data(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "GetAdtAuditSessionData", &error, NULL,
                                        "s", "com.example.foo");
-                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
+                c_assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
         }
 
         /* get adt audit session data of well-known name */
@@ -1942,18 +1942,18 @@ static void test_get_adt_audit_session_data(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "RequestName", NULL, NULL,
                                        "su", "com.example.foo", 0);
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "GetAdtAuditSessionData", &error, NULL,
                                        "s", "com.example.foo");
-                assert(r < 0);
-                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AdtAuditDataUnknown"));
+                c_assert(r < 0);
+                c_assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AdtAuditDataUnknown"));
 
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "ReleaseName", NULL, NULL,
                                        "s", "com.example.foo");
-                assert(r >= 0);
+                c_assert(r >= 0);
         }
 
         /* get adt audit session data of driver */
@@ -1966,8 +1966,8 @@ static void test_get_adt_audit_session_data(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "GetAdtAuditSessionData", &error, NULL,
                                        "s", "org.freedesktop.DBus");
-                assert(r < 0);
-                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AdtAuditDataUnknown"));
+                c_assert(r < 0);
+                c_assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AdtAuditDataUnknown"));
         }
 
         /* get adt audit session data of unique name */
@@ -1979,13 +1979,13 @@ static void test_get_adt_audit_session_data(void) {
                 util_broker_connect(broker, &bus);
 
                 r = sd_bus_get_unique_name(bus, &unique_name);
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "GetAdtAuditSessionData", &error, NULL,
                                        "s", unique_name);
-                assert(r < 0);
-                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AdtAuditDataUnknown"));
+                c_assert(r < 0);
+                c_assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AdtAuditDataUnknown"));
         }
 
         /* get adt audit session data of name that does not exist */
@@ -1998,8 +1998,8 @@ static void test_get_adt_audit_session_data(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "GetAdtAuditSessionData", &error, NULL,
                                        "s", "com.example.foo");
-                assert(r < 0);
-                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.NameHasNoOwner"));
+                c_assert(r < 0);
+                c_assert(!strcmp(error.name, "org.freedesktop.DBus.Error.NameHasNoOwner"));
         }
 
         /* get adt audit session data of invalid name */
@@ -2012,8 +2012,8 @@ static void test_get_adt_audit_session_data(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "GetAdtAuditSessionData", &error, NULL,
                                        "s", "org");
-                assert(r < 0);
-                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.NameHasNoOwner"));
+                c_assert(r < 0);
+                c_assert(!strcmp(error.name, "org.freedesktop.DBus.Error.NameHasNoOwner"));
         }
 
         util_broker_terminate(broker);
@@ -2036,7 +2036,7 @@ static void test_get_id(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "GetId", &error, NULL,
                                        "");
-                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
+                c_assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
         }
 
         /* get the bus id and verify that it is on the right format */
@@ -2050,14 +2050,14 @@ static void test_get_id(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "GetId", NULL, &reply,
                                        "");
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 r = sd_bus_message_read(reply, "s", &id);
-                assert(r >= 0);
-                assert(strlen(id) == 32);
+                c_assert(r >= 0);
+                c_assert(strlen(id) == 32);
 
                 for (size_t i = 0; i < strlen(id); ++i)
-                        assert((id[i] >= '0' && id[i] <= '9') ||
+                        c_assert((id[i] >= '0' && id[i] <= '9') ||
                                (id[i] >= 'a' && id[i] <= 'f'));
         }
 
@@ -2081,7 +2081,7 @@ static void test_introspect(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus.Introspectable",
                                        "Introspect", &error, NULL,
                                        "s", "com.example.foo");
-                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
+                c_assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
         }
 
         /* get introspection data, and verify that it is a non-empty string */
@@ -2095,11 +2095,11 @@ static void test_introspect(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus.Introspectable",
                                        "Introspect", NULL, &reply,
                                        "");
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 r = sd_bus_message_read(reply, "s", &introspection);
-                assert(r >= 0);
-                assert(strlen(introspection) > 0);
+                c_assert(r >= 0);
+                c_assert(strlen(introspection) > 0);
         }
 
         util_broker_terminate(broker);
@@ -2122,7 +2122,7 @@ static void test_reload_config(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "ReloadConfig", &error, NULL,
                                        "");
-                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
+                c_assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
         }
 
         /* call ReloadConfig and block until it succeeds */
@@ -2134,7 +2134,7 @@ static void test_reload_config(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "ReloadConfig", NULL, NULL,
                                        "");
-                assert(r >= 0);
+                c_assert(r >= 0);
         }
 
         util_broker_terminate(broker);
@@ -2157,7 +2157,7 @@ static void test_become_monitor(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus.Monitoring",
                                        "BecomeMonitor", &error, NULL,
                                        "asu", 0);
-                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
+                c_assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
         }
 
         /* become monitor */
@@ -2169,13 +2169,13 @@ static void test_become_monitor(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus.Monitoring",
                                        "BecomeMonitor", NULL, NULL,
                                        "asu", 0, 0);
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 /* calling any method after having become monitor forcibly disconnects the peer */
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "Hello", NULL, NULL,
                                        "");
-                assert(r == -ECONNRESET);
+                c_assert(r == -ECONNRESET);
         }
 
         util_broker_terminate(broker);
@@ -2198,7 +2198,7 @@ static void test_ping(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus.Peer",
                                        "Ping", &error, NULL,
                                        "");
-                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
+                c_assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
         }
 
         /* ping-pong */
@@ -2210,7 +2210,7 @@ static void test_ping(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus.Peer",
                                        "Ping", NULL, NULL,
                                        "");
-                assert(r >= 0);
+                c_assert(r >= 0);
         }
 
         util_broker_terminate(broker);
@@ -2233,7 +2233,7 @@ static void test_get_machine_id(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus.Peer",
                                        "GetMachineId", &error, NULL,
                                        "");
-                assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
+                c_assert(!strcmp(error.name, "org.freedesktop.DBus.Error.AccessDenied"));
         }
 
         /* get the machine id and verify that it is on the right format */
@@ -2247,14 +2247,14 @@ static void test_get_machine_id(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus.Peer",
                                        "GetMachineId", NULL, &reply,
                                        "");
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 r = sd_bus_message_read(reply, "s", &id);
-                assert(r >= 0);
-                assert(strlen(id) == 32);
+                c_assert(r >= 0);
+                c_assert(strlen(id) == 32);
 
                 for (size_t i = 0; i < strlen(id); ++i)
-                        assert((id[i] >= '0' && id[i] <= '9') ||
+                        c_assert((id[i] >= '0' && id[i] <= '9') ||
                                (id[i] >= 'a' && id[i] <= 'f'));
         }
 
@@ -2266,28 +2266,28 @@ static void test_verify_property_features(sd_bus_message *message) {
         int r;
 
         r = sd_bus_message_enter_container(message, 'v', "as");
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         r = sd_bus_message_enter_container(message, 'a', "s");
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         while (!sd_bus_message_at_end(message, false)) {
                 const char *feature;
 
                 r = sd_bus_message_read(message, "s", &feature);
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 if (strcmp(feature, "SELinux") == 0)
                         selinux = true;
         }
 
         r = sd_bus_message_exit_container(message);
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         r = sd_bus_message_exit_container(message);
-        assert(r >= 0);
+        c_assert(r >= 0);
 
-        assert(selinux == bus_selinux_is_enabled());
+        c_assert(selinux == bus_selinux_is_enabled());
 }
 
 static void test_verify_property_interfaces(sd_bus_message *message) {
@@ -2295,28 +2295,28 @@ static void test_verify_property_interfaces(sd_bus_message *message) {
         int r;
 
         r = sd_bus_message_enter_container(message, 'v', "as");
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         r = sd_bus_message_enter_container(message, 'a', "s");
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         while (!sd_bus_message_at_end(message, false)) {
                 const char *interface;
 
                 r = sd_bus_message_read(message, "s", &interface);
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 if (strcmp(interface, "org.freedesktop.DBus.Monitoring") == 0)
                         monitoring = true;
         }
 
         r = sd_bus_message_exit_container(message);
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         r = sd_bus_message_exit_container(message);
-        assert(r >= 0);
+        c_assert(r >= 0);
 
-        assert(monitoring);
+        c_assert(monitoring);
 }
 
 static void test_properties(void) {
@@ -2336,7 +2336,7 @@ static void test_properties(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus.Properties",
                                        "Get", NULL, &reply,
                                        "ss", "org.freedesktop.DBus", "Features");
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 test_verify_property_features(reply);
         }
@@ -2351,7 +2351,7 @@ static void test_properties(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus.Properties",
                                        "Get", NULL, &reply,
                                        "ss", "org.freedesktop.DBus", "Interfaces");
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 test_verify_property_interfaces(reply);
         }
@@ -2366,8 +2366,8 @@ static void test_properties(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus.Properties",
                                        "Set", &error, NULL,
                                        "ssv", "org.freedesktop.DBus", "Features", "as", 1, "Foo");
-                assert(r < 0);
-                assert(strcmp(error.name, "org.freedesktop.DBus.Error.PropertyReadOnly") == 0);
+                c_assert(r < 0);
+                c_assert(strcmp(error.name, "org.freedesktop.DBus.Error.PropertyReadOnly") == 0);
         }
 
         /* set interfaces */
@@ -2380,8 +2380,8 @@ static void test_properties(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus.Properties",
                                        "Set", &error, NULL,
                                        "ssv", "org.freedesktop.DBus", "Interfaces", "as", 1, "Foo");
-                assert(r < 0);
-                assert(strcmp(error.name, "org.freedesktop.DBus.Error.PropertyReadOnly") == 0);
+                c_assert(r < 0);
+                c_assert(strcmp(error.name, "org.freedesktop.DBus.Error.PropertyReadOnly") == 0);
         }
 
         /* get all */
@@ -2395,16 +2395,16 @@ static void test_properties(void) {
                 r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus.Properties",
                                        "GetAll", NULL, &reply,
                                        "s", "org.freedesktop.DBus");
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 r = sd_bus_message_enter_container(reply, 'a', "{sv}");
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 while ((r = sd_bus_message_enter_container(reply, 'e', "sv")) > 0) {
                         const char *property;
 
                         r = sd_bus_message_read(reply, "s", &property);
-                        assert(r >= 0);
+                        c_assert(r >= 0);
 
                         if (strcmp(property, "Features") == 0) {
                                 test_verify_property_features(reply);
@@ -2414,17 +2414,17 @@ static void test_properties(void) {
                                 interfaces = true;
                         } else {
                                 r = sd_bus_message_skip(reply, "v");
-                                assert(r >= 0);
+                                c_assert(r >= 0);
                         }
 
                         r = sd_bus_message_exit_container(reply);
-                        assert(r >= 0);
+                        c_assert(r >= 0);
                 }
 
                 r = sd_bus_message_exit_container(reply);
-                assert(r >= 0);
+                c_assert(r >= 0);
 
-                assert(features && interfaces);
+                c_assert(features && interfaces);
         }
 
         util_broker_terminate(broker);
@@ -2446,10 +2446,10 @@ static void test_no_destination(void) {
 
                 r = sd_bus_message_new_method_call(bus, &message, NULL, "/org/freedestkop/DBus",
                                                    "org.freedesktop.DBus.Peer", "Ping");
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 r = sd_bus_call(bus, message, 0, NULL, NULL);
-                assert(r >= 0);
+                c_assert(r >= 0);
         }
 
         /* however, it won't answer on any of the other interfaces */
@@ -2462,11 +2462,11 @@ static void test_no_destination(void) {
 
                 r = sd_bus_message_new_method_call(bus, &message, NULL, "/org/freedestkop/DBus",
                                                    "org.freedesktop.DBus", "GetId");
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 r = sd_bus_call(bus, message, 0, &error, NULL);
-                assert(r < 0);
-                assert(strcmp(error.name, "org.freedesktop.DBus.Error.UnknownMethod") == 0);
+                c_assert(r < 0);
+                c_assert(strcmp(error.name, "org.freedesktop.DBus.Error.UnknownMethod") == 0);
         }
 
         util_broker_terminate(broker);

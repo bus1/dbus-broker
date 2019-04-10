@@ -25,37 +25,37 @@ static void test_line(void) {
         int pair[2], r;
 
         r = socketpair(AF_UNIX, SOCK_STREAM, 0, pair);
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         socket_init(&client, NULL, pair[0]);
         socket_init(&server, NULL, pair[1]);
 
         r = socket_dequeue_line(&server, &line, &n_bytes);
-        assert(!r && !line);
+        c_assert(!r && !line);
 
         r = socket_queue_line(&client, NULL, test, strlen(test));
-        assert(r == 0);
+        c_assert(r == 0);
 
         r = socket_queue_line(&client, NULL, test, strlen(test));
-        assert(r == 0);
+        c_assert(r == 0);
 
         r = socket_dispatch(&client, EPOLLOUT);
-        assert(r == SOCKET_E_LOST_INTEREST);
+        c_assert(r == SOCKET_E_LOST_INTEREST);
         r = socket_dispatch(&server, EPOLLIN);
-        assert(!r || r == SOCKET_E_PREEMPTED);
+        c_assert(!r || r == SOCKET_E_PREEMPTED);
 
         r = socket_dequeue_line(&server, &line, &n_bytes);
-        assert(!r && line);
-        assert(n_bytes == strlen(test));
-        assert(memcmp(test, line, n_bytes) == 0);
+        c_assert(!r && line);
+        c_assert(n_bytes == strlen(test));
+        c_assert(memcmp(test, line, n_bytes) == 0);
 
         r = socket_dequeue_line(&server, &line, &n_bytes);
-        assert(!r && line);
-        assert(n_bytes == strlen(test));
-        assert(memcmp(test, line, n_bytes) == 0);
+        c_assert(!r && line);
+        c_assert(n_bytes == strlen(test));
+        c_assert(memcmp(test, line, n_bytes) == 0);
 
         r = socket_dequeue_line(&server, &line, &n_bytes);
-        assert(!r && !line);
+        c_assert(!r && !line);
 }
 
 static void test_message(void) {
@@ -67,29 +67,29 @@ static void test_message(void) {
         int pair[2], r;
 
         r = socketpair(AF_UNIX, SOCK_STREAM, 0, pair);
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         socket_init(&client, NULL, pair[0]);
         socket_init(&server, NULL, pair[1]);
 
         r = socket_dequeue(&server, &message2);
-        assert(!r && !message2);
+        c_assert(!r && !message2);
 
         r = message_new_incoming(&message1, header);
-        assert(r == 0);
+        c_assert(r == 0);
 
         r = socket_queue(&client, NULL, message1);
-        assert(!r);
+        c_assert(!r);
 
         r = socket_dispatch(&client, EPOLLOUT);
-        assert(r == SOCKET_E_LOST_INTEREST);
+        c_assert(r == SOCKET_E_LOST_INTEREST);
         r = socket_dispatch(&server, EPOLLIN);
-        assert(!r || r == SOCKET_E_PREEMPTED);
+        c_assert(!r || r == SOCKET_E_PREEMPTED);
 
         r = socket_dequeue(&server, &message2);
-        assert(!r && message2);
+        c_assert(!r && message2);
 
-        assert(memcmp(message1->header, message2->header, sizeof(header)) == 0);
+        c_assert(memcmp(message1->header, message2->header, sizeof(header)) == 0);
 }
 
 int main(int argc, char **argv) {

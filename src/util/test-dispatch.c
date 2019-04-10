@@ -20,12 +20,12 @@ static void q_assert(int s, bool has_in, bool has_out) {
          */
 
         r = ioctl(s, SIOCINQ, &v);
-        assert(r >= 0);
-        assert(!v == !has_in);
+        c_assert(r >= 0);
+        c_assert(!v == !has_in);
 
         r = ioctl(s, SIOCOUTQ, &v);
-        assert(r >= 0);
-        assert(!v == !has_out);
+        c_assert(r >= 0);
+        c_assert(!v == !has_out);
 }
 
 /*
@@ -50,13 +50,13 @@ static void test_uds_edge(unsigned int run) {
         /* setup */
 
         r = dispatch_context_init(&c);
-        assert(!r);
+        c_assert(!r);
 
         r = socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC | SOCK_NONBLOCK, 0, s);
-        assert(!r);
+        c_assert(!r);
 
         r = dispatch_file_init(&f, &c, NULL, s[0], EPOLLOUT, 0);
-        assert(!r);
+        c_assert(!r);
 
         dispatch_file_select(&f, EPOLLOUT);
 
@@ -66,40 +66,40 @@ static void test_uds_edge(unsigned int run) {
         q_assert(s[1], false, false);
 
         r = dispatch_context_poll(&c, 0);
-        assert(!r);
-        assert(c_list_is_linked(&f.ready_link) && (f.events & EPOLLOUT));
+        c_assert(!r);
+        c_assert(c_list_is_linked(&f.ready_link) && (f.events & EPOLLOUT));
 
         /* send message and verify sockets signal data */
 
         r = send(s[0], b, sizeof(b), MSG_DONTWAIT | MSG_NOSIGNAL);
-        assert(r == sizeof(b));
+        c_assert(r == sizeof(b));
 
         q_assert(s[0], false, true);
         q_assert(s[1], true, false);
 
         r = dispatch_context_poll(&c, 0);
-        assert(!r);
-        assert(c_list_is_linked(&f.ready_link) && (f.events & EPOLLOUT));
+        c_assert(!r);
+        c_assert(c_list_is_linked(&f.ready_link) && (f.events & EPOLLOUT));
 
         /* clear EPOLLOUT (but keep it selected), verify it is not signalled */
 
         dispatch_file_clear(&f, EPOLLOUT);
 
         r = dispatch_context_poll(&c, 0);
-        assert(!r);
-        assert(!c_list_is_linked(&f.ready_link) && !(f.events & EPOLLOUT));
+        c_assert(!r);
+        c_assert(!c_list_is_linked(&f.ready_link) && !(f.events & EPOLLOUT));
 
         /* receive data and verify socket becomes pollable */
 
         r = recv(s[1], b, sizeof(b), MSG_DONTWAIT);
-        assert(r == sizeof(b));
+        c_assert(r == sizeof(b));
 
         q_assert(s[0], false, false);
         q_assert(s[1], false, false);
 
         r = dispatch_context_poll(&c, 0);
-        assert(!r);
-        assert(c_list_is_linked(&f.ready_link) && (f.events & EPOLLOUT));
+        c_assert(!r);
+        c_assert(c_list_is_linked(&f.ready_link) && (f.events & EPOLLOUT));
 
         /*
          * The first test succeeded. We now repeat this test, but before
@@ -116,27 +116,27 @@ static void test_uds_edge(unsigned int run) {
         /* send message again and verify sockets signal data */
 
         r = send(s[0], b, sizeof(b), MSG_DONTWAIT | MSG_NOSIGNAL);
-        assert(r == sizeof(b));
+        c_assert(r == sizeof(b));
 
         q_assert(s[0], false, true);
         q_assert(s[1], true, false);
 
         r = dispatch_context_poll(&c, 0);
-        assert(!r);
-        assert(c_list_is_linked(&f.ready_link) && (f.events & EPOLLOUT));
+        c_assert(!r);
+        c_assert(c_list_is_linked(&f.ready_link) && (f.events & EPOLLOUT));
 
         /* clear EPOLLOUT (but keep it selected), verify it is not signalled */
 
         dispatch_file_clear(&f, EPOLLOUT);
 
         r = dispatch_context_poll(&c, 0);
-        assert(!r);
-        assert(!c_list_is_linked(&f.ready_link) && !(f.events & EPOLLOUT));
+        c_assert(!r);
+        c_assert(!c_list_is_linked(&f.ready_link) && !(f.events & EPOLLOUT));
 
         /* trigger remote shutdown and verify queue state did not change */
 
         r = shutdown(s[1], SHUT_RDWR);
-        assert(!r);
+        c_assert(!r);
 
         q_assert(s[0], false, true);
         q_assert(s[1], true, false);
@@ -158,19 +158,19 @@ static void test_uds_edge(unsigned int run) {
          */
 
         r = send(s[0], b, sizeof(b), MSG_DONTWAIT | MSG_NOSIGNAL);
-        assert(r < 0 && errno == EPIPE);
+        c_assert(r < 0 && errno == EPIPE);
 
         /* fetch EPOLLOUT which was set by shutdown(2) and clear it */
 
         r = dispatch_context_poll(&c, 0);
-        assert(!r);
-        assert(c_list_is_linked(&f.ready_link) && (f.events & EPOLLOUT));
+        c_assert(!r);
+        c_assert(c_list_is_linked(&f.ready_link) && (f.events & EPOLLOUT));
 
         dispatch_file_clear(&f, EPOLLOUT);
 
         r = dispatch_context_poll(&c, 0);
-        assert(!r);
-        assert(!(f.events & EPOLLOUT));
+        c_assert(!r);
+        c_assert(!(f.events & EPOLLOUT));
 
         /* receive data and verify socket becomes pollable */
 
@@ -178,7 +178,7 @@ static void test_uds_edge(unsigned int run) {
         case 0:
                 /* if @run is 0, we use recv(2) to dequeue data */
                 r = recv(s[1], b, sizeof(b), MSG_DONTWAIT);
-                assert(r == sizeof(b));
+                c_assert(r == sizeof(b));
 
                 q_assert(s[0], false, false);
                 q_assert(s[1], false, false);
@@ -186,19 +186,19 @@ static void test_uds_edge(unsigned int run) {
         case 1:
                 /* if @run is 1, we use close(2) to flush queues */
                 r = close(s[1]);
-                assert(!r);
+                c_assert(!r);
                 s[1] = -1;
 
                 q_assert(s[0], false, false);
                 /* s[1] is obviously invalid here */
                 break;
         default:
-                assert(0);
+                c_assert(0);
         }
 
         r = dispatch_context_poll(&c, 0);
-        assert(!r);
-        assert(c_list_is_linked(&f.ready_link) && (f.events & EPOLLOUT));
+        c_assert(!r);
+        c_assert(c_list_is_linked(&f.ready_link) && (f.events & EPOLLOUT));
 
         /* cleanup */
 

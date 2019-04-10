@@ -31,7 +31,7 @@ static void test_umul_saturating(void) {
 
         for (i = 0; i < C_ARRAY_SIZE(values); ++i) {
                 output = util_umul64_saturating(values[i].input_a, values[i].input_b);
-                assert(output == values[i].output);
+                c_assert(output == values[i].output);
         }
 }
 

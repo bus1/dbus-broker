@@ -22,10 +22,10 @@ static void test_wildcard(void) {
         r = sd_bus_call_method(receiver, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                "AddMatch", NULL, NULL,
                                "s", "");
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         r = sd_bus_emit_signal(sender, "/org/example", "org.example", "Foo", "");
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         util_broker_consume_signal(receiver, "org.example", "Foo");
 
@@ -47,18 +47,18 @@ static void test_unique_name(void) {
         util_broker_connect(broker, &receiver);
 
         r = sd_bus_get_unique_name(sender, &unique_name);
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         r = asprintf(&match, "sender=%s", unique_name);
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         r = sd_bus_call_method(receiver, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                "AddMatch", NULL, NULL,
                                "s", match);
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         r = sd_bus_emit_signal(sender, "/org/example", "org.example", "Foo", "");
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         util_broker_consume_signal(receiver, "org.example", "Foo");
 
@@ -82,33 +82,33 @@ static void test_well_known_name(void) {
         r = sd_bus_call_method(dummy, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                "RequestName", NULL, NULL,
                                "su", "com.example.foo", 0);
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         r = sd_bus_call_method(sender, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                "RequestName", NULL, NULL,
                                "su", "com.example.foo", 0);
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         r = sd_bus_call_method(sender, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                "RequestName", NULL, NULL,
                                "su", "com.example.bar", 0);
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         r = sd_bus_call_method(receiver, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                "AddMatch", NULL, NULL,
                                "s", "sender=com.example.foo");
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         r = sd_bus_call_method(receiver, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                "AddMatch", NULL, NULL,
                                "s", "sender=com.example.bar,interface=org.example.bar");
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         r = sd_bus_emit_signal(sender, "/org/example", "org.example", "Foo", "");
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         r = sd_bus_emit_signal(sender, "/org/example", "org.example.bar", "Bar", "");
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         util_broker_consume_signal(receiver, "org.example.bar", "Bar");
 
@@ -128,7 +128,7 @@ static void test_driver(void) {
         r = sd_bus_call_method(receiver, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                "AddMatch", NULL, NULL,
                                "s", "sender=org.freedesktop.DBus");
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         {
                 _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *dummy = NULL;
@@ -155,7 +155,7 @@ static void test_noc_wildcard(void) {
         r = sd_bus_call_method(receiver, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                "AddMatch", NULL, NULL,
                                "s", "sender=org.freedesktop.DBus,member=NameOwnerChanged");
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         {
                 _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *dummy = NULL;
@@ -184,15 +184,15 @@ static void test_noc_unique(void) {
         util_broker_connect(broker, &receiver);
 
         r = sd_bus_get_unique_name(dummy, &unique_name);
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         r = asprintf(&match, "sender=org.freedesktop.DBus,member=NameOwnerChanged,arg0=%s", unique_name);
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         r = sd_bus_call_method(receiver, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                "AddMatch", NULL, NULL,
                                "s", match);
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         sd_bus_flush_close_unref(dummy);
 
@@ -216,17 +216,17 @@ static void test_noc_well_known(void) {
         r = sd_bus_call_method(receiver, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                "AddMatch", NULL, NULL,
                                "s", "sender=org.freedesktop.DBus,member=NameOwnerChanged,arg0=com.example.foo");
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         r = sd_bus_call_method(dummy, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                "RequestName", NULL, NULL,
                                "su", "com.example.foo", 0);
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         r = sd_bus_call_method(dummy, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                "ReleaseName", NULL, NULL,
                                "s", "com.example.foo");
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         util_broker_consume_signal(receiver, "org.freedesktop.DBus", "NameOwnerChanged");
         util_broker_consume_signal(receiver, "org.freedesktop.DBus", "NameOwnerChanged");
@@ -249,7 +249,7 @@ static void test_noc_driver(void) {
         r = sd_bus_call_method(receiver, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                "AddMatch", NULL, NULL,
                                "s", "sender=org.freedesktop.DBus,member=NameOwnerChanged,arg0=org.freedesktop.DBus");
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         /*
          * This cannot be triggered, but make sure the implementation does not choke on this

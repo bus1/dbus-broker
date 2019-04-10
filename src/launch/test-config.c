@@ -44,12 +44,12 @@ static void print_config(const char *path) {
         int r;
 
         r = dirwatch_new(&dirwatch);
-        assert(!r);
+        c_assert(!r);
 
         config_parser_init(&parser);
 
         r = config_parser_read(&parser, &root, path, &nss_cache, dirwatch);
-        assert(!r);
+        c_assert(!r);
 
         c_list_for_each_entry(i_node, &root->node_list, root_link) {
                 fprintf(stderr, "<%s>\n", test_type2str[i_node->type]);

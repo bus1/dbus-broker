@@ -32,21 +32,21 @@ static void test_setup(void) {
         name_change_init(&change);
 
         r = name_registry_request_name(&registry, &owner, NULL, "foobar", 0, &change);
-        assert(!r);
-        assert(strcmp(change.name->name, "foobar") == 0);
-        assert(change.old_owner == NULL);
-        assert(change.new_owner == &owner);
+        c_assert(!r);
+        c_assert(strcmp(change.name->name, "foobar") == 0);
+        c_assert(change.old_owner == NULL);
+        c_assert(change.new_owner == &owner);
         name_change_deinit(&change);
         o = resolve_owner(&registry, "foobar");
-        assert(o == &owner);
+        c_assert(o == &owner);
         r = name_registry_release_name(&registry, &owner, "foobar", &change);
-        assert(r == 0);
-        assert(strcmp(change.name->name, "foobar") == 0);
-        assert(change.old_owner == &owner);
-        assert(change.new_owner == NULL);
+        c_assert(r == 0);
+        c_assert(strcmp(change.name->name, "foobar") == 0);
+        c_assert(change.old_owner == &owner);
+        c_assert(change.new_owner == NULL);
         name_change_deinit(&change);
         o = resolve_owner(&registry, "foobar");
-        assert(o == NULL);
+        c_assert(o == NULL);
 
         name_owner_deinit(&owner);
         name_registry_deinit(&registry);
@@ -64,27 +64,27 @@ static void test_release(void) {
         name_change_init(&change);
 
         r = name_registry_request_name(&registry, &owner1, NULL, "foobar", 0, &change);
-        assert(!r);
-        assert(strcmp(change.name->name, "foobar") == 0);
-        assert(change.old_owner == NULL);
-        assert(change.new_owner == &owner1);
+        c_assert(!r);
+        c_assert(strcmp(change.name->name, "foobar") == 0);
+        c_assert(change.old_owner == NULL);
+        c_assert(change.new_owner == &owner1);
         name_change_deinit(&change);
 
         r = name_registry_release_name(&registry, &owner1, "baz", &change);
-        assert(r == NAME_E_NOT_FOUND);
-        assert(change.name == NULL);
-        assert(change.old_owner == NULL);
-        assert(change.new_owner == NULL);
+        c_assert(r == NAME_E_NOT_FOUND);
+        c_assert(change.name == NULL);
+        c_assert(change.old_owner == NULL);
+        c_assert(change.new_owner == NULL);
         r = name_registry_release_name(&registry, &owner2, "foobar", &change);
-        assert(r == NAME_E_NOT_OWNER);
-        assert(change.name == NULL);
-        assert(change.old_owner == NULL);
-        assert(change.new_owner == NULL);
+        c_assert(r == NAME_E_NOT_OWNER);
+        c_assert(change.name == NULL);
+        c_assert(change.old_owner == NULL);
+        c_assert(change.new_owner == NULL);
         r = name_registry_release_name(&registry, &owner1, "foobar", &change);
-        assert(r == 0);
-        assert(strcmp(change.name->name, "foobar") == 0);
-        assert(change.old_owner == &owner1);
-        assert(change.new_owner == NULL);
+        c_assert(r == 0);
+        c_assert(strcmp(change.name->name, "foobar") == 0);
+        c_assert(change.old_owner == &owner1);
+        c_assert(change.new_owner == NULL);
         name_change_deinit(&change);
 
         name_owner_deinit(&owner2);
@@ -105,77 +105,77 @@ static void test_queue(void) {
 
         /* first to request */
         r = name_registry_request_name(&registry, &owner1, NULL, "foobar", 0, &change);
-        assert(!r);
-        assert(strcmp(change.name->name, "foobar") == 0);
-        assert(change.old_owner == NULL);
-        assert(change.new_owner == &owner1);
+        c_assert(!r);
+        c_assert(strcmp(change.name->name, "foobar") == 0);
+        c_assert(change.old_owner == NULL);
+        c_assert(change.new_owner == &owner1);
         name_change_deinit(&change);
         /* verify the primary owner */
         o = resolve_owner(&registry, "foobar");
-        assert(o == &owner1);
+        c_assert(o == &owner1);
         /* already the owner */
         r = name_registry_request_name(&registry, &owner1, NULL, "foobar", 0, &change);
-        assert(r == NAME_E_ALREADY_OWNER);
-        assert(change.name == NULL);
-        assert(change.old_owner == NULL);
-        assert(change.new_owner == NULL);
+        c_assert(r == NAME_E_ALREADY_OWNER);
+        c_assert(change.name == NULL);
+        c_assert(change.old_owner == NULL);
+        c_assert(change.new_owner == NULL);
         /* refuse to queue */
         r = name_registry_request_name(&registry, &owner2, NULL, "foobar", DBUS_NAME_FLAG_DO_NOT_QUEUE, &change);
-        assert(r == NAME_E_EXISTS);
-        assert(change.name == NULL);
-        assert(change.old_owner == NULL);
-        assert(change.new_owner == NULL);
+        c_assert(r == NAME_E_EXISTS);
+        c_assert(change.name == NULL);
+        c_assert(change.old_owner == NULL);
+        c_assert(change.new_owner == NULL);
         /* try to overtake, but owner won't allow it */
         r = name_registry_request_name(&registry, &owner2, NULL, "foobar", DBUS_NAME_FLAG_DO_NOT_QUEUE | DBUS_NAME_FLAG_REPLACE_EXISTING, &change);
-        assert(r == NAME_E_EXISTS);
-        assert(change.name == NULL);
-        assert(change.old_owner == NULL);
-        assert(change.new_owner == NULL);
+        c_assert(r == NAME_E_EXISTS);
+        c_assert(change.name == NULL);
+        c_assert(change.old_owner == NULL);
+        c_assert(change.new_owner == NULL);
         /* queue */
         r = name_registry_request_name(&registry, &owner2, NULL, "foobar", 0, &change);
-        assert(r == NAME_E_IN_QUEUE);
-        assert(change.name == NULL);
-        assert(change.old_owner == NULL);
-        assert(change.new_owner == NULL);
+        c_assert(r == NAME_E_IN_QUEUE);
+        c_assert(change.name == NULL);
+        c_assert(change.old_owner == NULL);
+        c_assert(change.new_owner == NULL);
         /* verify that the primary owner was untouched */
         o = resolve_owner(&registry, "foobar");
-        assert(o == &owner1);
+        c_assert(o == &owner1);
         /* dequeu again */
         r = name_registry_release_name(&registry, &owner2, "foobar", &change);
-        assert(r == 0);
-        assert(change.name == NULL);
-        assert(change.old_owner == NULL);
-        assert(change.new_owner == NULL);
+        c_assert(r == 0);
+        c_assert(change.name == NULL);
+        c_assert(change.old_owner == NULL);
+        c_assert(change.new_owner == NULL);
         /* verify that the primary owner was untouched */
         o = resolve_owner(&registry, "foobar");
-        assert(o == &owner1);
+        c_assert(o == &owner1);
         /* try to overtake, but wait in queue if it fails */
         r = name_registry_request_name(&registry, &owner2, NULL, "foobar", DBUS_NAME_FLAG_REPLACE_EXISTING, &change);
-        assert(r == NAME_E_IN_QUEUE);
-        assert(change.name == NULL);
-        assert(change.old_owner == NULL);
-        assert(change.new_owner == NULL);
+        c_assert(r == NAME_E_IN_QUEUE);
+        c_assert(change.name == NULL);
+        c_assert(change.old_owner == NULL);
+        c_assert(change.new_owner == NULL);
         /* again */
         r = name_registry_request_name(&registry, &owner2, NULL, "foobar", DBUS_NAME_FLAG_REPLACE_EXISTING, &change);
-        assert(r == NAME_E_IN_QUEUE);
-        assert(change.name == NULL);
-        assert(change.old_owner == NULL);
-        assert(change.new_owner == NULL);
+        c_assert(r == NAME_E_IN_QUEUE);
+        c_assert(change.name == NULL);
+        c_assert(change.old_owner == NULL);
+        c_assert(change.new_owner == NULL);
         /* update primary owner to allow replacement */
         r = name_registry_request_name(&registry, &owner1, NULL, "foobar", DBUS_NAME_FLAG_ALLOW_REPLACEMENT, &change);
-        assert(r == NAME_E_ALREADY_OWNER);
-        assert(change.name == NULL);
-        assert(change.old_owner == NULL);
-        assert(change.new_owner == NULL);
+        c_assert(r == NAME_E_ALREADY_OWNER);
+        c_assert(change.name == NULL);
+        c_assert(change.old_owner == NULL);
+        c_assert(change.new_owner == NULL);
         /* queue again, but do not attempt to overtake */
         r = name_registry_request_name(&registry, &owner2, NULL, "foobar", 0, &change);
-        assert(r == NAME_E_IN_QUEUE);
-        assert(change.name == NULL);
-        assert(change.old_owner == NULL);
-        assert(change.new_owner == NULL);
+        c_assert(r == NAME_E_IN_QUEUE);
+        c_assert(change.name == NULL);
+        c_assert(change.old_owner == NULL);
+        c_assert(change.new_owner == NULL);
         /* verify that the primary owner was untouched */
         o = resolve_owner(&registry, "foobar");
-        assert(o == &owner1);
+        c_assert(o == &owner1);
         /* overtake primary owner, allow to be replaced ourselves and refuse to
          * queue */
         r = name_registry_request_name(&registry, &owner2, NULL, "foobar",
@@ -183,36 +183,36 @@ static void test_queue(void) {
                                        DBUS_NAME_FLAG_ALLOW_REPLACEMENT |
                                        DBUS_NAME_FLAG_DO_NOT_QUEUE,
                                        &change);
-        assert(!r);
-        assert(strcmp(change.name->name, "foobar") == 0);
-        assert(change.old_owner == &owner1);
-        assert(change.new_owner == &owner2);
+        c_assert(!r);
+        c_assert(strcmp(change.name->name, "foobar") == 0);
+        c_assert(change.old_owner == &owner1);
+        c_assert(change.new_owner == &owner2);
         name_change_deinit(&change);
         /* verify that the primary owner was changed */
         o = resolve_owner(&registry, "foobar");
-        assert(o == &owner2);
+        c_assert(o == &owner2);
         /* overtake again */
         r = name_registry_request_name(&registry, &owner1, NULL, "foobar", DBUS_NAME_FLAG_REPLACE_EXISTING, &change);
-        assert(!r);
-        assert(strcmp(change.name->name, "foobar") == 0);
-        assert(change.old_owner == &owner2);
-        assert(change.new_owner == &owner1);
+        c_assert(!r);
+        c_assert(strcmp(change.name->name, "foobar") == 0);
+        c_assert(change.old_owner == &owner2);
+        c_assert(change.new_owner == &owner1);
         name_change_deinit(&change);
         /* verify that the primary owner was reverted to the original */
         o = resolve_owner(&registry, "foobar");
-        assert(o == &owner1);
+        c_assert(o == &owner1);
         /* verify that the old primary owner is no longer on queue */
         r = name_registry_release_name(&registry, &owner2, "foobar", &change);
-        assert(r = NAME_E_NOT_OWNER);
-        assert(change.name == NULL);
-        assert(change.old_owner == NULL);
-        assert(change.new_owner == NULL);
+        c_assert(r == NAME_E_NOT_OWNER);
+        c_assert(change.name == NULL);
+        c_assert(change.old_owner == NULL);
+        c_assert(change.new_owner == NULL);
 
         r = name_registry_release_name(&registry, &owner1, "foobar", &change);
-        assert(r == 0);
-        assert(strcmp(change.name->name, "foobar") == 0);
-        assert(change.old_owner == &owner1);
-        assert(change.new_owner == NULL);
+        c_assert(r == 0);
+        c_assert(strcmp(change.name->name, "foobar") == 0);
+        c_assert(change.old_owner == &owner1);
+        c_assert(change.new_owner == NULL);
         name_change_deinit(&change);
 
         name_owner_deinit(&owner2);

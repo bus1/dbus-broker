@@ -104,19 +104,19 @@ static void test_names(void) {
                 r = sd_bus_call_method(bus1, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "RequestName", NULL, NULL,
                                        "su", "com.example.foo", 0);
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 util_broker_connect(broker, &bus2);
 
                 r = sd_bus_call_method(bus2, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "RequestName", NULL, NULL,
                                        "su", "com.example.foo", 0);
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 r = sd_bus_call_method(bus1, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                                        "ReleaseName", NULL, NULL,
                                        "s", "com.example.foo");
-                assert(r >= 0);
+                c_assert(r >= 0);
         }
 
         util_broker_consume_method_call(monitor, "org.freedesktop.DBus", "Hello");

@@ -116,23 +116,23 @@ static void test_peersec(void) {
                 size_t n_label_a, n_label_b;
 
                 r = socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, sv);
-                assert(!r);
+                c_assert(!r);
 
                 a = sv[0];
                 b = sv[1];
 
                 r = write(a, "foobar", 6);
-                assert(r == 6);
+                c_assert(r == 6);
 
                 r = read(b, buffer, sizeof(buffer));
-                assert(r == 6);
-                assert(!memcmp(buffer, "foobar", 6));
+                c_assert(r == 6);
+                c_assert(!memcmp(buffer, "foobar", 6));
 
                 r = sockopt_get_peersec(a, &label_a, &n_label_a);
-                assert(!r);
+                c_assert(!r);
 
                 r = sockopt_get_peersec(b, &label_b, &n_label_b);
-                assert(!r);
+                c_assert(!r);
 
                 fprintf(stdout, "A:          socketpair(2): %zu '%s'\n", n_label_a, label_a);
                 fprintf(stdout, "B:          socketpair(2): %zu '%s'\n", n_label_b, label_b);
@@ -145,23 +145,23 @@ static void test_peersec(void) {
                 size_t n_label_a, n_label_b;
 
                 r = socketpair_fallback(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, sv);
-                assert(!r);
+                c_assert(!r);
 
                 a = sv[0];
                 b = sv[1];
 
                 r = write(a, "foobar", 6);
-                assert(r == 6);
+                c_assert(r == 6);
 
                 r = read(b, buffer, sizeof(buffer));
-                assert(r == 6);
-                assert(!memcmp(buffer, "foobar", 6));
+                c_assert(r == 6);
+                c_assert(!memcmp(buffer, "foobar", 6));
 
                 r = sockopt_get_peersec(a, &label_a, &n_label_a);
-                assert(!r);
+                c_assert(!r);
 
                 r = sockopt_get_peersec(b, &label_b, &n_label_b);
-                assert(!r);
+                c_assert(!r);
 
                 fprintf(stdout, "A: socketpair_fallback(2): %zu '%s'\n", n_label_a, label_a);
                 fprintf(stdout, "B: socketpair_fallback(2): %zu '%s'\n", n_label_b, label_b);

@@ -18,7 +18,7 @@ static void test_basic(void) {
                 dw1 = NULL;
 
                 r = dirwatch_new(&dw2);
-                assert(!r);
+                c_assert(!r);
         }
 
         /* test no-op dispatcher */
@@ -26,19 +26,19 @@ static void test_basic(void) {
                 _c_cleanup_(dirwatch_freep) Dirwatch *dw = NULL;
 
                 r = dirwatch_new(&dw);
-                assert(!r);
+                c_assert(!r);
 
                 fd = dirwatch_get_fd(dw);
-                assert(fd >= 0);
+                c_assert(fd >= 0);
 
                 r = dirwatch_dispatch(dw);
-                assert(!r);
+                c_assert(!r);
 
                 r = dirwatch_add(dw, ".");
-                assert(!r);
+                c_assert(!r);
 
                 r = dirwatch_dispatch(dw);
-                assert(!r);
+                c_assert(!r);
         }
 }
 

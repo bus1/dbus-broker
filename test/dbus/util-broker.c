@@ -24,11 +24,11 @@ void util_event_new(sd_event **eventp) {
         int r;
 
         r = sd_event_default(&event);
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         pthread_sigmask(SIG_BLOCK, NULL, &sigold);
-        assert(sigismember(&sigold, SIGCHLD) == 1);
-        assert(sigismember(&sigold, SIGUSR1) == 1);
+        c_assert(sigismember(&sigold, SIGCHLD) == 1);
+        c_assert(sigismember(&sigold, SIGUSR1) == 1);
 
         *eventp = event;
         event = NULL;
@@ -63,25 +63,25 @@ static int util_append_policy(sd_bus_message *m) {
         int r;
 
         r = sd_bus_message_open_container(m, 'v', "(" POLICY_T ")");
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         r = sd_bus_message_open_container(m, 'r', POLICY_T);
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         /* per-uid batches */
         {
                 r = sd_bus_message_open_container(m, 'a', "(u(" POLICY_T_BATCH "))");
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 r = sd_bus_message_open_container(m, 'r', "u(" POLICY_T_BATCH ")");
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 /* Fall-back UID */
                 r = sd_bus_message_append(m, "u", (uint32_t)-1);
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 r = sd_bus_message_open_container(m, 'r', POLICY_T_BATCH);
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 /*
                  * Default test policy:
@@ -96,47 +96,47 @@ static int util_append_policy(sd_bus_message *m) {
                                           1, true, UINT64_C(1), true, "",
                                           1, true, UINT64_C(1), "", "", "", "", 0, 0, UINT64_C(0), UINT64_MAX,
                                           1, true, UINT64_C(1), "", "", "", "", 0, 0, UINT64_C(0), UINT64_MAX);
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 r = sd_bus_message_close_container(m);
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 r = sd_bus_message_close_container(m);
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 r = sd_bus_message_close_container(m);
-                assert(r >= 0);
+                c_assert(r >= 0);
         }
 
         /* per-gid and uid-range batches */
         {
                 r = sd_bus_message_open_container(m, 'a', "(buu(" POLICY_T_BATCH "))");
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 r = sd_bus_message_close_container(m);
-                assert(r >= 0);
+                c_assert(r >= 0);
         }
 
         /* empty SELinux policy */
         {
                 r = sd_bus_message_open_container(m, 'a', "(ss)");
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 r = sd_bus_message_close_container(m);
-                assert(r >= 0);
+                c_assert(r >= 0);
         }
 
         /* disable AppArmor */
         {
                 r = sd_bus_message_append(m, "b", false);
-                assert(r >= 0);
+                c_assert(r >= 0);
         }
 
         r = sd_bus_message_close_container(m);
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         r = sd_bus_message_close_container(m);
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         return 0;
 }
@@ -154,13 +154,13 @@ static int util_method_reload_config(sd_bus_message *message, void *userdata, sd
                                            "/org/bus1/DBus/Listener/0",
                                            "org.bus1.DBus.Listener",
                                            "SetPolicy");
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         r = util_append_policy(message2);
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         r = sd_bus_call(bus, message2, -1, NULL, NULL);
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         return sd_bus_reply_method_return(message, NULL);
 }
@@ -181,21 +181,21 @@ void util_fork_broker(sd_bus **busp, sd_event *event, int listener_fd, pid_t *pi
         pid_t pid;
 
         r = socketpair(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0, pair);
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         pid = fork();
-        assert(pid >= 0);
+        c_assert(pid >= 0);
         c_close(pair[!!pid]);
 
         if (pid == 0) {
                 /* clear the FD_CLOEXEC flag */
                 r = fcntl(pair[1], F_GETFD);
-                assert(r >= 0);
+                c_assert(r >= 0);
                 r = fcntl(pair[1], F_SETFD, r & ~FD_CLOEXEC);
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 r = asprintf(&fdstr, "%d", pair[1]);
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 r = execl("./src/dbus-broker",
                           "./src/dbus-broker",
@@ -206,7 +206,7 @@ void util_fork_broker(sd_bus **busp, sd_event *event, int listener_fd, pid_t *pi
                           "--max-bytes", "1000000000",
                           (char *)NULL);
                 /* execl(2) only returns on error */
-                assert(r >= 0);
+                c_assert(r >= 0);
                 abort();
         }
 
@@ -215,23 +215,23 @@ void util_fork_broker(sd_bus **busp, sd_event *event, int listener_fd, pid_t *pi
                 *pidp = pid;
 
         r = sd_event_add_child(event, NULL, pid, WEXITED, util_event_sigchld, NULL);
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         r = sd_bus_new(&bus);
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         /* consumes the fd */
         r = sd_bus_set_fd(bus, pair[0], pair[0]);
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         r = sd_bus_attach_event(bus, event, SD_EVENT_PRIORITY_NORMAL);
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         r = sd_bus_add_object_vtable(bus, NULL, "/org/bus1/DBus/Controller", "org.bus1.DBus.Controller", util_vtable, NULL);
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         r = sd_bus_start(bus);
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         r = sd_bus_message_new_method_call(bus,
                                            &message,
@@ -239,19 +239,19 @@ void util_fork_broker(sd_bus **busp, sd_event *event, int listener_fd, pid_t *pi
                                            "/org/bus1/DBus/Broker",
                                            "org.bus1.DBus.Broker",
                                            "AddListener");
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         r = sd_bus_message_append(message,
                                   "oh",
                                   "/org/bus1/DBus/Listener/0",
                                   listener_fd);
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         r = util_append_policy(message);
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         r = sd_bus_call(bus, message, -1, NULL, NULL);
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         *busp = bus;
         bus = NULL;
@@ -286,30 +286,30 @@ void util_fork_daemon(sd_event *event, int pipe_fd, pid_t *pidp) {
         pid_t pid;
 
         pid = fork();
-        assert(pid >= 0);
+        c_assert(pid >= 0);
 
         if (pid == 0) {
                 /* make dbus-daemon(1) die if we do */
                 r = prctl(PR_SET_PDEATHSIG, SIGTERM);
-                assert(!r);
+                c_assert(!r);
 
                 /* clear the FD_CLOEXEC flag */
                 r = fcntl(pipe_fd, F_GETFD);
-                assert(r >= 0);
+                c_assert(r >= 0);
                 r = fcntl(pipe_fd, F_SETFD, r & ~FD_CLOEXEC);
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 /* write config into memfd (don't set MFD_CLOEXEC) */
                 fd = syscall_memfd_create("dbus-daemon-config-file", 0);
-                assert(fd >= 0);
+                c_assert(fd >= 0);
                 n = write(fd, config, strlen(config));
-                assert(n == (ssize_t)strlen(config));
+                c_assert(n == (ssize_t)strlen(config));
 
                 /* prepare argv parameters */
                 r = asprintf(&path, "--config-file=/proc/self/fd/%d", fd);
-                assert(r >= 0);
+                c_assert(r >= 0);
                 r = asprintf(&fdstr, "--print-address=%d", pipe_fd);
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 /* exec dbus-daemon */
                 bin = getenv("DBUS_BROKER_TEST_DAEMON") ?: "/usr/bin/dbus-daemon";
@@ -319,7 +319,7 @@ void util_fork_daemon(sd_event *event, int pipe_fd, pid_t *pidp) {
                           fdstr,
                           (char *)NULL);
                 /* execl(3) only returns on failure */
-                assert(r >= 0);
+                c_assert(r >= 0);
                 abort();
         }
 
@@ -329,14 +329,14 @@ void util_fork_daemon(sd_event *event, int pipe_fd, pid_t *pidp) {
 
         /* monitor the daemon process */
         r = sd_event_add_child(event, NULL, pid, WEXITED, util_event_sigchld, NULL);
-        assert(r >= 0);
+        c_assert(r >= 0);
 }
 
 void util_broker_new(Broker **brokerp) {
         _c_cleanup_(util_broker_freep) Broker *broker = NULL;
 
         broker = calloc(1, sizeof(*broker));
-        assert(broker);
+        c_assert(broker);
 
         *broker = (Broker)BROKER_NULL;
 
@@ -348,9 +348,9 @@ Broker *util_broker_free(Broker *broker) {
         if (!broker)
                 return NULL;
 
-        assert(broker->listener_fd < 0);
-        assert(broker->pipe_fds[0] < 0);
-        assert(broker->pipe_fds[1] < 0);
+        c_assert(broker->listener_fd < 0);
+        c_assert(broker->pipe_fds[0] < 0);
+        c_assert(broker->pipe_fds[1] < 0);
 
         free(broker);
 
@@ -362,7 +362,7 @@ static int util_event_sigusr1(sd_event_source *source, const struct signalfd_sig
         int r;
 
         r = kill(broker->child_pid, SIGTERM);
-        assert(!r);
+        c_assert(!r);
 
         return 0;
 }
@@ -373,13 +373,13 @@ static void *util_broker_thread(void *userdata) {
         Broker *broker = userdata;
         int r;
 
-        assert(broker->pipe_fds[0] >= 0);
-        assert(broker->pipe_fds[1] >= 0);
+        c_assert(broker->pipe_fds[0] >= 0);
+        c_assert(broker->pipe_fds[1] >= 0);
 
         util_event_new(&event);
 
         r = sd_event_add_signal(event, NULL, SIGUSR1, util_event_sigusr1, broker);
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         if (broker->listener_fd >= 0) {
                 util_fork_broker(&bus, event, broker->listener_fd, &broker->child_pid);
@@ -387,7 +387,7 @@ static void *util_broker_thread(void *userdata) {
                 broker->pid = getpid();
                 broker->listener_fd = c_close(broker->listener_fd);
         } else {
-                assert(broker->listener_fd < 0);
+                c_assert(broker->listener_fd < 0);
                 util_fork_daemon(event, broker->pipe_fds[1], &broker->child_pid);
                 /* dbus-daemon reports itself in GetConnectionUnixProcessID */
                 broker->pid = broker->child_pid;
@@ -396,7 +396,7 @@ static void *util_broker_thread(void *userdata) {
         broker->pipe_fds[1] = c_close(broker->pipe_fds[1]);
 
         r = sd_event_loop(event);
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         broker->pipe_fds[0] = c_close(broker->pipe_fds[0]);
         return (void *)(uintptr_t)r;
@@ -409,9 +409,9 @@ void util_broker_spawn(Broker *broker) {
         char *e;
         int r;
 
-        assert(broker->listener_fd < 0);
-        assert(broker->pipe_fds[0] < 0);
-        assert(broker->pipe_fds[1] < 0);
+        c_assert(broker->listener_fd < 0);
+        c_assert(broker->pipe_fds[0] < 0);
+        c_assert(broker->pipe_fds[1] < 0);
 
         /*
          * Lets make sure we exit if our parent does. We are a test-runner, so
@@ -419,7 +419,7 @@ void util_broker_spawn(Broker *broker) {
          * lets use this hack to enforce it everywhere and cleanup properly.
          */
         r = prctl(PR_SET_PDEATHSIG, SIGTERM);
-        assert(!r);
+        c_assert(!r);
 
         /*
          * SIGCHLD signal delivery is non-deterministic in thread-groups.
@@ -442,7 +442,7 @@ void util_broker_spawn(Broker *broker) {
          * exec() (as a synchronization primitive).
          */
         r = pipe2(broker->pipe_fds, O_CLOEXEC | O_DIRECT);
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         if (getenv("DBUS_BROKER_TEST_DAEMON")) {
                 /*
@@ -454,12 +454,12 @@ void util_broker_spawn(Broker *broker) {
                  */
 
                 r = pthread_create(&broker->thread, NULL, util_broker_thread, broker);
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 /* read address from pipe */
                 n = read(broker->pipe_fds[0], buffer, sizeof(buffer) - 1);
-                assert(n >= 0 && n < (ssize_t)sizeof(buffer));
-                assert(!strncmp(buffer, "unix:abstract=", strlen("unix:abstract=")));
+                c_assert(n >= 0 && n < (ssize_t)sizeof(buffer));
+                c_assert(!strncmp(buffer, "unix:abstract=", strlen("unix:abstract=")));
 
                 /* copy over the path into @broker */
                 broker->address.sun_path[0] = '\0';
@@ -467,9 +467,9 @@ void util_broker_spawn(Broker *broker) {
                             buffer + strlen("unix:abstract="),
                             ',',
                             sizeof(broker->address.sun_path) - 2);
-                assert(e);
+                c_assert(e);
                 --e;
-                assert(*e == ',');
+                c_assert(*e == ',');
                 broker->n_address = e - (char *)&broker->address;
         } else {
                 /*
@@ -479,24 +479,24 @@ void util_broker_spawn(Broker *broker) {
                  */
 
                 broker->listener_fd = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
-                assert(broker->listener_fd >= 0);
+                c_assert(broker->listener_fd >= 0);
 
                 r = bind(broker->listener_fd, (struct sockaddr *)&broker->address, offsetof(struct sockaddr_un, sun_path));
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 r = getsockname(broker->listener_fd, (struct sockaddr *)&broker->address, &broker->n_address);
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 r = listen(broker->listener_fd, 256);
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 r = pthread_create(&broker->thread, NULL, util_broker_thread, broker);
-                assert(r >= 0);
+                c_assert(r >= 0);
         }
 
         /* block until we get EOF, so we know the daemon was exec'ed */
         r = read(broker->pipe_fds[0], buffer, sizeof(buffer) - 1);
-        assert(!r);
+        c_assert(!r);
 
         pthread_sigmask(SIG_SETMASK, &sigold, NULL);
 }
@@ -505,17 +505,17 @@ void util_broker_terminate(Broker *broker) {
         void *value;
         int r;
 
-        assert(broker->listener_fd >= 0 || broker->pipe_fds[0] >= 0);
+        c_assert(broker->listener_fd >= 0 || broker->pipe_fds[0] >= 0);
 
         r = pthread_kill(broker->thread, SIGUSR1);
-        assert(!r);
+        c_assert(!r);
 
         r = pthread_join(broker->thread, &value);
-        assert(!r);
-        assert(!value);
+        c_assert(!r);
+        c_assert(!value);
 
-        assert(broker->listener_fd < 0);
-        assert(broker->pipe_fds[0] < 0);
+        c_assert(broker->listener_fd < 0);
+        c_assert(broker->pipe_fds[0] < 0);
 }
 
 void util_broker_settle(Broker *broker) {
@@ -540,7 +540,7 @@ void util_broker_settle(Broker *broker) {
                                NULL,
                                NULL,
                                "");
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         util_broker_disconnect(client);
 }
@@ -550,10 +550,10 @@ void util_broker_connect_fd(Broker *broker, int *fdp) {
         int r;
 
         fd = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
-        assert(fd >= 0);
+        c_assert(fd >= 0);
 
         r = connect(fd, (struct sockaddr *)&broker->address, broker->n_address);
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         *fdp = fd;
         fd = -1;
@@ -565,21 +565,21 @@ void util_broker_connect_raw(Broker *broker, sd_bus **busp) {
         int r;
 
         fd = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
-        assert(fd >= 0);
+        c_assert(fd >= 0);
 
         r = connect(fd, (struct sockaddr *)&broker->address, broker->n_address);
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         r = sd_bus_new(&bus);
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         /* consumes @fd */
         r = sd_bus_set_fd(bus, fd, fd);
         fd = -1;
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         r = sd_bus_start(bus);
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         *busp = bus;
         bus = NULL;
@@ -591,24 +591,24 @@ void util_broker_connect(Broker *broker, sd_bus **busp) {
         int r;
 
         fd = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
-        assert(fd >= 0);
+        c_assert(fd >= 0);
 
         r = connect(fd, (struct sockaddr *)&broker->address, broker->n_address);
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         r = sd_bus_new(&bus);
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         /* consumes @fd */
         r = sd_bus_set_fd(bus, fd, fd);
         fd = -1;
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         r = sd_bus_set_bus_client(bus, true);
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         r = sd_bus_start(bus);
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         util_broker_consume_signal(bus, "org.freedesktop.DBus", "NameAcquired");
 
@@ -625,7 +625,7 @@ void util_broker_connect_monitor(Broker *broker, sd_bus **busp) {
         r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus.Monitoring",
                                "BecomeMonitor", NULL, NULL,
                                "asu", 0, 0);
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         util_broker_consume_signal(bus, "org.freedesktop.DBus", "NameLost");
 
@@ -637,19 +637,19 @@ void util_broker_disconnect(sd_bus *bus) {
         int r;
 
         r = sd_bus_flush(bus);
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         r = shutdown(sd_bus_get_fd(bus), SHUT_WR);
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         for (;;) {
                 r = sd_bus_wait(bus, (uint64_t)-1);
                 if (r == -ENOTCONN)
                         break;
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 r = sd_bus_process(bus, NULL);
-                assert(r >= 0);
+                c_assert(r >= 0);
         }
 
         sd_bus_close(bus);
@@ -661,17 +661,17 @@ void util_broker_consume_method_call(sd_bus *bus, const char *interface, const c
 
         for (;;) {
                 r = sd_bus_wait(bus, (uint64_t)-1);
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 r = sd_bus_process(bus, &message);
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 if (message)
                         break;
         }
 
         r = sd_bus_message_is_method_call(message, interface, member);
-        assert(r > 0);
+        c_assert(r > 0);
 }
 
 void util_broker_consume_method_return(sd_bus *bus) {
@@ -681,18 +681,18 @@ void util_broker_consume_method_return(sd_bus *bus) {
 
         for (;;) {
                 r = sd_bus_wait(bus, (uint64_t)-1);
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 r = sd_bus_process(bus, &message);
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 if (message)
                         break;
         }
 
         r = sd_bus_message_get_type(message, &type);
-        assert(r >= 0);
-        assert(type == DBUS_MESSAGE_TYPE_METHOD_RETURN);
+        c_assert(r >= 0);
+        c_assert(type == DBUS_MESSAGE_TYPE_METHOD_RETURN);
 }
 
 void util_broker_consume_method_error(sd_bus *bus, const char *name) {
@@ -701,17 +701,17 @@ void util_broker_consume_method_error(sd_bus *bus, const char *name) {
 
         for (;;) {
                 r = sd_bus_wait(bus, (uint64_t)-1);
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 r = sd_bus_process(bus, &message);
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 if (message)
                         break;
         }
 
         r = sd_bus_message_is_method_error(message, name);
-        assert(r > 0);
+        c_assert(r > 0);
 }
 
 void util_broker_consume_signal(sd_bus *bus, const char *interface, const char *member) {
@@ -720,15 +720,15 @@ void util_broker_consume_signal(sd_bus *bus, const char *interface, const char *
 
         for (;;) {
                 r = sd_bus_wait(bus, (uint64_t)-1);
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 r = sd_bus_process(bus, &message);
-                assert(r >= 0);
+                c_assert(r >= 0);
 
                 if (message)
                         break;
         }
 
         r = sd_bus_message_is_signal(message, interface, member);
-        assert(r > 0);
+        c_assert(r > 0);
 }

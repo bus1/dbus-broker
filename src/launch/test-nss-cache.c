@@ -14,19 +14,19 @@ static void test_nss_cache(void) {
         int r;
 
         r = nss_cache_get_uid(&cache, NULL, NULL, "com.example.InvalidUser");
-        assert(r == NSS_CACHE_E_INVALID_NAME);
+        c_assert(r == NSS_CACHE_E_INVALID_NAME);
 
         r = nss_cache_get_gid(&cache, NULL, "com.example.InvalidGroup");
-        assert(r == NSS_CACHE_E_INVALID_NAME);
+        c_assert(r == NSS_CACHE_E_INVALID_NAME);
 
         r = nss_cache_get_uid(&cache, &uid, &gid, "root");
-        assert(!r);
-        assert(uid == 0);
-        assert(gid == 0);
+        c_assert(!r);
+        c_assert(uid == 0);
+        c_assert(gid == 0);
 
         r = nss_cache_get_gid(&cache, &gid, "root");
-        assert(!r);
-        assert(gid == 0);
+        c_assert(!r);
+        c_assert(gid == 0);
 }
 
 int main(int argc, char **argv) {

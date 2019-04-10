@@ -61,7 +61,7 @@ static Message *test_new_message(size_t before, const char *sender_early, size_t
 
         if (before) {
                 p = malloc(before + 1);
-                assert(p);
+                c_assert(p);
                 memset(p, 'a', before);
                 p[before] = 0;
 
@@ -81,7 +81,7 @@ static Message *test_new_message(size_t before, const char *sender_early, size_t
 
         if (after) {
                 p = malloc(after + 1);
-                assert(p);
+                c_assert(p);
                 memset(p, 'a', after);
                 p[0] = '/';
                 p[after] = 0;
@@ -102,13 +102,13 @@ static Message *test_new_message(size_t before, const char *sender_early, size_t
 
         c_dvar_write(&v, "])(uuu))", 7, 8, 9);
         r = c_dvar_end_write(&v, &data, &n_data);
-        assert(!r);
+        c_assert(!r);
 
         r = message_new_outgoing(&message, data, n_data);
-        assert(!r);
+        c_assert(!r);
 
         r = message_parse_metadata(message);
-        assert(!r);
+        c_assert(!r);
 
         return message;
 }
@@ -124,15 +124,15 @@ static void test_assert_message(Message *message, size_t before, const char *sen
                 n += message->vecs[i].iov_len;
 
         p = malloc(n);
-        assert(p);
+        c_assert(p);
 
         for (n = 0, i = 0; i < C_ARRAY_SIZE(message->vecs); ++i) {
                 memcpy(p + n, message->vecs[i].iov_base, message->vecs[i].iov_len);
                 n += message->vecs[i].iov_len;
         }
 
-        assert(n == expected->n_data);
-        assert(!memcmp(p, expected->data, n));
+        c_assert(n == expected->n_data);
+        c_assert(!memcmp(p, expected->data, n));
 }
 
 static void test_stitching(void) {
@@ -154,7 +154,7 @@ static void test_stitching(void) {
         for (i = 0; i < 1024; ++i) {
                 n = 8 + i % 8;
                 from = malloc(n + 1);
-                assert(from);
+                c_assert(from);
                 memset(from, '1', n);
                 from[0] = ':';
                 from[1] = '1';
@@ -163,7 +163,7 @@ static void test_stitching(void) {
 
                 n = 8 + i % 11;
                 to = malloc(n + 1);
-                assert(to);
+                c_assert(to);
                 memset(to, '2', n);
                 to[0] = ':';
                 to[1] = '1';
@@ -171,7 +171,7 @@ static void test_stitching(void) {
                 to[n] = 0;
 
                 address_from_string(&addr, to);
-                assert(addr.type == ADDRESS_TYPE_ID);
+                c_assert(addr.type == ADDRESS_TYPE_ID);
 
                 message = test_new_message(i % 13, from, i / 17, NULL);
                 message_stitch_sender(message, addr.id);

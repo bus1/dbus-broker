@@ -41,7 +41,7 @@ static void test_message_append(void **buf, size_t *n_buf, const void *data, siz
         char *p;
 
         p = realloc(*buf, *n_buf + n_data);
-        assert(p);
+        c_assert(p);
 
         memcpy(p + *n_buf, data, n_data);
 
@@ -65,7 +65,7 @@ static void test_cdvar_message_header(CDVar *var,
                                       const char *path,
                                       const char *interface,
                                       const char *member) {
-        assert(serial);
+        c_assert(serial);
 
         c_dvar_write(var, "((yyyyuu[",
                      c_dvar_is_big_endian(var) ? 'B' : 'l', type, 0, 1, 0, serial);
@@ -116,7 +116,7 @@ void test_message_append_hello(void **buf, size_t *n_buf) {
                                   "Hello");
 
         r = c_dvar_end_write(&var, &hello, &n_hello);
-        assert(!r);
+        c_assert(!r);
 
         test_message_append(buf, n_buf, hello, n_hello);
 
@@ -134,7 +134,7 @@ void test_message_append_broadcast(void **buf,
         int r;
 
         r = asprintf(&sender, ":1.%"PRIu64, sender_id);
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         c_dvar_begin_write(&var, (__BYTE_ORDER == __BIG_ENDIAN), test_type_empty, 1);
 
@@ -149,7 +149,7 @@ void test_message_append_broadcast(void **buf,
                                   "Baz");
 
         r = c_dvar_end_write(&var, &broadcast, &n_broadcast);
-        assert(!r);
+        c_assert(!r);
 
         test_message_append(buf, n_buf, broadcast, n_broadcast);
 
@@ -181,7 +181,7 @@ void test_message_append_ping2(void **buf,
                                   "Ping");
 
         r = c_dvar_end_write(&var, &ping, &n_ping);
-        assert(!r);
+        c_assert(!r);
 
         test_message_append(buf, n_buf, ping, n_ping);
 
@@ -199,10 +199,10 @@ void test_message_append_ping(void **buf,
         int r;
 
         r = asprintf(&sender, ":1.%"PRIu64, sender_id);
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         r = asprintf(&destination, ":1.%"PRIu64, destination_id);
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         test_message_append_ping2(buf, n_buf, serial, sender, destination);
 
@@ -224,10 +224,10 @@ void test_message_append_pong(void **buf,
         int r;
 
         r = asprintf(&sender, ":1.%"PRIu64, sender_id);
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         r = asprintf(&destination, ":1.%"PRIu64, destination_id);
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         c_dvar_begin_write(&var, (__BYTE_ORDER == __BIG_ENDIAN), test_type_empty, 1);
 
@@ -242,7 +242,7 @@ void test_message_append_pong(void **buf,
                                   NULL);
 
         r = c_dvar_end_write(&var, &pong, &n_pong);
-        assert(!r);
+        c_assert(!r);
 
         test_message_append(buf, n_buf, pong, n_pong);
 
@@ -264,10 +264,10 @@ void test_message_append_signal(void **buf,
         int r;
 
         r = asprintf(&sender, ":1.%"PRIu64, sender_id);
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         r = asprintf(&destination, ":1.%"PRIu64, destination_id);
-        assert(r >= 0);
+        c_assert(r >= 0);
 
         c_dvar_begin_write(&var, (__BYTE_ORDER == __BIG_ENDIAN), test_type_empty, 1);
 
@@ -282,7 +282,7 @@ void test_message_append_signal(void **buf,
                                   "Baz");
 
         r = c_dvar_end_write(&var, &signal, &n_signal);
-        assert(!r);
+        c_assert(!r);
 
         test_message_append(buf, n_buf, signal, n_signal);
 

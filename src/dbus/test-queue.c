@@ -53,7 +53,7 @@ static void test_in_special(void) {
                         if (r == IQUEUE_E_VIOLATION)
                                 break;
 
-                        assert(!r);
+                        c_assert(!r);
 
                         n = c_min(to - *from, sizeof(blob));
                         if (!n)
@@ -64,10 +64,10 @@ static void test_in_special(void) {
                         total += n;
 
                         r = iqueue_pop_line(&iq, &l, &n);
-                        assert(r == IQUEUE_E_PENDING);
+                        c_assert(r == IQUEUE_E_PENDING);
                 }
 
-                assert(total == IQUEUE_LINE_MAX);
+                c_assert(total == IQUEUE_LINE_MAX);
         }
 
         iqueue_deinit(&iq);
@@ -107,13 +107,13 @@ static void test_in_special(void) {
                                       &to,
                                       &fds,
                                       &charge_fds);
-                assert(!r);
-                assert(to - *from >= 128);
+                c_assert(!r);
+                c_assert(to - *from >= 128);
 
                 memcpy(buffer + *from, (char [1]){}, 1);
                 *from += 1;
                 r = fdlist_new_with_fds(fds, (int [1]){}, 1);
-                assert(!r);
+                c_assert(!r);
 
                 /* verify further pushes are rejected until it is parsed */
                 r = iqueue_get_cursor(&iq,
@@ -122,22 +122,22 @@ static void test_in_special(void) {
                                       &to,
                                       &fds,
                                       &charge_fds);
-                assert(r == IQUEUE_E_PENDING);
+                c_assert(r == IQUEUE_E_PENDING);
 
                 /* set 1 byte target and retrieve without fds */
                 r = iqueue_set_target(&iq, data, 1);
-                assert(!r);
+                c_assert(!r);
 
                 r = iqueue_pop_data(&iq, NULL);
-                assert(!r);
-                assert(!*data);
+                c_assert(!r);
+                c_assert(!*data);
 
                 /* set next 1 byte target and verify nothing is pending */
                 r = iqueue_set_target(&iq, data, 1);
-                assert(!r);
+                c_assert(!r);
 
                 r = iqueue_pop_data(&iq, NULL);
-                assert(r == IQUEUE_E_PENDING);
+                c_assert(r == IQUEUE_E_PENDING);
 
                 /* push in 2 more bytes with FDs */
                 r = iqueue_get_cursor(&iq,
@@ -146,31 +146,31 @@ static void test_in_special(void) {
                                       &to,
                                       &fds,
                                       &charge_fds);
-                assert(!r);
-                assert(to - *from >= 128);
+                c_assert(!r);
+                c_assert(to - *from >= 128);
 
                 memcpy(buffer + *from, (char [2]){}, 2);
                 *from += 2;
                 r = fdlist_new_with_fds(fds, (int [1]){ 1 }, 1);
-                assert(!r);
+                c_assert(!r);
 
                 /* fetch 1 byte target and verify it got the *OLD* fd */
                 r = iqueue_pop_data(&iq, &f);
-                assert(!r);
-                assert(!*data);
-                assert(fdlist_count(f) == 1);
-                assert(fdlist_get(f, 0) == 0);
+                c_assert(!r);
+                c_assert(!*data);
+                c_assert(fdlist_count(f) == 1);
+                c_assert(fdlist_get(f, 0) == 0);
                 fdlist_free(f);
 
                 /* fetch 1 byte target and verify it got the *NEW* fd */
                 r = iqueue_set_target(&iq, data, 1);
-                assert(!r);
+                c_assert(!r);
 
                 r = iqueue_pop_data(&iq, &f);
-                assert(!r);
-                assert(!*data);
-                assert(fdlist_count(f) == 1);
-                assert(fdlist_get(f, 0) == 1);
+                c_assert(!r);
+                c_assert(!*data);
+                c_assert(fdlist_count(f) == 1);
+                c_assert(fdlist_get(f, 0) == 1);
                 fdlist_free(f);
         }
 
@@ -196,30 +196,30 @@ static void test_in_special(void) {
                                       &to,
                                       &fds,
                                       &charge_fds);
-                assert(!r);
-                assert(to - *from >= 128);
+                c_assert(!r);
+                c_assert(to - *from >= 128);
 
                 memcpy(buffer + *from, (char [1]){}, 1);
                 *from += 1;
                 r = fdlist_new_with_fds(fds, (int [1]){}, 1);
-                assert(!r);
+                c_assert(!r);
 
                 /* set 1 byte target and retrieve without fds */
                 r = iqueue_set_target(&iq, data, 1);
-                assert(!r);
+                c_assert(!r);
 
                 r = iqueue_pop_data(&iq, NULL);
-                assert(!r);
-                assert(!*data);
+                c_assert(!r);
+                c_assert(!*data);
 
                 /* set next 0 byte target and retieve FD */
                 r = iqueue_set_target(&iq, data, 0);
-                assert(!r);
+                c_assert(!r);
 
                 r = iqueue_pop_data(&iq, &f);
-                assert(!r);
-                assert(fdlist_count(f) == 1);
-                assert(fdlist_get(f, 0) == 0);
+                c_assert(!r);
+                c_assert(fdlist_count(f) == 1);
+                c_assert(fdlist_get(f, 0) == 0);
                 fdlist_free(f);
         }
 }
@@ -300,8 +300,8 @@ static void test_in_lines(void) {
                                                       &to,
                                                       &fds,
                                                       &charge_fds);
-                                assert(!r);
-                                assert(to > *from);
+                                c_assert(!r);
+                                c_assert(to > *from);
 
                                 n = to - *from;
                                 n = rand() % c_min(n, strlen(send) - i_send);
@@ -320,14 +320,14 @@ static void test_in_lines(void) {
                                 if (r == IQUEUE_E_PENDING)
                                         break;
 
-                                assert(!r);
-                                assert(n == strlen(expect[i_expect]));
-                                assert(!memcmp(l, expect[i_expect], n));
+                                c_assert(!r);
+                                c_assert(n == strlen(expect[i_expect]));
+                                c_assert(!memcmp(l, expect[i_expect], n));
                                 ++i_expect;
                         }
                 } while (i_send < strlen(send));
 
-                assert(i_expect == C_ARRAY_SIZE(expect));
+                c_assert(i_expect == C_ARRAY_SIZE(expect));
         }
 }
 
