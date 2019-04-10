@@ -18,4 +18,4 @@ jobs:
     - script:
         - ./vmrun -T armv7hl -- ../src/cherryci -d ../src/.cherryci -s c-util
     - script:
-        - ./vmrun -T i686 -- ../src/cherryci -d ../src/.cherryci -s c-util
+        - ./vmrun -T i686 -k -- ../src/cherryci -d ../src/.cherryci -s c-util
