@@ -14,6 +14,90 @@
 #include "util/error.h"
 #include "util/selinux.h"
 
+/* D-Bus type 'a(btbs)' */
+#define POLICY_TYPE_a_btbs              \
+        C_DVAR_T_ARRAY(                 \
+                C_DVAR_T_TUPLE4(        \
+                        C_DVAR_T_b,     \
+                        C_DVAR_T_t,     \
+                        C_DVAR_T_b,     \
+                        C_DVAR_T_s      \
+                )                       \
+        )
+
+/* D-Bus type 'a(btssssuutt)' */
+#define POLICY_TYPE_a_btssssuutt        \
+        C_DVAR_T_ARRAY(                 \
+                C_DVAR_T_TUPLE10(       \
+                        C_DVAR_T_b,     \
+                        C_DVAR_T_t,     \
+                        C_DVAR_T_s,     \
+                        C_DVAR_T_s,     \
+                        C_DVAR_T_s,     \
+                        C_DVAR_T_s,     \
+                        C_DVAR_T_u,     \
+                        C_DVAR_T_u,     \
+                        C_DVAR_T_t,     \
+                        C_DVAR_T_t      \
+                )                       \
+        )
+
+/* D-Bus type that contains an entire policy dump */
+#define POLICY_TYPE                                                             \
+        C_DVAR_T_TUPLE4(                                                        \
+                C_DVAR_T_ARRAY(                                                 \
+                        C_DVAR_T_TUPLE2(                                        \
+                                C_DVAR_T_u,                                     \
+                                C_DVAR_T_TUPLE5(                                \
+                                        C_DVAR_T_b,                             \
+                                        C_DVAR_T_t,                             \
+                                        POLICY_TYPE_a_btbs,                     \
+                                        POLICY_TYPE_a_btssssuutt,               \
+                                        POLICY_TYPE_a_btssssuutt                \
+                                )                                               \
+                        )                                                       \
+                ),                                                              \
+                C_DVAR_T_ARRAY(                                                 \
+                        C_DVAR_T_TUPLE4(                                        \
+                                C_DVAR_T_b,                                     \
+                                C_DVAR_T_u,                                     \
+                                C_DVAR_T_u,                                     \
+                                C_DVAR_T_TUPLE5(                                \
+                                        C_DVAR_T_b,                             \
+                                        C_DVAR_T_t,                             \
+                                        POLICY_TYPE_a_btbs,                     \
+                                        POLICY_TYPE_a_btssssuutt,               \
+                                        POLICY_TYPE_a_btssssuutt                \
+                                )                                               \
+                        )                                                       \
+                ),                                                              \
+                C_DVAR_T_ARRAY(                                                 \
+                        C_DVAR_T_TUPLE2(                                        \
+                                C_DVAR_T_s,                                     \
+                                C_DVAR_T_s                                      \
+                        )                                                       \
+                ),                                                              \
+                C_DVAR_T_b                                                      \
+        )
+
+/*
+ * XXX: This should be a compile-time static type, rather than computed at
+ *      runtime!
+ *
+ * Preferably, what we would want here is:
+ *
+ *     static const CDVarType policy_type[] = {
+ *             C_DVAR_T_INIT(POLICY_TYPE)
+ *     };
+ *
+ * However, the type is so big, the `C_DVAR_T_*` macros end up producing too
+ * big of an output and compilers fall over if they run on low-end machines.
+ * Hence, we compute the type at runtime for now. This is not a big issue,
+ * since this is fast, anyway. However, it feels wrong to do this at runtime,
+ * so we should find a better way to encode this at compile-time.
+ */
+static const CDVarType *policy_type = NULL;
+
 static PolicyXmit *policy_xmit_free(PolicyXmit *xmit) {
         if (!xmit)
                 return NULL;
@@ -538,8 +622,7 @@ int policy_registry_import(PolicyRegistry *registry, CDVar *v) {
         bool apparmor;
         int r;
 
-        /* XXX: provide the type */
-        c_dvar_read(v, "<(", NULL);
+        c_dvar_read(v, "<(", policy_type);
 
         c_dvar_read(v, "[");
 
