@@ -3,7 +3,6 @@
  */
 
 #include <c-dvar.h>
-#include <c-dvar-type.h>
 #include <c-list.h>
 #include <c-rbtree.h>
 #include <c-stdaux.h>
@@ -14,112 +13,6 @@
 #include "util/common.h"
 #include "util/error.h"
 #include "util/selinux.h"
-
-static const CDVarType policy_type[] = {
-        C_DVAR_T_INIT(
-                C_DVAR_T_TUPLE4(
-                        C_DVAR_T_ARRAY(
-                                C_DVAR_T_TUPLE2(
-                                        C_DVAR_T_u,
-                                        C_DVAR_T_TUPLE5(
-                                                C_DVAR_T_b,
-                                                C_DVAR_T_t,
-                                                C_DVAR_T_ARRAY(
-                                                        C_DVAR_T_TUPLE4(
-                                                                C_DVAR_T_b,
-                                                                C_DVAR_T_t,
-                                                                C_DVAR_T_b,
-                                                                C_DVAR_T_s
-                                                        )
-                                                ),
-                                                C_DVAR_T_ARRAY(
-                                                        C_DVAR_T_TUPLE10(
-                                                                C_DVAR_T_b,
-                                                                C_DVAR_T_t,
-                                                                C_DVAR_T_s,
-                                                                C_DVAR_T_s,
-                                                                C_DVAR_T_s,
-                                                                C_DVAR_T_s,
-                                                                C_DVAR_T_u,
-                                                                C_DVAR_T_u,
-                                                                C_DVAR_T_t,
-                                                                C_DVAR_T_t
-                                                        )
-                                                ),
-                                                C_DVAR_T_ARRAY(
-                                                        C_DVAR_T_TUPLE10(
-                                                                C_DVAR_T_b,
-                                                                C_DVAR_T_t,
-                                                                C_DVAR_T_s,
-                                                                C_DVAR_T_s,
-                                                                C_DVAR_T_s,
-                                                                C_DVAR_T_s,
-                                                                C_DVAR_T_u,
-                                                                C_DVAR_T_u,
-                                                                C_DVAR_T_t,
-                                                                C_DVAR_T_t
-                                                        )
-                                                )
-                                        )
-                                )
-                        ),
-                        C_DVAR_T_ARRAY(
-                                C_DVAR_T_TUPLE4(
-                                        C_DVAR_T_b,
-                                        C_DVAR_T_u,
-                                        C_DVAR_T_u,
-                                        C_DVAR_T_TUPLE5(
-                                                C_DVAR_T_b,
-                                                C_DVAR_T_t,
-                                                C_DVAR_T_ARRAY(
-                                                        C_DVAR_T_TUPLE4(
-                                                                C_DVAR_T_b,
-                                                                C_DVAR_T_t,
-                                                                C_DVAR_T_b,
-                                                                C_DVAR_T_s
-                                                        )
-                                                ),
-                                                C_DVAR_T_ARRAY(
-                                                        C_DVAR_T_TUPLE10(
-                                                                C_DVAR_T_b,
-                                                                C_DVAR_T_t,
-                                                                C_DVAR_T_s,
-                                                                C_DVAR_T_s,
-                                                                C_DVAR_T_s,
-                                                                C_DVAR_T_s,
-                                                                C_DVAR_T_u,
-                                                                C_DVAR_T_u,
-                                                                C_DVAR_T_t,
-                                                                C_DVAR_T_t
-                                                        )
-                                                ),
-                                                C_DVAR_T_ARRAY(
-                                                        C_DVAR_T_TUPLE10(
-                                                                C_DVAR_T_b,
-                                                                C_DVAR_T_t,
-                                                                C_DVAR_T_s,
-                                                                C_DVAR_T_s,
-                                                                C_DVAR_T_s,
-                                                                C_DVAR_T_s,
-                                                                C_DVAR_T_u,
-                                                                C_DVAR_T_u,
-                                                                C_DVAR_T_t,
-                                                                C_DVAR_T_t
-                                                        )
-                                                )
-                                        )
-                                )
-                        ),
-                        C_DVAR_T_ARRAY(
-                                C_DVAR_T_TUPLE2(
-                                        C_DVAR_T_s,
-                                        C_DVAR_T_s
-                                )
-                        ),
-                        C_DVAR_T_b
-                )
-        )
-};
 
 static PolicyXmit *policy_xmit_free(PolicyXmit *xmit) {
         if (!xmit)
@@ -645,7 +538,8 @@ int policy_registry_import(PolicyRegistry *registry, CDVar *v) {
         bool apparmor;
         int r;
 
-        c_dvar_read(v, "<(", policy_type);
+        /* XXX: provide the type */
+        c_dvar_read(v, "<(", NULL);
 
         c_dvar_read(v, "[");
 
