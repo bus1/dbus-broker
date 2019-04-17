@@ -15,7 +15,7 @@ ProtectSystem=full
 PrivateTmp=true
 PrivateDevices=true
 ExecStart=@bindir@/dbus-broker-launch --scope system --audit
-ExecReload=@bindir@/busctl call org.freedesktop.DBus /org/freedesktop/DBus org.freedesktop.DBus ReloadConfig
+ExecReload=-@bindir@/busctl call org.freedesktop.DBus /org/freedesktop/DBus org.freedesktop.DBus ReloadConfig
 
 [Install]
 Alias=dbus.service
