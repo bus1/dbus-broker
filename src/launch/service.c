@@ -503,7 +503,7 @@ int service_activate(Service *service) {
                 return 0;
         }
 
-        c_assert(service->state == SERVICE_STATE_CURRENT);
+        c_assert(service->running);
 
         if (service->unit) {
                 r = service_start_unit(service);
@@ -523,7 +523,7 @@ int service_add(Service *service) {
         _c_cleanup_(c_freep) char *object_path = NULL;
         int r;
 
-        if (service->state != SERVICE_STATE_PENDING)
+        if (service->running)
                 return 0;
 
         r = asprintf(&object_path, "/org/bus1/DBus/Name/%s", service->id);
@@ -544,8 +544,7 @@ int service_add(Service *service) {
         if (r < 0)
                 return error_origin(r);
 
-        service->state = SERVICE_STATE_CURRENT;
-
+        service->running = true;
         return 0;
 }
 
@@ -554,7 +553,7 @@ int service_remove(Service *service) {
         _c_cleanup_(c_freep) char *object_path = NULL;
         int r;
 
-        if (service->state == SERVICE_STATE_PENDING)
+        if (!service->running)
                 return 0;
 
         r = asprintf(&object_path, "/org/bus1/DBus/Name/%s", service->id);
@@ -572,7 +571,6 @@ int service_remove(Service *service) {
         if (r < 0)
                 return error_origin(r);
 
-        service->state = SERVICE_STATE_PENDING;
-
+        service->running = false;
         return 0;
 }
