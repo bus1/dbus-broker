@@ -116,9 +116,9 @@ static int launcher_on_sighup(sd_event_source *s, const struct signalfd_siginfo 
                 if (r == LAUNCHER_E_INVALID_CONFIG) {
                         log_append_here(&launcher->log, LOG_WARNING, 0, NULL);
 
-                         r = log_commitf(&launcher->log, "Invalid configuration, ignored.\n");
-                         if (r)
-                                 return error_fold(r);
+                        r = log_commitf(&launcher->log, "Invalid configuration, ignored.\n");
+                        if (r)
+                                return error_fold(r);
                 } else {
                         return error_fold(r);
                 }
