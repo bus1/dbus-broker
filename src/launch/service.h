@@ -12,16 +12,11 @@
 
 typedef struct Service Service;
 
-typedef enum {
-        SERVICE_STATE_PENDING,
-        SERVICE_STATE_CURRENT,
-        SERVICE_STATE_DEFUNCT,
-} ServiceState;
-
 struct Service {
         Launcher *launcher;
-        ServiceState state;
         bool not_found;
+        bool running;
+        bool reload_tag;
         sd_bus_slot *slot;
         CRBNode rb;
         CRBNode rb_by_name;

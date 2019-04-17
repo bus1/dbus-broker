@@ -715,8 +715,8 @@ static int launcher_load_service_file(Launcher *launcher, const char *path, cons
         } else {
                 Service *old_service = c_container_of(parent, Service, rb_by_name);
 
-                if (old_service->state == SERVICE_STATE_DEFUNCT) {
-                        old_service->state = SERVICE_STATE_CURRENT;
+                if (!old_service->reload_tag) {
+                        old_service->reload_tag = true;
                         r = service_update(old_service, path, unit, argc, argv, user, uid);
                         if (r)
                                 return error_trace(r);
@@ -802,7 +802,7 @@ static int launcher_remove_services(Launcher *launcher) {
         int r;
 
         c_rbtree_for_each_entry_safe(service, service_safe, &launcher->services, rb) {
-                if (service->state != SERVICE_STATE_DEFUNCT)
+                if (service->reload_tag)
                         continue;
 
                 r = service_remove(service);
@@ -1159,7 +1159,7 @@ static int launcher_reload_config(Launcher *launcher) {
                 return error_origin(r);
 
         c_rbtree_for_each_entry(service, &launcher->services, rb)
-                service->state = SERVICE_STATE_DEFUNCT;
+                service->reload_tag = false;
 
         r = nss_cache_populate(&nss_cache);
         if (r)
