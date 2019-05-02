@@ -749,10 +749,23 @@ static int launcher_load_service_dir(Launcher *launcher, const char *dirpath, NS
 
         dir = opendir(dirpath);
         if (!dir) {
-                if (errno == ENOENT || errno == ENOTDIR)
+                if (errno == ENOENT || errno == ENOTDIR) {
                         return 0;
-                else
+                } else if (errno == EACCES) {
+                        log_append_here(&launcher->log, LOG_ERR, 0, NULL);
+                        r = log_commitf(&launcher->log, "Access denied to service directory '%s'\n", dirpath);
+                        if (r)
+                                return error_fold(r);
+
+                        return 0;
+                } else {
+                        log_append_here(&launcher->log, LOG_ERR, errno, NULL);
+                        r = log_commitf(&launcher->log, "Unable to open service directory '%s': %m\n", dirpath);
+                        if (r)
+                                return error_fold(r);
+
                         return error_origin(-errno);
+                }
         }
 
         r = dirwatch_add(launcher->dirwatch, dirpath);
