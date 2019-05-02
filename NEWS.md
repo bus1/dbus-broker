@@ -1,5 +1,13 @@
 # dbus-broker - Linux D-Bus Message Broker
 
+## CHANGES WITH 21:
+
+        * A handful of bugfixes for the launcher.
+
+        Contributions from: David Rheinsberg, Tom Gundersen
+
+        - Tübingen, 2019-05-02
+
 ## CHANGES WITH 20:
 
         * Major improvements in the logging infrastructure of the launcher.
