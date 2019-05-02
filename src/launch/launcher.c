@@ -712,6 +712,8 @@ static int launcher_load_service_file(Launcher *launcher, const char *path, cons
                 r = service_new(&service, launcher, name, slot, parent, path, unit, argc, argv, user, uid);
                 if (r)
                         return error_trace(r);
+
+                service->reload_tag = true;
         } else {
                 Service *old_service = c_container_of(parent, Service, rb_by_name);
 
