@@ -8,6 +8,8 @@
 #include <stdlib.h>
 #include <time.h>
 
+#define METRICS_TIMESTAMP_INVALID ((uint64_t) -1)
+
 typedef struct Metrics Metrics;
 
 struct Metrics {
@@ -23,9 +25,10 @@ struct Metrics {
         uint64_t sum_of_squares;
 };
 
-#define METRICS_INIT(_id) {                     \
-                .minimum = (uint64_t) -1,       \
-                .id = (_id),                    \
+#define METRICS_INIT(_id) {                                     \
+                .minimum = (uint64_t) -1,                       \
+                .id = (_id),                                    \
+                .timestamp = METRICS_TIMESTAMP_INVALID,         \
         }
 
 void metrics_init(Metrics *metrics, clockid_t id);
