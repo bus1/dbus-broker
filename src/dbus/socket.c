@@ -593,18 +593,40 @@ static int socket_recvmsg(Socket *socket,
 
         if (msg.msg_flags & MSG_CTRUNC) {
                 /*
-                 * This flag means the control-buffer was too small to retrieve
-                 * all data. If this can be triggered remotely, it means a peer
-                 * can cause us to miss FDs. Hence, we really must protect
-                 * against this.
-                 * We do provide suitably sized buffers to be prepared for any
-                 * possible scenario. So if this happens, something is fishy
-                 * and we better report it.
-                 * Note that this is also reported by the kernel if we exceeded
-                 * our NOFILE limit. Since this implies resource
-                 * misconfiguration as well, we treat it the same way.
+                 * Our control-buffer-size is carefully calculated to be big
+                 * enough for any possible ancillary data we expect. Therefore,
+                 * the kernel should never be required to truncate it, and thus
+                 * MSG_CTRUNC will never be set. This is also foward compatible
+                 * to future extensions to the ancillary data, since these must
+                 * be enabled explicitly before the kernel considers forwarding
+                 * them.
+                 *
+                 * Unfortunately, the SCM_RIGHTS implementation might set this
+                 * flag as well. In particular, if not all FDs can be returned
+                 * to user-space, MSG_CTRUNC will be set (signalling that the
+                 * FD-set is non-complete). No other error is returned or
+                 * signalled, though. There are several reasons why the FD
+                 * transmission can fail. Most importantly, if we exhaust our
+                 * FD limit, further FDs will simply be discarded. We are
+                 * protected against this by our accounting-quotas, but we
+                 * would still like to catch this condition and warn loudly.
+                 * However, FDs are also dropped if the security layer refused
+                 * the transmission of the FD in question. This means, if an
+                 * LSM refuses the D-Bus client to send us an FD, the FD is
+                 * just dropped and MSG_CTRUNC will be set. This can be
+                 * triggered by clients.
+                 *
+                 * To summarize: In an ideal world, we would expect this flag
+                 * to never be set, and we would just use
+                 * `error_origin(-ENOTRECOVERABLE)` to provide diagnostics.
+                 * Unfortunately, the gross misuse of this flag for LSM
+                 * security enforcements means we have to assume any occurence
+                 * of MSG_CTRUNC means the client was refused to send a
+                 * specific message. Our only possible way to deal with this is
+                 * to disconnect the client.
                  */
-                r = error_origin(-ENOTRECOVERABLE);
+                socket_close(socket);
+                r = SOCKET_E_LOST_INTEREST;
                 goto error;
         }
 
