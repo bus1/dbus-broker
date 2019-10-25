@@ -613,8 +613,6 @@ static int policy_import_selinux(Policy *policy, ConfigNode *cnode) {
         if (r)
                 return error_trace(r);
 
-        policy_import_verdict(policy, record, cnode);
-
         record->selinux.name = cnode->associate.own;
         record->selinux.context = cnode->associate.context;
 
