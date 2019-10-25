@@ -1138,7 +1138,7 @@ int policy_export(Policy *policy, sd_bus_message *m, uint32_t *at_console_uids, 
                 r = sd_bus_message_append(m, "(ss)",
                                           i_record->selinux.name,
                                           i_record->selinux.context);
-                if (r)
+                if (r < 0)
                         return error_origin(r);
         }
 
