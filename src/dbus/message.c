@@ -510,6 +510,11 @@ void message_stitch_sender(Message *message, uint64_t sender_id) {
         const char *sender;
         void *end, *field;
 
+        static_assert(1 + 3 + 4 + ADDRESS_ID_STRING_MAX + 1 <= sizeof(message->patch),
+                      "Message patch buffer has insufficient size");
+        static_assert(alignof(message->patch) >= 8,
+                      "Message patch buffer has insufficient alignment");
+
         /*
          * Must not be called more than once. We reserve the 2 iovecs between
          * the original header and body to stitch the sender field. The caller
@@ -558,10 +563,6 @@ void message_stitch_sender(Message *message, uint64_t sender_id) {
          */
         c_assert(n_stitch <= sizeof(message->patch));
         c_assert(n_sender <= ADDRESS_ID_STRING_MAX);
-        static_assert(1 + 3 + 4 + ADDRESS_ID_STRING_MAX + 1 <= sizeof(message->patch),
-                      "Message patch buffer has insufficient size");
-        static_assert(alignof(message->patch) >= 8,
-                      "Message patch buffer has insufficient alignment");
 
         if (message->original_sender) {
                 /*
