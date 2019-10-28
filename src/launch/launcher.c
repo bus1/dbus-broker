@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <sys/prctl.h>
 #include <sys/un.h>
+#include <sys/wait.h>
 #include <systemd/sd-bus.h>
 #include <systemd/sd-daemon.h>
 #include <systemd/sd-event.h>
