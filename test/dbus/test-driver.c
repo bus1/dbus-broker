@@ -863,6 +863,20 @@ static void test_start_service_by_name(void) {
                 c_assert(!strcmp(error.name, "org.freedesktop.DBus.Error.ServiceUnknown"));
         }
 
+        /* start pid1 name */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
+
+                util_broker_connect(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                                       "StartServiceByName", &error, NULL,
+                                       "su", "org.freedesktop.systemd1", 0);
+                c_assert(r < 0);
+                c_assert(!strcmp(error.name, "org.freedesktop.DBus.Error.ServiceUnknown"));
+        }
+
         /* start invalid name */
         {
                 _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;

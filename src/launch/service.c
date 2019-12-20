@@ -499,7 +499,12 @@ int service_activate(Service *service) {
         int r;
 
         if (!strcmp(service->name, "org.freedesktop.systemd1")) {
-                /* pid1 activation requests are silently ignored */
+                /*
+                 * systemd activation requests are silently ignored.
+                 * In the future this special-case can be dropped
+                 * once systemd ships a service file without an
+                 * Exec directive.
+                 */
                 return 0;
         }
 
@@ -509,7 +514,7 @@ int service_activate(Service *service) {
                 r = service_start_unit(service);
                 if (r)
                         return error_trace(r);
-        } else {
+        } else if (service->argc > 0) {
                 r = service_start_transient_unit(service);
                 if (r)
                         return error_trace(r);
