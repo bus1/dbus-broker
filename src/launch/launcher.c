@@ -614,17 +614,6 @@ static int launcher_load_service_file(Launcher *launcher, const char *path, cons
                 return LAUNCHER_E_INVALID_SERVICE_FILE;
         }
 
-        if (!unit_entry && !exec_entry) {
-                log_append_here(&launcher->log, LOG_ERR, 0, DBUS_BROKER_CATALOG_SERVICE_INVALID);
-                log_append_service_path(&launcher->log, path);
-
-                r = log_commitf(&launcher->log, "Missing exec or unit in service file '%s'\n", path);
-                if (r)
-                        return error_fold(r);
-
-                return LAUNCHER_E_INVALID_SERVICE_FILE;
-        }
-
         name = c_ini_entry_get_value(name_entry, &n_name);
         if (!dbus_validate_name(name, n_name)) {
                 log_append_here(&launcher->log, LOG_ERR, 0, DBUS_BROKER_CATALOG_SERVICE_INVALID);
