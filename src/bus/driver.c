@@ -200,6 +200,22 @@ static const CDVarType driver_type_out_apsv[] = {
                 )
         )
 };
+static const CDVarType driver_type_out_apsas[] = {
+        C_DVAR_T_INIT(
+                DRIVER_T_MESSAGE(
+                        C_DVAR_T_TUPLE1(
+                                C_DVAR_T_ARRAY(
+                                        C_DVAR_T_PAIR(
+                                                C_DVAR_T_s,
+                                                C_DVAR_T_ARRAY(
+                                                        C_DVAR_T_s
+                                                )
+                                        )
+                                )
+                        )
+                )
+        )
+};
 
 static void driver_write_bytes(CDVar *var, const char *bytes, size_t n_bytes) {
         c_dvar_write(var, "[");
@@ -1699,6 +1715,18 @@ static int driver_method_introspect(Peer *peer, const char *path, CDVar *in_v, u
                 "    <method name=\"Ping\">\n"
                 "    </method>\n"
                 "  </interface>\n"
+                "  <interface name=\"org.freedesktop.DBus.Debug.Stats\">\n"
+                "    <method name=\"GetStats\">\n"
+                "      <arg direction=\"out\" type=\"a{sv}\"/>\n"
+                "    </method>\n"
+                "    <method name=\"GetConnectionStats\">\n"
+                "      <arg direction=\"in\" type=\"s\"/>\n"
+                "      <arg direction=\"out\" type=\"a{sv}\"/>\n"
+                "    </method>\n"
+                "    <method name=\"GetAllMatchRules\">\n"
+                "      <arg direction=\"out\" type=\"a{sas}\"/>\n"
+                "    </method>\n"
+                "  </interface>\n"
                 "</node>\n";
         static const char *introspection_org_freedesktop =
                 "<!DOCTYPE node PUBLIC \"-//freedesktop//DTD D-BUS Object Introspection 1.0//EN\"\n"
@@ -1981,6 +2009,18 @@ static int driver_method_get_all(Peer *peer, const char *path, CDVar *in_v, uint
         return 0;
 }
 
+static int driver_method_get_stats(Peer *peer, const char *path, CDVar *in_v, uint32_t serial, CDVar *out_v) {
+        return DRIVER_E_PEER_NOT_PRIVILEGED;
+}
+
+static int driver_method_get_connection_stats(Peer *peer, const char *path, CDVar *in_v, uint32_t serial, CDVar *out_v) {
+        return DRIVER_E_PEER_NOT_PRIVILEGED;
+}
+
+static int driver_method_get_all_match_rules(Peer *peer, const char *path, CDVar *in_v, uint32_t serial, CDVar *out_v) {
+        return DRIVER_E_PEER_NOT_PRIVILEGED;
+}
+
 static int driver_handle_method(const DriverMethod *method, Peer *peer, const char *path, uint32_t serial, const char *signature_in, Message *message_in) {
         _c_cleanup_(c_dvar_deinit) CDVar var_in = C_DVAR_INIT, var_out = C_DVAR_INIT;
         int r;
@@ -2065,6 +2105,13 @@ static const DriverMethod properties_methods[] = {
         { },
 };
 
+static const DriverMethod debug_stats_methods[] = {
+        { "GetStats",                                   true,   "/org/freedesktop/DBus",        driver_method_get_stats,                                        c_dvar_type_unit,       driver_type_out_apsv },
+        { "GetConnectionStats",                         true,   "/org/freedesktop/DBus",        driver_method_get_connection_stats,                             driver_type_in_s,       driver_type_out_apsv },
+        { "GetAllMatchRules",                           true,   "/org/freedesktop/DBus",        driver_method_get_all_match_rules,                              c_dvar_type_unit,       driver_type_out_apsas },
+        { },
+};
+
 static int driver_dispatch_method(Peer *peer, const DriverMethod *methods, uint32_t serial, const char *method, const char *path, const char *signature, Message *message) {
         for (size_t i = 0; methods[i].name; i++) {
                 if (strcmp(methods[i].name, method) != 0)
@@ -2084,6 +2131,7 @@ static int driver_dispatch_interface(Peer *peer, uint32_t serial, const char *in
                 { "org.freedesktop.DBus.Introspectable", introspectable_methods },
                 { "org.freedesktop.DBus.Peer", peer_methods },
                 { "org.freedesktop.DBus.Properties", properties_methods },
+                { "org.freedesktop.DBus.Debug.Stats", debug_stats_methods },
         };
         int r;
 
