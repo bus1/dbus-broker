@@ -47,6 +47,19 @@ enum {
         USER_E_QUOTA,
 };
 
+/* usage */
+
+struct UserUsage {
+        _Atomic unsigned long n_refs;
+        User *user;
+        uid_t uid;
+        CRBNode user_node;
+
+        bool logged : 1;
+
+        unsigned int slots[];
+};
+
 /* charge */
 
 struct UserCharge {

@@ -30,17 +30,6 @@
 #include "util/ref.h"
 #include "util/user.h"
 
-struct UserUsage {
-        _Atomic unsigned long n_refs;
-        User *user;
-        uid_t uid;
-        CRBNode user_node;
-
-        bool logged : 1;
-
-        unsigned int slots[];
-};
-
 static void user_usage_link(UserUsage *usage, CRBNode *parent, CRBNode **slot) {
         ++usage->user->n_usages;
         c_rbtree_add(&usage->user->usage_tree, parent, slot, &usage->user_node);
