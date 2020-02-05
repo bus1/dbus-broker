@@ -1686,7 +1686,7 @@ static int driver_method_introspect(Peer *peer, const char *path, CDVar *in_v, u
                 "    <method name=\"GetMachineId\">\n"
                 "      <arg direction=\"out\" type=\"s\"/>\n"
                 "    </method>\n"
-                "      <method name=\"Ping\">\n"
+                "    <method name=\"Ping\">\n"
                 "    </method>\n"
                 "  </interface>\n"
                 "</node>\n";
