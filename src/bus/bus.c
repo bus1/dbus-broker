@@ -27,6 +27,9 @@ int bus_init(Bus *bus,
         void *random;
         int r;
 
+        static_assert(_USER_SLOT_N == C_ARRAY_SIZE(maxima),
+                      "User accounting slot mismatch");
+
         if (strlen(machine_id) + 1 != sizeof(bus->machine_id))
                 return error_origin(-EINVAL);
 
@@ -38,9 +41,6 @@ int bus_init(Bus *bus,
         random = (void *)getauxval(AT_RANDOM);
         c_assert(random);
         memcpy(bus->guid, random, sizeof(bus->guid));
-
-        static_assert(_USER_SLOT_N == C_ARRAY_SIZE(maxima),
-                      "User accounting slot mismatch");
 
         r = user_registry_init(&bus->users, log, _USER_SLOT_N, maxima);
         if (r)
