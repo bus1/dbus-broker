@@ -58,4 +58,6 @@ void reply_registry_deinit(ReplyRegistry *registry);
 void reply_owner_init(ReplyOwner *owner);
 void reply_owner_deinit(ReplyOwner *owner);
 
+void reply_owner_get_stats(ReplyOwner *owner, unsigned int *n_objectsp);
+
 C_DEFINE_CLEANUP(ReplySlot *, reply_slot_free);

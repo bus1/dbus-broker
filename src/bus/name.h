@@ -141,11 +141,17 @@ void name_free(_Atomic unsigned long *n_refs, void *userdata);
 void name_owner_init(NameOwner *owner);
 void name_owner_deinit(NameOwner *owner);
 
+void name_owner_get_stats(NameOwner *owner, unsigned int *n_objectsp);
+
 /* registry */
 
 void name_registry_init(NameRegistry *registry);
 void name_registry_deinit(NameRegistry *registry);
 
+void name_registry_get_activation_stats_for(NameRegistry *registry,
+                                            uint64_t owner_id,
+                                            unsigned int *n_bytesp,
+                                            unsigned int *n_fdsp);
 int name_registry_ref_name(NameRegistry *registry, Name **namep, const char *name_str);
 Name *name_registry_find_name(NameRegistry *registry, const char *name_str);
 

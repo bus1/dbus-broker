@@ -74,6 +74,11 @@ int socket_queue(Socket *socket, User *user, Message *message);
 int socket_dispatch(Socket *socket, uint32_t event);
 void socket_shutdown(Socket *socket);
 void socket_close(Socket *socket);
+void socket_get_stats(Socket *socket,
+                      unsigned int *n_in_bytesp,
+                      unsigned int *n_in_fdsp,
+                      unsigned int *n_out_bytesp,
+                      unsigned int *n_out_fdsp);
 
 C_DEFINE_CLEANUP(Socket *, socket_deinit);
 

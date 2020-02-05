@@ -6,6 +6,7 @@
 #include <c-rbtree.h>
 #include <c-stdaux.h>
 #include <stdlib.h>
+#include "bus/activation.h"
 #include "bus/name.h"
 #include "dbus/protocol.h"
 #include "dbus/socket.h"
@@ -254,6 +255,23 @@ void name_owner_deinit(NameOwner *owner) {
 }
 
 /**
+ * name_owner_get_stats() - return accounting statistics
+ * @owner:              object to operate on
+ * @n_objectsp:         return argument for total numbers of accounted objects
+ *
+ * This calculates the accounting statistics of all names owned by @owner.
+ */
+void name_owner_get_stats(NameOwner *owner, unsigned int *n_objectsp) {
+        NameOwnership *ownership;
+        unsigned int n_objects = 0;
+
+        c_rbtree_for_each_entry(ownership, &owner->ownership_tree, owner_node)
+                n_objects += ownership->charge.charge;
+
+        *n_objectsp = n_objects;
+}
+
+/**
  * name_registry_init() - initialize registry
  * @registry:           object to operate on
  *
@@ -272,6 +290,39 @@ void name_registry_init(NameRegistry *registry) {
  */
 void name_registry_deinit(NameRegistry *registry) {
         c_assert(c_rbtree_is_empty(&registry->name_tree));
+}
+
+/**
+ * name_registry_get_activation_stats_for() - calculate activation-statistics
+ *                                            for a peer
+ * @registry:           object to operate on
+ * @owner_id:           unique ID of the name owner to calculate stats for
+ * @n_bytesp:           return argument for total numbers of accounted bytes
+ * @n_fdsp:             return argument for total numbers of accounted fds
+ *
+ * This calculates the statistics for all pending activation messages of a
+ * given owner on any names. Note that this information is not indexed, so it
+ * is calculated by traversing all names and pending activation messages. You
+ * must not use this for anything but debugging.
+ */
+void name_registry_get_activation_stats_for(NameRegistry *registry,
+                                            uint64_t owner_id,
+                                            unsigned int *n_bytesp,
+                                            unsigned int *n_fdsp) {
+        unsigned int n_bytes, n_fds;
+        Name *name;
+
+        *n_bytesp = 0;
+        *n_fdsp = 0;
+
+        c_rbtree_for_each_entry(name, &registry->name_tree, registry_node) {
+                if (name->activation) {
+                        activation_get_stats_for(name->activation, owner_id,
+                                                 &n_bytes, &n_fds);
+                        *n_bytesp += n_bytes;
+                        *n_fdsp += n_fds;
+                }
+        }
 }
 
 /**

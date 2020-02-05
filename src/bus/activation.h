@@ -68,6 +68,10 @@ ActivationMessage *activation_message_free(ActivationMessage *message);
 int activation_init(Activation *activation, Name *name, User *user);
 void activation_deinit(Activation *activation);
 
+void activation_get_stats_for(Activation *activation,
+                              uint64_t owner_id,
+                              unsigned int *n_bytesp,
+                              unsigned int *n_fdsp);
 int activation_queue_message(Activation *activation,
                              User *user,
                              NameOwner *names,
