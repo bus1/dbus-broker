@@ -2086,6 +2086,72 @@ static void driver_append_peer_accounting(CDVar *v, Bus *bus) {
         c_dvar_write(v, "]>");
 }
 
+static void driver_append_user_accounting(CDVar *v, Bus *bus) {
+        static const CDVarType dump_type[] = {
+                C_DVAR_T_INIT(
+                        C_DVAR_T_ARRAY(
+                                C_DVAR_T_TUPLE3(
+                                        C_DVAR_T_u,
+                                        C_DVAR_T_ARRAY(
+                                                C_DVAR_T_TUPLE3(
+                                                        C_DVAR_T_s,
+                                                        C_DVAR_T_u,
+                                                        C_DVAR_T_u
+                                                )
+                                        ),
+                                        C_DVAR_T_ARRAY(
+                                                C_DVAR_T_PAIR(
+                                                        C_DVAR_T_u,
+                                                        C_DVAR_T_ARRAY(
+                                                                C_DVAR_T_PAIR(
+                                                                        C_DVAR_T_s,
+                                                                        C_DVAR_T_u
+                                                                )
+                                                        )
+                                                )
+                                        )
+                                )
+                        )
+                )
+        };
+        UserUsage *usage;
+        User *user;
+
+        c_assert(_USER_SLOT_N == bus->users.n_slots);
+
+        c_dvar_write(v, "<[", dump_type);
+
+        c_rbtree_for_each_entry(user, &bus->users.user_tree, registry_node) {
+                c_dvar_write(v, "(u["
+                                "(suu)"
+                                "(suu)"
+                                "(suu)"
+                                "(suu)"
+                                "][",
+                                user->uid,
+                                "Bytes", user->slots[0].n, user->slots[0].max,
+                                "Fds", user->slots[1].n, user->slots[1].max,
+                                "Matches", user->slots[2].n, user->slots[2].max,
+                                "Objects", user->slots[3].n, user->slots[3].max);
+                c_rbtree_for_each_entry(usage, &user->usage_tree, user_node) {
+                        c_dvar_write(v, "{u["
+                                        "{su}"
+                                        "{su}"
+                                        "{su}"
+                                        "{su}"
+                                        "]}",
+                                        usage->uid,
+                                        "Bytes", usage->slots[0],
+                                        "Fds", usage->slots[1],
+                                        "Matches", usage->slots[2],
+                                        "Objects", usage->slots[3]);
+                }
+                c_dvar_write(v, "])");
+        }
+
+        c_dvar_write(v, "]>");
+}
+
 static int driver_method_get_stats(Peer *peer, const char *path, CDVar *in_v, uint32_t serial, CDVar *out_v) {
         int r;
 
@@ -2102,6 +2168,8 @@ static int driver_method_get_stats(Peer *peer, const char *path, CDVar *in_v, ui
          */
         c_dvar_write(out_v, "([{s", "org.bus1.DBus.Debug.Stats.PeerAccounting");
         driver_append_peer_accounting(out_v, peer->bus);
+        c_dvar_write(out_v, "}{s", "org.bus1.DBus.Debug.Stats.UserAccounting");
+        driver_append_user_accounting(out_v, peer->bus);
         c_dvar_write(out_v, "}])");
 
         r = driver_send_reply(peer, out_v, serial);
