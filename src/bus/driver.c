@@ -2009,7 +2009,105 @@ static int driver_method_get_all(Peer *peer, const char *path, CDVar *in_v, uint
         return 0;
 }
 
+static void driver_append_peer_accounting_stats(CDVar *v, Peer *peer) {
+        unsigned int n_name_objects, n_match_bytes, n_matches, n_reply_objects,
+                     n_conn_in_bytes, n_conn_in_fds, n_conn_out_bytes, n_conn_out_fds,
+                     n_activation_bytes, n_activation_fds;
+
+        name_owner_get_stats(&peer->owned_names, &n_name_objects);
+        match_owner_get_stats(&peer->owned_matches, &n_match_bytes, &n_matches);
+        reply_owner_get_stats(&peer->owned_replies, &n_reply_objects);
+        connection_get_stats(&peer->connection, &n_conn_in_bytes, &n_conn_in_fds,
+                             &n_conn_out_bytes, &n_conn_out_fds);
+        name_registry_get_activation_stats_for(&peer->bus->names, peer->id,
+                                               &n_activation_bytes, &n_activation_fds);
+
+        c_dvar_write(v, "["
+                        "{su}"
+                        "{su}"
+                        "{su}"
+                        "{su}"
+                        "{su}"
+                        "{su}"
+                        "{su}"
+                        "{su}"
+                        "{su}"
+                        "{su}"
+                        "]",
+                        "NameObjects", n_name_objects,
+                        "MatchBytes", n_match_bytes,
+                        "Matches", n_matches,
+                        "ReplyObjects", n_reply_objects,
+                        "IncomingBytes", n_conn_in_bytes,
+                        "IncomingFds", n_conn_in_fds,
+                        "OutgoingBytes", n_conn_out_bytes,
+                        "OutgoingFds", n_conn_out_fds,
+                        "ActivationRequestBytes", n_activation_bytes,
+                        "ActivationRequestFds", n_activation_fds);
+}
+
+static void driver_append_peer_accounting(CDVar *v, Bus *bus) {
+        static const CDVarType dump_type[] = {
+                C_DVAR_T_INIT(
+                        C_DVAR_T_ARRAY(
+                                C_DVAR_T_TUPLE3(
+                                        C_DVAR_T_s,
+                                        C_DVAR_T_ARRAY(
+                                                C_DVAR_T_PAIR(
+                                                        C_DVAR_T_s,
+                                                        C_DVAR_T_v
+                                                )
+                                        ),
+                                        C_DVAR_T_ARRAY(
+                                                C_DVAR_T_PAIR(
+                                                        C_DVAR_T_s,
+                                                        C_DVAR_T_u
+                                                )
+                                        )
+                                )
+                        )
+                )
+        };
+        Peer *p;
+
+        c_dvar_write(v, "<[", dump_type);
+
+        c_rbtree_for_each_entry(p, &bus->peers.peer_tree, registry_node) {
+                if (!peer_is_registered(p))
+                        continue;
+
+                c_dvar_write(v, "(");
+                driver_dvar_write_unique_name(v, p);
+                driver_append_connection_credentials(v, bus, p);
+                driver_append_peer_accounting_stats(v, p);
+                c_dvar_write(v, ")");
+        }
+
+        c_dvar_write(v, "]>");
+}
+
 static int driver_method_get_stats(Peer *peer, const char *path, CDVar *in_v, uint32_t serial, CDVar *out_v) {
+        int r;
+
+        c_dvar_read(in_v, "()");
+
+        r = driver_end_read(in_v);
+        if (r)
+                return error_trace(r);
+
+        /*
+         * Append all supported statistics. So far, none of the dbus-daemon
+         * statistics are appended, since they are very specific to how the bus
+         * is implemented. We do, however, add our own (namespaced) statistics.
+         */
+        c_dvar_write(out_v, "([{s", "org.bus1.DBus.Debug.Stats.PeerAccounting");
+        driver_append_peer_accounting(out_v, peer->bus);
+        c_dvar_write(out_v, "}])");
+
+        r = driver_send_reply(peer, out_v, serial);
+        if (r)
+                return error_trace(r);
+
         return DRIVER_E_PEER_NOT_PRIVILEGED;
 }
 
