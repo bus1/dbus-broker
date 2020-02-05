@@ -556,12 +556,14 @@ void message_stitch_sender(Message *message, uint64_t sender_id) {
          * The patch buffer is pre-allocated. Verify its size is sufficient to
          * hold the stitched sender.
          */
-        c_assert(n_stitch <= sizeof(message->patch));
-        c_assert(n_sender <= ADDRESS_ID_STRING_MAX);
-        static_assert(1 + 3 + 4 + ADDRESS_ID_STRING_MAX + 1 <= sizeof(message->patch),
-                      "Message patch buffer has insufficient size");
-        static_assert(alignof(message->patch) >= 8,
-                      "Message patch buffer has insufficient alignment");
+        {
+                static_assert(1 + 3 + 4 + ADDRESS_ID_STRING_MAX + 1 <= sizeof(message->patch),
+                              "Message patch buffer has insufficient size");
+                static_assert(alignof(message->patch) >= 8,
+                              "Message patch buffer has insufficient alignment");
+                c_assert(n_stitch <= sizeof(message->patch));
+                c_assert(n_sender <= ADDRESS_ID_STRING_MAX);
+        }
 
         if (message->original_sender) {
                 /*
