@@ -2472,6 +2472,95 @@ static void test_no_destination(void) {
         util_broker_terminate(broker);
 }
 
+static void test_stats(void) {
+        _c_cleanup_(util_broker_freep) Broker *broker = NULL;
+        int r;
+
+        util_broker_new(&broker);
+        util_broker_spawn(broker);
+
+        /* test the integrity of the fdo.Debug.Stats interface */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *reply = NULL;
+
+                util_broker_connect(broker, &bus);
+
+                r = sd_bus_call_method(bus,
+                                       "org.freedesktop.DBus",
+                                       "/org/freedesktop/DBus",
+                                       "org.freedesktop.DBus.Debug.Stats",
+                                       "GetStats",
+                                       NULL,
+                                       &reply,
+                                       "");
+                c_assert(r >= 0);
+
+                r = sd_bus_message_enter_container(reply, 'a', "{sv}");
+                c_assert(r >= 0);
+
+                while ((r = sd_bus_message_enter_container(reply, 'e', "sv")) > 0) {
+                        const char *stat;
+
+                        r = sd_bus_message_read(reply, "s", &stat);
+                        c_assert(r >= 0);
+
+                        if (strcmp(stat, "org.bus1.DBus.Debug.Stats.PeerAccounting") == 0) {
+                                r = sd_bus_message_enter_container(reply, 'v', "a(sa{sv}a{su})");
+                                c_assert(r >= 0);
+
+                                r = sd_bus_message_enter_container(reply, 'a', "(sa{sv}a{su})");
+                                c_assert(r >= 0);
+
+                                while ((r = sd_bus_message_enter_container(reply, 'r', "sa{sv}a{su}")) > 0) {
+                                        r = sd_bus_message_skip(reply, "sa{sv}a{su}");
+                                        c_assert(r >= 0);
+
+                                        r = sd_bus_message_exit_container(reply);
+                                        c_assert(r >= 0);
+                                }
+
+                                r = sd_bus_message_exit_container(reply);
+                                c_assert(r >= 0);
+
+                                r = sd_bus_message_exit_container(reply);
+                                c_assert(r >= 0);
+                        } else if (strcmp(stat, "org.bus1.DBus.Debug.Stats.UserAccounting") == 0) {
+                                r = sd_bus_message_enter_container(reply, 'v', "a(ua(suu)a{ua{su}})");
+                                c_assert(r >= 0);
+
+                                r = sd_bus_message_enter_container(reply, 'a', "(ua(suu)a{ua{su}})");
+                                c_assert(r >= 0);
+
+                                while ((r = sd_bus_message_enter_container(reply, 'r', "ua(suu)a{ua{su}}")) > 0) {
+                                        r = sd_bus_message_skip(reply, "ua(suu)a{ua{su}}");
+                                        c_assert(r >= 0);
+
+                                        r = sd_bus_message_exit_container(reply);
+                                        c_assert(r >= 0);
+                                }
+
+                                r = sd_bus_message_exit_container(reply);
+                                c_assert(r >= 0);
+
+                                r = sd_bus_message_exit_container(reply);
+                                c_assert(r >= 0);
+                        } else {
+                                r = sd_bus_message_skip(reply, "v");
+                                c_assert(r >= 0);
+                        }
+
+                        r = sd_bus_message_exit_container(reply);
+                        c_assert(r >= 0);
+                }
+
+                r = sd_bus_message_exit_container(reply);
+                c_assert(r >= 0);
+        }
+
+        util_broker_terminate(broker);
+}
+
 int main(int argc, char **argv) {
         test_unknown();
         test_hello();
@@ -2499,6 +2588,7 @@ int main(int argc, char **argv) {
         test_get_machine_id();
         test_properties();
         test_no_destination();
+        test_stats();
 
         return 0;
 }
