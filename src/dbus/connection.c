@@ -94,6 +94,17 @@ void connection_deinit(Connection *connection) {
         socket_deinit(&connection->socket);
 }
 
+/**
+ * connection_get_stats() - XXX
+ */
+void connection_get_stats(Connection *connection,
+                          unsigned int *n_in_bytesp,
+                          unsigned int *n_in_fdsp,
+                          unsigned int *n_out_bytesp,
+                          unsigned int *n_out_fdsp) {
+        socket_get_stats(&connection->socket, n_in_bytesp, n_in_fdsp, n_out_bytesp, n_out_fdsp);
+}
+
 static int connection_feed_sasl(Connection *connection, const char *input, size_t n_input) {
         const char *output;
         size_t n_output;

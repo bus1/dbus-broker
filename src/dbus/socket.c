@@ -955,3 +955,42 @@ void socket_close(Socket *socket) {
         socket_discard_input(socket);
         socket_might_reset(socket);
 }
+
+/**
+ * socket_get_stats() - calculate socket statistics
+ * @socket:                     socket to operate on
+ * @n_in_bytesp:                output argument for #incoming bytes
+ * @n_in_fdsp:                  output argument for #incoming fds
+ * @n_out_bytesp:               output argument for #outgoing bytes
+ * @n_out_fdsp:                 output argument for #outgoing fds
+ *
+ * This calculates the statistics of incoming and outgoing messages on @socket.
+ */
+void socket_get_stats(Socket *socket,
+                      unsigned int *n_in_bytesp,
+                      unsigned int *n_in_fdsp,
+                      unsigned int *n_out_bytesp,
+                      unsigned int *n_out_fdsp) {
+        unsigned int n_in_bytes = 0, n_in_fds = 0, n_out_bytes = 0, n_out_fds = 0;
+        SocketBuffer *buffer;
+
+        n_in_bytes += socket->in.queue.charge_data.charge;
+        n_in_bytes += socket->in.queue.pending.charge_data.charge;
+        n_in_fds += socket->in.queue.charge_fds.charge;
+        n_in_fds += socket->in.queue.pending.charge_fds.charge;
+
+        c_list_for_each_entry(buffer, &socket->out.queue, link) {
+                n_out_bytes += buffer->charges[0].charge;
+                n_out_fds += buffer->charges[1].charge;
+        }
+
+        c_list_for_each_entry(buffer, &socket->out.pending, link) {
+                n_out_bytes += buffer->charges[0].charge;
+                n_out_fds += buffer->charges[1].charge;
+        }
+
+        *n_in_bytesp = n_in_bytes;
+        *n_in_fdsp = n_in_fds;
+        *n_out_bytesp = n_out_bytes;
+        *n_out_fdsp = n_out_fds;
+}

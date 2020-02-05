@@ -56,6 +56,11 @@ int connection_init_client(Connection *connection,
                            int fd);
 void connection_deinit(Connection *connection);
 
+void connection_get_stats(Connection *connection,
+                          unsigned int *n_in_bytesp,
+                          unsigned int *n_in_fdsp,
+                          unsigned int *n_out_bytesp,
+                          unsigned int *n_out_fdsp);
 int connection_open(Connection *connection);
 void connection_shutdown(Connection *connection);
 void connection_close(Connection *connection);

@@ -108,3 +108,11 @@ void reply_owner_init(ReplyOwner *owner) {
 void reply_owner_deinit(ReplyOwner *owner) {
         c_assert(c_list_is_empty(&owner->reply_list));
 }
+
+void reply_owner_get_stats(ReplyOwner *owner, unsigned int *n_objectsp) {
+        ReplySlot *reply;
+        unsigned int n_objects = 0;
+
+        c_list_for_each_entry(reply, &owner->reply_list, owner_link)
+                n_objects += reply->charge.charge;
+}

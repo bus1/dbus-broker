@@ -84,6 +84,32 @@ void activation_deinit(Activation *activation) {
         }
 }
 
+/**
+ * activation_get_stats_for() - XXX
+ */
+void activation_get_stats_for(Activation *activation,
+                              uint64_t owner_id,
+                              unsigned int *n_bytesp,
+                              unsigned int *n_fdsp) {
+        ActivationRequest *request;
+        ActivationMessage *message;
+        unsigned int n_bytes = 0, n_fds = 0;
+
+        c_list_for_each_entry(message, &activation->activation_messages, link) {
+                if (owner_id == message->message->metadata.sender_id) {
+                        n_bytes += message->charges[0].charge;
+                        n_fds += message->charges[1].charge;
+                }
+        }
+
+        c_list_for_each_entry(request, &activation->activation_requests, link)
+                if (owner_id == request->sender_id)
+                        n_bytes += request->charge.charge;
+
+        *n_bytesp = n_bytes;
+        *n_fdsp = n_fds;
+}
+
 static int activation_request(Activation *activation) {
         int r;
 

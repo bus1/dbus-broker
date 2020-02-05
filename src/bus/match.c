@@ -922,6 +922,22 @@ void match_owner_deinit(MatchOwner *owner) {
 }
 
 /**
+ * match_owner_get_stats() - XXX
+ */
+void match_owner_get_stats(MatchOwner *owner, unsigned int *n_bytesp, unsigned int *n_matchesp) {
+        MatchRule *rule;
+        unsigned int n_bytes = 0, n_matches = 0;
+
+        c_rbtree_for_each_entry(rule, &owner->rule_tree, owner_node) {
+                n_bytes += rule->charge[0].charge;
+                n_matches += rule->charge[1].charge;
+        }
+
+        *n_bytesp = n_bytes;
+        *n_matchesp = n_matches;
+}
+
+/**
  * match_owner_move() - XXX
  */
 void match_owner_move(MatchOwner *to, MatchOwner *from) {
