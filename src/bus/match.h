@@ -178,7 +178,7 @@ void match_owner_deinit(MatchOwner *owner);
 
 void match_owner_get_stats(MatchOwner *owner, unsigned int *n_bytesp, unsigned int *n_matchesp);
 void match_owner_move(MatchOwner *to, MatchOwner *from);
-int match_owner_ref_rule(MatchOwner *owner, MatchRule **rulep, User *user, const char *rule_string);
+int match_owner_ref_rule(MatchOwner *owner, MatchRule **rulep, User *user, const char *rule_string, bool allow_eavesdrop);
 int match_owner_find_rule(MatchOwner *owner, MatchRule **rulep, const char *rule_string);
 
 /* registry */

@@ -1808,7 +1808,17 @@ static int driver_method_become_monitor(Peer *peer, const char *path, CDVar *in_
                 else
                         match_string = "";
 
-                r = match_owner_ref_rule(&owned_matches, NULL, peer->user, match_string);
+                /*
+                 * We pass `true` for `allow_eavesdrop` for compatibility
+                 * reasons. We do not support eavesdropping, but `dbus-monitor`
+                 * seems to prepend `eavesdrop=true` unconditionally to all
+                 * match-rules it installs. However, there is no reason to do
+                 * that with `BecomeMonitor()`, because this is already
+                 * implicitly set.
+                 * Regardless, we must allow these rules to specify `eavesdrop`
+                 * filters, even though we will just silently ignore them.
+                 */
+                r = match_owner_ref_rule(&owned_matches, NULL, peer->user, match_string, true);
                 if (r) {
                         r = (r == MATCH_E_INVALID) ? DRIVER_E_MATCH_INVALID : error_fold(r);
                         goto error;
