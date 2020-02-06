@@ -17,7 +17,7 @@ static void test_arg(MatchOwner *owner,
         _c_cleanup_(match_rule_user_unrefp) MatchRule *rule = NULL;
         int r;
 
-        r = match_owner_ref_rule(owner, &rule, NULL, match);
+        r = match_owner_ref_rule(owner, &rule, NULL, match, false);
         c_assert(r == 0);
         c_assert(strcmp(rule->keys.filter.args[0], arg0) == 0);
 }
@@ -37,7 +37,7 @@ static void test_args(MatchOwner *owner,
         _c_cleanup_(match_rule_user_unrefp) MatchRule *rule = NULL;
         int r;
 
-        r = match_owner_ref_rule(owner,  &rule, NULL, match);
+        r = match_owner_ref_rule(owner,  &rule, NULL, match, false);
         c_assert(r == 0);
         c_assert(strcmp(rule->keys.filter.args[0], arg0) == 0);
         c_assert(strcmp(rule->keys.filter.args[1], arg1) == 0);
@@ -65,7 +65,7 @@ static bool test_validity(MatchOwner *owner, const char *match) {
         _c_cleanup_(match_rule_user_unrefp) MatchRule *rule = NULL;
         int r;
 
-        r = match_owner_ref_rule(owner, &rule, NULL, match);
+        r = match_owner_ref_rule(owner, &rule, NULL, match, false);
         c_assert(r == 0 || r == MATCH_E_INVALID);
 
         return !r;
@@ -116,6 +116,38 @@ static void test_validate_keys(MatchOwner *owner) {
         c_assert(!test_validity(owner, "arg0namespace=foo,arg0namespace=foo"));
 }
 
+static void test_eavesdrop(MatchOwner *owner) {
+        const char *match;
+        int r;
+
+        /* Verify that eavesdrop is not supported by default. */
+        match = "eavesdrop=true";
+        {
+                _c_cleanup_(match_rule_user_unrefp) MatchRule *rule = NULL;
+
+                r = match_owner_ref_rule(owner, &rule, NULL, match, false);
+                c_assert(r == MATCH_E_INVALID);
+        }
+
+        /* Verify eavesdrop is allowed if explicitly requested. */
+        match = "eavesdrop=true";
+        {
+                _c_cleanup_(match_rule_user_unrefp) MatchRule *rule = NULL;
+
+                r = match_owner_ref_rule(owner, &rule, NULL, match, true);
+                c_assert(!r);
+        }
+
+        /* Verify only `true` and `false` are allowed. */
+        match = "eavesdrop=foobar";
+        {
+                _c_cleanup_(match_rule_user_unrefp) MatchRule *rule = NULL;
+
+                r = match_owner_ref_rule(owner, &rule, NULL, match, true);
+                c_assert(r == MATCH_E_INVALID);
+        }
+}
+
 static bool test_match(const char *match_string, MessageMetadata *metadata) {
         CList subscribers = C_LIST_INIT(subscribers);
         MatchRegistry registry;
@@ -126,7 +158,7 @@ static bool test_match(const char *match_string, MessageMetadata *metadata) {
         match_registry_init(&registry);
         match_owner_init(&owner);
 
-        r = match_owner_ref_rule(&owner, &rule, NULL, match_string);
+        r = match_owner_ref_rule(&owner, &rule, NULL, match_string, false);
         c_assert(!r);
 
         r = match_rule_link(rule, &registry, false);
@@ -271,25 +303,25 @@ static void test_iterator(void) {
         match_owner_init(&owner1);
         match_owner_init(&owner2);
 
-        r = match_owner_ref_rule(&owner1, &rule1, NULL, "");
+        r = match_owner_ref_rule(&owner1, &rule1, NULL, "", false);
         c_assert(!r);
 
         r = match_rule_link(rule1, &registry, false);
         c_assert(!r);
 
-        r = match_owner_ref_rule(&owner1, &rule2, NULL, "");
+        r = match_owner_ref_rule(&owner1, &rule2, NULL, "", false);
         c_assert(!r);
 
         r = match_rule_link(rule2, &registry, false);
         c_assert(!r);
 
-        r = match_owner_ref_rule(&owner2, &rule3, NULL, "");
+        r = match_owner_ref_rule(&owner2, &rule3, NULL, "", false);
         c_assert(!r);
 
         r = match_rule_link(rule3, &registry, false);
         c_assert(!r);
 
-        r = match_owner_ref_rule(&owner2, &rule4, NULL, "");
+        r = match_owner_ref_rule(&owner2, &rule4, NULL, "", false);
         c_assert(!r);
 
         r = match_rule_link(rule4, &registry, false);
@@ -323,6 +355,7 @@ int main(int argc, char **argv) {
         test_parse_value(&owner);
         test_wildcard(&owner);
         test_validate_keys(&owner);
+        test_eavesdrop(&owner);
 
         test_individual_matches();
 

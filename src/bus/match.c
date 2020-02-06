@@ -20,7 +20,7 @@ static bool match_key_equal(const char *key1, const char *key2, size_t n_key2) {
         return !strncmp(key1, key2, n_key2);
 }
 
-static int match_keys_assign(MatchKeys *keys, const char *key, size_t n_key, const char *value) {
+static int match_keys_assign(MatchKeys *keys, const char *key, size_t n_key, const char *value, bool allow_eavesdrop) {
         if (match_key_equal("type", key, n_key)) {
                 if (keys->filter.type != DBUS_MESSAGE_TYPE_INVALID)
                         return MATCH_E_INVALID;
@@ -83,6 +83,19 @@ static int match_keys_assign(MatchKeys *keys, const char *key, size_t n_key, con
                 if (!c_dvar_is_path(value, strlen(value)))
                         return MATCH_E_INVALID;
                 keys->path_namespace = value;
+        } else if (match_key_equal("eavesdrop", key, n_key)) {
+                /*
+                 * If the caller explicitly allows eavesdrop filters, we parse
+                 * them but immediately discard it. We only support this to
+                 * allow BecomeMonitor() to work with legacy eavesdrop filters
+                 * which `dbus-monitor` seems to enforce on all its matches.
+                 * In all other cases, we never support eavesdropping, nor do
+                 * we allow such filters to be parsed.
+                 */
+                if (!allow_eavesdrop)
+                        return MATCH_E_INVALID;
+                if (strcmp(value, "true") != 0 && strcmp(value, "false") != 0)
+                        return MATCH_E_INVALID;
         } else if (match_key_equal("arg0namespace", key, n_key)) {
                 if (keys->arg0namespace || keys->filter.args[0] || keys->filter.argpaths[0])
                         return MATCH_E_INVALID;
@@ -200,7 +213,7 @@ static int match_parse_key(const char **match, const char **keyp, size_t *n_keyp
         return 0;
 }
 
-static int match_keys_parse(MatchKeys *keys, const char *string) {
+static int match_keys_parse(MatchKeys *keys, const char *string, bool allow_eavesdrop) {
         const char *key, *value;
         size_t n_key, n_buffer;
         char *p;
@@ -226,7 +239,7 @@ static int match_keys_parse(MatchKeys *keys, const char *string) {
                 if (r)
                         break;
 
-                r = match_keys_assign(keys, key, n_key, value);
+                r = match_keys_assign(keys, key, n_key, value, allow_eavesdrop);
                 if (r)
                         break;
         }
@@ -246,7 +259,7 @@ static void match_keys_deinit(MatchKeys *keys) {
 
 C_DEFINE_CLEANUP(MatchKeys *, match_keys_deinit);
 
-static int match_keys_init(MatchKeys *k, const char *string, size_t n_string) {
+static int match_keys_init(MatchKeys *k, const char *string, size_t n_string, bool allow_eavesdrop) {
         _c_cleanup_(match_keys_deinitp) MatchKeys *keys = k;
         int r;
 
@@ -256,7 +269,7 @@ static int match_keys_init(MatchKeys *k, const char *string, size_t n_string) {
         *keys = (MatchKeys)MATCH_KEYS_NULL;
         keys->n_buffer = n_string;
 
-        r = match_keys_parse(keys, string);
+        r = match_keys_parse(keys, string, allow_eavesdrop);
         if (r)
                 return error_trace(r);
 
@@ -362,7 +375,7 @@ static int match_keys_new(MatchKeys **keysp, const char *string) {
         if (!keys)
                 return error_origin(-ENOMEM);
 
-        r = match_keys_init(keys, string, n_string);
+        r = match_keys_init(keys, string, n_string, false);
         if (r)
                 return error_trace(r);
 
@@ -722,7 +735,7 @@ static MatchRule *match_rule_free(MatchRule *rule) {
 
 C_DEFINE_CLEANUP(MatchRule *, match_rule_free);
 
-static int match_rule_new(MatchRule **rulep, MatchOwner *owner, User *user, const char *string) {
+static int match_rule_new(MatchRule **rulep, MatchOwner *owner, User *user, const char *string, bool allow_eavesdrop) {
         _c_cleanup_(match_rule_freep) MatchRule *rule = NULL;
         size_t n_string;
         int r;
@@ -743,7 +756,7 @@ static int match_rule_new(MatchRule **rulep, MatchOwner *owner, User *user, cons
         if (r)
                 return (r == USER_E_QUOTA) ? MATCH_E_QUOTA : error_fold(r);
 
-        r = match_keys_init(&rule->keys, string, n_string);
+        r = match_keys_init(&rule->keys, string, n_string, allow_eavesdrop);
         if (r)
                 return error_trace(r);
 
@@ -947,12 +960,12 @@ void match_owner_move(MatchOwner *to, MatchOwner *from) {
 /**
  * match_owner_ref_rule() - XXX
  */
-int match_owner_ref_rule(MatchOwner *owner, MatchRule **rulep, User *user, const char *rule_string) {
+int match_owner_ref_rule(MatchOwner *owner, MatchRule **rulep, User *user, const char *rule_string, bool allow_eavesdrop) {
         CRBNode **slot, *parent;
         MatchRule *rule;
         int r;
 
-        r = match_rule_new(&rule, owner, user, rule_string);
+        r = match_rule_new(&rule, owner, user, rule_string, allow_eavesdrop);
         if (r)
                 return error_trace(r);
 
