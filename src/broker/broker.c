@@ -21,6 +21,7 @@
 #include "util/error.h"
 #include "util/log.h"
 #include "util/proc.h"
+#include "util/sockopt.h"
 #include "util/user.h"
 
 static int broker_dispatch_signals(DispatchFile *file) {
@@ -86,23 +87,27 @@ int broker_new(Broker **brokerp, const char *machine_id, int log_fd, int control
                 return error_fold(r);
 
         /*
-         * XXX: We need the seclabel to run the broker for 2 reasons: First,
-         *      if 'org.freedesktop.DBus' is queried for the seclabel, we need
-         *      to return some value. Second, all unlabeled names get this
-         *      label assigned by default.
-         *      Due to the latter, this seclabel is actually referenced in
-         *      selinux rules, to allow peers to own names.
-         *      Preferably, we would call SO_PEERSEC on the controller socket.
-         *      However, this used to return the 'unlabeled_t' entry for
-         *      socketpairs until kernel v4.17. From v4.17 onwards it now
-         *      returns the correct label. Hence, once we have v4.17 as
-         *      hard-requirement, we should switch to SO_PEERSEC here. Until
-         *      then, we keep reading the seclabel of the parent-pid as
-         *      workaround.
+         * We need the seclabel to run the broker for 2 reasons: First, if
+         * 'org.freedesktop.DBus' is queried for the seclabel, we need to
+         * return some value. Second, all unlabeled names get this label
+         * assigned by default. Due to the latter, this seclabel is actually
+         * referenced in selinux rules, to allow peers to own names.
+         * Preferably, we would call SO_PEERSEC on the controller socket.
+         * However, this used to return the 'unlabeled_t' entry for socketpairs
+         * until kernel v4.17. From v4.17 onwards it now returns the correct
+         * label. There is no way to detect this at runtime, though. Hence, we
+         * have to run the fallback as long as we do not have v4.17 as
+         * hard-requirement.
          */
-        r = proc_get_seclabel(getppid(), &broker->bus.seclabel, &broker->bus.n_seclabel);
-        if (r)
-                return error_fold(r);
+        if (REQUIRE_LINUX_4_17) {
+                r = sockopt_get_peersec(controller_fd, &broker->bus.seclabel, &broker->bus.n_seclabel);
+                if (r)
+                        return error_fold(r);
+        } else {
+                r = proc_get_seclabel(getppid(), &broker->bus.seclabel, &broker->bus.n_seclabel);
+                if (r)
+                        return error_fold(r);
+        }
 
         broker->bus.pid = ucred.pid;
         r = user_registry_ref_user(&broker->bus.users, &broker->bus.user, ucred.uid);
