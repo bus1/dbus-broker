@@ -1,6 +1,7 @@
 option('audit', type: 'boolean', value: false, description: 'Audit support')
 option('docs', type: 'boolean', value: false, description: 'Build documentation')
 option('launcher', type: 'boolean', value: true, description: 'Build compatibility launcher')
+option('linux-4-17', type: 'boolean', value: false, description: 'Require linux-4.17 at runtime and make use of its features')
 option('reference-test', type: 'boolean', value: false, description: 'Run test suite against reference implementation')
 option('selinux', type: 'boolean', value: false, description: 'SELinux support')
 option('system-console-users', type: 'array', value: [], description: 'Additional set of names of system-users to be considered at-console')

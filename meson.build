@@ -76,6 +76,14 @@ if use_launcher
 endif
 
 #
+# Config: linux-4-17
+#
+
+require_linux_4_17 = get_option('linux-4-17')
+
+add_project_arguments('-DREQUIRE_LINUX_4_17=' + require_linux_4_17.to_int().to_string(), language: 'c')
+
+#
 # Config: reference-test
 #
 
