@@ -1,5 +1,53 @@
 # dbus-broker - Linux D-Bus Message Broker
 
+## CHANGES WITH 22:
+
+        * Implement org.freedesktop.DBus.Debug.Stats in the driver. This
+          interface is defined by dbus-daemon and we use it similarly to expose
+          internal state of the broker. For now, only the GetStats() call is
+          supported, and it dumps the full accounting state to the caller.
+          This will hopefully aid resource-debugging in the future.
+
+        * Support no-op activation files. If neither a binary to execute, nor a
+          service to activate, is specified, the service is expected to spawn
+          via its own means (for instance spawned automatically during bootup,
+          or activated via side-channels).
+
+        * The new configuration option `linux-4-17`, if set to true (default is
+          false), makes dbus-broker assume it runs on linux-v4.17 or newer. It
+          will make use of features introduced up to linux-v4.17. This allows
+          to forcibly disable workarounds for old kernels, where a feature
+          detection at runtime is not possible.
+
+          This option is meant to allow distributions to circumvent the
+          workarounds, in case their setup does not work with them. Unless you
+          have reason to set this option, it is safe to keep the default.
+
+          Once the mandatory required kernel version of dbus-broker is bumped
+          to v4.17, this option will default to `true` (an override to `false`
+          will then no longer be allowed).
+
+        * The `BecomeMonitor()` call now allows `eavesdrop={true|false}`
+          attributes. This is required for compatibility with `dbus-monitor`,
+          which always forcibly sets this attribute. Note that the attribute
+          has no effect (nor meaning) when specified with `BecomeMonitor()`. It
+          is completely ignored by dbus-broker.
+
+        * The SELinux configuration parser is fixed regarding some wrongly
+          placed assertions.
+
+        * DBus socket handling is fixed to no longer fault on `MSG_CTRUNC`.
+          Without this, clients can DoS dbus-broker, if, and only if, they can
+          make the active LSM drop file-descriptors in a transmitted message
+          due to policy denials. This has no effect if LSMs are not used.
+
+        * Minor bugfixes all over the place, including fixes to build under
+          musl libc.
+
+        Contributions from: David Rheinsberg, Luca Boccassi, Tom Gundersen
+
+        - Tübingen, 2020-02-17
+
 ## CHANGES WITH 21:
 
         * A handful of bugfixes for the launcher.
