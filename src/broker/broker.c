@@ -104,7 +104,7 @@ int broker_new(Broker **brokerp, const char *machine_id, int log_fd, int control
                 if (r)
                         return error_fold(r);
         } else {
-                r = proc_get_seclabel(getppid(), &broker->bus.seclabel, &broker->bus.n_seclabel);
+                r = proc_get_seclabel(ucred.pid, &broker->bus.seclabel, &broker->bus.n_seclabel);
                 if (r)
                         return error_fold(r);
         }
