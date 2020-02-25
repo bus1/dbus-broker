@@ -1,6 +1,10 @@
 name: Continuous Integration
 
-on: [push, pull_request]
+on:
+  push:
+  pull_request:
+  schedule:
+  - cron:  '0 0 * * *'
 
 jobs:
   ci:
@@ -13,4 +17,19 @@ jobs:
     - name: Run through C-Util CI
       uses: converse1/automation/src/ci-c-util@v1
       with:
-        mesonargs: '-Daudit=true -Dselinux=true'
+        m32: 1
+        mesonargs: '-Daudit=true -Ddocs=true -Dselinux=true'
+
+  valgrind:
+    name: Minimal CI Through Valgrind
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Fetch Sources
+      uses: actions/checkout@v2
+    - name: Run through C-Util CI
+      uses: converse1/automation/src/ci-c-util@v1
+      with:
+        m32: 1
+        mesonargs: '-Dlauncher=false'
+        valgrind: 1
