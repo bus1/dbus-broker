@@ -58,7 +58,7 @@ int sockopt_get_peersec(int fd, char **labelp, size_t *lenp) {
         return 0;
 }
 
-int sockopt_get_peergroups(int fd, Log *log, uid_t uid, gid_t gid, gid_t **gidsp, size_t *n_gidsp) {
+int sockopt_get_peergroups(int fd, Log *log, uid_t uid, gid_t primary_gid, gid_t **gidsp, size_t *n_gidsp) {
         _c_cleanup_(c_freep) gid_t *gids = NULL;
         socklen_t socklen;
         int r, n_gids;
@@ -84,18 +84,18 @@ int sockopt_get_peergroups(int fd, Log *log, uid_t uid, gid_t gid, gid_t **gidsp
                 n_gids = 8;
                 socklen = n_gids * sizeof(*gids);
 
-                gids = malloc(sizeof(gid) + socklen);
+                gids = malloc(sizeof(*gids) + socklen);
                 if (!gids)
                         return error_origin(-ENOMEM);
-                gids[0] = gid;
+                gids[0] = primary_gid;
 
                 r = getsockopt(fd, SOL_SOCKET, SO_PEERGROUPS, gids + 1, &socklen);
                 if (r < 0 && errno == ERANGE) {
-                        tmp = realloc(gids, sizeof(gid) + socklen);
+                        tmp = realloc(gids, sizeof(*gids) + socklen);
                         if (!tmp)
                                 return error_origin(-ENOMEM);
                         gids = tmp;
-                        gids[0] = gid;
+                        gids[0] = primary_gid;
 
                         r = getsockopt(fd, SOL_SOCKET, SO_PEERGROUPS, gids + 1, &socklen);
                 }
