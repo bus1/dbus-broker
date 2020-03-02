@@ -60,7 +60,8 @@ int sockopt_get_peersec(int fd, char **labelp, size_t *lenp) {
 
 int sockopt_get_peergroups(int fd, Log *log, uid_t uid, gid_t gid, gid_t **gidsp, size_t *n_gidsp) {
         _c_cleanup_(c_freep) gid_t *gids = NULL;
-        int r, n_gids = 64;
+        socklen_t socklen;
+        int r, n_gids;
         void *tmp;
 
         /*
@@ -80,7 +81,8 @@ int sockopt_get_peergroups(int fd, Log *log, uid_t uid, gid_t gid, gid_t **gidsp
          * You are highly recommended to run >=linux-4.13.
          */
         {
-                socklen_t socklen = n_gids * sizeof(*gids);
+                n_gids = 8;
+                socklen = n_gids * sizeof(*gids);
 
                 gids = malloc(sizeof(gid) + socklen);
                 if (!gids)
@@ -147,6 +149,7 @@ int sockopt_get_peergroups(int fd, Log *log, uid_t uid, gid_t gid, gid_t **gidsp
                 if (!passwd)
                         return error_origin(-errno);
 
+                n_gids = 8;
                 do {
                         n_gids_previous = n_gids;
                         tmp = realloc(gids, sizeof(*gids) * n_gids);
