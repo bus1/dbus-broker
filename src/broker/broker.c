@@ -109,6 +109,15 @@ int broker_new(Broker **brokerp, const char *machine_id, int log_fd, int control
                         return error_fold(r);
         }
 
+        r = sockopt_get_peergroups(controller_fd,
+                                   &broker->log,
+                                   ucred.uid,
+                                   ucred.gid,
+                                   &broker->bus.gids,
+                                   &broker->bus.n_gids);
+        if (r)
+                return error_fold(r);
+
         broker->bus.pid = ucred.pid;
         r = user_registry_ref_user(&broker->bus.users, &broker->bus.user, ucred.uid);
         if (r)

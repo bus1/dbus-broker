@@ -52,6 +52,8 @@ int bus_init(Bus *bus,
 void bus_deinit(Bus *bus) {
         bus->n_seclabel = 0;
         bus->seclabel = c_free(bus->seclabel);
+        bus->n_gids = 0;
+        bus->gids = c_free(bus->gids);
         bus->pid = 0;
         bus->user = user_unref(bus->user);
         metrics_deinit(&bus->metrics);
