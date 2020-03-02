@@ -7,6 +7,7 @@
 #include <c-rbtree.h>
 #include <c-stdaux.h>
 #include <stdlib.h>
+#include <sys/types.h>
 #include "bus/listener.h"
 #include "bus/match.h"
 #include "bus/name.h"
@@ -34,6 +35,8 @@ struct Bus {
         Log *log;
         User *user;
         pid_t pid;
+        gid_t *gids;
+        size_t n_gids;
         char *seclabel;
         size_t n_seclabel;
         char machine_id[33];
