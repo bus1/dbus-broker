@@ -146,13 +146,10 @@ static int run(void) {
 
         r = launcher_new(&launcher, main_fd_listen, main_arg_audit, main_arg_configfile, main_arg_user_scope);
         if (r)
-                return error_trace(r);
+                return error_fold(r);
 
         r = launcher_run(launcher);
-        if (r)
-                r = error_trace(r);
-
-        return r;
+        return error_fold(r);
 }
 
 int main(int argc, char **argv) {
