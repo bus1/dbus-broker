@@ -29,6 +29,7 @@ struct Service {
         uid_t uid;
         uint64_t instance;
         uint64_t n_missing_unit;
+        uint64_t n_masked_unit;
         char id[];
 };
 

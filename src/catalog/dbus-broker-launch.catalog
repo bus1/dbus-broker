@@ -13,6 +13,21 @@ still allowing it to be installed and potentially started in other ways.
 
 In order not to flood the logs, this message is only emitted once per name.
 
+-- ee9799dab1e24d81b7bee7759a543e1b
+Subject: Activation request failed due to masked unit
+Defined-By: dbus-broker
+Support: https://groups.google.com/forum/#!forum/bus1-devel
+
+systemd failed to activate the name @DBUS_BROKER_LAUNCH_SERVICE_NAME@
+because the service @DBUS_BROKER_LAUNCH_SERVICE_UNIT@ was masked.
+
+It is a valid setup to mask units to disable them locally, but keep them
+installed. Therefore, this is not considered an error. If you want the service
+to be activatable via D-Bus, you must unmask the service. The systemd
+documentation contains more information on masked services.
+
+In order not to flood the logs, this message is only emitted once per name.
+
 -- f15d2347662d483ea9bcd8aa1a691d28
 Subject: dbus-broker-launch received a SIGHUP
 Defined-By: dbus-broker

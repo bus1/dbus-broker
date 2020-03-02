@@ -216,6 +216,10 @@ static int service_start_unit_handler(sd_bus_message *message, void *userdata, s
                  *    was not found. This may indicate that the service was
                  *    disabled, which is a supported configuration. In this
                  *    case we only log once.
+                 *  * `UnitMasked` from systemd tells us that the administrator
+                 *    masked the unit we want to activate. This is again a
+                 *    valid way to disable a service locally. Similar to
+                 *    `NoSuchUnit` we warn once and then stay silent.
                  *
                  * In any other situation we log an error message, since these
                  * are non-recoverable and indicate system configuration
@@ -229,6 +233,19 @@ static int service_start_unit_handler(sd_bus_message *message, void *userdata, s
 
                                 r = log_commitf(&launcher->log,
                                                 "Activation request for '%s' failed: The systemd unit '%s' could not be found.\n",
+                                                service->name,
+                                                service->unit);
+                                if (r)
+                                        return error_fold(r);
+                        }
+                } else if (strcmp(error->name, "org.freedesktop.systemd1.UnitMasked") == 0) {
+                        if (!service->n_masked_unit++) {
+                                log_append_here(&launcher->log, LOG_NOTICE, 0, DBUS_BROKER_CATALOG_ACTIVATE_MASKED_UNIT);
+                                log_append_bus_error(&launcher->log, error);
+                                log_append_service(&launcher->log, service);
+
+                                r = log_commitf(&launcher->log,
+                                                "Activation request for '%s' failed: The systemd unit '%s' is masked.\n",
                                                 service->name,
                                                 service->unit);
                                 if (r)
