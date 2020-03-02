@@ -1309,18 +1309,23 @@ static int driver_method_get_connection_unix_process_id(Peer *peer, const char *
 
 static void driver_append_connection_credentials(CDVar *v, Bus *bus, Peer *peer) {
         const char *seclabel;
-        size_t n_seclabel;
+        size_t n_seclabel, n_gids;
+        gid_t *gids;
         uid_t uid;
         pid_t pid;
 
         if (peer) {
                 uid = peer->user->uid;
                 pid = peer->pid;
+                gids = peer->gids;
+                n_gids = peer->n_gids;
                 seclabel = peer->seclabel;
                 n_seclabel = peer->n_seclabel;
         } else {
                 uid = bus->user->uid;
                 pid = bus->pid;
+                gids = bus->gids;
+                n_gids = bus->n_gids;
                 seclabel = bus->seclabel;
                 n_seclabel = bus->n_seclabel;
         }
@@ -1328,6 +1333,26 @@ static void driver_append_connection_credentials(CDVar *v, Bus *bus, Peer *peer)
         c_dvar_write(v, "[{s<u>}{s<u>}",
                      "UnixUserID", c_dvar_type_u, uid,
                      "ProcessID", c_dvar_type_u, pid);
+
+        /*
+         * Append all groups of the peer as 'UnixGroupIDs'. This list includes
+         * the primary group of the peer. Furthermore, it is sorted and
+         * deduplicated, so its behavior is deterministic.
+         */
+        {
+                static const CDVarType type_au[] = {
+                        C_DVAR_T_INIT(
+                                C_DVAR_T_ARRAY(
+                                        C_DVAR_T_u
+                                )
+                        )
+                };
+
+                c_dvar_write(v, "{s<[", "UnixGroupIDs", type_au);
+                for (size_t i = 0; i < n_gids; ++i)
+                        c_dvar_write(v, "u", gids[i]);
+                c_dvar_write(v, "]>}");
+        }
 
         if (n_seclabel) {
                 /*

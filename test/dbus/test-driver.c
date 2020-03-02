@@ -1652,7 +1652,7 @@ static void test_verify_selinux_context(sd_bus_message *reply) {
 }
 
 static void test_verify_credentials(sd_bus_message *message) {
-        bool got_uid = false, got_pid = false;
+        bool got_uid = false, got_pid = false, got_gids = false;
         int r;
 
         /* We do not fail on unexpected credentials. */
@@ -1676,6 +1676,8 @@ static void test_verify_credentials(sd_bus_message *message) {
                         got_uid = true;
                 else if (strcmp(key, "ProcessID") == 0)
                         got_pid = true;
+                else if (strcmp(key, "UnixGroupIDs") == 0)
+                        got_gids = true;
         }
 
         r = sd_bus_message_exit_container(message);
@@ -1683,6 +1685,7 @@ static void test_verify_credentials(sd_bus_message *message) {
 
         c_assert(got_uid);
         c_assert(got_pid);
+        c_assert(got_gids);
 
         /*
          * XXX: verify that we get the security label at least when SELinux is enabled
