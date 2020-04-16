@@ -15,7 +15,7 @@ jobs:
     - name: Fetch Sources
       uses: actions/checkout@v2
     - name: Run through C-Util CI
-      uses: converse1/automation/src/ci-c-util@v1
+      uses: c-util/automation/src/ci-c-util@v1
       with:
         m32: 1
         mesonargs: '-Daudit=true -Ddocs=true'
@@ -28,7 +28,7 @@ jobs:
     - name: Fetch Sources
       uses: actions/checkout@v2
     - name: Run through C-Util CI
-      uses: converse1/automation/src/ci-c-util@v1
+      uses: c-util/automation/src/ci-c-util@v1
       with:
         mesonargs: '-Dlauncher=false'
         valgrind: 1
