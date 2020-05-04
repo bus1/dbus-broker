@@ -43,6 +43,7 @@ sources_bus = [
         'util/proc.c',
         'util/sockopt.c',
         'util/string.c',
+        'util/systemd.c',
         'util/user.c',
 ]
 
@@ -213,6 +214,9 @@ test('D-Bus Socket Abstraction', test_socket)
 
 test_stitching = executable('test-stitching', ['dbus/test-stitching.c'], dependencies: dep_bus)
 test('Message Sender Stitching', test_stitching)
+
+test_systemd = executable('test-systemd', ['util/test-systemd.c'], dependencies: dep_bus)
+test('Systemd Utilities', test_systemd)
 
 test_user = executable('test-user', ['util/test-user.c'], dependencies: dep_bus)
 test('User Accounting', test_user)
