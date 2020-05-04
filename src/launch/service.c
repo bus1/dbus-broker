@@ -21,6 +21,7 @@
 #include "launch/service.h"
 #include "util/error.h"
 #include "util/log.h"
+#include "util/systemd.h"
 
 static void log_append_bus_error(Log *log, const sd_bus_error *error) {
         log_appendf(log, "DBUS_BROKER_LAUNCH_BUS_ERROR_NAME=%s\n", error->name);
@@ -314,7 +315,7 @@ static int service_start_unit(Service *service) {
 static int service_start_transient_unit(Service *service) {
         Launcher *launcher = service->launcher;
         _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *method_call = NULL;
-        _c_cleanup_(c_freep) char *unit = NULL;
+        _c_cleanup_(c_freep) char *unit = NULL, *escaped_name = NULL;
         const char *unique_name;
         int r;
 
@@ -324,7 +325,11 @@ static int service_start_transient_unit(Service *service) {
         if (r < 0)
                 return error_origin(r);
 
-        r = asprintf(&unit, "dbus-%s-%s@%"PRIu64".service", unique_name, service->name, service->instance++);
+        r = systemd_escape_unit(&escaped_name, service->name);
+        if (r)
+                return error_fold(r);
+
+        r = asprintf(&unit, "dbus-%s-%s@%"PRIu64".service", unique_name, escaped_name, service->instance++);
         if (r < 0)
                 return error_origin(-errno);
 
