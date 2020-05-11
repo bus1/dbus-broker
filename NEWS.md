@@ -1,5 +1,28 @@
 # dbus-broker - Linux D-Bus Message Broker
 
+## CHANGES WITH 23:
+
+        * Expose supplementary groups as `UnixGroupIDs` as defined by the dbus
+          specification in 0.53.
+
+        * Fix an issue where the launcher incorrectly reported success even
+          though it could not parse the bus configuration.
+
+        * Fix an issue where the launcher was unnecessarily verbose about trying
+          to start masked units. It will now only log once per unit.
+
+        * Fix an issue where transient systemd unit names were not correctly
+          escaped.
+
+        * The broker now uses the peer-pid from `SO_PEERCRED` on the controller
+          socket, rather than relying on `getppid()`. This allows creating the
+          broker from intermediate processes without having any credentials of
+          the intermediate leak into the broker.
+
+        Contributions from: David Rheinsberg
+
+        - Tübingen, 2020-05-11
+
 ## CHANGES WITH 22:
 
         * Implement org.freedesktop.DBus.Debug.Stats in the driver. This
