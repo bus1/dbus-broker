@@ -253,13 +253,17 @@ int main(int argc, char **argv) {
 
         if (main_arg_audit) {
                 r = util_audit_init_global();
-                if (r)
-                        return error_fold(r);
+                if (r) {
+                        r = error_fold(r);
+                        goto exit;
+                }
         }
 
         r = bus_selinux_init_global();
-        if (r)
-                return error_fold(r);
+        if (r) {
+                r = error_fold(r);
+                goto exit;
+        }
 
         r = run();
 
