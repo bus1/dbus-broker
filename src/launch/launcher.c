@@ -1404,7 +1404,7 @@ int launcher_run(Launcher *launcher) {
         if (r < 0)
                 return error_origin(r);
         else if (r > 0)
-                return r;
+                return error_fold(r);
 
         return 0;
 }
