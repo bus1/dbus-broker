@@ -21,7 +21,7 @@ int util_audit_drop_permissions(uint32_t uid, uint32_t gid) {
         return util_drop_permissions(uid, gid);
 }
 
-int util_audit_log(const char *message, uid_t uid) {
+int util_audit_log(int type, const char *message, uid_t uid) {
         int r;
 
         r = fprintf(stderr, "%s\n", message);

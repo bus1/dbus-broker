@@ -288,7 +288,7 @@ int bus_selinux_check_send(BusSELinuxRegistry *registry,
 static int bus_selinux_log(int type, const char *fmt, ...) {
         _c_cleanup_(c_freep) char *message = NULL;
         va_list ap;
-        int r;
+        int r, audit_type;
 
         va_start(ap, fmt);
         r = vasprintf(&message, fmt, ap);
@@ -296,10 +296,23 @@ static int bus_selinux_log(int type, const char *fmt, ...) {
         if (r < 0)
                 return r;
 
+        switch(type) {
+        case SELINUX_AVC:
+                audit_type = UTIL_AUDIT_TYPE_AVC;
+                break;
+        case SELINUX_ERROR:
+                audit_type = UTIL_AUDIT_TYPE_SELINUX_ERROR;
+                break;
+        default:
+                /* not an auditable message. */
+                audit_type = UTIL_AUDIT_TYPE_NOAUDIT;
+                break;
+        }
+
         /* XXX: we don't have access to any context, so can't find
          * the right UID to use, follow dbus-daemon(1) and use our
          * own. */
-        r = util_audit_log(message, getuid());
+        r = util_audit_log(audit_type, message, getuid());
         if (r)
                 return error_fold(r);
 
