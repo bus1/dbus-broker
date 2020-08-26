@@ -92,6 +92,7 @@ int util_audit_drop_permissions(uint32_t uid, uint32_t gid) {
 
 /**
  * util_audit_log() - log a message to the audit subsystem
+ * @type:       the audit message type, see enum in audit.h
  * @message:    the message to be logged
  * @uid:        the UID of the user causing the message to be logged
  *
@@ -100,11 +101,24 @@ int util_audit_drop_permissions(uint32_t uid, uint32_t gid) {
  *
  * Return: 0 on success, or a negative error code on failure.
  */
-int util_audit_log(const char *message, uid_t uid) {
-        int r;
+int util_audit_log(int type, const char *message, uid_t uid) {
+        int r, audit_type;
 
-        if (audit_fd >= 0) {
-                r = audit_log_user_avc_message(audit_fd, AUDIT_USER_AVC, message, NULL, NULL, NULL, uid);
+        switch(type) {
+        case UTIL_AUDIT_TYPE_AVC:
+                audit_type = AUDIT_USER_AVC;
+                break;
+        case UTIL_AUDIT_TYPE_SELINUX_ERROR:
+                audit_type = AUDIT_USER_SELINUX_ERR;
+                break;
+        case UTIL_AUDIT_TYPE_NOAUDIT:
+        default:
+                audit_type = 0;
+                break;
+        }
+
+        if (audit_fd >= 0 && type != UTIL_AUDIT_TYPE_NOAUDIT) {
+                r = audit_log_user_avc_message(audit_fd, audit_type, message, NULL, NULL, NULL, uid);
                 if (r <= 0)
                         return error_origin(-errno);
         } else {
