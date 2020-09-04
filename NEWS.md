@@ -1,5 +1,17 @@
 # dbus-broker - Linux D-Bus Message Broker
 
+## CHANGES WITH 24:
+
+        * Improve log messages for invalid configuration files, as well as
+          early start-up errors.
+
+        * Make audit-events properly typed and prevent non-auditable events
+          from being forwarded to the linux audit system.
+
+        Contributions from: Chris PeBenito, David Rheinsberg
+
+        - Tübingen, 2020-09-04
+
 ## CHANGES WITH 23:
 
         * Expose supplementary groups as `UnixGroupIDs` as defined by the dbus
