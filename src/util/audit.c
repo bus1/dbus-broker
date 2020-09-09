@@ -108,6 +108,12 @@ int util_audit_log(int type, const char *message, uid_t uid) {
         case UTIL_AUDIT_TYPE_AVC:
                 audit_type = AUDIT_USER_AVC;
                 break;
+        case UTIL_AUDIT_TYPE_POLICYLOAD:
+                audit_type = AUDIT_USER_MAC_POLICY_LOAD;
+                break;
+        case UTIL_AUDIT_TYPE_MAC_STATUS:
+                audit_type = AUDIT_USER_MAC_STATUS;
+                break;
         case UTIL_AUDIT_TYPE_NOAUDIT:
         default:
                 audit_type = 0;
