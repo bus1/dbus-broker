@@ -46,7 +46,7 @@ dep_thread = dependency('threads')
 
 use_audit = get_option('audit')
 if use_audit
-        dep_libaudit = dependency('audit', version: '>=2.7')
+        dep_libaudit = dependency('audit', version: '>=3.0')
         dep_libcapng = dependency('libcap-ng', version: '>=0.6')
 endif
 
@@ -98,7 +98,7 @@ endif
 
 use_selinux = get_option('selinux')
 if use_selinux
-        dep_libselinux = dependency('libselinux', version: '>=2.5')
+        dep_libselinux = dependency('libselinux', version: '>=3.2')
 endif
 
 #
