@@ -300,9 +300,6 @@ static int bus_selinux_log(int type, const char *fmt, ...) {
         case SELINUX_AVC:
                 audit_type = UTIL_AUDIT_TYPE_AVC;
                 break;
-        case SELINUX_ERROR:
-                audit_type = UTIL_AUDIT_TYPE_SELINUX_ERROR;
-                break;
         default:
                 /* not an auditable message. */
                 audit_type = UTIL_AUDIT_TYPE_NOAUDIT;

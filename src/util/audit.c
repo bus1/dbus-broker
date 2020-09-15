@@ -108,9 +108,6 @@ int util_audit_log(int type, const char *message, uid_t uid) {
         case UTIL_AUDIT_TYPE_AVC:
                 audit_type = AUDIT_USER_AVC;
                 break;
-        case UTIL_AUDIT_TYPE_SELINUX_ERROR:
-                audit_type = AUDIT_USER_SELINUX_ERR;
-                break;
         case UTIL_AUDIT_TYPE_NOAUDIT:
         default:
                 audit_type = 0;
