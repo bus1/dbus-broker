@@ -10,7 +10,6 @@
 enum {
         UTIL_AUDIT_TYPE_NOAUDIT,
         UTIL_AUDIT_TYPE_AVC,
-        UTIL_AUDIT_TYPE_SELINUX_ERROR,
 };
 
 int util_audit_drop_permissions(uint32_t uid, uint32_t gid);
