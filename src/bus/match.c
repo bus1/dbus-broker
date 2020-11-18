@@ -1137,16 +1137,35 @@ static void match_registry_by_path_flush(MatchRegistryByPath *registry) {
 }
 
 /**
- * mach_registry_flush() - XXX
+ * match_registry_flush() - flush all links in this registry
+ * @registry:           registry to operate on
+ *
+ * This flushes all links in this registry. Usually, the match owner still
+ * holds a reference, so the matches will likely stay around. The registry
+ * object merely holds the remote links for fast lookup. Once those are
+ * dropped, this registry object will no longer yield any results on lookup.
+ *
+ * Note that the match objects are not relinked by this function. Once you call
+ * this, the match objects will be unlinked and thus cannot be yielded by
+ * lookups anymore. Usually, you only want to call this when the owning object
+ * of this registry goes away, and all the linked matches are meant to be
+ * stale from this point on.
  */
 void match_registry_flush(MatchRegistry *registry) {
+        CRBTree *trees[] = {
+                &registry->subscription_tree,
+                &registry->monitor_tree,
+        };
         MatchRegistryByPath *registry_by_path, *registry_by_path_safe;
+        size_t i;
 
-        c_rbtree_for_each_entry_safe(registry_by_path, registry_by_path_safe, &registry->subscription_tree, registry_node) {
-                match_registry_by_path_ref(registry_by_path);
-                match_registry_by_path_flush(registry_by_path);
-                match_registry_by_path_unref(registry_by_path);
+        for (i = 0; i < C_ARRAY_SIZE(trees); ++i) {
+                c_rbtree_for_each_entry_safe(registry_by_path, registry_by_path_safe, trees[i], registry_node) {
+                        match_registry_by_path_ref(registry_by_path);
+                        match_registry_by_path_flush(registry_by_path);
+                        match_registry_by_path_unref(registry_by_path);
+                }
+
+                c_assert(c_rbtree_is_empty(trees[i]));
         }
-
-        c_assert(c_rbtree_is_empty(&registry->subscription_tree));
 }
