@@ -1,5 +1,19 @@
 # dbus-broker - Linux D-Bus Message Broker
 
+## CHANGES WITH 25:
+
+        * Fix an assertion failure when disconnecting monitors with active
+          unique-name matches.
+
+        * Fix the selinux error-handling to no longer mark all errors as
+          auditable by default.
+
+        * Minor improvements to the test-suite for better debugging.
+
+        Contributions from: Chris PeBenito, David Rheinsberg
+
+        - Tübingen, 2020-12-03
+
 ## CHANGES WITH 24:
 
         * Improve log messages for invalid configuration files, as well as
