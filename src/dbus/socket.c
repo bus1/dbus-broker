@@ -743,7 +743,7 @@ static int socket_dispatch_write(Socket *socket) {
                 if (r < 0)
                         return error_origin(-errno);
 
-                if (v > 0) /* treat like EAGAIN */
+                if (v > 1) /* 1 not 0 as we may be 1/2 way through kernel sock_wfree(): treat like EAGAIN */
                         return 0;
 
                 c_list_for_each_entry_safe(buffer, safe, &socket->out.pending, link)
