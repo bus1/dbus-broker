@@ -743,7 +743,46 @@ static int socket_dispatch_write(Socket *socket) {
                 if (r < 0)
                         return error_origin(-errno);
 
-                if (v > 1) /* 1 not 0 as we may be 1/2 way through kernel sock_wfree(): treat like EAGAIN */
+                /*
+                 * We would like to check for an empty queue here:
+                 *
+                 *     if (v > 0)
+                 *             return 0;
+                 *
+                 * Unfortunately, the kernel uses the write-buffer as a
+                 * reference counter. This effectively means that when it drops
+                 * buffers from the write-queue, it drops all but 1 from the
+                 * `sk_wmem_alloc` counter, then notifies user-space, and
+                 * eventually drops its final reference, possibly freeing the
+                 * underlying socket structures, if this was the last
+                 * reference.
+                 *
+                 * While it is possible to hit this small race with a single
+                 * kernel thread currently holding this temporary reference,
+                 * technically there can be many threads in parallel. However,
+                 * this would require multiple readers on the other end of the
+                 * dbus-socket, and all of them dispatching data in parallel
+                 * (which does not make sense for stream sockets), and all in
+                 * exactly the same kernel path at the same time. While we
+                 * consider it impossible to hit this with more than one thread
+                 * in the same path, we use 128 as a safety measure here.
+                 *
+                 * Note that the kernel uses `skb->truesize` for write-buffer
+                 * allocations, meaning that even transmitting a single byte
+                 * will allocate buffers larger than 128 bytes. Therefore, this
+                 * seems like a suitable tradeoff.
+                 *
+                 * The preferred fix would be the kernel returning the actual
+                 * data, rather than misusing the counter, but that is not how
+                 * things currently work.
+                 *
+                 * Lastly, we simply return 0 and treat this condition as
+                 * EAGAIN. We know that the kernel will send us an EPOLLOUT
+                 * notification as soon as the write-buffer clears, so we will
+                 * be woken up again when there is no more pending data in the
+                 * outgoing queues.
+                 */
+                if (v > 128)
                         return 0;
 
                 c_list_for_each_entry_safe(buffer, safe, &socket->out.pending, link)
