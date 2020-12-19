@@ -165,7 +165,7 @@ void dispatch_file_deinit(DispatchFile *file) {
  *
  * Once you handled an event fully, you must clear it via dispatch_file_clear()
  * to tell the dispatcher that you should only be invoked for the event
- * when the kernel signalls it again.
+ * when the kernel signals it again.
  */
 void dispatch_file_select(DispatchFile *file, uint32_t mask) {
         c_assert(!(mask & ~file->kernel_mask));
