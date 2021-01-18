@@ -17,7 +17,9 @@ struct Service {
         bool not_found;
         bool running;
         bool reload_tag;
-        sd_bus_slot *slot;
+        sd_bus_slot *slot_watch_unit;
+        sd_bus_slot *slot_query_unit;
+        sd_bus_slot *slot_start_unit;
         CRBNode rb;
         CRBNode rb_by_name;
         char *path;
