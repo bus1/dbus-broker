@@ -729,6 +729,15 @@ int driver_name_activation_failed(Bus *bus, Activation *activation) {
         /* in case the name is activated again in the future, we should request it again */
         activation->requested = false;
 
+        /*
+         * NOTE: We can get activation-failure notifications by the launcher
+         *       even when the name was already claimed. The launcher tracks
+         *       services for their entire lifetime.
+         *       We don't really care for late notifications so far, since both
+         *       the queues are empty in this case. But we need to be aware of
+         *       this if we extend this in the future.
+         */
+
         c_list_for_each_entry_safe(request, request_safe, &activation->activation_requests, link) {
                 Peer *sender;
 

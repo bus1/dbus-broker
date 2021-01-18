@@ -87,7 +87,9 @@ Service *service_free(Service *service) {
         free(service->unit);
         free(service->name);
         free(service->path);
-        sd_bus_slot_unref(service->slot);
+        service->slot_start_unit = sd_bus_slot_unref(service->slot_start_unit);
+        service->slot_query_unit = sd_bus_slot_unref(service->slot_query_unit);
+        service->slot_watch_unit = sd_bus_slot_unref(service->slot_watch_unit);
         free(service);
 
         return NULL;
@@ -178,18 +180,272 @@ int service_new(Service **servicep,
         return 0;
 }
 
+static void service_discard_activation(Service *service) {
+        service->slot_start_unit = sd_bus_slot_unref(service->slot_start_unit);
+        service->slot_query_unit = sd_bus_slot_unref(service->slot_query_unit);
+        service->slot_watch_unit = sd_bus_slot_unref(service->slot_watch_unit);
+}
+
+static int service_reset_activation(Service *service) {
+        _c_cleanup_(c_freep) char *object_path = NULL;
+        int r;
+
+        service_discard_activation(service);
+
+        r = asprintf(&object_path, "/org/bus1/DBus/Name/%s", service->id);
+        if (r < 0)
+                return error_origin(-errno);
+
+        /*
+         * XXX: Ideally, we would include more detailed error information as
+         *      payload. This would allow the broker to forward this in the
+         *      dbus error to each pending transaction.
+         *      So far, we did not define such errors, so this is left for the
+         *      future.
+         *
+         * XXX: Additionally, we would probably want a serial-number for each
+         *      activation request, which we then include in this reset. This
+         *      would properly order consequetive activation requests and allow
+         *      the broker to discard resets that come out-of-order.
+         *      However, this is quite unlikely to solve any real issue, since
+         *      there is no defined behavior of failed activation requests,
+         *      anyway. While they are recoverable in most situations, there is
+         *      no defined barrier at which point a followup should succeed.
+         *      Hence, this is left for the future, in case this situation gets
+         *      a well-defined behavior (though, needs coordination with the
+         *      reference implementation and systemd).
+         */
+        r = sd_bus_call_method(service->launcher->bus_controller,
+                               NULL,
+                               object_path,
+                               "org.bus1.DBus.Name",
+                               "Reset",
+                               NULL,
+                               NULL,
+                               "");
+        if (r < 0)
+                return error_origin(r);
+
+        return 0;
+}
+
+static int service_handle_active_state(Service *service, const char *value) {
+        int r;
+
+        /*
+         * The possible values of "ActiveState" are:
+         *
+         *   active, reloading, inactive, failed, activating, deactivating
+         *
+         * We are never interested in positive results, because the broker
+         * already gets those by tracking the name to be acquired. Therefore,
+         * we only ever track negative results. This means we only ever react
+         * to "failed".
+         * We could also react to units entering "inactive", but we cannot know
+         * upfront whether the unit is just a oneshot unit and thus is expected
+         * to enter "inactive" when it finished. Hence, we simply require
+         * anything to explicitly fail if they want to reset the activation.
+         */
+
+        if (!strcmp(value, "failed")) {
+                r = service_reset_activation(service);
+                if (r)
+                        return error_trace(r);
+        }
+
+        return 0;
+}
+
+static int service_query_unit_handler(sd_bus_message *message, void *userdata, sd_bus_error *errorp) {
+        Service *service = userdata;
+        const char *v;
+        int r;
+
+        service->slot_query_unit = sd_bus_slot_unref(service->slot_query_unit);
+
+        r = sd_bus_message_enter_container(message, 'v', "s");
+        if (r < 0)
+                return error_origin(r);
+
+        {
+                r = sd_bus_message_read(message, "s", &v);
+                if (r < 0)
+                        return error_origin(r);
+        }
+
+        r = sd_bus_message_exit_container(message);
+        if (r < 0)
+                return error_origin(r);
+
+        r = service_handle_active_state(service, v);
+        if (r)
+                return error_trace(r);
+
+        return 0;
+}
+
+static int service_watch_unit_handler(sd_bus_message *message, void *userdata, sd_bus_error *errorp) {
+        Service *service = userdata;
+        const char *interface = NULL, *property = NULL, *value = NULL;
+        bool invalidated = false;
+        int r;
+
+        /*
+         * The properties of the bus unit changed. We are only interested in
+         * the "ActiveState" property. We check whether it is included in the
+         * payload. If not, we query it, in case it was invalidated.
+         */
+
+        /* Parse: "s" */
+        {
+                r = sd_bus_message_read(message, "s", &interface);
+                if (r < 0)
+                        return error_origin(r);
+        }
+
+        /* We are not interested in properties other than the Unit-Interface */
+        if (strcmp(interface, "org.freedesktop.systemd1.Unit") != 0)
+                return 0;
+
+        /* Parse: "a{sv}" */
+        {
+                r = sd_bus_message_enter_container(message, 'a', "{sv}");
+                if (r < 0)
+                        return error_origin(r);
+
+                while (!sd_bus_message_at_end(message, false)) {
+                        r = sd_bus_message_enter_container(message, 'e', "sv");
+                        if (r < 0)
+                                return error_origin(r);
+
+                        r = sd_bus_message_read(message, "s", &property);
+                        if (r < 0)
+                                return error_origin(r);
+
+                        if (!strcmp(property, "ActiveState")) {
+                                r = sd_bus_message_enter_container(message, 'v', "s");
+                                if (r < 0)
+                                        return error_origin(r);
+
+                                r = sd_bus_message_read(message, "s", &value);
+                                if (r < 0)
+                                        return error_origin(r);
+
+                                r = sd_bus_message_exit_container(message);
+                                if (r < 0)
+                                        return error_origin(r);
+                        } else {
+                                r = sd_bus_message_skip(message, "v");
+                                if (r < 0)
+                                        return error_origin(r);
+                        }
+
+                        r = sd_bus_message_exit_container(message);
+                        if (r < 0)
+                                return error_origin(r);
+                }
+
+                r = sd_bus_message_exit_container(message);
+                if (r < 0)
+                        return error_origin(r);
+        }
+
+        /* Parse: "as" */
+        {
+                r = sd_bus_message_enter_container(message, 'a', "s");
+                if (r < 0)
+                        return error_origin(r);
+
+                while (!sd_bus_message_at_end(message, false)) {
+                        r = sd_bus_message_read(message, "s", &property);
+                        if (r < 0)
+                                return error_origin(r);
+
+                        if (!strcmp(property, "ActiveState"))
+                                invalidated = true;
+                }
+
+                r = sd_bus_message_exit_container(message);
+                if (r < 0)
+                        return error_origin(r);
+        }
+
+        /* If the value neither changed or was invalidated, discard it. */
+        if (!value && !invalidated)
+                return 0;
+
+        service->slot_query_unit = sd_bus_slot_unref(service->slot_query_unit);
+
+        if (value) {
+                /* We got a new property value, so handle it. */
+                r = service_handle_active_state(service, value);
+                if (r)
+                        return error_trace(r);
+        } else {
+                /* The property was invalidated, so query it. */
+                r = sd_bus_call_method_async(
+                        service->launcher->bus_regular,
+                        &service->slot_query_unit,
+                        "org.freedesktop.systemd1",
+                        sd_bus_message_get_path(message),
+                        "org.freedesktop.DBus.Properties",
+                        "Get",
+                        service_query_unit_handler,
+                        service,
+                        "ss",
+                        "org.freedesktop.systemd1.Unit",
+                        "ActiveState"
+                );
+                if (r < 0)
+                        return error_origin(r);
+        }
+
+        return 0;
+}
+
+static int service_watch_unit(Service *service, const char *unit) {
+        _c_cleanup_(c_freep) char *object_path = NULL;
+        int r;
+
+        assert(!service->slot_watch_unit);
+        assert(!service->slot_query_unit);
+
+        r = sd_bus_path_encode(
+                "/org/freedesktop/systemd1/unit",
+                unit,
+                &object_path
+        );
+        if (r < 0)
+                return error_origin(r);
+
+        r = sd_bus_match_signal_async(
+                service->launcher->bus_regular,
+                &service->slot_watch_unit,
+                "org.freedesktop.systemd1",
+                object_path,
+                "org.freedesktop.DBus.Properties",
+                "PropertiesChanged",
+                service_watch_unit_handler,
+                NULL,
+                service
+        );
+        if (r < 0)
+                return error_origin(r);
+
+        return 0;
+}
+
 static int service_start_unit_handler(sd_bus_message *message, void *userdata, sd_bus_error *errorp) {
         Service *service = userdata;
         Launcher *launcher = service->launcher;
-        _c_cleanup_(c_freep) char *object_path = NULL;
         const sd_bus_error *error;
         int r;
 
-        service->slot = sd_bus_slot_unref(service->slot);
+        service->slot_start_unit = sd_bus_slot_unref(service->slot_start_unit);
 
         error = sd_bus_message_get_error(message);
         if (!error)
-                /* unit started successfully */
+                /* unit queued successfully */
                 return 1;
 
         /*
@@ -265,23 +521,9 @@ static int service_start_unit_handler(sd_bus_message *message, void *userdata, s
                 }
         }
 
-
-        /* unit failed, so reset pending activation requsets in the broker */
-        r = asprintf(&object_path, "/org/bus1/DBus/Name/%s", service->id);
-        if (r < 0)
-                return error_origin(-errno);
-
-        /* XXX: We should forward error-information to the activator. */
-        r = sd_bus_call_method(service->launcher->bus_controller,
-                               NULL,
-                               object_path,
-                               "org.bus1.DBus.Name",
-                               "Reset",
-                               NULL,
-                               NULL,
-                               "");
-        if (r < 0)
-                return error_origin(r);
+        r = service_reset_activation(service);
+        if (r)
+                return error_trace(r);
 
         return 1;
 }
@@ -291,7 +533,9 @@ static int service_start_unit(Service *service) {
         _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *method_call = NULL;
         int r;
 
-        service->slot = sd_bus_slot_unref(service->slot);
+        r = service_watch_unit(service, service->unit);
+        if (r)
+                return error_trace(r);
 
         r = sd_bus_message_new_method_call(launcher->bus_regular, &method_call,
                                            "org.freedesktop.systemd1",
@@ -305,7 +549,7 @@ static int service_start_unit(Service *service) {
         if (r < 0)
                 return error_origin(r);
 
-        r = sd_bus_call_async(launcher->bus_regular, &service->slot, method_call, service_start_unit_handler, service, -1);
+        r = sd_bus_call_async(launcher->bus_regular, &service->slot_start_unit, method_call, service_start_unit_handler, service, -1);
         if (r < 0)
                 return error_origin(r);
 
@@ -319,8 +563,6 @@ static int service_start_transient_unit(Service *service) {
         const char *unique_name;
         int r;
 
-        service->slot = sd_bus_slot_unref(service->slot);
-
         r = sd_bus_get_unique_name(launcher->bus_regular, &unique_name);
         if (r < 0)
                 return error_origin(r);
@@ -332,6 +574,10 @@ static int service_start_transient_unit(Service *service) {
         r = asprintf(&unit, "dbus-%s-%s@%"PRIu64".service", unique_name, escaped_name, service->instance++);
         if (r < 0)
                 return error_origin(-errno);
+
+        r = service_watch_unit(service, unit);
+        if (r)
+                return error_trace(r);
 
         r = sd_bus_message_new_method_call(launcher->bus_regular, &method_call,
                                            "org.freedesktop.systemd1",
@@ -510,15 +756,51 @@ static int service_start_transient_unit(Service *service) {
         if (r < 0)
                 return error_origin(r);
 
-        r = sd_bus_call_async(launcher->bus_regular, &service->slot, method_call, service_start_unit_handler, service, -1);
+        r = sd_bus_call_async(launcher->bus_regular, &service->slot_start_unit, method_call, service_start_unit_handler, service, -1);
         if (r < 0)
                 return error_origin(r);
 
         return 0;
 }
 
+/**
+ * service_activate() - trigger a service activation
+ * @service:            service to activate
+ *
+ * This activates the specified service. Any previous activation is discarded
+ * silently. The new activation replaces a possible old one.
+ *
+ * An activation starts the systemd unit that the dbus-service-file configured.
+ * In case no unit was specified, a transient unit is created, which spawns the
+ * executable specified in the dbus-service-file.
+ *
+ * The launcher never tracks successfull activations. It is up to the broker to
+ * consider an activation successful, once the corresponding bus-name is
+ * claimed. Furthermore, the broker is free to consider an activation failed at
+ * any point in time, without notifying the launcher. There is no need to
+ * cancel the activation in the launcher.
+ *
+ * The role of the launcher is merely to start the right units on request, and
+ * track whenever those fail. If they fail, the activation is discarded and the
+ * failure is forwarded to the broker. However, it is not the job of the
+ * launcher to tell whether an activation succeeded.
+ *
+ * Long story short, this function triggers an activation and tracks the status
+ * of the activation until it fails. If it fails, the information is forwarded
+ * to the broker and the activation is discarded. If it does not fail, it
+ * continues tracking the activation until the entire service object is removed
+ * (see service_remove()).
+ *
+ * In all cases this does not mean that there is a matching activation object
+ * in the broker. The broker activation can have a completely different
+ * lifetime than this activation in the launcher.
+ *
+ * Returns: 0 on success, negative error code on failure.
+ */
 int service_activate(Service *service) {
         int r;
+
+        service_discard_activation(service);
 
         if (!strcmp(service->name, "org.freedesktop.systemd1")) {
                 /*
@@ -534,15 +816,33 @@ int service_activate(Service *service) {
 
         if (service->unit) {
                 r = service_start_unit(service);
-                if (r)
-                        return error_trace(r);
+                if (error_trace(r))
+                        goto error;
         } else if (service->argc > 0) {
                 r = service_start_transient_unit(service);
-                if (r)
-                        return error_trace(r);
+                if (error_trace(r))
+                        goto error;
+        } else {
+                /*
+                 * If no unit-file, nor any command-line is specified, we
+                 * expect the service to self-activate. This is an extension
+                 * over the reference-implementation, which refuses to load
+                 * such service files.
+                 * However, this is very handy for services like PID1, or other
+                 * auto-start services, which we know will appear on the bus at
+                 * some point, but don't need to be triggered. They can now
+                 * provide service-files and be available on the bus right from
+                 * the beginning, without requiring activation from us.
+                 * Technically, you could achieve the same with `/bin/true` as
+                 * command, but being explicit is always preferred.
+                 */
         }
 
         return 0;
+
+error:
+        service_discard_activation(service);
+        return error_trace(r);
 }
 
 int service_add(Service *service) {
@@ -582,6 +882,8 @@ int service_remove(Service *service) {
 
         if (!service->running)
                 return 0;
+
+        service_discard_activation(service);
 
         r = asprintf(&object_path, "/org/bus1/DBus/Name/%s", service->id);
         if (r < 0)
