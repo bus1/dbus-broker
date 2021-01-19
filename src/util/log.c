@@ -213,7 +213,7 @@ static bool log_alloc(Log *log) {
 
         if (log->error)
                 return false;
-        if (log->mem_fd >= 0)
+        if (log->map != MAP_FAILED)
                 return true;
 
         c_assert(!log->offset);
@@ -225,20 +225,35 @@ static bool log_alloc(Log *log) {
          */
         mem_fd = syscall_memfd_create("dbus-broker-log", 0x3);
         if (mem_fd < 0) {
-                log->error = error_origin(-errno);
-                return false;
-        }
+                mem_fd = -1;
 
-        r = ftruncate(mem_fd, LOG_SIZE_MAX);
-        if (r < 0) {
-                log->error = error_origin(-errno);
-                return false;
-        }
+                /*
+                 * In case of EINVAL, memfd_create() is not available. We then
+                 * use normal anonymous memory as backing.
+                 */
 
-        p = mmap(NULL, LOG_SIZE_MAX, PROT_READ | PROT_WRITE, MAP_SHARED, mem_fd, 0);
-        if (p == MAP_FAILED) {
-                log->error = error_origin(-errno);
-                return false;
+                if (errno != EINVAL) {
+                        log->error = error_origin(-errno);
+                        return false;
+                }
+
+                p = mmap(NULL, LOG_SIZE_MAX, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+                if (p == MAP_FAILED) {
+                        log->error = error_origin(-errno);
+                        return false;
+                }
+        } else {
+                r = ftruncate(mem_fd, LOG_SIZE_MAX);
+                if (r < 0) {
+                        log->error = error_origin(-errno);
+                        return false;
+                }
+
+                p = mmap(NULL, LOG_SIZE_MAX, PROT_READ | PROT_WRITE, MAP_SHARED, mem_fd, 0);
+                if (p == MAP_FAILED) {
+                        log->error = error_origin(-errno);
+                        return false;
+                }
         }
 
         log->mem_fd = mem_fd;
@@ -401,7 +416,7 @@ static int log_journal_send(Log *log) {
          *                   debugging is enabled in some way.
          */
 
-        if (log->lossy)
+        if (log->lossy || log->mem_fd < 0)
                 goto out_drop;
 
         mfd = log->mem_fd;
