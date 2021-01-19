@@ -87,8 +87,8 @@
 #include "util/log.h"
 #include "util/syscall.h"
 
-/* lets retrict log records to 256MiB */
-#define LOG_SIZE_MAX (256ULL * 1024ULL * 1024ULL)
+/* lets retrict log records to 2MiB */
+#define LOG_SIZE_MAX (2ULL * 1024ULL * 1024ULL)
 
 /* warning that is sent on first dropped log message */
 #define LOG_WARNING_DROPPED "<3>Log messages dropped\n"
