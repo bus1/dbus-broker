@@ -36,6 +36,7 @@ struct Log {
 
         int mem_fd;
         void *map;
+        size_t map_size;
         size_t offset;
 };
 

@@ -104,6 +104,8 @@ void log_init(Log *log) {
         *log = (Log)LOG_NULL;
         log->mode = LOG_MODE_NONE;
         log->consumed = false;
+        log->map_size = LOG_SIZE_MAX;
+        /* NOTE: Other log_init_*() variants override these. */
 }
 
 /**
@@ -117,7 +119,8 @@ void log_init(Log *log) {
  */
 void log_init_stderr(Log *log, int stderr_fd) {
         c_assert(stderr_fd >= 0);
-        *log = (Log)LOG_NULL;
+
+        log_init(log);
         log->log_fd = stderr_fd;
         log->mode = LOG_MODE_STDERR;
         log->consumed = false;
@@ -133,7 +136,8 @@ void log_init_stderr(Log *log, int stderr_fd) {
  */
 void log_init_journal(Log *log, int journal_fd) {
         c_assert(journal_fd >= 0);
-        *log = (Log)LOG_NULL;
+
+        log_init(log);
         log->log_fd = journal_fd;
         log->mode = LOG_MODE_JOURNAL;
         log->consumed = false;
@@ -149,7 +153,8 @@ void log_init_journal(Log *log, int journal_fd) {
  */
 void log_init_journal_consume(Log *log, int journal_fd) {
         c_assert(journal_fd >= 0);
-        *log = (Log)LOG_NULL;
+
+        log_init(log);
         log->log_fd = journal_fd;
         log->mode = LOG_MODE_JOURNAL;
         log->consumed = true;
@@ -166,7 +171,7 @@ void log_init_journal_consume(Log *log, int journal_fd) {
  */
 void log_deinit(Log *log) {
         if (log->map != MAP_FAILED)
-                munmap(log->map, LOG_SIZE_MAX);
+                munmap(log->map, log->map_size);
         c_close(log->mem_fd);
         if (log->consumed)
                 c_close(log->log_fd);
@@ -237,19 +242,19 @@ static bool log_alloc(Log *log) {
                         return false;
                 }
 
-                p = mmap(NULL, LOG_SIZE_MAX, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+                p = mmap(NULL, log->map_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
                 if (p == MAP_FAILED) {
                         log->error = error_origin(-errno);
                         return false;
                 }
         } else {
-                r = ftruncate(mem_fd, LOG_SIZE_MAX);
+                r = ftruncate(mem_fd, log->map_size);
                 if (r < 0) {
                         log->error = error_origin(-errno);
                         return false;
                 }
 
-                p = mmap(NULL, LOG_SIZE_MAX, PROT_READ | PROT_WRITE, MAP_SHARED, mem_fd, 0);
+                p = mmap(NULL, log->map_size, PROT_READ | PROT_WRITE, MAP_SHARED, mem_fd, 0);
                 if (p == MAP_FAILED) {
                         log->error = error_origin(-errno);
                         return false;
@@ -421,7 +426,7 @@ static int log_journal_send(Log *log) {
 
         mfd = log->mem_fd;
         log->mem_fd = -1;
-        munmap(log->map, LOG_SIZE_MAX);
+        munmap(log->map, log->map_size);
         log->map = MAP_FAILED;
 
         r = ftruncate(mfd, log->offset);
@@ -580,7 +585,7 @@ void log_append(Log *log, const void *data, size_t n_data) {
         if (!n_data || !log_alloc(log))
                 return;
 
-        if (LOG_SIZE_MAX - log->offset < n_data) {
+        if (log->map_size - log->offset < n_data) {
                 log->error = LOG_E_TRUNCATED;
                 return;
         }
@@ -605,10 +610,10 @@ void log_vappendf(Log *log, const char *format, va_list args) {
                 return;
 
         r = vsnprintf(log->map + log->offset,
-                      LOG_SIZE_MAX - log->offset,
+                      log->map_size - log->offset,
                       format,
                       args);
-        if (r < 0 || r >= (ssize_t)(LOG_SIZE_MAX - log->offset)) {
+        if (r < 0 || r >= (ssize_t)(log->map_size - log->offset)) {
                 log->error = LOG_E_TRUNCATED;
                 return;
         }
