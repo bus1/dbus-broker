@@ -2,6 +2,10 @@
 
 ## CHANGES WITH 26:
 
+        * Improve the service activation tracking of the compatibility
+          launcher. We now track spawned systemd units for their entire
+          lifetime, so we can properly detect when activations fail.
+
         * Work around a kernel off-by-one error in the socket queue accounting
           to fix a race-condition where dbus clients might not be dispatched.
 
