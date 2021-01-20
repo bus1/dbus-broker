@@ -1,5 +1,17 @@
 # dbus-broker - Linux D-Bus Message Broker
 
+## CHANGES WITH 26:
+
+        * Work around a kernel off-by-one error in the socket queue accounting
+          to fix a race-condition where dbus clients might not be dispatched.
+
+        * Support running without `shmem` configured in the kernel. This will
+          make the broker run better on limited embedded devices.
+
+        Contributions from: Chris Paulson-Ellis, David Rheinsberg, Tim Gates
+
+        - Dußlingen, 2021-01-20
+
 ## CHANGES WITH 25:
 
         * Fix an assertion failure when disconnecting monitors with active
