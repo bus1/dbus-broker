@@ -1254,6 +1254,35 @@ static int launcher_connect(Launcher *launcher) {
         return 0;
 }
 
+static int launcher_subscribe(Launcher *launcher) {
+        int r;
+
+        /*
+         * The systemd APIs only ever send signals if there is at least one
+         * subscriber. On the system-bus, the systemd tools themselves already
+         * subscribe, so the feature is a no-op. However, on the session bus
+         * this is not always the case. Regardless, we just properly subscribe
+         * in all circumstances, since we require unit state-change
+         * notifications.
+         */
+
+        r = sd_bus_call_method_async(
+                launcher->bus_regular,
+                NULL,
+                "org.freedesktop.systemd1",
+                "/org/freedesktop/systemd1",
+                "org.freedesktop.systemd1.Manager",
+                "Subscribe",
+                NULL,
+                NULL,
+                ""
+        );
+        if (r < 0)
+                return error_origin(r);
+
+        return 0;
+}
+
 static int bus_method_reload_config(sd_bus_message *message, void *userdata, sd_bus_error *error) {
         Launcher *launcher = userdata;
         int r;
@@ -1389,6 +1418,10 @@ int launcher_run(Launcher *launcher) {
         r = sd_bus_attach_event(launcher->bus_regular, launcher->event, SD_EVENT_PRIORITY_NORMAL);
         if (r < 0)
                 return error_origin(r);
+
+        r = launcher_subscribe(launcher);
+        if (r)
+                return error_trace(r);
 
         if (launcher->uid != (uint32_t)-1) {
                 r = util_drop_permissions(launcher->uid, launcher->gid);
