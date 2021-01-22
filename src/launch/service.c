@@ -692,6 +692,34 @@ static int service_start_transient_unit(Service *service) {
                 if (r < 0)
                         return error_origin(r);
 
+                r = sd_bus_message_open_container(method_call, 'r', "sv");
+                if (r < 0)
+                        return error_origin(r);
+
+                {
+                        r = sd_bus_message_append(method_call, "s", "CollectMode");
+                        if (r < 0)
+                                return error_origin(r);
+
+                        r = sd_bus_message_open_container(method_call, 'v', "s");
+                        if (r < 0)
+                                return error_origin(r);
+
+                        {
+                                r = sd_bus_message_append(method_call, "s", "inactive-or-failed");
+                                if (r < 0)
+                                        return error_origin(r);
+                        }
+
+                        r = sd_bus_message_close_container(method_call);
+                        if (r < 0)
+                                return error_origin(r);
+                }
+
+                r = sd_bus_message_close_container(method_call);
+                if (r < 0)
+                        return error_origin(r);
+
                 if (service->user) {
                         /*
                          * Ideally we would unconditionally pass the UID
