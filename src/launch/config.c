@@ -1059,6 +1059,11 @@ static void config_parser_end_fn(void *userdata, const XML_Char *name) {
                         if (errno == ENOENT || errno == ENOTDIR)
                                 break;
 
+                        if (errno == EACCES || errno == EPERM) {
+                                CONFIG_ERR(state, "Access denied", ": %s",
+                                           state->current->includedir.dir->path);
+                        }
+
                         state->error = error_origin(-errno);
                         return;
                 }
@@ -1264,6 +1269,10 @@ static int config_parser_include(ConfigParser *parser, ConfigRoot *root, ConfigN
                                 return 0;
 
                         CONFIG_ERR(&parser->state, "Missing configuration file",
+                                   ": %s", node->include.file->path);
+                        return CONFIG_E_INVALID;
+                } else if (errno == EACCES || errno == EPERM) {
+                        CONFIG_ERR(&parser->state, "Access denied",
                                    ": %s", node->include.file->path);
                         return CONFIG_E_INVALID;
                 }
