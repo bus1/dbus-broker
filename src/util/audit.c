@@ -82,7 +82,7 @@ int util_audit_drop_permissions(uint32_t uid, uint32_t gid) {
 
                 if (have_audit_write) {
                         r = prctl(PR_CAP_AMBIENT, PR_CAP_AMBIENT_RAISE, CAP_AUDIT_WRITE, 0, 0);
-                        if (r < 0)
+                        if (r < 0 && errno != EINVAL) // EINVAL indicates the kernel does not support PR_CAP_AMBIENT
                                 return error_origin(-errno);
                 }
         }
