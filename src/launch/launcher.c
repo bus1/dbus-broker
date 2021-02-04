@@ -386,7 +386,12 @@ static int launcher_fork(Launcher *launcher, int fd_controller) {
 
 static int launcher_on_name_activate(Launcher *launcher, sd_bus_message *m, const char *id) {
         Service *service;
+        uint64_t serial;
         int r;
+
+        r = sd_bus_message_read(m, "t", &serial);
+        if (r < 0)
+                return error_origin(r);
 
         service = c_rbtree_find_entry(&launcher->services,
                                       service_compare,
@@ -403,7 +408,7 @@ static int launcher_on_name_activate(Launcher *launcher, sd_bus_message *m, cons
                 return 0;
         }
 
-        r = service_activate(service);
+        r = service_activate(service, serial);
         if (r)
                 return error_fold(r);
 

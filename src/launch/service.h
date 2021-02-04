@@ -32,6 +32,7 @@ struct Service {
         uint64_t instance;
         uint64_t n_missing_unit;
         uint64_t n_masked_unit;
+        uint64_t last_serial;
         char id[];
 };
 
@@ -56,5 +57,5 @@ int service_compare(CRBTree *t, void *k, CRBNode *n);
 int service_compare_by_name(CRBTree *t, void *k, CRBNode *n);
 
 int service_add(Service *service);
-int service_activate(Service *service);
+int service_activate(Service *service, uint64_t serial);
 int service_remove(Service *service);

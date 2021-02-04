@@ -202,18 +202,6 @@ static int service_reset_activation(Service *service) {
          *      dbus error to each pending transaction.
          *      So far, we did not define such errors, so this is left for the
          *      future.
-         *
-         * XXX: Additionally, we would probably want a serial-number for each
-         *      activation request, which we then include in this reset. This
-         *      would properly order consequetive activation requests and allow
-         *      the broker to discard resets that come out-of-order.
-         *      However, this is quite unlikely to solve any real issue, since
-         *      there is no defined behavior of failed activation requests,
-         *      anyway. While they are recoverable in most situations, there is
-         *      no defined barrier at which point a followup should succeed.
-         *      Hence, this is left for the future, in case this situation gets
-         *      a well-defined behavior (though, needs coordination with the
-         *      reference implementation and systemd).
          */
         r = sd_bus_call_method(service->launcher->bus_controller,
                                NULL,
@@ -222,7 +210,8 @@ static int service_reset_activation(Service *service) {
                                "Reset",
                                NULL,
                                NULL,
-                               "");
+                               "t",
+                               service->last_serial);
         if (r < 0)
                 return error_origin(r);
 
@@ -794,6 +783,7 @@ static int service_start_transient_unit(Service *service) {
 /**
  * service_activate() - trigger a service activation
  * @service:            service to activate
+ * @serial:             activation serial number
  *
  * This activates the specified service. Any previous activation is discarded
  * silently. The new activation replaces a possible old one.
@@ -825,10 +815,11 @@ static int service_start_transient_unit(Service *service) {
  *
  * Returns: 0 on success, negative error code on failure.
  */
-int service_activate(Service *service) {
+int service_activate(Service *service, uint64_t serial) {
         int r;
 
         service_discard_activation(service);
+        service->last_serial = serial;
 
         if (!strcmp(service->name, "org.freedesktop.systemd1")) {
                 /*

@@ -721,22 +721,19 @@ static int driver_name_owner_changed(Bus *bus, MatchRegistry *matches, const cha
         return 0;
 }
 
-int driver_name_activation_failed(Bus *bus, Activation *activation) {
+int driver_name_activation_failed(Bus *bus, Activation *activation, uint64_t serial) {
         ActivationRequest *request, *request_safe;
         ActivationMessage *message, *message_safe;
         int r;
 
-        /* in case the name is activated again in the future, we should request it again */
-        activation->requested = false;
-
         /*
-         * NOTE: We can get activation-failure notifications by the launcher
-         *       even when the name was already claimed. The launcher tracks
-         *       services for their entire lifetime.
-         *       We don't really care for late notifications so far, since both
-         *       the queues are empty in this case. But we need to be aware of
-         *       this if we extend this in the future.
+         * If there is no pending activation, or if it is an event for an old
+         * activation, we ignore it silently.
          */
+        if (!activation->pending || serial != activation->pending)
+                return 0;
+
+        activation->pending = 0;
 
         c_list_for_each_entry_safe(request, request_safe, &activation->activation_requests, link) {
                 Peer *sender;
@@ -776,7 +773,7 @@ static int driver_name_activated(Activation *activation, Peer *receiver) {
                 return 0;
 
         /* in case the name is dropped again in the future, we should request it again */
-        activation->requested = false;
+        activation->pending = 0;
 
         c_list_for_each_entry_safe(request, request_safe, &activation->activation_requests, link) {
                 Peer *sender;

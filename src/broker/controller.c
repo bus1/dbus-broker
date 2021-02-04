@@ -66,10 +66,10 @@ static int controller_name_new(ControllerName **namep, Controller *controller, c
 /**
  * controller_name_reset() - XXX
  */
-int controller_name_reset(ControllerName *name) {
+int controller_name_reset(ControllerName *name, uint64_t serial) {
         int r;
 
-        r = driver_name_activation_failed(&name->controller->broker->bus, &name->activation);
+        r = driver_name_activation_failed(&name->controller->broker->bus, &name->activation, serial);
         if (r)
                 return error_fold(r);
 
@@ -79,8 +79,8 @@ int controller_name_reset(ControllerName *name) {
 /**
  * controller_name_activate() - XXX
  */
-int controller_name_activate(ControllerName *name) {
-        return controller_dbus_send_activation(name->controller, name->path);
+int controller_name_activate(ControllerName *name, uint64_t serial) {
+        return controller_dbus_send_activation(name->controller, name->path, serial);
 }
 
 static int controller_reload_compare(CRBTree *t, void *k, CRBNode *rb) {
@@ -311,7 +311,7 @@ int controller_add_name(Controller *controller,
         if (r)
                 return error_trace(r);
 
-        r = activation_init(&name->activation, name_entry, user_entry);
+        r = activation_init(&name->activation, &controller->broker->bus, name_entry, user_entry);
         if (r)
                 return (r == ACTIVATION_E_ALREADY_ACTIVATABLE) ? CONTROLLER_E_NAME_IS_ACTIVATABLE : error_fold(r);
 

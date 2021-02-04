@@ -50,6 +50,7 @@ struct Bus {
 
         uint64_t n_monitors;
         uint64_t listener_ids;
+        uint64_t activation_ids;
 
         Metrics metrics;
 };
