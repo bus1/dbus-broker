@@ -54,6 +54,13 @@ struct ControllerMethod {
                 _body                                   \
         )
 
+static const CDVarType controller_type_in_t[] = {
+        C_DVAR_T_INIT(
+                C_DVAR_T_TUPLE1(
+                        C_DVAR_T_t
+                )
+        )
+};
 static const CDVarType controller_type_in_v[] = {
         C_DVAR_T_INIT(
                 C_DVAR_T_TUPLE1(
@@ -304,7 +311,7 @@ static int controller_method_name_release(Controller *controller, const char *pa
         if (!name)
                 return CONTROLLER_E_NAME_NOT_FOUND;
 
-        r = controller_name_reset(name);
+        r = controller_name_reset(name, name->activation.pending);
         if (r)
                 return error_trace(r);
 
@@ -352,9 +359,10 @@ static int controller_method_listener_set_policy(Controller *controller, const c
 
 static int controller_method_name_reset(Controller *controller, const char *path, CDVar *in_v, FDList *fds, CDVar *out_v) {
         ControllerName *name;
+        uint64_t serial;
         int r;
 
-        c_dvar_read(in_v, "()");
+        c_dvar_read(in_v, "(t)", &serial);
 
         r = controller_end_read(in_v);
         if (r)
@@ -364,7 +372,7 @@ static int controller_method_name_reset(Controller *controller, const char *path
         if (!name)
                 return CONTROLLER_E_NAME_NOT_FOUND;
 
-        r = controller_name_reset(name);
+        r = controller_name_reset(name, serial);
         if (r)
                 return error_trace(r);
 
@@ -457,7 +465,7 @@ static int controller_dispatch_controller(Controller *controller, uint32_t seria
 
 static int controller_dispatch_name(Controller *controller, uint32_t serial, const char *method, const char *path, const char *signature, Message *message) {
         static const ControllerMethod methods[] = {
-                { "Reset",      controller_method_name_reset,   c_dvar_type_unit,       controller_type_out_unit },
+                { "Reset",      controller_method_name_reset,   controller_type_in_t,   controller_type_out_unit },
                 { "Release",    controller_method_name_release, c_dvar_type_unit,       controller_type_out_unit },
         };
 
@@ -636,11 +644,13 @@ int controller_dbus_dispatch(Controller *controller, Message *message) {
 /**
  * controller_dbus_send_activation() - XXX
  */
-int controller_dbus_send_activation(Controller *controller, const char *path) {
+int controller_dbus_send_activation(Controller *controller, const char *path, uint64_t serial) {
         static const CDVarType type[] = {
                 C_DVAR_T_INIT(
                         CONTROLLER_T_MESSAGE(
-                                C_DVAR_T_TUPLE0
+                                C_DVAR_T_TUPLE1(
+                                        C_DVAR_T_t
+                                )
                         )
                 )
         };
@@ -651,11 +661,13 @@ int controller_dbus_send_activation(Controller *controller, const char *path) {
         int r;
 
         c_dvar_begin_write(&var, (__BYTE_ORDER == __BIG_ENDIAN), type, 1);
-        c_dvar_write(&var, "((yyyyuu[(y<o>)(y<s>)(y<s>)])())",
+        c_dvar_write(&var, "((yyyyuu[(y<o>)(y<s>)(y<s>)(y<g>)])(t))",
                      c_dvar_is_big_endian(&var) ? 'B' : 'l', DBUS_MESSAGE_TYPE_SIGNAL, DBUS_HEADER_FLAG_NO_REPLY_EXPECTED, 1, 0, (uint32_t)-1,
                      DBUS_MESSAGE_FIELD_PATH, c_dvar_type_o, path,
                      DBUS_MESSAGE_FIELD_INTERFACE, c_dvar_type_s, "org.bus1.DBus.Name",
-                     DBUS_MESSAGE_FIELD_MEMBER, c_dvar_type_s, "Activate");
+                     DBUS_MESSAGE_FIELD_MEMBER, c_dvar_type_s, "Activate",
+                     DBUS_MESSAGE_FIELD_SIGNATURE, c_dvar_type_g, "t",
+                     serial);
 
         r = c_dvar_end_write(&var, &data, &n_data);
         if (r)

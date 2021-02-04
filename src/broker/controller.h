@@ -101,8 +101,8 @@ struct Controller {
 /* names */
 
 ControllerName *controller_name_free(ControllerName *name);
-int controller_name_reset(ControllerName *name);
-int controller_name_activate(ControllerName *name);
+int controller_name_reset(ControllerName *name, uint64_t serial);
+int controller_name_activate(ControllerName *name, uint64_t serial);
 
 C_DEFINE_CLEANUP(ControllerName *, controller_name_free);
 
@@ -144,7 +144,7 @@ ControllerListener *controller_find_listener(Controller *controller, const char 
 ControllerReload *controller_find_reload(Controller *controller, uint32_t serial);
 
 int controller_dbus_dispatch(Controller *controller, Message *message);
-int controller_dbus_send_activation(Controller *controller, const char *path);
+int controller_dbus_send_activation(Controller *controller, const char *path, uint64_t serial);
 int controller_dbus_send_reload(Controller *controller, User *user, uint32_t serial);
 int controller_dbus_send_environment(Controller *controller, const char * const *env, size_t n_env);
 

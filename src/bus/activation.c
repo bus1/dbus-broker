@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include "broker/controller.h"
 #include "bus/activation.h"
+#include "bus/bus.h"
 #include "bus/name.h"
 #include "bus/policy.h"
 #include "dbus/message.h"
@@ -48,13 +49,14 @@ C_DEFINE_CLEANUP(ActivationMessage *, activation_message_free);
 /**
  * activation_init() - XXX
  */
-int activation_init(Activation *a, Name *name, User *user) {
+int activation_init(Activation *a, Bus *bus, Name *name, User *user) {
         _c_cleanup_(activation_deinitp) Activation *activation = a;
 
         if (name->activation)
                 return ACTIVATION_E_ALREADY_ACTIVATABLE;
 
         *activation = (Activation)ACTIVATION_NULL(*activation);
+        activation->bus = bus;
         activation->name = name_ref(name);
         activation->user = user_ref(user);
 
@@ -113,14 +115,15 @@ void activation_get_stats_for(Activation *activation,
 static int activation_request(Activation *activation) {
         int r;
 
-        if (activation->requested)
+        if (activation->pending)
                 return 0;
 
-        r = controller_name_activate(CONTROLLER_NAME(activation));
+        r = controller_name_activate(CONTROLLER_NAME(activation),
+                                     ++activation->bus->activation_ids);
         if (r)
                 return error_fold(r);
 
-        activation->requested = true;
+        activation->pending = activation->bus->activation_ids;
         return 0;
 }
 

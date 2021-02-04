@@ -13,6 +13,7 @@
 typedef struct Activation Activation;
 typedef struct ActivationMessage ActivationMessage;
 typedef struct ActivationRequest ActivationRequest;
+typedef struct Bus Bus;
 typedef struct Message Message;
 typedef struct Name Name;
 typedef struct NameOwner NameOwner;
@@ -43,11 +44,12 @@ struct ActivationMessage {
 };
 
 struct Activation {
+        Bus *bus;
         Name *name;
         User *user;
         CList activation_messages;
         CList activation_requests;
-        bool requested : 1;
+        uint64_t pending;
 };
 
 #define ACTIVATION_NULL(_x) {                                                   \
@@ -65,7 +67,7 @@ ActivationMessage *activation_message_free(ActivationMessage *message);
 
 /* activation */
 
-int activation_init(Activation *activation, Name *name, User *user);
+int activation_init(Activation *activation, Bus *bus, Name *name, User *user);
 void activation_deinit(Activation *activation);
 
 void activation_get_stats_for(Activation *activation,

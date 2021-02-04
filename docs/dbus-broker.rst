@@ -189,14 +189,22 @@ the broker. See the section below for a list of interfaces on the controller.
 |         **method** Release() -> ()
 |
 |         # Reset the activation state of this name. Any pending activation
-|         # requests are canceled.
-|         **method** Reset() -> ()
+|         # requests are canceled. The call requires a serial number to be
+|         # passed along. This must be the serial number received by the last
+|         # activation even on this name. Calls for other serial numbers are
+|         # silently ignored and considered stale.
+|         **method** Reset(**t** *serial*) -> ()
 |
 |         # This signal is sent whenever a client requests activation of this
 |         # name. Note that multiple activation requests are coalesced by the
 |         # broker. The controller can cancel outstanding requests via the
 |         # **Reset()** method.
-|         **signal** Activate()
+|         # The broker sends a serial number with the event. This number
+|         # represents the activation request and must be used when reacting
+|         # to the request with methods like *Reset()*. The serial number is
+|         # unique for each event, and is never reused. A serial number of 0
+|         # is never sent and considered invalid.
+|         **signal** Activate(**t** *serial*)
 |
 |     }
 | }
