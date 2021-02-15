@@ -1,5 +1,19 @@
 # dbus-broker - Linux D-Bus Message Broker
 
+## CHANGES WITH 27:
+
+        * Fix several bugs with the new service-activation tracking, including
+          a race-condition when restarting activatable services. Note that this
+          includes a change to the internal controller API, which is used to
+          communicate between the launcher and the broker.
+
+        * Be more verbose about denied configuration access and print the
+          file-path for better diagnostics.
+
+        Contributions from: David Rheinsberg
+
+        - Dußlingen, 2021-02-24
+
 ## CHANGES WITH 26:
 
         * Improve the service activation tracking of the compatibility
