@@ -80,6 +80,7 @@ Service *service_free(Service *service) {
 
         c_rbnode_unlink(&service->rb_by_name);
         c_rbnode_unlink(&service->rb);
+        free(service->job);
         free(service->user);
         for (size_t i = 0; i < service->argc; ++i)
                 free(service->argv[i]);
@@ -89,6 +90,7 @@ Service *service_free(Service *service) {
         free(service->path);
         service->slot_start_unit = sd_bus_slot_unref(service->slot_start_unit);
         service->slot_watch_unit = sd_bus_slot_unref(service->slot_watch_unit);
+        service->slot_watch_jobs = sd_bus_slot_unref(service->slot_watch_jobs);
         free(service);
 
         return NULL;
@@ -180,8 +182,10 @@ int service_new(Service **servicep,
 }
 
 static void service_discard_activation(Service *service) {
+        service->job = c_free(service->job);
         service->slot_start_unit = sd_bus_slot_unref(service->slot_start_unit);
         service->slot_watch_unit = sd_bus_slot_unref(service->slot_watch_unit);
+        service->slot_watch_jobs = sd_bus_slot_unref(service->slot_watch_jobs);
 }
 
 static int service_reset_activation(Service *service) {
@@ -216,10 +220,96 @@ static int service_reset_activation(Service *service) {
         return 0;
 }
 
+static int service_watch_jobs_handler(sd_bus_message *message, void *userdata, sd_bus_error *errorp) {
+        Service *service = userdata;
+        const char *path = NULL, *unit = NULL, *result = NULL;
+        uint32_t id;
+        int r;
+
+        /*
+         * Whenever we have an activation job queued, we want to know when it
+         * is done. We get a `JobRemoved` signal from systemd, which includes
+         * the reason why the job is done.
+         * We get those signals for all jobs, since we cannot know a job-id to
+         * match for before we create job. This is quite unfortunate, but
+         * little we can do about it now.
+         *
+         * We require this signal merely to know when systemd finished handling
+         * a job. For properly configured services, this should already tell us
+         * whether the startup was successful or failed. But for basic services
+         * that use no notify or dbus systemd-startup handling, we have to
+         * continue tracking their `ActiveState` to see whether they failed.
+         */
+
+        r = sd_bus_message_read(message, "uoss", &id, &path, &unit, &result);
+        if (r < 0)
+                return error_origin(r);
+
+        if (!service->job || strcmp(path, service->job))
+                return 0;
+
+        if (!strcmp(result, "done") || !strcmp(result, "skipped")) {
+                /*
+                 * Our job completed successfully. Make sure to stop watching
+                 * it so the `ActiveState` handling will take effect.
+                 */
+                service->job = c_free(service->job);
+                service->slot_watch_jobs = sd_bus_slot_unref(service->slot_watch_jobs);
+        } else {
+                /*
+                 * Our job failed. Forward this information to the broker so it
+                 * can fail pending activations.
+                 */
+                r = service_reset_activation(service);
+                if (r)
+                        return error_trace(r);
+        }
+
+        return 0;
+}
+
+static int service_watch_jobs(Service *service) {
+        int r;
+
+        assert(!service->slot_watch_jobs);
+        assert(!service->job);
+
+        r = sd_bus_match_signal_async(
+                service->launcher->bus_regular,
+                &service->slot_watch_jobs,
+                "org.freedesktop.systemd1",
+                "/org/freedesktop/systemd1",
+                "org.freedesktop.systemd1.Manager",
+                "JobRemoved",
+                service_watch_jobs_handler,
+                NULL,
+                service
+        );
+        if (r < 0)
+                return error_origin(r);
+
+        return 0;
+}
+
 static int service_watch_unit_handler(sd_bus_message *message, void *userdata, sd_bus_error *errorp) {
         Service *service = userdata;
         const char *interface = NULL, *property = NULL, *value = NULL;
         int r;
+
+        /*
+         * If we still watch the job-signals it means systemd has not yet fully
+         * finished our job. In this case, any errors will be caught by the
+         * `JobRemoved` handler and we do not have to track the unit, yet.
+         * Moreover, we must not track the unit, since it might still return
+         * failures before our job was actually handled by systemd.
+         *
+         * Hence, simply ignore any PropertiesChanged signals until we got
+         * confirmation by systemd that our job finished. Bus ordering will
+         * guarantee that we catch unit-failures both before and after the job
+         * completion.
+         */
+        if (service->slot_watch_jobs)
+                return 0;
 
         /*
          * The properties of the bus unit changed. We are only interested in
@@ -343,14 +433,31 @@ static int service_start_unit_handler(sd_bus_message *message, void *userdata, s
         Service *service = userdata;
         Launcher *launcher = service->launcher;
         const sd_bus_error *error;
+        const char *job;
         int r;
 
         service->slot_start_unit = sd_bus_slot_unref(service->slot_start_unit);
 
         error = sd_bus_message_get_error(message);
-        if (!error)
-                /* unit queued successfully */
+        if (!error) {
+                /*
+                 * We successfully queued the job. Now remember the job path,
+                 * so we can properly track when it finishes (via the
+                 * JobRemoved signal).
+                 */
+
+                assert(!service->job);
+
+                r = sd_bus_message_read(message, "o", &job);
+                if (r < 0)
+                        return error_origin(r);
+
+                service->job = strdup(job);
+                if (!service->job)
+                        return error_origin(-ENOMEM);
+
                 return 1;
+        }
 
         /*
          * We always forward activation failure to the broker, which then
@@ -437,6 +544,10 @@ static int service_start_unit(Service *service) {
         _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *method_call = NULL;
         int r;
 
+        r = service_watch_jobs(service);
+        if (r)
+                return error_trace(r);
+
         r = service_watch_unit(service, service->unit);
         if (r)
                 return error_trace(r);
@@ -466,6 +577,10 @@ static int service_start_transient_unit(Service *service) {
         _c_cleanup_(c_freep) char *unit = NULL, *escaped_name = NULL;
         const char *unique_name;
         int r;
+
+        r = service_watch_jobs(service);
+        if (r)
+                return error_trace(r);
 
         r = sd_bus_get_unique_name(launcher->bus_regular, &unique_name);
         if (r < 0)
