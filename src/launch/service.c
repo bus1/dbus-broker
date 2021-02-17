@@ -88,7 +88,6 @@ Service *service_free(Service *service) {
         free(service->name);
         free(service->path);
         service->slot_start_unit = sd_bus_slot_unref(service->slot_start_unit);
-        service->slot_query_unit = sd_bus_slot_unref(service->slot_query_unit);
         service->slot_watch_unit = sd_bus_slot_unref(service->slot_watch_unit);
         free(service);
 
@@ -182,7 +181,6 @@ int service_new(Service **servicep,
 
 static void service_discard_activation(Service *service) {
         service->slot_start_unit = sd_bus_slot_unref(service->slot_start_unit);
-        service->slot_query_unit = sd_bus_slot_unref(service->slot_query_unit);
         service->slot_watch_unit = sd_bus_slot_unref(service->slot_watch_unit);
 }
 
@@ -218,71 +216,19 @@ static int service_reset_activation(Service *service) {
         return 0;
 }
 
-static int service_handle_active_state(Service *service, const char *value) {
-        int r;
-
-        /*
-         * The possible values of "ActiveState" are:
-         *
-         *   active, reloading, inactive, failed, activating, deactivating
-         *
-         * We are never interested in positive results, because the broker
-         * already gets those by tracking the name to be acquired. Therefore,
-         * we only ever track negative results. This means we only ever react
-         * to "failed".
-         * We could also react to units entering "inactive", but we cannot know
-         * upfront whether the unit is just a oneshot unit and thus is expected
-         * to enter "inactive" when it finished. Hence, we simply require
-         * anything to explicitly fail if they want to reset the activation.
-         */
-
-        if (!strcmp(value, "failed")) {
-                r = service_reset_activation(service);
-                if (r)
-                        return error_trace(r);
-        }
-
-        return 0;
-}
-
-static int service_query_unit_handler(sd_bus_message *message, void *userdata, sd_bus_error *errorp) {
-        Service *service = userdata;
-        const char *v;
-        int r;
-
-        service->slot_query_unit = sd_bus_slot_unref(service->slot_query_unit);
-
-        r = sd_bus_message_enter_container(message, 'v', "s");
-        if (r < 0)
-                return error_origin(r);
-
-        {
-                r = sd_bus_message_read(message, "s", &v);
-                if (r < 0)
-                        return error_origin(r);
-        }
-
-        r = sd_bus_message_exit_container(message);
-        if (r < 0)
-                return error_origin(r);
-
-        r = service_handle_active_state(service, v);
-        if (r)
-                return error_trace(r);
-
-        return 0;
-}
-
 static int service_watch_unit_handler(sd_bus_message *message, void *userdata, sd_bus_error *errorp) {
         Service *service = userdata;
         const char *interface = NULL, *property = NULL, *value = NULL;
-        bool invalidated = false;
         int r;
 
         /*
          * The properties of the bus unit changed. We are only interested in
          * the "ActiveState" property. We check whether it is included in the
-         * payload. If not, we query it, in case it was invalidated.
+         * payload. If not, we ignore the signal.
+         *
+         * Note that we rely on systemd including it with value in the signal.
+         * We will not query it, if it was merely invalidated. This is a
+         * systemd API guarantee, and we rely on it.
          */
 
         /* Parse: "s" */
@@ -339,54 +285,24 @@ static int service_watch_unit_handler(sd_bus_message *message, void *userdata, s
                         return error_origin(r);
         }
 
-        /* Parse: "as" */
-        {
-                r = sd_bus_message_enter_container(message, 'a', "s");
-                if (r < 0)
-                        return error_origin(r);
-
-                while (!sd_bus_message_at_end(message, false)) {
-                        r = sd_bus_message_read(message, "s", &property);
-                        if (r < 0)
-                                return error_origin(r);
-
-                        if (!strcmp(property, "ActiveState"))
-                                invalidated = true;
-                }
-
-                r = sd_bus_message_exit_container(message);
-                if (r < 0)
-                        return error_origin(r);
-        }
-
-        /* If the value neither changed or was invalidated, discard it. */
-        if (!value && !invalidated)
-                return 0;
-
-        service->slot_query_unit = sd_bus_slot_unref(service->slot_query_unit);
-
-        if (value) {
-                /* We got a new property value, so handle it. */
-                r = service_handle_active_state(service, value);
+        /*
+         * The possible values of "ActiveState" are:
+         *
+         *   active, reloading, inactive, failed, activating, deactivating
+         *
+         * We are never interested in positive results, because the broker
+         * already gets those by tracking the name to be acquired. Therefore,
+         * we only ever track negative results. This means we only ever react
+         * to "failed".
+         * We could also react to units entering "inactive", but we cannot know
+         * upfront whether the unit is just a oneshot unit and thus is expected
+         * to enter "inactive" when it finished. Hence, we simply require
+         * anything to explicitly fail if they want to reset the activation.
+         */
+        if (value && !strcmp(value, "failed")) {
+                r = service_reset_activation(service);
                 if (r)
                         return error_trace(r);
-        } else {
-                /* The property was invalidated, so query it. */
-                r = sd_bus_call_method_async(
-                        service->launcher->bus_regular,
-                        &service->slot_query_unit,
-                        "org.freedesktop.systemd1",
-                        sd_bus_message_get_path(message),
-                        "org.freedesktop.DBus.Properties",
-                        "Get",
-                        service_query_unit_handler,
-                        service,
-                        "ss",
-                        "org.freedesktop.systemd1.Unit",
-                        "ActiveState"
-                );
-                if (r < 0)
-                        return error_origin(r);
         }
 
         return 0;
@@ -397,7 +313,6 @@ static int service_watch_unit(Service *service, const char *unit) {
         int r;
 
         assert(!service->slot_watch_unit);
-        assert(!service->slot_query_unit);
 
         r = sd_bus_path_encode(
                 "/org/freedesktop/systemd1/unit",
