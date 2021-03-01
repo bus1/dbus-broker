@@ -2195,6 +2195,20 @@ static void test_become_monitor(void) {
                 c_assert(r == -ECONNRESET);
         }
 
+        /* become monitor with a match duplicate */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+
+                util_broker_connect(broker, &bus);
+
+                r = sd_bus_call_method(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus.Monitoring",
+                                       "BecomeMonitor", NULL, NULL,
+                                       "asu",
+                                       2, "sender=com.example.test", "sender=com.example.test",
+                                       0);
+                c_assert(r >= 0);
+        }
+
         util_broker_terminate(broker);
 }
 

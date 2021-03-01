@@ -656,6 +656,7 @@ int peer_remove_match(Peer *peer, const char *rule_string) {
 
 int peer_become_monitor(Peer *peer, MatchOwner *owned_matches) {
         MatchRule *rule;
+        size_t i, n_user_refs;
         int r, poison = 0;
 
         c_assert(!peer->registered);
@@ -666,12 +667,22 @@ int peer_become_monitor(Peer *peer, MatchOwner *owned_matches) {
         match_owner_move(&peer->owned_matches, owned_matches);
 
         c_rbtree_for_each_entry(rule, &peer->owned_matches.rule_tree, owner_node) {
-
                 rule->owner = &peer->owned_matches;
+                n_user_refs = rule->n_user_refs;
 
-                r = peer_link_match(peer, rule, true);
-                if (r && !poison)
-                        poison = error_trace(r);
+                /*
+                 * Link once for each match instance, in case the user provided
+                 * duplicate matches. No need to optimize this; treat it as
+                 * individual matches and mirror `peer_add_match()`. We
+                 * prefetch the user-refs to guarantee they are constant (in
+                 * case `peer_link_match()` would ever want to acquire more
+                 * user-refs, for whatever reason).
+                 */
+                for (i = 0; i < n_user_refs; ++i) {
+                        r = peer_link_match(peer, rule, true);
+                        if (r && !poison)
+                                poison = error_trace(r);
+                }
         }
 
         if (poison)
