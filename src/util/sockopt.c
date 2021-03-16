@@ -145,8 +145,10 @@ int sockopt_get_peergroups(int fd, Log *log, uid_t uid, gid_t primary_gid, gid_t
                 if (!warned) {
                         warned = true;
                         log_append_here(log, LOG_ERR, 0, DBUS_BROKER_CATALOG_NO_SOPEERGROUP);
-                        log_commitf(log, "Falling back to racy auxiliary groups"
-                                         "resolution using nss.\n");
+                        r = log_commitf(log, "Falling back to racy auxiliary groups"
+                                             "resolution using nss.\n");
+                        if (r)
+                                return error_fold(r);
                 }
         }
 
