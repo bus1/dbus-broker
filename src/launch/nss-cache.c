@@ -151,7 +151,7 @@ static int nss_cache_add(CRBTree *tree_by_name,
                                                 &parent_by_id);
                 if (!slot_by_id) {
                         node_by_id = c_rbnode_entry(parent_by_id, NSSCacheNode, rb_by_id);
-                        node = node_by_name;
+                        node = node_by_id;
                 }
         }
 
