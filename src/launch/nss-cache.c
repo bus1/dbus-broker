@@ -40,7 +40,10 @@ typedef struct NSSCacheNode {
 
 static int nss_cache_node_new(NSSCacheNode **nodep, const char *name, uint32_t id) {
         NSSCacheNode *node;
-        size_t n_name = name ? strlen(name) : 0;
+        size_t n_name;
+
+        name = name ? : "";
+        n_name = strlen(name);
 
         node = malloc(sizeof(*node) + n_name + 1);
         if (!node)
