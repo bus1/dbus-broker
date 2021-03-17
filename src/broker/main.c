@@ -6,6 +6,7 @@
 #include <getopt.h>
 #include <limits.h>
 #include <stdlib.h>
+#include <sys/prctl.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include "broker/broker.h"
@@ -233,6 +234,22 @@ static int parse_argv(int argc, char *argv[]) {
         return 0;
 }
 
+static int setup(void) {
+        int r;
+
+        /*
+         * We never spawn external applications from within the broker itself,
+         * so clear the ambient set, as it is never needed. This is meant as
+         * safety measure to guarantee our capabilities are not inherited by
+         * possible exploits.
+         */
+        r = prctl(PR_CAP_AMBIENT, PR_CAP_AMBIENT_CLEAR_ALL, 0, 0, 0);
+        if (r < 0)
+                return error_origin(-errno);
+
+        return 0;
+}
+
 static int run(void) {
         _c_cleanup_(broker_freep) Broker *broker = NULL;
         int r;
@@ -248,6 +265,10 @@ int main(int argc, char **argv) {
         int r;
 
         r = parse_argv(argc, argv);
+        if (r)
+                goto exit;
+
+        r = setup();
         if (r)
                 goto exit;
 
