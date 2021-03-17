@@ -1,5 +1,25 @@
 # dbus-broker - Linux D-Bus Message Broker
 
+## CHANGES WITH 28:
+
+        Contributions from: David Rheinsberg
+
+        * Further improvements to the service activation tracking. This better
+          tracks units in systemd and closes some races where a repeated
+          activation would incorrectly fail.
+
+        * Fix a crash where duplicate monitor matches would be incorrectly
+          installed in the broker.
+
+        * Clear the ambient capability set to harden against possible exploits.
+
+        * A couple of bug-fixes in the utility libraries, and static
+          dependencies of the broker.
+
+        Contributions from: David Rheinsberg
+
+        - Dußlingen, 2021-03-17
+
 ## CHANGES WITH 27:
 
         * Fix several bugs with the new service-activation tracking, including
