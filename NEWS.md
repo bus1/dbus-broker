@@ -2,8 +2,6 @@
 
 ## CHANGES WITH 28:
 
-        Contributions from: David Rheinsberg
-
         * Further improvements to the service activation tracking. This better
           tracks units in systemd and closes some races where a repeated
           activation would incorrectly fail.
