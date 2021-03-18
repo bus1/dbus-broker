@@ -935,9 +935,7 @@ static int policy_export_console(Policy *policy, sd_bus_message *m, PolicyEntrie
         int r;
 
         /* check for overflow */
-        c_assert(uid_start + n_uid >= uid_start);
-        /* check for encoding into dbus `u` type */
-        c_assert(uid_start + n_uid <= (uint32_t)-1);
+        c_assert(n_uid == 0 || uid_start + n_uid - 1 >= uid_start);
 
         if (n_uid == 0)
                 return 0;
