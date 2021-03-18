@@ -934,7 +934,10 @@ static int policy_export_xmit(Policy *policy, CList *list1, CList *list2, sd_bus
 static int policy_export_console(Policy *policy, sd_bus_message *m, PolicyEntries *entries, uint32_t uid_start, uint32_t n_uid) {
         int r;
 
-        c_assert(((uint32_t)-1) - n_uid + 1 >= uid_start);
+        /* check for overflow */
+        c_assert(uid_start + n_uid >= uid_start);
+        /* check for encoding into dbus `u` type */
+        c_assert(uid_start + n_uid <= (uint32_t)-1);
 
         if (n_uid == 0)
                 return 0;
