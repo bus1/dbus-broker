@@ -36,7 +36,7 @@ Subject: Peer @DBUS_BROKER_SENDER_UNIQUE_NAME@ violated the D-Bus protocol
 Defined-By: dbus-broker
 Support: https://groups.google.com/forum/#!forum/bus1-devel
 
-The peer @DBUS_BROKER_SENDER_UNIQUE_NAME@ attempted to vioalet the protocol
+The peer @DBUS_BROKER_SENDER_UNIQUE_NAME@ attempted to violate the protocol
 and is therefore disconnected.
 
 -- 6fa70fa776044fa28be7a21daf42a108
