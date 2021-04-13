@@ -15,7 +15,7 @@ COPYRIGHT: (ordered alphabetically)
         Copyright (C) 2016-2019 Red Hat, Inc.
 
 AUTHORS: (ordered alphabetically)
-        Chris Paulson-Ellis
+        Chris Paulson-Ellis <chris.paulson-ellis@motorolasolutions.com>
         Chris PeBenito <chpebeni@linux.microsoft.com>
         Daniel Rusek <mail@asciiwolf.com>
         Daniele Nicolodi <daniele@grinta.net>
@@ -28,6 +28,7 @@ AUTHORS: (ordered alphabetically)
         Marc-Antoine Perennou <Marc-Antoine@Perennou.com>
         Michal Schmidt <mschmidt@redhat.com>
         Mike Gilbert <floppym@gentoo.org>
+        Thomas Mühlbacher <tmuehlbacher@posteo.net>
         Tim Gates <tim.gates@iress.com>
         Tom Gundersen <teg@jklm.no>
         Yanko Kaneti <yaneti@declera.com>
