@@ -92,22 +92,16 @@ int broker_new(Broker **brokerp, const char *machine_id, int log_fd, int control
          * return some value. Second, all unlabeled names get this label
          * assigned by default. Due to the latter, this seclabel is actually
          * referenced in selinux rules, to allow peers to own names.
-         * Preferably, we would call SO_PEERSEC on the controller socket.
-         * However, this used to return the 'unlabeled_t' entry for socketpairs
-         * until kernel v4.17. From v4.17 onwards it now returns the correct
-         * label. There is no way to detect this at runtime, though. Hence, we
-         * have to run the fallback as long as we do not have v4.17 as
-         * hard-requirement.
+         * We use SO_PEERSEC on the controller socket to get this label.
+         * However, note that this used to return the 'unlabeled_t' entry for
+         * socketpairs until kernel v4.17. From v4.17 onwards it now returns
+         * the correct label. There is no way to detect this at runtime,
+         * though. We hard-require 4.17. If you use older kernels, you will get
+         * selinux denials.
          */
-        if (REQUIRE_LINUX_4_17) {
-                r = sockopt_get_peersec(controller_fd, &broker->bus.seclabel, &broker->bus.n_seclabel);
-                if (r)
-                        return error_fold(r);
-        } else {
-                r = proc_get_seclabel(ucred.pid, &broker->bus.seclabel, &broker->bus.n_seclabel);
-                if (r)
-                        return error_fold(r);
-        }
+        r = sockopt_get_peersec(controller_fd, &broker->bus.seclabel, &broker->bus.n_seclabel);
+        if (r)
+                return error_fold(r);
 
         r = sockopt_get_peergroups(controller_fd,
                                    &broker->log,
