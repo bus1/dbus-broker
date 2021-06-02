@@ -1,5 +1,20 @@
 # dbus-broker - Linux D-Bus Message Broker
 
+## CHANGES WITH 29:
+
+        * Improve SELinux audit messages. This requires the new libselinux-3.2
+          and libaudit-3.0 releases. If audit/selinux support is enabled, those
+          are now the minimum required versions.
+
+        * Make linux-4.17 a hard-requirements. Older kernels are no longer
+          supported.
+
+        * Fix startup failures when at-console users have consecutive uids.
+
+        Contributions from: Chris PeBenito, David Rheinsberg, Thomas Mühlbacher
+
+        - Dußlingen, 2021-06-02
+
 ## CHANGES WITH 28:
 
         * Further improvements to the service activation tracking. This better
