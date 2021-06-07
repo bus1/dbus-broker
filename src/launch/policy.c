@@ -281,7 +281,6 @@ static int policy_import_connect(Policy *policy, ConfigNode *cnode) {
             cnode->allow_deny.own ||
             cnode->allow_deny.own_prefix ||
             cnode->allow_deny.send_interface ||
-            cnode->allow_deny.send_interface ||
             cnode->allow_deny.send_member ||
             cnode->allow_deny.send_error ||
             cnode->allow_deny.send_destination ||
@@ -345,7 +344,6 @@ static int policy_import_own(Policy *policy, ConfigNode *cnode) {
         if ((!cnode->allow_deny.own == !cnode->allow_deny.own_prefix) ||
             cnode->allow_deny.user ||
             cnode->allow_deny.group ||
-            cnode->allow_deny.send_interface ||
             cnode->allow_deny.send_interface ||
             cnode->allow_deny.send_member ||
             cnode->allow_deny.send_error ||
