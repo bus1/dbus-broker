@@ -300,12 +300,16 @@ static int bus_selinux_log(int type, const char *fmt, ...) {
         case SELINUX_AVC:
                 audit_type = UTIL_AUDIT_TYPE_AVC;
                 break;
+#if defined AUDIT_USER_MAC_POLICY_LOAD && defined SELINUX_POLICYLOAD
         case SELINUX_POLICYLOAD:
                 audit_type = UTIL_AUDIT_TYPE_POLICYLOAD;
                 break;
+#endif
+#if defined AUDIT_USER_MAC_STATUS && defined SELINUX_SETENFORCE
         case SELINUX_SETENFORCE:
                 audit_type = UTIL_AUDIT_TYPE_MAC_STATUS;
                 break;
+#endif
         default:
                 /* not an auditable message. */
                 audit_type = UTIL_AUDIT_TYPE_NOAUDIT;
