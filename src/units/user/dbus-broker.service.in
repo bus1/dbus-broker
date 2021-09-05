@@ -12,6 +12,7 @@ Type=notify
 Sockets=dbus.socket
 ExecStart=@bindir@/dbus-broker-launch --scope user
 ExecReload=@bindir@/busctl --user call org.freedesktop.DBus /org/freedesktop/DBus org.freedesktop.DBus ReloadConfig
+Slice=session.slice
 
 [Install]
 Alias=dbus.service
