@@ -631,7 +631,7 @@ static Name *peer_match_rule_to_name(MatchRule *rule) {
 }
 
 int peer_remove_match(Peer *peer, const char *rule_string) {
-        _c_cleanup_(name_unrefp) Name *name = NULL;
+        _c_cleanup_(name_unrefp) _c_unused_ Name *name = NULL;
         MatchRule *rule;
         int r;
 
@@ -708,7 +708,7 @@ void peer_flush_matches(Peer *peer) {
         CRBNode *node;
 
         while ((node = peer->owned_matches.rule_tree.root)) {
-                _c_cleanup_(name_unrefp) Name *name = NULL;
+                _c_cleanup_(name_unrefp) _c_unused_ Name *name = NULL;
                 MatchRule *rule = c_container_of(node, MatchRule, owner_node);
 
                 /*
