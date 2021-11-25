@@ -115,4 +115,6 @@ void reply_owner_get_stats(ReplyOwner *owner, unsigned int *n_objectsp) {
 
         c_list_for_each_entry(reply, &owner->reply_list, owner_link)
                 n_objects += reply->charge.charge;
+
+        *n_objectsp = n_objects;
 }
