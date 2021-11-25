@@ -12,7 +12,7 @@ static void test_basic(void) {
 
         /* test cleanup helper */
         {
-                _c_cleanup_(dirwatch_freep) Dirwatch *dw1 = NULL, *dw2 = NULL;
+                _c_cleanup_(dirwatch_freep) _c_unused_ Dirwatch *dw1 = NULL, *dw2 = NULL;
 
                 /* prevent 'unused variable' warning */
                 dw1 = NULL;
