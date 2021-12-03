@@ -248,7 +248,7 @@ static int service_watch_jobs_handler(sd_bus_message *message, void *userdata, s
         if (!service->job || strcmp(path, service->job))
                 return 0;
 
-        if (!strcmp(result, "done") || !strcmp(result, "skipped")) {
+        if (!strcmp(result, "done")) {
                 /*
                  * Our job completed successfully. Make sure to stop watching
                  * it so the `ActiveState` handling will take effect.
