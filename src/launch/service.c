@@ -556,13 +556,19 @@ static int service_start_unit(Service *service) {
                                            "org.freedesktop.systemd1",
                                            "/org/freedesktop/systemd1",
                                            "org.freedesktop.systemd1.Manager",
-                                           "StartUnit");
+                                           launcher->systemd_supports_start_with_flags ? "StartUnitWithFlags" : "StartUnit");
         if (r < 0)
                 return error_origin(r);
 
         r = sd_bus_message_append(method_call, "ss", service->unit, "replace");
         if (r < 0)
                 return error_origin(r);
+
+        if (launcher->systemd_supports_start_with_flags) {
+                r = sd_bus_message_append(method_call, "t", 0);
+                if (r < 0)
+                        return error_origin(r);
+        }
 
         r = sd_bus_call_async(launcher->bus_regular, &service->slot_start_unit, method_call, service_start_unit_handler, service, -1);
         if (r < 0)

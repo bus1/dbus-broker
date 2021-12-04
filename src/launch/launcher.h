@@ -42,6 +42,7 @@ struct Launcher {
         uint64_t max_fds;
         uint64_t max_matches;
         bool at_console;
+        bool systemd_supports_start_with_flags;
 };
 
 int launcher_new(Launcher **launcherp, int listen_fd, bool audit, const char *configfile, bool user_scope);

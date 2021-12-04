@@ -18,6 +18,7 @@
 #include "catalog/catalog-ids.h"
 #include "dbus/protocol.h"
 #include "launch/config.h"
+#include "launch/introspect.h"
 #include "launch/launcher.h"
 #include "launch/nss-cache.h"
 #include "launch/policy.h"
@@ -1433,6 +1434,21 @@ int launcher_run(Launcher *launcher) {
                 if (r)
                         return error_fold(r);
         }
+
+        /*
+         * When a Condition*= setting fails, the JobRemoved signal normally returns
+         * 'done' which we interpret as a success, but it means we will wait in vain
+         * for the service to start. It cannot be changed without breaking backward
+         * compatibility, so a new StartUnitWithFlags was added to change it on-demand.
+         * Let's use it if it is available, and fallback to the old StartUnit otherwise.
+         */
+        r = object_supports_interface(launcher,
+                                      "org.freedesktop.systemd1",
+                                      "/org/freedesktop/systemd1",
+                                      "StartUnitWithFlags");
+        if (r < 0)
+                return error_fold(r);
+        launcher->systemd_supports_start_with_flags = !!r;
 
         r = log_commitf(&launcher->log, "Ready\n");
         if (r)
