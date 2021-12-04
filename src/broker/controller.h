@@ -53,6 +53,40 @@ enum {
         CONTROLLER_E_NAME_NOT_FOUND,
 };
 
+enum {
+    BUS1_ERROR_DESTRUCTIVE_TRANSACTION = 0,
+    BUS1_ERROR_UNKNOWN_UNIT            = 1,
+    BUS1_ERROR_MASKED_UNIT             = 2,
+    BUS1_ERROR_INVALID_UNIT            = 3,
+    BUS1_ERROR_UNIT_FAILURE            = 4,
+    BUS1_ERROR_STARTUP_FAILURE         = 5,
+    BUS1_ERROR_STARTUP_SKIPPED         = 6,
+    BUS1_ERROR_NAME_RELEASED           = 7,
+    _BUS1_ERROR_N,
+};
+
+static const char* const bus1_error_table[_BUS1_ERROR_N] = {
+    [BUS1_ERROR_DESTRUCTIVE_TRANSACTION] = "org.bus1.DBus.Name.Error.DestructiveTransaction",
+    [BUS1_ERROR_UNKNOWN_UNIT]            = "org.bus1.DBus.Name.Error.UnknownUnit",
+    [BUS1_ERROR_MASKED_UNIT]             = "org.bus1.DBus.Name.Error.MaskedUnit",
+    [BUS1_ERROR_INVALID_UNIT]            = "org.bus1.DBus.Name.Error.InvalidUnit",
+    [BUS1_ERROR_UNIT_FAILURE]            = "org.bus1.DBus.Name.Error.UnitFailure",
+    [BUS1_ERROR_STARTUP_FAILURE]         = "org.bus1.DBus.Name.Error.StartupFailure",
+    [BUS1_ERROR_STARTUP_SKIPPED]         = "org.bus1.DBus.Name.Error.StartupSkipped",
+    [BUS1_ERROR_NAME_RELEASED]           = "org.bus1.DBus.Name.Error.NameReleased",
+};
+
+static const char* const bus1_error_table_human_readable[_BUS1_ERROR_N] = {
+    [BUS1_ERROR_DESTRUCTIVE_TRANSACTION] = "activation request failed: a concurrent deactivation request is already in progress",
+    [BUS1_ERROR_UNKNOWN_UNIT]            = "activation request failed: unknown unit",
+    [BUS1_ERROR_MASKED_UNIT]             = "activation request failed: unit is masked",
+    [BUS1_ERROR_INVALID_UNIT]            = "activation request failed: unit is invalid",
+    [BUS1_ERROR_UNIT_FAILURE]            = "unit failed",
+    [BUS1_ERROR_STARTUP_FAILURE]         = "startup job failed",
+    [BUS1_ERROR_STARTUP_SKIPPED]         = "startup job skipped (hint: a Condition*= might not have been met)",
+    [BUS1_ERROR_NAME_RELEASED]           = "activation request cancelled: bus name was released",
+};
+
 struct ControllerName {
         Controller *controller;
         CRBNode controller_node;
@@ -101,7 +135,7 @@ struct Controller {
 /* names */
 
 ControllerName *controller_name_free(ControllerName *name);
-int controller_name_reset(ControllerName *name, uint64_t serial);
+int controller_name_reset(ControllerName *name, uint64_t serial, int bus1_error);
 int controller_name_activate(ControllerName *name, uint64_t serial);
 
 C_DEFINE_CLEANUP(ControllerName *, controller_name_free);
@@ -165,4 +199,30 @@ static inline ControllerName *CONTROLLER_NAME(Activation *activation) {
          * Activation objects are always owned by a ControllerName object.
          */
         return c_container_of(activation, ControllerName, activation);
+}
+
+/*
+ * The first two converters take input only from our own code, so assert
+ * on unknown errors. The last one receives it from the bus (even though it's
+ * P2P), so return an error in that case and let the caller handle it.
+ */
+
+static inline const char *bus1_error_to_string(int error) {
+    c_assert(error >= 0 && error < _BUS1_ERROR_N);
+
+    return bus1_error_table[error];
+}
+
+static inline const char *bus1_error_to_human_readable(int error) {
+    c_assert(error >= 0 && error < _BUS1_ERROR_N);
+
+    return bus1_error_table_human_readable[error];
+}
+
+static inline int bus1_error_from_string(const char *bus1_error) {
+    for (int i = 0; i < _BUS1_ERROR_N; i++)
+        if (strcmp(bus1_error, bus1_error_table[i]) == 0)
+            return i;
+
+    return -1;
 }

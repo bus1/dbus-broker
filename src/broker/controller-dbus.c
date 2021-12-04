@@ -56,8 +56,9 @@ struct ControllerMethod {
 
 static const CDVarType controller_type_in_t[] = {
         C_DVAR_T_INIT(
-                C_DVAR_T_TUPLE1(
-                        C_DVAR_T_t
+                C_DVAR_T_TUPLE2(
+                        C_DVAR_T_t,
+                        C_DVAR_T_s
                 )
         )
 };
@@ -311,7 +312,7 @@ static int controller_method_name_release(Controller *controller, const char *pa
         if (!name)
                 return CONTROLLER_E_NAME_NOT_FOUND;
 
-        r = controller_name_reset(name, name->activation.pending);
+        r = controller_name_reset(name, name->activation.pending, BUS1_ERROR_NAME_RELEASED);
         if (r)
                 return error_trace(r);
 
@@ -359,10 +360,11 @@ static int controller_method_listener_set_policy(Controller *controller, const c
 
 static int controller_method_name_reset(Controller *controller, const char *path, CDVar *in_v, FDList *fds, CDVar *out_v) {
         ControllerName *name;
+        const char *reason;
         uint64_t serial;
-        int r;
+        int r, bus1_error;
 
-        c_dvar_read(in_v, "(t)", &serial);
+        c_dvar_read(in_v, "(ts)", &serial, &reason);
 
         r = controller_end_read(in_v);
         if (r)
@@ -372,7 +374,11 @@ static int controller_method_name_reset(Controller *controller, const char *path
         if (!name)
                 return CONTROLLER_E_NAME_NOT_FOUND;
 
-        r = controller_name_reset(name, serial);
+        bus1_error = bus1_error_from_string(reason);
+        if (bus1_error < 0)
+                return CONTROLLER_E_INVALID_MESSAGE;
+
+        r = controller_name_reset(name, serial, bus1_error);
         if (r)
                 return error_trace(r);
 

@@ -63,7 +63,7 @@ enum {
         _DRIVER_E_MAX,
 };
 
-int driver_name_activation_failed(Bus *bus, Activation *activation, uint64_t serial);
+int driver_name_activation_failed(Bus *bus, Activation *activation, uint64_t serial, int bus1_error);
 int driver_reload_config_completed(Bus *bus, uint64_t sender_id, uint32_t reply_serial);
 int driver_reload_config_invalid(Bus *bus, uint64_t sender_id, uint32_t reply_serial);
 

@@ -193,7 +193,26 @@ the broker. See the section below for a list of interfaces on the controller.
 |         # passed along. This must be the serial number received by the last
 |         # activation event on this name. Calls for other serial numbers are
 |         # silently ignored and considered stale.
-|         **method** Reset(**t** *serial*) -> ()
+|         # A org.bus1.DBus.Name.Error string is also passed, giving a hint
+|         # about the reason the activation was reset. The list is defined below.
+|         **method** Reset(**t** *serial*, **s** *error*) -> ()
+|
+|         # Activation request failed: a concurrent deactivation request is already in progress
+|         **error** *org.bus1.DBus.Name.Error.DestructiveTransaction*
+|         # Activation request failed: unknown unit
+|         **error** *org.bus1.DBus.Name.Error.UnknownUnit*
+|         # Activation request failed: unit is masked
+|         **error** *org.bus1.DBus.Name.Error.MaskedUnit*
+|         # Activation request failed: unit is invalid
+|         **error** *org.bus1.DBus.Name.Error.InvalidUnit*
+|         # Unit activation job succeeded, but the unit failed afterwards
+|         **error** *org.bus1.DBus.Name.Error.UnitFailure*
+|         # The startup job was valid, but it failed during activation
+|         **error** *org.bus1.DBus.Name.Error.StartupFailure*
+|         # The startup job was valid, but it was skipped during activation
+|         **error** *org.bus1.DBus.Name.Error.StartupSkipped*
+|         # Activation request cancelled: bus name was released
+|         **error** *org.bus1.DBus.Name.Error.NameReleased*
 |
 |         # This signal is sent whenever a client requests activation of this
 |         # name. Note that multiple activation requests are coalesced by the
