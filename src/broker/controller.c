@@ -66,10 +66,10 @@ static int controller_name_new(ControllerName **namep, Controller *controller, c
 /**
  * controller_name_reset() - XXX
  */
-int controller_name_reset(ControllerName *name, uint64_t serial) {
+int controller_name_reset(ControllerName *name, uint64_t serial, int bus1_error) {
         int r;
 
-        r = driver_name_activation_failed(&name->controller->broker->bus, &name->activation, serial);
+        r = driver_name_activation_failed(&name->controller->broker->bus, &name->activation, serial, bus1_error);
         if (r)
                 return error_fold(r);
 

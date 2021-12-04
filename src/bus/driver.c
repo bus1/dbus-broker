@@ -721,9 +721,10 @@ static int driver_name_owner_changed(Bus *bus, MatchRegistry *matches, const cha
         return 0;
 }
 
-int driver_name_activation_failed(Bus *bus, Activation *activation, uint64_t serial) {
+int driver_name_activation_failed(Bus *bus, Activation *activation, uint64_t serial, int bus1_error) {
         ActivationRequest *request, *request_safe;
         ActivationMessage *message, *message_safe;
+        _c_cleanup_(c_freep) char *error = NULL;
         int r;
 
         /*
@@ -733,6 +734,10 @@ int driver_name_activation_failed(Bus *bus, Activation *activation, uint64_t ser
         if (!activation->pending || serial != activation->pending)
                 return 0;
 
+        r = asprintf(&error, "Could not activate remote peer: %s.", bus1_error_to_human_readable(bus1_error));
+        if (r < 0)
+                return error_origin(-errno);
+
         activation->pending = 0;
 
         c_list_for_each_entry_safe(request, request_safe, &activation->activation_requests, link) {
@@ -740,7 +745,7 @@ int driver_name_activation_failed(Bus *bus, Activation *activation, uint64_t ser
 
                 sender = peer_registry_find_peer(&bus->peers, request->sender_id);
                 if (sender) {
-                        r = driver_send_error(sender, request->serial, "org.freedesktop.DBus.Error.ServiceUnknown", "Could not activate remote peer.");
+                        r = driver_send_error(sender, request->serial, "org.freedesktop.DBus.Error.ServiceUnknown", error);
                         if (r)
                                 return error_trace(r);
                 }
@@ -753,7 +758,7 @@ int driver_name_activation_failed(Bus *bus, Activation *activation, uint64_t ser
 
                 sender = peer_registry_find_peer(&bus->peers, message->message->metadata.sender_id);
                 if (sender) {
-                        r = driver_send_error(sender, message_read_serial(message->message), "org.freedesktop.DBus.Error.NameHasNoOwner", "Could not activate remote peer.");
+                        r = driver_send_error(sender, message_read_serial(message->message), "org.freedesktop.DBus.Error.NameHasNoOwner", error);
                         if (r)
                                 return error_trace(r);
                 }
