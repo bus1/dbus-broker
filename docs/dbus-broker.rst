@@ -189,9 +189,9 @@ the broker. See the section below for a list of interfaces on the controller.
 |         **method** Release() -> ()
 |
 |         # Reset the activation state of this name. Any pending activation
-|         # requests are canceled. The call requires a serial number to be
+|         # requests are cancelled. The call requires a serial number to be
 |         # passed along. This must be the serial number received by the last
-|         # activation even on this name. Calls for other serial numbers are
+|         # activation event on this name. Calls for other serial numbers are
 |         # silently ignored and considered stale.
 |         **method** Reset(**t** *serial*) -> ()
 |
