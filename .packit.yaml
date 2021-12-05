@@ -1,0 +1,48 @@
+# https://packit.dev/docs/configuration/
+
+synced_files:
+    - dbus-broker.spec
+    - .packit.yaml
+
+copy_upstream_release_description: true
+
+upstream_tag_template: v{version}
+
+actions:
+  get-current-version: bash -c "git describe --tags --abbrev=0 | sed 's|v||'"
+  create-archive:
+  - bash -c "pip install git-archive-all"
+  - bash -c "PATH=$PATH:~/.local/bin git archive-all --force-submodules --prefix dbus-broker/ dbus-broker.tar.xz"
+  - bash -c "echo dbus-broker.tar.xz"
+
+jobs:
+- job: copr_build
+  trigger: pull_request
+  metadata:
+    targets:
+    - centos-stream-9-aarch64
+    - centos-stream-9-x86_64
+    - fedora-all-aarch64
+    - fedora-all-armhfp
+    - fedora-all-ppc64le
+    - fedora-all-s390x
+    - fedora-all-x86_64
+- job: copr_build
+  trigger: commit
+  metadata:
+    branch: main
+    owner: "@bus1" # copr repo namespace
+    project: dbus-broker  # copr repo name so you can consume the builds
+    targets:
+    - centos-stream-9-aarch64
+    - centos-stream-9-x86_64
+    - fedora-all-aarch64
+    - fedora-all-armhfp
+    - fedora-all-ppc64le
+    - fedora-all-s390x
+    - fedora-all-x86_64
+- job: propose_downstream
+  trigger: release
+  metadata:
+    dist_git_branches:
+      - fedora-all
