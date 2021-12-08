@@ -16,17 +16,21 @@ actions:
   - bash -c "echo dbus-broker.tar.xz"
 
 jobs:
-- job: copr_build
+- job: tests
   trigger: pull_request
   metadata:
     targets:
     - centos-stream-9-aarch64
     - centos-stream-9-x86_64
     - fedora-all-aarch64
-    - fedora-all-armhfp
-    - fedora-all-ppc64le
-    - fedora-all-s390x
     - fedora-all-x86_64
+- job: copr_build
+  trigger: pull_request
+  metadata:
+    targets:
+    - fedora-all-armhfp # not supported on testing farm
+    - fedora-all-ppc64le # not supported on testing farm
+    - fedora-all-s390x # not supported on testing farm
 - job: copr_build
   trigger: commit
   metadata:

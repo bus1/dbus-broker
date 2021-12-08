@@ -1,0 +1,4 @@
+summary:
+    Run simple smoke test
+test: ./run-smoke-test.sh
+duration: 1m
