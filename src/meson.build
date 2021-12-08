@@ -137,6 +137,7 @@ if use_launcher
         exe_dbus_broker_launch = executable(
                 'dbus-broker-launch',
                 [
+                        'launch/introspect.c',
                         'launch/main.c',
                         'launch/launcher.c',
                         'launch/service.c',
