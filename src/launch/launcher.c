@@ -1349,13 +1349,19 @@ int launcher_run(Launcher *launcher) {
 
         switch (policy.apparmor_mode) {
         case CONFIG_APPARMOR_ENABLED: {
-                bool enabled;
+                bool enabled, supported;
 
                 r = bus_apparmor_is_enabled(&enabled);
                 if (r)
                         return error_fold(r);
 
-                if (enabled)
+                r = bus_apparmor_dbus_supported(&supported);
+                if (r)
+                        return error_fold(r);
+
+                if (enabled && !supported)
+                        fprintf(stderr, "Kernel is missing AppArmor DBus support. Ignoring.\n");
+                else if (enabled)
                         fprintf(stderr, "AppArmor enabled, but not supported. Ignoring.\n");
 
                 /* XXX: once the broker supports AppArmor, set this to DISABLED if and only if

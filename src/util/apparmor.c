@@ -57,3 +57,39 @@ int bus_apparmor_is_enabled(bool *enabledp) {
         *enabledp = enabled;
         return 0;
 }
+
+/**
+ * bus_apparmor_dbus_supported() - checks if Kernel has AppArmor support for DBus
+ * @supported:            return argument telling if AppArmor DBus is supported
+ *
+ * If the AppArmor module is not loaded, or AppArmor does not support DBus,
+ * set @supportedp to 'false', otherwise set it to 'true'.
+ *
+ * Returns: 0 if check succeeded, or negative error code on failure.
+ */
+int bus_apparmor_dbus_supported(bool *supportedp) {
+        _c_cleanup_(c_fclosep) FILE *f = NULL;
+        char buffer[LINE_MAX] = {};
+        bool supported;
+
+        f = fopen("/sys/kernel/security/apparmor/features/dbus/mask", "re");
+        if (f) {
+                errno = 0;
+                if (!fgets(buffer, sizeof(buffer), f)) {
+                        if (ferror(f) && errno != EINVAL)
+                                return errno ? error_origin(-errno) : error_origin(-ENOTRECOVERABLE);
+                }
+
+                if (strstr(buffer, "acquire") && strstr(buffer, "send") && strstr(buffer, "receive"))
+                        supported = true;
+                else
+                        supported = false;
+        } else if (errno == ENOENT) {
+                supported = false;
+        } else {
+                return error_origin(-errno);
+        }
+
+        *supportedp = supported;
+        return 0;
+}
