@@ -1,0 +1,50 @@
+---
+# vi: ts=2 sw=2 et:
+name: "CodeQL"
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: Analyze
+    runs-on: ubuntu-latest
+    concurrency:
+      group: ${{ github.workflow }}-${{ matrix.language }}-${{ github.ref }}
+      cancel-in-progress: true
+    permissions:
+      actions: read
+      security-events: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        language: ['cpp']
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@ec3a7ce113134d7a93b817d10a8272cb61118579
+
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@cd783c8a29bdcf5a5c79c5137889e24651fa626c
+      with:
+        languages: ${{ matrix.language }}
+        config-file: ./.github/codeql-config.yml
+
+    - name: Install dependencies
+      run: |
+        sudo apt -y update
+        sudo apt -y install dbus expat libaudit-dev libselinux-dev libsystemd-dev python3-pip
+        sudo pip3 install meson ninja
+
+    - name: Autobuild
+      uses: github/codeql-action/autobuild@cd783c8a29bdcf5a5c79c5137889e24651fa626c
+
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@cd783c8a29bdcf5a5c79c5137889e24651fa626c

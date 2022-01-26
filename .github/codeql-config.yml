@@ -1,0 +1,9 @@
+---
+# vi: ts=2 sw=2 et:
+name: "CodeQL config"
+
+disable-default-queries: false
+
+queries:
+  - name: Enable possibly useful queries which are disabled by default
+    uses: ./.github/codeql-custom.qls
