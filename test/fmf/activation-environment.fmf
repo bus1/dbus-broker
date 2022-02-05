@@ -1,0 +1,4 @@
+summary:
+    Test activation environment
+test: ./run-activation-environment-test.sh
+duration: 1m

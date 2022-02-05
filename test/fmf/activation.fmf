@@ -1,0 +1,4 @@
+summary:
+    Test name activation
+test: ./run-activation-test.sh
+duration: 1m
