@@ -398,17 +398,19 @@ static int service_watch_unit_handler(sd_bus_message *message, void *userdata, s
         return 0;
 }
 
-static int service_watch_unit(Service *service, const char *unit) {
-        _c_cleanup_(c_freep) char *object_path = NULL;
+static int service_watch_unit_load_handler(sd_bus_message *message, void *userdata, sd_bus_error *errorp) {
+        Service *service = userdata;
+        const char *object_path;
         int r;
 
-        assert(!service->slot_watch_unit);
+        service->slot_watch_unit = sd_bus_slot_unref(service->slot_watch_unit);
 
-        r = sd_bus_path_encode(
-                "/org/freedesktop/systemd1/unit",
-                unit,
-                &object_path
-        );
+        if (sd_bus_message_get_error(message)) {
+                service_reset_activation(service);
+                return 1;
+        }
+
+        r = sd_bus_message_read(message, "o", &object_path);
         if (r < 0)
                 return error_origin(r);
 
@@ -422,6 +424,42 @@ static int service_watch_unit(Service *service, const char *unit) {
                 service_watch_unit_handler,
                 NULL,
                 service
+        );
+        if (r < 0)
+                return error_origin(r);
+
+        return 1;
+}
+
+static int service_watch_unit(Service *service, const char *unit) {
+        int r;
+
+        assert(!service->slot_watch_unit);
+
+        /*
+         * We first fetch the object-path for the unit in question, then we
+         * install a watch-handler for its properties. We re-use the
+         * `slot_watch_unit` slot for both operations.
+         * By fetching the object-path first, we resolve possible aliases and
+         * avoid hard-coding the object-path translation of systemd.
+         *
+         * XXX: Changes to the unit that cause changes to the object-path while
+         *      we use it will likely cause us to watch the wrong signals. We
+         *      accept this for now as it can be argued to be a
+         *      misconfiguration. But a proper fix would be nice in the future.
+         */
+
+        r = sd_bus_call_method_async(
+                service->launcher->bus_regular,
+                &service->slot_watch_unit,
+                "org.freedesktop.systemd1",
+                "/org/freedesktop/systemd1",
+                "org.freedesktop.systemd1.Manager",
+                "LoadUnit",
+                service_watch_unit_load_handler,
+                service,
+                "s",
+                unit
         );
         if (r < 0)
                 return error_origin(r);
