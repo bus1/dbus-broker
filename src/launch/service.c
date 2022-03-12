@@ -398,20 +398,19 @@ static int service_watch_unit_handler(sd_bus_message *message, void *userdata, s
         return 0;
 }
 
-static int service_watch_unit(Service *service, const char *unit) {
-        _c_cleanup_(c_freep) char *object_path = NULL;
+static int service_watch_unit_callback(sd_bus_message *message, void *userdata, sd_bus_error *errorp) {
+        Service *service = userdata;
+        const char *object_path;
         int r;
 
-        assert(!service->slot_watch_unit);
+        if (sd_bus_message_get_error(message))
+                goto error;
 
-        r = sd_bus_path_encode(
-                "/org/freedesktop/systemd1/unit",
-                unit,
-                &object_path
-        );
-        if (r < 0)
-                return error_origin(r);
+        r = sd_bus_message_read(message, "o", &object_path);
+        if (error_trace(r) < 0)
+                goto error;
 
+        service->slot_watch_unit = sd_bus_slot_unref(service->slot_watch_unit);
         r = sd_bus_match_signal_async(
                 service->launcher->bus_regular,
                 &service->slot_watch_unit,
@@ -422,6 +421,33 @@ static int service_watch_unit(Service *service, const char *unit) {
                 service_watch_unit_handler,
                 NULL,
                 service
+        );
+        if (error_trace(r) < 0)
+                goto error;
+
+        return 1;
+
+error:
+        service_reset_activation(service);
+        return 1;
+}
+
+static int service_watch_unit(Service *service, const char *unit) {
+        int r;
+
+        assert(!service->slot_watch_unit);
+
+        r = sd_bus_call_method_async(
+                service->launcher->bus_regular,
+                &service->slot_watch_unit,
+                "org.freedesktop.systemd1",
+                "/org/freedesktop/systemd1",
+                "org.freedesktop.systemd1.Manager",
+                "LoadUnit",
+                service_watch_unit_callback,
+                service,
+                "s",
+                unit
         );
         if (r < 0)
                 return error_origin(r);
