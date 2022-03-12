@@ -294,6 +294,7 @@ static int service_watch_jobs(Service *service) {
 static int service_watch_unit_handler(sd_bus_message *message, void *userdata, sd_bus_error *errorp) {
         Service *service = userdata;
         const char *interface = NULL, *property = NULL, *value = NULL;
+        int condition_result = 1;
         int r;
 
         /*
@@ -313,8 +314,8 @@ static int service_watch_unit_handler(sd_bus_message *message, void *userdata, s
 
         /*
          * The properties of the bus unit changed. We are only interested in
-         * the "ActiveState" property. We check whether it is included in the
-         * payload. If not, we ignore the signal.
+         * the "ActiveState" and "ConditionResult" properties. We check whether
+         * it is included in the payload. If not, we ignore the signal.
          *
          * Note that we rely on systemd including it with value in the signal.
          * We will not query it, if it was merely invalidated. This is a
@@ -359,6 +360,18 @@ static int service_watch_unit_handler(sd_bus_message *message, void *userdata, s
                                 r = sd_bus_message_exit_container(message);
                                 if (r < 0)
                                         return error_origin(r);
+                        } else if (!strcmp(property, "ConditionResult")) {
+                                r = sd_bus_message_enter_container(message, 'v', "b");
+                                if (r < 0)
+                                        return error_origin(r);
+
+                                r = sd_bus_message_read(message, "b", &condition_result);
+                                if (r < 0)
+                                        return error_origin(r);
+
+                                r = sd_bus_message_exit_container(message);
+                                if (r < 0)
+                                        return error_origin(r);
                         } else {
                                 r = sd_bus_message_skip(message, "v");
                                 if (r < 0)
@@ -388,8 +401,10 @@ static int service_watch_unit_handler(sd_bus_message *message, void *userdata, s
          * upfront whether the unit is just a oneshot unit and thus is expected
          * to enter "inactive" when it finished. Hence, we simply require
          * anything to explicitly fail if they want to reset the activation.
+         * We also check for the ConditionResult property to check if the
+         * service can't be started due to an unsatisfied condition.
          */
-        if (value && !strcmp(value, "failed")) {
+        if ((value && !strcmp(value, "failed")) || !condition_result) {
                 r = service_reset_activation(service);
                 if (r)
                         return error_trace(r);
