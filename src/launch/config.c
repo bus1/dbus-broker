@@ -133,6 +133,10 @@ int config_node_new(ConfigNode **nodep, ConfigNode *parent, unsigned int type) {
                 break;
         }
 
+        node->cdata = strdup("");
+        if (!node->cdata)
+                return error_origin(-ENOMEM);
+
         *nodep = node;
         node = NULL;
         return 0;
