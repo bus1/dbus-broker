@@ -80,9 +80,7 @@ struct Peer {
 };
 
 #define PEER_INIT(_x) {                                                                                 \
-                .charges[0] = USER_CHARGE_INIT,                                                         \
-                .charges[1] = USER_CHARGE_INIT,                                                         \
-                .charges[2] = USER_CHARGE_INIT,                                                         \
+                .charges = { USER_CHARGE_INIT, USER_CHARGE_INIT, USER_CHARGE_INIT },                    \
                 .registry_node = C_RBNODE_INIT((_x).registry_node),                                     \
                 .listener_link = C_LIST_INIT((_x).listener_link),                                       \
                 .connection = CONNECTION_NULL((_x).connection),                                         \
