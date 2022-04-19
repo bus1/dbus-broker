@@ -297,9 +297,9 @@ int peer_new_with_fd(Peer **peerp,
         seclabel = NULL;
         peer->n_seclabel = n_seclabel;
 
-        r = user_charge(user, &peer->charges[0], NULL, USER_SLOT_BYTES, sizeof(Peer));
-        r = r ?: user_charge(user, &peer->charges[1], NULL, USER_SLOT_FDS, 1);
-        r = r ?: user_charge(user, &peer->charges[2], NULL, USER_SLOT_OBJECTS, 1);
+        r = user_charge(peer->user, &peer->charges[0], NULL, USER_SLOT_BYTES, sizeof(Peer));
+        r = r ?: user_charge(peer->user, &peer->charges[1], NULL, USER_SLOT_FDS, 1);
+        r = r ?: user_charge(peer->user, &peer->charges[2], NULL, USER_SLOT_OBJECTS, 1);
         if (r) {
                 if (r == USER_E_QUOTA)
                         return PEER_E_QUOTA;
