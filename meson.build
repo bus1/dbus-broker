@@ -5,16 +5,13 @@
 project(
         'dbus-broker',
         'c',
-        version: '29',
-        license: 'Apache',
         default_options: [
                 'c_std=c11',
         ],
+        license: 'Apache',
+        meson_version: '>=0.60.0',
+        version: '29',
 )
-
-add_project_arguments('-D_GNU_SOURCE', language: 'c')
-add_project_arguments('-DPACKAGE_VERSION=' + meson.project_version(), language: 'c')
-add_project_arguments('-DBINDIR="' + join_paths(get_option('prefix'), get_option('bindir')) + '"', language: 'c')
 
 cc = meson.get_compiler('c')
 conf = configuration_data()
@@ -24,21 +21,22 @@ mod_pkgconfig = import('pkgconfig')
 # Mandatory Dependencies
 #
 
-sub_cdvar = subproject('c-dvar', version: '>=1')
-sub_cini = subproject('c-ini', version: '>=1')
-sub_clist = subproject('c-list', version: '>=3')
-sub_crbtree = subproject('c-rbtree', version: '>=3')
-sub_cshquote = subproject('c-shquote', version: '>=1')
-sub_cstdaux = subproject('c-stdaux', version: '>=1')
-
-dep_cdvar = sub_cdvar.get_variable('libcdvar_dep')
-dep_cini = sub_cini.get_variable('libcini_dep')
-dep_clist = sub_clist.get_variable('libclist_dep')
-dep_crbtree = sub_crbtree.get_variable('libcrbtree_dep')
-dep_cshquote = sub_cshquote.get_variable('libcshquote_dep')
-dep_cstdaux = sub_cstdaux.get_variable('libcstdaux_dep')
+dep_cdvar = dependency('libcdvar-1')
+dep_cini = dependency('libcini-1')
+dep_clist = dependency('libclist-3')
+dep_crbtree = dependency('libcrbtree-3')
+dep_cshquote = dependency('libcshquote-1')
+dep_cstdaux = dependency('libcstdaux-1')
 dep_math = cc.find_library('m')
 dep_thread = dependency('threads')
+
+#
+# Default CFLAGS
+#
+
+add_project_arguments(dep_cstdaux.get_variable('cflags').split(' '), language: 'c')
+add_project_arguments('-DBINDIR="' + join_paths(get_option('prefix'), get_option('bindir')) + '"', language: 'c')
+add_project_arguments('-DPACKAGE_VERSION=' + meson.project_version(), language: 'c')
 
 #
 # Config: audit
@@ -69,10 +67,10 @@ if use_launcher
         dep_libsystemd = dependency('libsystemd', version: '>=230')
         dep_systemd = dependency('systemd', version: '>=230')
 
-        add_project_arguments('-DSYSTEMUIDMAX=' + dep_systemd.get_pkgconfig_variable('systemuidmax'), language: 'c')
-        conf.set('systemunitdir', dep_systemd.get_pkgconfig_variable('systemdsystemunitdir'))
-        conf.set('userunitdir', dep_systemd.get_pkgconfig_variable('systemduserunitdir'))
-        conf.set('catalogdir', dep_systemd.get_pkgconfig_variable('catalogdir'))
+        add_project_arguments('-DSYSTEMUIDMAX=' + dep_systemd.get_variable('systemuidmax'), language: 'c')
+        conf.set('systemunitdir', dep_systemd.get_variable('systemdsystemunitdir'))
+        conf.set('userunitdir', dep_systemd.get_variable('systemduserunitdir'))
+        conf.set('catalogdir', dep_systemd.get_variable('catalogdir'))
 endif
 
 #
