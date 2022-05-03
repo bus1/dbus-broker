@@ -9,26 +9,18 @@ on:
 jobs:
   ci:
     name: CI with Default Configuration
-    runs-on: ubuntu-latest
+    uses: bus1/cabuild/.github/workflows/ci-c-util.yml@v1
+    with:
+      cabuild_ref: "v1"
+      m32: true
+      matrixmode: true
+      mesonargs: '-Daudit=true -Ddocs=true'
 
-    steps:
-    - name: Fetch Sources
-      uses: actions/checkout@v2
-    - name: Run through C-Util CI
-      uses: c-util/automation/src/ci-c-util@v1
-      with:
-        m32: 1
-        mesonargs: '-Daudit=true -Ddocs=true'
-
-  valgrind:
+  ci-valgrind:
     name: Minimal CI Through Valgrind
-    runs-on: ubuntu-latest
-
-    steps:
-    - name: Fetch Sources
-      uses: actions/checkout@v2
-    - name: Run through C-Util CI
-      uses: c-util/automation/src/ci-c-util@v1
-      with:
-        mesonargs: '-Dlauncher=false'
-        valgrind: 1
+    uses: bus1/cabuild/.github/workflows/ci-c-util.yml@v1
+    with:
+      cabuild_ref: "v1"
+      matrixmode: true
+      mesonargs: '-Dlauncher=false'
+      valgrind: true
