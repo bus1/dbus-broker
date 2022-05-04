@@ -1,0 +1,25 @@
+- import: codeql-suites/cpp-lgtm.qls
+  from: codeql/cpp-queries
+- include:
+    id:
+    - cpp/bad-strncpy-size
+    - cpp/declaration-hides-variable
+    - cpp/inconsistent-null-check
+    - cpp/mistyped-function-arguments
+    - cpp/nested-loops-with-same-variable
+    - cpp/sizeof-side-effect
+    - cpp/suspicious-pointer-scaling
+    - cpp/suspicious-pointer-scaling-void
+    - cpp/suspicious-sizeof
+    - cpp/unsafe-strcat
+    - cpp/unsafe-strncat
+    - cpp/unsigned-difference-expression-compared-zero
+    - cpp/unused-local-variable
+    tags:
+    - "security"
+    - "correctness"
+    severity: "error"
+- exclude:
+    id:
+    - cpp/useless-expression
+    - cpp/fixme-comment

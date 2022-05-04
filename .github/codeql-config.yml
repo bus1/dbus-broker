@@ -1,0 +1,7 @@
+name: CodeQL Configuration
+
+disable-default-queries: false
+
+queries:
+- name: Enable possibly useful queries which are disabled by default
+  uses: ./.github/codeql-custom.qls
