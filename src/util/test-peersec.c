@@ -48,17 +48,19 @@ static int socketpair_fallback(int domain, int type, int protocol, int sv[2]) {
 
         /* get some random data */
         {
-                const uint64_t *at_random;
+                const uint8_t *at_random;
                 struct timespec ts;
 
                 /* if no other random source works, use our stack address */
                 magic ^= (unsigned long)&magic;
 
                 /* AT_RANDOM contains 128bits of randomness from kernel */
-                at_random = (const uint64_t *)getauxval(AT_RANDOM);
+                at_random = (const uint8_t *)getauxval(AT_RANDOM);
                 if (at_random) {
                         magic ^= at_random[0];
                         magic ^= at_random[1];
+                        magic ^= at_random[2];
+                        magic ^= at_random[3];
                 }
 
                 /* merge in the current time */
