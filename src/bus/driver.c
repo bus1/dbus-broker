@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <sys/epoll.h>
 #include "broker/broker.h"
+#include "broker/controller.h"
 #include "bus/activation.h"
 #include "bus/bus.h"
 #include "bus/driver.h"
@@ -721,7 +722,7 @@ static int driver_name_owner_changed(Bus *bus, MatchRegistry *matches, const cha
         return 0;
 }
 
-int driver_name_activation_failed(Bus *bus, Activation *activation, uint64_t serial, int bus1_error) {
+int driver_name_activation_failed(Bus *bus, Activation *activation, uint64_t serial, unsigned int name_error) {
         ActivationRequest *request, *request_safe;
         ActivationMessage *message, *message_safe;
         _c_cleanup_(c_freep) char *error = NULL;
@@ -734,7 +735,7 @@ int driver_name_activation_failed(Bus *bus, Activation *activation, uint64_t ser
         if (!activation->pending || serial != activation->pending)
                 return 0;
 
-        r = asprintf(&error, "Could not activate remote peer: %s.", bus1_error_to_human_readable(bus1_error));
+        r = asprintf(&error, "Could not activate remote peer: %s.", controller_name_error_to_human_readable(name_error));
         if (r < 0)
                 return error_origin(-errno);
 

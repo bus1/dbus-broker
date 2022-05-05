@@ -312,7 +312,7 @@ static int controller_method_name_release(Controller *controller, const char *pa
         if (!name)
                 return CONTROLLER_E_NAME_NOT_FOUND;
 
-        r = controller_name_reset(name, name->activation.pending, BUS1_ERROR_NAME_RELEASED);
+        r = controller_name_reset(name, name->activation.pending, CONTROLLER_NAME_ERROR_NAME_RELEASED);
         if (r)
                 return error_trace(r);
 
@@ -360,9 +360,10 @@ static int controller_method_listener_set_policy(Controller *controller, const c
 
 static int controller_method_name_reset(Controller *controller, const char *path, CDVar *in_v, FDList *fds, CDVar *out_v) {
         ControllerName *name;
+        unsigned int error;
         const char *reason;
         uint64_t serial;
-        int r, bus1_error;
+        int r;
 
         c_dvar_read(in_v, "(ts)", &serial, &reason);
 
@@ -374,11 +375,11 @@ static int controller_method_name_reset(Controller *controller, const char *path
         if (!name)
                 return CONTROLLER_E_NAME_NOT_FOUND;
 
-        bus1_error = bus1_error_from_string(reason);
-        if (bus1_error < 0)
+        error = controller_name_error_from_string(reason);
+        if (!error)
                 return CONTROLLER_E_INVALID_MESSAGE;
 
-        r = controller_name_reset(name, serial, bus1_error);
+        r = controller_name_reset(name, serial, error);
         if (r)
                 return error_trace(r);
 

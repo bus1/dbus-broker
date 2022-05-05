@@ -189,7 +189,7 @@ static void service_discard_activation(Service *service) {
         service->slot_watch_jobs = sd_bus_slot_unref(service->slot_watch_jobs);
 }
 
-static int service_reset_activation(Service *service, int bus1_error) {
+static int service_reset_activation(Service *service, unsigned int name_error) {
         _c_cleanup_(c_freep) char *object_path = NULL;
         int r;
 
@@ -208,7 +208,7 @@ static int service_reset_activation(Service *service, int bus1_error) {
                                NULL,
                                "ts",
                                service->last_serial,
-                               bus1_error_to_string(bus1_error));
+                               controller_name_error_to_string(name_error));
         if (r < 0)
                 return error_origin(r);
 
@@ -255,7 +255,12 @@ static int service_watch_jobs_handler(sd_bus_message *message, void *userdata, s
                  * Our job failed. Forward this information to the broker so it
                  * can fail pending activations.
                  */
-                r = service_reset_activation(service, !strcmp(result, "skipped") ? BUS1_ERROR_STARTUP_SKIPPED : BUS1_ERROR_STARTUP_FAILURE);
+                r = service_reset_activation(
+                        service,
+                        !strcmp(result, "skipped")
+                                ? CONTROLLER_NAME_ERROR_STARTUP_SKIPPED
+                                : CONTROLLER_NAME_ERROR_STARTUP_FAILURE
+                );
                 if (r)
                         return error_trace(r);
         }
@@ -402,7 +407,7 @@ static int service_watch_unit_handler(sd_bus_message *message, void *userdata, s
          * though, as the job will never end up claiming its name.
          */
         if ((value && !strcmp(value, "failed")) || !condition_result) {
-                r = service_reset_activation(service, BUS1_ERROR_UNIT_FAILURE);
+                r = service_reset_activation(service, CONTROLLER_NAME_ERROR_UNIT_FAILURE);
                 if (r)
                         return error_trace(r);
         }
@@ -418,7 +423,7 @@ static int service_watch_unit_load_handler(sd_bus_message *message, void *userda
         service->slot_watch_unit = sd_bus_slot_unref(service->slot_watch_unit);
 
         if (sd_bus_message_get_error(message)) {
-                service_reset_activation(service, BUS1_ERROR_UNIT_FAILURE);
+                service_reset_activation(service, CONTROLLER_NAME_ERROR_UNIT_FAILURE);
                 return 1;
         }
 
@@ -482,9 +487,10 @@ static int service_watch_unit(Service *service, const char *unit) {
 static int service_start_unit_handler(sd_bus_message *message, void *userdata, sd_bus_error *errorp) {
         Service *service = userdata;
         Launcher *launcher = service->launcher;
+        unsigned int name_error;
         const sd_bus_error *error;
         const char *job;
-        int r, bus1_error = -1;
+        int r;
 
         service->slot_start_unit = sd_bus_slot_unref(service->slot_start_unit);
 
@@ -557,7 +563,7 @@ static int service_start_unit_handler(sd_bus_message *message, void *userdata, s
                                         return error_fold(r);
                         }
 
-                        bus1_error = BUS1_ERROR_UNKNOWN_UNIT;
+                        name_error = CONTROLLER_NAME_ERROR_UNKNOWN_UNIT;
                 } else if (strcmp(error->name, "org.freedesktop.systemd1.UnitMasked") == 0) {
                         if (!service->n_masked_unit++) {
                                 log_append_here(&launcher->log, LOG_NOTICE, 0, DBUS_BROKER_CATALOG_ACTIVATE_MASKED_UNIT);
@@ -572,7 +578,7 @@ static int service_start_unit_handler(sd_bus_message *message, void *userdata, s
                                         return error_fold(r);
                         }
 
-                        bus1_error = BUS1_ERROR_MASKED_UNIT;
+                        name_error = CONTROLLER_NAME_ERROR_MASKED_UNIT;
                 } else {
                         log_append_here(&launcher->log, LOG_ERR, 0, NULL);
                         log_append_bus_error(&launcher->log, error);
@@ -584,12 +590,13 @@ static int service_start_unit_handler(sd_bus_message *message, void *userdata, s
                         if (r)
                                 return error_fold(r);
 
-                        bus1_error = BUS1_ERROR_INVALID_UNIT;
+                        name_error = CONTROLLER_NAME_ERROR_INVALID_UNIT;
                 }
-        } else
-                bus1_error = BUS1_ERROR_DESTRUCTIVE_TRANSACTION;
+        } else {
+                name_error = CONTROLLER_NAME_ERROR_DESTRUCTIVE_TRANSACTION;
+        }
 
-        r = service_reset_activation(service, bus1_error);
+        r = service_reset_activation(service, name_error);
         if (r)
                 return error_trace(r);
 

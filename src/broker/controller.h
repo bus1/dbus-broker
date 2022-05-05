@@ -12,6 +12,7 @@
 #include "bus/listener.h"
 #include "bus/policy.h"
 #include "dbus/connection.h"
+#include "util/string.h"
 #include "util/user.h"
 
 typedef struct Broker Broker;
@@ -54,37 +55,16 @@ enum {
 };
 
 enum {
-    BUS1_ERROR_DESTRUCTIVE_TRANSACTION = 0,
-    BUS1_ERROR_UNKNOWN_UNIT            = 1,
-    BUS1_ERROR_MASKED_UNIT             = 2,
-    BUS1_ERROR_INVALID_UNIT            = 3,
-    BUS1_ERROR_UNIT_FAILURE            = 4,
-    BUS1_ERROR_STARTUP_FAILURE         = 5,
-    BUS1_ERROR_STARTUP_SKIPPED         = 6,
-    BUS1_ERROR_NAME_RELEASED           = 7,
-    _BUS1_ERROR_N,
-};
-
-static const char* const bus1_error_table[_BUS1_ERROR_N] = {
-    [BUS1_ERROR_DESTRUCTIVE_TRANSACTION] = "org.bus1.DBus.Name.Error.DestructiveTransaction",
-    [BUS1_ERROR_UNKNOWN_UNIT]            = "org.bus1.DBus.Name.Error.UnknownUnit",
-    [BUS1_ERROR_MASKED_UNIT]             = "org.bus1.DBus.Name.Error.MaskedUnit",
-    [BUS1_ERROR_INVALID_UNIT]            = "org.bus1.DBus.Name.Error.InvalidUnit",
-    [BUS1_ERROR_UNIT_FAILURE]            = "org.bus1.DBus.Name.Error.UnitFailure",
-    [BUS1_ERROR_STARTUP_FAILURE]         = "org.bus1.DBus.Name.Error.StartupFailure",
-    [BUS1_ERROR_STARTUP_SKIPPED]         = "org.bus1.DBus.Name.Error.StartupSkipped",
-    [BUS1_ERROR_NAME_RELEASED]           = "org.bus1.DBus.Name.Error.NameReleased",
-};
-
-static const char* const bus1_error_table_human_readable[_BUS1_ERROR_N] = {
-    [BUS1_ERROR_DESTRUCTIVE_TRANSACTION] = "activation request failed: a concurrent deactivation request is already in progress",
-    [BUS1_ERROR_UNKNOWN_UNIT]            = "activation request failed: unknown unit",
-    [BUS1_ERROR_MASKED_UNIT]             = "activation request failed: unit is masked",
-    [BUS1_ERROR_INVALID_UNIT]            = "activation request failed: unit is invalid",
-    [BUS1_ERROR_UNIT_FAILURE]            = "unit failed",
-    [BUS1_ERROR_STARTUP_FAILURE]         = "startup job failed",
-    [BUS1_ERROR_STARTUP_SKIPPED]         = "startup job skipped (hint: a Condition*= might not have been met)",
-    [BUS1_ERROR_NAME_RELEASED]           = "activation request cancelled: bus name was released",
+        _CONTROLLER_NAME_ERROR_INVALID                  = 0,
+        CONTROLLER_NAME_ERROR_DESTRUCTIVE_TRANSACTION   = 1,
+        CONTROLLER_NAME_ERROR_UNKNOWN_UNIT              = 2,
+        CONTROLLER_NAME_ERROR_MASKED_UNIT               = 3,
+        CONTROLLER_NAME_ERROR_INVALID_UNIT              = 4,
+        CONTROLLER_NAME_ERROR_UNIT_FAILURE              = 5,
+        CONTROLLER_NAME_ERROR_STARTUP_FAILURE           = 6,
+        CONTROLLER_NAME_ERROR_STARTUP_SKIPPED           = 7,
+        CONTROLLER_NAME_ERROR_NAME_RELEASED             = 8,
+        _CONTROLLER_NAME_ERROR_N,
 };
 
 struct ControllerName {
@@ -135,7 +115,7 @@ struct Controller {
 /* names */
 
 ControllerName *controller_name_free(ControllerName *name);
-int controller_name_reset(ControllerName *name, uint64_t serial, int bus1_error);
+int controller_name_reset(ControllerName *name, uint64_t serial, unsigned int name_error);
 int controller_name_activate(ControllerName *name, uint64_t serial);
 
 C_DEFINE_CLEANUP(ControllerName *, controller_name_free);
@@ -201,28 +181,46 @@ static inline ControllerName *CONTROLLER_NAME(Activation *activation) {
         return c_container_of(activation, ControllerName, activation);
 }
 
-/*
- * The first two converters take input only from our own code, so assert
- * on unknown errors. The last one receives it from the bus (even though it's
- * P2P), so return an error in that case and let the caller handle it.
- */
+static const char *const controller_name_error_table[_CONTROLLER_NAME_ERROR_N] = {
+        [CONTROLLER_NAME_ERROR_DESTRUCTIVE_TRANSACTION] = "org.bus1.DBus.Name.Error.DestructiveTransaction",
+        [CONTROLLER_NAME_ERROR_UNKNOWN_UNIT]            = "org.bus1.DBus.Name.Error.UnknownUnit",
+        [CONTROLLER_NAME_ERROR_MASKED_UNIT]             = "org.bus1.DBus.Name.Error.MaskedUnit",
+        [CONTROLLER_NAME_ERROR_INVALID_UNIT]            = "org.bus1.DBus.Name.Error.InvalidUnit",
+        [CONTROLLER_NAME_ERROR_UNIT_FAILURE]            = "org.bus1.DBus.Name.Error.UnitFailure",
+        [CONTROLLER_NAME_ERROR_STARTUP_FAILURE]         = "org.bus1.DBus.Name.Error.StartupFailure",
+        [CONTROLLER_NAME_ERROR_STARTUP_SKIPPED]         = "org.bus1.DBus.Name.Error.StartupSkipped",
+        [CONTROLLER_NAME_ERROR_NAME_RELEASED]           = "org.bus1.DBus.Name.Error.NameReleased",
+};
 
-static inline const char *bus1_error_to_string(int error) {
-    c_assert(error >= 0 && error < _BUS1_ERROR_N);
+static const char *const controller_name_error_table_human_readable[_CONTROLLER_NAME_ERROR_N] = {
+        [CONTROLLER_NAME_ERROR_DESTRUCTIVE_TRANSACTION] = "activation request failed: a concurrent deactivation request is already in progress",
+        [CONTROLLER_NAME_ERROR_UNKNOWN_UNIT]            = "activation request failed: unknown unit",
+        [CONTROLLER_NAME_ERROR_MASKED_UNIT]             = "activation request failed: unit is masked",
+        [CONTROLLER_NAME_ERROR_INVALID_UNIT]            = "activation request failed: unit is invalid",
+        [CONTROLLER_NAME_ERROR_UNIT_FAILURE]            = "unit failed",
+        [CONTROLLER_NAME_ERROR_STARTUP_FAILURE]         = "startup job failed",
+        [CONTROLLER_NAME_ERROR_STARTUP_SKIPPED]         = "startup job skipped",
+        [CONTROLLER_NAME_ERROR_NAME_RELEASED]           = "activation request cancelled: bus name was released",
+};
 
-    return bus1_error_table[error];
+static inline const char *controller_name_error_to_string(unsigned int error) {
+        c_assert(error > 0 && error < _CONTROLLER_NAME_ERROR_N);
+        c_assert(controller_name_error_table[error]);
+
+        return controller_name_error_table[error];
 }
 
-static inline const char *bus1_error_to_human_readable(int error) {
-    c_assert(error >= 0 && error < _BUS1_ERROR_N);
+static inline const char *controller_name_error_to_human_readable(unsigned int error) {
+        c_assert(error > 0 && error < _CONTROLLER_NAME_ERROR_N);
+        c_assert(controller_name_error_table_human_readable[error]);
 
-    return bus1_error_table_human_readable[error];
+        return controller_name_error_table_human_readable[error];
 }
 
-static inline int bus1_error_from_string(const char *bus1_error) {
-    for (int i = 0; i < _BUS1_ERROR_N; i++)
-        if (strcmp(bus1_error, bus1_error_table[i]) == 0)
-            return i;
+static inline unsigned int controller_name_error_from_string(const char *error) {
+        for (size_t i = 0; i < _CONTROLLER_NAME_ERROR_N; ++i)
+                if (string_equal(error, controller_name_error_table[i]))
+                        return i;
 
-    return -1;
+        return 0;
 }
