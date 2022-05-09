@@ -39,6 +39,15 @@ add_project_arguments('-DBINDIR="' + join_paths(get_option('prefix'), get_option
 add_project_arguments('-DPACKAGE_VERSION=' + meson.project_version(), language: 'c')
 
 #
+# Config: apparmor
+#
+
+use_apparmor = get_option('apparmor')
+if use_apparmor
+        dep_libapparmor = dependency('libapparmor', version: '>=3.0')
+endif
+
+#
 # Config: audit
 #
 

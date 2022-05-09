@@ -32,7 +32,6 @@ sources_bus = [
         'dbus/queue.c',
         'dbus/sasl.c',
         'dbus/socket.c',
-        'util/apparmor.c',
         'util/error.c',
         'util/dirwatch.c',
         'util/dispatch.c',
@@ -54,6 +53,19 @@ deps_bus = [
         dep_cstdaux,
         dep_math,
 ]
+
+if use_apparmor
+        sources_bus += [
+                'util/apparmor.c',
+        ]
+        deps_bus += [
+                dep_libapparmor,
+        ]
+else
+        sources_bus += [
+                'util/apparmor-fallback.c',
+        ]
+endif
 
 if use_audit
         sources_bus += [
