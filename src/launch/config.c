@@ -1024,6 +1024,16 @@ static void config_parser_end_fn(void *userdata, const XML_Char *name) {
          * that all mandatory data was given.
          */
         switch (state->current->type) {
+        case CONFIG_NODE_TYPE:
+                if (!strcmp(state->current->cdata, "system"))
+                        state->current->bus_type.type = CONFIG_BUS_TYPE_SYSTEM;
+                else if (!strcmp(state->current->cdata, "session"))
+                        state->current->bus_type.type = CONFIG_BUS_TYPE_SESSION;
+                else
+                        CONFIG_ERR(state, "Unknown bus type", ": %s", state->current->cdata);
+
+                break;
+
         case CONFIG_NODE_USER:
                 state->current->user.valid = false;
                 r = nss_cache_get_uid(state->nss,
@@ -1147,7 +1157,6 @@ static void config_parser_end_fn(void *userdata, const XML_Char *name) {
 
                 break;
 
-        case CONFIG_NODE_TYPE:
         case CONFIG_NODE_LISTEN:
         case CONFIG_NODE_PIDFILE:
         case CONFIG_NODE_SERVICEHELPER:

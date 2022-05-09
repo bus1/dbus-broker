@@ -638,6 +638,11 @@ int policy_import(Policy *policy, ConfigRoot *root) {
                 return error_trace(r);
 
         c_list_for_each_entry(i_cnode, &root->node_list, root_link) {
+                if (i_cnode->type == CONFIG_NODE_TYPE) {
+                        policy->bus_type = i_cnode->bus_type.type;
+                        continue;
+                }
+
                 if (i_cnode->type == CONFIG_NODE_ASSOCIATE) {
                         r = policy_import_selinux(policy, i_cnode);
                         if (r)
@@ -927,7 +932,8 @@ static int policy_export_xmit(Policy *policy, CList *list1, CList *list2, sd_bus
                 "a(u(" POLICY_T_BATCH "))"                                      \
                 "a(buu(" POLICY_T_BATCH "))"                                    \
                 "a(ss)"                                                         \
-                "b"
+                "b"                                                             \
+                "s"
 
 static int policy_export_console(Policy *policy, sd_bus_message *m, PolicyEntries *entries, uint32_t uid_start, uint32_t n_uid) {
         int r;
@@ -1146,6 +1152,10 @@ int policy_export(Policy *policy, sd_bus_message *m, uint32_t *at_console_uids, 
                 return error_origin(r);
 
         r = sd_bus_message_append(m, "b", (policy->apparmor_mode != CONFIG_APPARMOR_DISABLED));
+        if (r < 0)
+                return error_origin(r);
+
+        r = sd_bus_message_append(m, "s", (policy->bus_type == CONFIG_BUS_TYPE_SESSION ? "session" : "system"));
         if (r < 0)
                 return error_origin(r);
 

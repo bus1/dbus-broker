@@ -57,7 +57,7 @@ static int util_event_sigchld(sd_event_source *source, const siginfo_t *si, void
                 "a(u(" POLICY_T_BATCH "))"                                      \
                 "a(buu(" POLICY_T_BATCH "))"                                    \
                 "a(ss)"                                                         \
-                "b"
+                "bs"
 
 static int util_append_policy(sd_bus_message *m) {
         int r;
@@ -129,6 +129,12 @@ static int util_append_policy(sd_bus_message *m) {
         /* disable AppArmor */
         {
                 r = sd_bus_message_append(m, "b", false);
+                c_assert(r >= 0);
+        }
+
+        /* mark as session bus */
+        {
+                r = sd_bus_message_append(m, "s", "session");
                 c_assert(r >= 0);
         }
 

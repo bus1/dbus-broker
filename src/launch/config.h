@@ -99,6 +99,11 @@ enum {
         CONFIG_APPARMOR_REQUIRED,
 };
 
+enum {
+        CONFIG_BUS_TYPE_SYSTEM,
+        CONFIG_BUS_TYPE_SESSION,
+};
+
 struct ConfigPath {
         unsigned long n_refs;
         ConfigPath *parent;
@@ -126,6 +131,10 @@ struct ConfigNode {
         unsigned int type;
 
         union {
+                struct {
+                        uint32_t type;
+                } bus_type;
+
                 struct {
                         uint32_t uid;
                         uint32_t gid;
