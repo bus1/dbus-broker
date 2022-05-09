@@ -720,6 +720,15 @@ void peer_flush_matches(Peer *peer) {
         }
 }
 
+static int peer_map_denied_error(int err) {
+        switch (err) {
+        case POLICY_E_SELINUX_ACCESS_DENIED:
+                return BUS_LOG_POLICY_TYPE_SELINUX;
+        default:
+                return BUS_LOG_POLICY_TYPE_INTERNAL;
+        }
+}
+
 int peer_queue_unicast(PolicySnapshot *sender_policy, NameSet *sender_names, ReplyOwner *sender_replies, User *sender_user, uint64_t sender_id, Peer *receiver, Message *message) {
         _c_cleanup_(reply_slot_freep) ReplySlot *slot = NULL;
         NameSet receiver_names = NAME_SET_INIT_FROM_OWNER(&receiver->owned_names);
@@ -750,7 +759,9 @@ int peer_queue_unicast(PolicySnapshot *sender_policy, NameSet *sender_names, Rep
         if (r) {
                 if (r == POLICY_E_ACCESS_DENIED) {
                         log_append_here(receiver->bus->log, LOG_WARNING, 0, NULL);
-                        bus_log_append_policy_receive(receiver->bus, receiver->id, sender_id, sender_names, &receiver_names, message);
+                        bus_log_append_policy_receive(receiver->bus,
+                                                      peer_map_denied_error(r),
+                                                      receiver->id, sender_id, sender_names, &receiver_names, message);
                         r = log_commitf(receiver->bus->log, "A security policy denied %s to receive %s %s:%s.%s from :1.%llu.",
                                         message->metadata.fields.destination,
                                         message->header->type == DBUS_MESSAGE_TYPE_METHOD_CALL ? "method call" : "signal",

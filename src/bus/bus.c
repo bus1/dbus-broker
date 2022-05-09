@@ -224,6 +224,9 @@ void bus_log_append_policy_send(Bus *bus, int policy_type, uint64_t sender_id, u
         case BUS_LOG_POLICY_TYPE_SELINUX:
                 log_appendf(bus->log, "DBUS_BROKER_POLICY_TYPE=selinux\n");
                 break;
+        case BUS_LOG_POLICY_TYPE_APPARMOR:
+                log_appendf(bus->log, "DBUS_BROKER_POLICY_TYPE=apparmor\n");
+                break;
         default:
                 c_assert(0);
                 abort();
@@ -233,8 +236,21 @@ void bus_log_append_policy_send(Bus *bus, int policy_type, uint64_t sender_id, u
         bus_log_append_transaction(bus, sender_id, receiver_id, sender_names, receiver_names, sender_label, receiver_label, message);
 }
 
-void bus_log_append_policy_receive(Bus *bus, uint64_t receiver_id, uint64_t sender_id, NameSet *sender_names, NameSet *receiver_names, Message *message) {
-        log_appendf(bus->log, "DBUS_BROKER_POLICY_TYPE=internal\n");
+void bus_log_append_policy_receive(Bus *bus, int policy_type, uint64_t receiver_id, uint64_t sender_id, NameSet *sender_names, NameSet *receiver_names, Message *message) {
+        switch (policy_type) {
+        case BUS_LOG_POLICY_TYPE_INTERNAL:
+                log_appendf(bus->log, "DBUS_BROKER_POLICY_TYPE=internal\n");
+                break;
+        case BUS_LOG_POLICY_TYPE_SELINUX:
+                log_appendf(bus->log, "DBUS_BROKER_POLICY_TYPE=selinux\n");
+                break;
+        case BUS_LOG_POLICY_TYPE_APPARMOR:
+                log_appendf(bus->log, "DBUS_BROKER_POLICY_TYPE=apparmor\n");
+                break;
+        default:
+                c_assert(0);
+                abort();
+        }
         log_appendf(bus->log, "DBUS_BROKER_TRANSMIT_ACTION=receive\n");
         bus_log_append_transaction(bus, sender_id, receiver_id, sender_names, receiver_names, NULL, NULL, message);
 }

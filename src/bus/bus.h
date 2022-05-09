@@ -24,6 +24,7 @@ enum {
 enum {
         BUS_LOG_POLICY_TYPE_INTERNAL,
         BUS_LOG_POLICY_TYPE_SELINUX,
+        BUS_LOG_POLICY_TYPE_APPARMOR,
 };
 
 typedef struct Bus Bus;
@@ -81,4 +82,4 @@ void bus_log_append_receiver(Bus *bus, uint64_t receiver_id, NameSet *receiver_n
 void bus_log_append_sender(Bus *bus, uint64_t sender_id, NameSet *sender_names, const char *sender_label);
 void bus_log_append_transaction(Bus *bus, uint64_t sender_id, uint64_t receiver_id, NameSet *sender_names, NameSet *receiver_names, const char *sender_label, const char *receiver_label, Message *message);
 void bus_log_append_policy_send(Bus *bus, int policy_type, uint64_t sender_id, uint64_t receiver_id, NameSet *sender_names, NameSet *receiver_names, const char *sender_label, const char *receiver_label, Message *message);
-void bus_log_append_policy_receive(Bus *bus, uint64_t sender_id, uint64_t receiver_id, NameSet *sender_names, NameSet *receievr_names, Message *message);
+void bus_log_append_policy_receive(Bus *bus, int policy_type, uint64_t sender_id, uint64_t receiver_id, NameSet *sender_names, NameSet *receievr_names, Message *message);
