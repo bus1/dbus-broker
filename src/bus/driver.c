@@ -659,7 +659,9 @@ static int driver_notify_name_owner_changed(Bus *bus, MatchRegistry *matches, co
                                                           true,
                                                           0);
                         if (r) {
-                                if (r == POLICY_E_ACCESS_DENIED)
+                                if (r == POLICY_E_ACCESS_DENIED ||
+                                    r == POLICY_E_SELINUX_ACCESS_DENIED ||
+                                    r == POLICY_E_APPARMOR_ACCESS_DENIED)
                                         continue;
 
                                 return error_fold(r);
@@ -2337,6 +2339,17 @@ static int driver_dispatch_method(Peer *peer, const DriverMethod *methods, uint3
         return DRIVER_E_UNEXPECTED_METHOD;
 }
 
+static int driver_map_denied_error(int err) {
+        switch (err) {
+        case POLICY_E_SELINUX_ACCESS_DENIED:
+                return BUS_LOG_POLICY_TYPE_SELINUX;
+        case POLICY_E_APPARMOR_ACCESS_DENIED:
+                return BUS_LOG_POLICY_TYPE_APPARMOR;
+        default:
+                return BUS_LOG_POLICY_TYPE_INTERNAL;
+        }
+}
+
 static int driver_dispatch_interface(Peer *peer, uint32_t serial, const char *interface, const char *member, const char *path, const char *signature, Message *message) {
         static const DriverInterface interfaces[] = {
                 { "org.freedesktop.DBus", driver_methods },
@@ -2354,12 +2367,14 @@ static int driver_dispatch_interface(Peer *peer, uint32_t serial, const char *in
 
         r = policy_snapshot_check_send(peer->policy, NULL, NULL, interface, member, path, message->header->type, false, message->metadata.fields.unix_fds);
         if (r) {
-                if (r == POLICY_E_ACCESS_DENIED || r == POLICY_E_SELINUX_ACCESS_DENIED) {
+                if (r == POLICY_E_ACCESS_DENIED ||
+                    r == POLICY_E_SELINUX_ACCESS_DENIED ||
+                    r == POLICY_E_APPARMOR_ACCESS_DENIED) {
                         NameSet names = NAME_SET_INIT_FROM_OWNER(&peer->owned_names);
 
                         log_append_here(peer->bus->log, LOG_WARNING, 0, NULL);
                         bus_log_append_policy_send(peer->bus,
-                                                   (r == POLICY_E_ACCESS_DENIED ? BUS_LOG_POLICY_TYPE_INTERNAL : BUS_LOG_POLICY_TYPE_SELINUX),
+                                                   driver_map_denied_error(r),
                                                    peer->id, ADDRESS_ID_INVALID, &names, NULL, peer->policy->seclabel, peer->bus->seclabel, message);
                         r = log_commitf(peer->bus->log, "A security policy denied :1.%llu to send method call %s:%s.%s to org.freedesktop.DBus.",
                                         peer->id, path, interface, member);
@@ -2519,7 +2534,9 @@ static int driver_forward_broadcast(Peer *sender, Message *message) {
                                                true,
                                                message->metadata.fields.unix_fds);
                 if (r) {
-                        if (r == POLICY_E_ACCESS_DENIED || r == POLICY_E_SELINUX_ACCESS_DENIED)
+                        if (r == POLICY_E_ACCESS_DENIED ||
+                            r == POLICY_E_SELINUX_ACCESS_DENIED ||
+                            r == POLICY_E_APPARMOR_ACCESS_DENIED)
                                 continue;
 
                         return error_fold(r);
@@ -2534,7 +2551,9 @@ static int driver_forward_broadcast(Peer *sender, Message *message) {
                                                   true,
                                                   message->metadata.fields.unix_fds);
                 if (r) {
-                        if (r == POLICY_E_ACCESS_DENIED)
+                        if (r == POLICY_E_ACCESS_DENIED ||
+                            r == POLICY_E_SELINUX_ACCESS_DENIED ||
+                            r == POLICY_E_APPARMOR_ACCESS_DENIED)
                                 continue;
 
                         return error_fold(r);

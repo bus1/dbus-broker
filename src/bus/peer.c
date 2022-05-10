@@ -410,7 +410,9 @@ int peer_request_name(Peer *peer, const char *name, uint32_t flags, NameChange *
 
         r = policy_snapshot_check_own(peer->policy, name);
         if (r) {
-                if (r == POLICY_E_ACCESS_DENIED || r == POLICY_E_SELINUX_ACCESS_DENIED)
+                if (r == POLICY_E_ACCESS_DENIED ||
+                    r == POLICY_E_SELINUX_ACCESS_DENIED ||
+                    r == POLICY_E_APPARMOR_ACCESS_DENIED)
                         return PEER_E_NAME_REFUSED;
 
                 return error_fold(r);
@@ -724,6 +726,8 @@ static int peer_map_denied_error(int err) {
         switch (err) {
         case POLICY_E_SELINUX_ACCESS_DENIED:
                 return BUS_LOG_POLICY_TYPE_SELINUX;
+        case POLICY_E_APPARMOR_ACCESS_DENIED:
+                return BUS_LOG_POLICY_TYPE_APPARMOR;
         default:
                 return BUS_LOG_POLICY_TYPE_INTERNAL;
         }
@@ -757,7 +761,9 @@ int peer_queue_unicast(PolicySnapshot *sender_policy, NameSet *sender_names, Rep
                                           false,
                                           message->metadata.fields.unix_fds);
         if (r) {
-                if (r == POLICY_E_ACCESS_DENIED) {
+                if (r == POLICY_E_ACCESS_DENIED ||
+                    r == POLICY_E_SELINUX_ACCESS_DENIED ||
+                    r == POLICY_E_APPARMOR_ACCESS_DENIED) {
                         log_append_here(receiver->bus->log, LOG_WARNING, 0, NULL);
                         bus_log_append_policy_receive(receiver->bus,
                                                       peer_map_denied_error(r),
@@ -786,10 +792,12 @@ int peer_queue_unicast(PolicySnapshot *sender_policy, NameSet *sender_names, Rep
                                        false,
                                        message->metadata.fields.unix_fds);
         if (r) {
-                if (r == POLICY_E_ACCESS_DENIED || r == POLICY_E_SELINUX_ACCESS_DENIED) {
+                if (r == POLICY_E_ACCESS_DENIED ||
+                    r == POLICY_E_SELINUX_ACCESS_DENIED ||
+                    r == POLICY_E_APPARMOR_ACCESS_DENIED) {
                         log_append_here(receiver->bus->log, LOG_WARNING, 0, NULL);
                         bus_log_append_policy_send(receiver->bus,
-                                                   (r == POLICY_E_ACCESS_DENIED ? BUS_LOG_POLICY_TYPE_INTERNAL : BUS_LOG_POLICY_TYPE_SELINUX),
+                                                   peer_map_denied_error(r),
                                                    sender_id, receiver->id, sender_names, &receiver_names,
                                                    sender_policy->seclabel, receiver->policy->seclabel, message);
                         r = log_commitf(receiver->bus->log, "A security policy denied :1.%llu to send %s %s:%s.%s to %s.",
