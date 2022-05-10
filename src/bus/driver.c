@@ -652,6 +652,7 @@ static int driver_notify_name_owner_changed(Bus *bus, MatchRegistry *matches, co
 
                         r = policy_snapshot_check_receive(receiver->policy,
                                                           NULL,
+                                                          0,
                                                           metadata.fields.interface,
                                                           metadata.fields.member,
                                                           metadata.fields.path,
@@ -2365,7 +2366,7 @@ static int driver_dispatch_interface(Peer *peer, uint32_t serial, const char *in
                 /* ignore */
                 return 0;
 
-        r = policy_snapshot_check_send(peer->policy, NULL, NULL, interface, member, path, message->header->type, false, message->metadata.fields.unix_fds);
+        r = policy_snapshot_check_send(peer->policy, NULL, NULL, 0, interface, member, path, message->header->type, false, message->metadata.fields.unix_fds);
         if (r) {
                 if (r == POLICY_E_ACCESS_DENIED ||
                     r == POLICY_E_SELINUX_ACCESS_DENIED ||
@@ -2527,6 +2528,7 @@ static int driver_forward_broadcast(Peer *sender, Message *message) {
                 r = policy_snapshot_check_send(sender->policy,
                                                receiver->seclabel,
                                                &receiver_names,
+                                               receiver->id,
                                                message->metadata.fields.interface,
                                                message->metadata.fields.member,
                                                message->metadata.fields.path,
@@ -2544,6 +2546,7 @@ static int driver_forward_broadcast(Peer *sender, Message *message) {
 
                 r = policy_snapshot_check_receive(receiver->policy,
                                                   &sender_names,
+                                                  sender->id,
                                                   message->metadata.fields.interface,
                                                   message->metadata.fields.member,
                                                   message->metadata.fields.path,
