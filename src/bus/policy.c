@@ -1074,6 +1074,7 @@ int policy_snapshot_check_send(PolicySnapshot *snapshot,
  * policy_snapshot_check_receive() - XXX
  */
 int policy_snapshot_check_receive(PolicySnapshot *snapshot,
+                                  const char *subject_seclabel,
                                   NameSet *subject,
                                   uint64_t subject_id,
                                   const char *interface,

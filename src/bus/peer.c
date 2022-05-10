@@ -753,6 +753,7 @@ int peer_queue_unicast(PolicySnapshot *sender_policy, NameSet *sender_names, Rep
         }
 
         r = policy_snapshot_check_receive(receiver->policy,
+                                          sender_policy->seclabel,
                                           sender_names,
                                           sender_id,
                                           message->metadata.fields.interface,

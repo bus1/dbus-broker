@@ -163,7 +163,7 @@ int policy_snapshot_dup(PolicySnapshot *snapshot, PolicySnapshot **newp);
 int policy_snapshot_check_connect(PolicySnapshot *snapshot);
 int policy_snapshot_check_own(PolicySnapshot *snapshot, const char *name);
 int policy_snapshot_check_send(PolicySnapshot *snapshot,
-                               const char *subject_context,
+                               const char *subject_seclabel,
                                NameSet *subject,
                                uint64_t subject_id,
                                const char *interface,
@@ -173,6 +173,7 @@ int policy_snapshot_check_send(PolicySnapshot *snapshot,
                                bool broadcast,
                                size_t n_fds);
 int policy_snapshot_check_receive(PolicySnapshot *snapshot,
+                                  const char *subject_seclabel,
                                   NameSet *subject,
                                   uint64_t subject_id,
                                   const char *interface,

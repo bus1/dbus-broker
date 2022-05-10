@@ -652,6 +652,7 @@ static int driver_notify_name_owner_changed(Bus *bus, MatchRegistry *matches, co
 
                         r = policy_snapshot_check_receive(receiver->policy,
                                                           NULL,
+                                                          NULL,
                                                           0,
                                                           metadata.fields.interface,
                                                           metadata.fields.member,
@@ -2545,6 +2546,7 @@ static int driver_forward_broadcast(Peer *sender, Message *message) {
                 }
 
                 r = policy_snapshot_check_receive(receiver->policy,
+                                                  sender->seclabel,
                                                   &sender_names,
                                                   sender->id,
                                                   message->metadata.fields.interface,
