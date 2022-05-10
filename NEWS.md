@@ -1,5 +1,66 @@
 # dbus-broker - Linux D-Bus Message Broker
 
+## CHANGES WITH 30:
+
+        * Pull in subprojects via meson wraps. Subprojects are no longer
+          included via git submodules, but instead pulled in at build-time via
+          meson. All subprojects are converted to follow semver-style
+          versioning, and dbus-broker pulls them in via a versioned dependency.
+          All subprojects are still statically linked and considered part of
+          dbus-broker. Any critical update to any subproject will cause a new
+          release of dbus-broker, as it always did. Distributions are not
+          required to monitor the subprojects manually.
+          The official release-tarballs of dbus-broker include up-to-date
+          subproject sources and can be used for offline builds. Distributions
+          are free to use newer subproject sources for their rebuilds, and this
+          is explicitly supported.
+          Please refer to the meson documentation for details on how to manage
+          subprojects. You can still pull in other versions of the dependencies
+          by putting the sources into ./subprojects/. This change merely makes
+          meson pull in the newest sources via a meson-wrap-file, if, and only
+          if, no other sources have been provided.
+          This change requires `meson-0.60` or newer.
+
+        * Systemd units with failed `Condition*=` directives are now correctly
+          considered failed, even if they report success.
+
+        * Failed service activations now report more detailed information on
+          the activation failure back through the activating client. The exact
+          error information is now transmitted back from the launcher to the
+          broker and then included in the dbus error message to the client.
+
+        * Order the broker unit explicitly after `dbus.socket` to enforce the
+          dependency even if the broker is disable temporarily. When the unit
+          is enabled, this dependency is implicit due to the used alias to
+          `dbus.service`.
+
+        * The broker now runs in `session.slice` if applicable. The broker is
+          thus considered more vital to the session and thus is less likely to
+          be collected on resource exhaustion.
+
+        * The `GetStats()` call on `org.freedeskop.DBus.Debug` now properly
+          returns reply-owner statistics. Before, those were always set to 0.
+
+        * Fix incorrect resource accounting of connecting peers. Before, only
+          the data a peer actually transmitted/received was accounted, but the
+          management object of the peer itself was not. This is now fixed to
+          properly account all resources a peer uses.
+
+        * Fix NULL-derefs in the XML configuration parser. Empty XML tags could
+          have caused NULL-derefs before. This is now fixed.
+
+        * Fix a buffer-overflow in shell-quote parsing, used by the `Exec=`
+          line in activation service files.
+
+        * Fix the launcher to obtain service-paths from systemd directly rather
+          than building them manually. This will correctly resolve unit aliases
+          and other quirks of systemd units.
+
+        Contributions from: David Rheinsberg, Hugo Osvaldo Barrera, Luca
+                            Boccassi, Zbigniew Jędrzejewski-Szmek, msizanoen1
+
+        - Dußlingen, 2022-05-10
+
 ## CHANGES WITH 29:
 
         * Improve SELinux audit messages. This requires the new libselinux-3.2

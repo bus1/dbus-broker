@@ -33,8 +33,9 @@ The requirements for dbus-broker are:
 ```
   Linux kernel >= 4.17
   glibc >= 2.16
-  libaudit >= 3.0             (optional)
-  libselinux >= 3.2           (optional)
+  libaudit >= 3.0               (optional)
+  libcap-ng >= 0.6              (optional)
+  libselinux >= 3.2             (optional)
 ```
 
 Additionally, the compatibility launcher requires:
