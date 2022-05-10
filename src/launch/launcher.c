@@ -1176,6 +1176,55 @@ static int launcher_set_policy(Launcher *launcher, Policy *policy, uint32_t *sys
         return 0;
 }
 
+/**
+ * launcher_apparmor_check() - checks if AppArmor should be used
+ * @apparmor_mode:        bi-directional argument telling if AppArmor should be enabled
+ *
+ * This should be called with the requested apparmor mode. The
+ * function modifies the mode to either CONFIG_APPARMOR_DISABLED
+ * or CONFIG_APPARMOR_ENABLED based on platform support. If the
+ * function keeps the mode as CONFIG_APPARMOR_REQUIRED, AppArmor
+ * has been configured as mandatory but is not supported.
+ *
+ * Returns: 0 if check succeeded, or negative error code on failure.
+ */
+int launcher_apparmor_check(unsigned int *apparmor_mode) {
+        bool enabled, supported;
+        int r;
+
+        if (*apparmor_mode == CONFIG_APPARMOR_DISABLED)
+                return CONFIG_APPARMOR_DISABLED;
+
+        r = bus_apparmor_is_enabled(&enabled);
+        if (r)
+                return error_fold(r);
+
+        r = bus_apparmor_dbus_supported(&supported);
+        if (r)
+                return error_fold(r);
+
+        if (*apparmor_mode == CONFIG_APPARMOR_ENABLED) {
+                if (enabled && !supported) {
+                        fprintf(stderr, "Kernel is missing AppArmor DBus support.\n");
+                        *apparmor_mode = CONFIG_APPARMOR_DISABLED;
+                } else if (enabled) {
+                        *apparmor_mode = CONFIG_APPARMOR_ENABLED;
+                } else {
+                        *apparmor_mode = CONFIG_APPARMOR_DISABLED;
+                }
+        } else if (*apparmor_mode == CONFIG_APPARMOR_REQUIRED) {
+                if (!enabled || !supported) {
+                        fprintf(stderr, "AppArmor required, but not supported. Exiting.\n");
+                        *apparmor_mode = CONFIG_APPARMOR_REQUIRED;
+                } else {
+                        *apparmor_mode = CONFIG_APPARMOR_ENABLED;
+                }
+        }
+
+        return 0;
+}
+
+
 static int launcher_reload_config(Launcher *launcher) {
         _c_cleanup_(config_root_freep) ConfigRoot *root = NULL;
         _c_cleanup_(policy_deinit) Policy policy = POLICY_INIT(policy);
@@ -1219,29 +1268,13 @@ static int launcher_reload_config(Launcher *launcher) {
         if (r)
                 goto out;
 
-        switch (policy.apparmor_mode) {
-        case CONFIG_APPARMOR_ENABLED: {
-                bool enabled;
-
-                /* XXX: See comments in launcher_run() */
-
-                r = bus_apparmor_is_enabled(&enabled);
-                if (r)
-                        return error_fold(r);
-
-                if (enabled)
-                        fprintf(stderr, "AppArmor enabled, but not supported. Ignoring.\n");
-
-                policy.apparmor_mode = CONFIG_APPARMOR_DISABLED;
-                break;
-        }
-        case CONFIG_APPARMOR_REQUIRED:
-                fprintf(stderr, "AppArmor required, but not supported. Exiting.\n");
-
+        r = launcher_apparmor_check(&policy.apparmor_mode);
+        if (r < 0)
+                return error_fold(r);
+        if (policy.apparmor_mode == CONFIG_APPARMOR_REQUIRED) {
                 r = sd_event_exit(launcher->event, 0);
                 if (r < 0)
                         return error_fold(r);
-
                 return 0;
         }
 
@@ -1371,35 +1404,11 @@ int launcher_run(Launcher *launcher) {
         if (r)
                 return error_trace(r);
 
-        switch (policy.apparmor_mode) {
-        case CONFIG_APPARMOR_ENABLED: {
-                bool enabled, supported;
-
-                r = bus_apparmor_is_enabled(&enabled);
-                if (r)
-                        return error_fold(r);
-
-                r = bus_apparmor_dbus_supported(&supported);
-                if (r)
-                        return error_fold(r);
-
-                if (enabled && !supported)
-                        fprintf(stderr, "Kernel is missing AppArmor DBus support. Ignoring.\n");
-                else if (enabled)
-                        fprintf(stderr, "AppArmor enabled, but not supported. Ignoring.\n");
-
-                /* XXX: once the broker supports AppArmor, set this to DISABLED if and only if
-                 *      it is disabled in the kernel. */
-                policy.apparmor_mode = CONFIG_APPARMOR_DISABLED;
-                break;
-        }
-        case CONFIG_APPARMOR_REQUIRED:
-                fprintf(stderr, "AppArmor required, but not supported. Exiting.\n");
-
-                /* XXX: once the broker supports AppArmor, set this to enabled if and only
-                 *      if it is enabled in the kernel, and exit the launcher otherwise. */
+        r = launcher_apparmor_check(&policy.apparmor_mode);
+        if (r < 0)
+                return error_fold(r);
+        if (policy.apparmor_mode == CONFIG_APPARMOR_REQUIRED)
                 return 0;
-        }
 
         c_assert(launcher->fd_listen >= 0);
 
