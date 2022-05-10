@@ -10,6 +10,7 @@
 #include "bus/name.h"
 #include "bus/policy.h"
 #include "dbus/protocol.h"
+#include "util/apparmor.h"
 #include "util/common.h"
 #include "util/error.h"
 #include "util/selinux.h"
@@ -413,6 +414,10 @@ int policy_registry_new(PolicyRegistry **registryp, const char *fallback_seclabe
 
         *registry = (PolicyRegistry)POLICY_REGISTRY_NULL;
 
+        r = bus_apparmor_registry_new(&registry->apparmor, fallback_seclabel);
+        if (r)
+                return error_fold(r);
+
         r = bus_selinux_registry_new(&registry->selinux, fallback_seclabel);
         if (r)
                 return error_fold(r);
@@ -444,6 +449,7 @@ PolicyRegistry *policy_registry_free(PolicyRegistry *registry) {
 
         policy_batch_unref(registry->default_batch);
         bus_selinux_registry_unref(registry->selinux);
+        bus_apparmor_registry_unref(registry->apparmor);
         free(registry);
 
         return NULL;
@@ -691,9 +697,11 @@ int policy_registry_import(PolicyRegistry *registry, CDVar *v) {
 
         c_dvar_read(v, "]bs)>", &apparmor, &bustype);
 
-        if (apparmor)
-                /* XXX: AppArmor is currently not supported. */
-                return POLICY_E_INVALID;
+        if (apparmor) {
+                r = bus_apparmor_set_bus_type(registry->apparmor, bustype ? bustype : "");
+                if (r)
+                        return error_trace(r);
+        }
 
         r = c_dvar_get_poison(v);
         if (r)
@@ -730,6 +738,7 @@ int policy_snapshot_new(PolicySnapshot **snapshotp,
 
         *snapshot = (PolicySnapshot)POLICY_SNAPSHOT_NULL;
 
+        snapshot->apparmor = bus_apparmor_registry_ref(registry->apparmor);
         snapshot->selinux = bus_selinux_registry_ref(registry->selinux);
 
         snapshot->seclabel = strdup(seclabel);
@@ -778,6 +787,7 @@ PolicySnapshot *policy_snapshot_free(PolicySnapshot *snapshot) {
                 policy_batch_unref(snapshot->batches[snapshot->n_batches]);
         free(snapshot->seclabel);
         bus_selinux_registry_unref(snapshot->selinux);
+        bus_apparmor_registry_unref(snapshot->apparmor);
         free(snapshot);
 
         return NULL;
@@ -796,6 +806,7 @@ int policy_snapshot_dup(PolicySnapshot *snapshot, PolicySnapshot **newp) {
 
         *new = (PolicySnapshot)POLICY_SNAPSHOT_NULL;
 
+        new->apparmor = bus_apparmor_registry_ref(snapshot->apparmor);
         new->selinux = bus_selinux_registry_ref(snapshot->selinux);
 
         new->seclabel = strdup(snapshot->seclabel);
@@ -834,6 +845,14 @@ int policy_snapshot_check_own(PolicySnapshot *snapshot, const char *name_str) {
         CRBNode *rb;
         size_t i;
         int v, r;
+
+        r = bus_apparmor_check_own(snapshot->apparmor, snapshot->seclabel, name_str);
+        if (r) {
+                if (r == BUS_APPARMOR_E_DENIED)
+                        return POLICY_E_APPARMOR_ACCESS_DENIED;
+
+                return error_fold(r);
+        }
 
         r = bus_selinux_check_own(snapshot->selinux, snapshot->seclabel, name_str);
         if (r) {
@@ -1047,6 +1066,15 @@ int policy_snapshot_check_send(PolicySnapshot *snapshot,
         size_t i;
         int r;
 
+        r = bus_apparmor_check_xmit(snapshot->apparmor, true, snapshot->seclabel, subject_seclabel,
+                                    subject, subject_id, path, interface, method);
+        if (r) {
+                if (r == BUS_APPARMOR_E_DENIED)
+                        return POLICY_E_APPARMOR_ACCESS_DENIED;
+
+                return error_fold(r);
+        }
+
         r = bus_selinux_check_send(snapshot->selinux, snapshot->seclabel, subject_seclabel);
         if (r) {
                 if (r == SELINUX_E_DENIED)
@@ -1085,6 +1113,16 @@ int policy_snapshot_check_receive(PolicySnapshot *snapshot,
                                   size_t n_fds) {
         PolicyVerdict verdict = POLICY_VERDICT_INIT;
         size_t i;
+        int r;
+
+        r = bus_apparmor_check_xmit(snapshot->apparmor, false, subject_seclabel, snapshot->seclabel,
+                                    subject, subject_id, path, interface, method);
+        if (r) {
+                if (r == BUS_APPARMOR_E_DENIED)
+                        return POLICY_E_APPARMOR_ACCESS_DENIED;
+
+                return error_fold(r);
+        }
 
         for (i = 0; i < snapshot->n_batches; ++i)
                 policy_snapshot_check_xmit(snapshot->batches[i],

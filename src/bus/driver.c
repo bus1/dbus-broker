@@ -19,6 +19,7 @@
 #include "dbus/message.h"
 #include "dbus/protocol.h"
 #include "dbus/socket.h"
+#include "util/apparmor.h"
 #include "util/error.h"
 #include "util/selinux.h"
 #include "util/string.h"
@@ -1833,6 +1834,12 @@ static int driver_method_become_monitor(Peer *peer, const char *path, CDVar *in_
 
         if (!peer_is_privileged(peer))
                 return DRIVER_E_PEER_NOT_PRIVILEGED;
+
+        r = bus_apparmor_check_eavesdrop(peer->policy->apparmor, peer->policy->seclabel);
+        if (r == BUS_APPARMOR_E_DENIED)
+                return DRIVER_E_PEER_NOT_PRIVILEGED;
+        if (r)
+                return r;
 
         /* first create all the match objects before modifying the peer */
         match_owner_init(&owned_matches);

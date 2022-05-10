@@ -12,6 +12,7 @@
 #include "dbus/protocol.h"
 #include "util/ref.h"
 
+typedef struct BusAppArmorRegistry BusAppArmorRegistry;
 typedef struct BusSELinuxRegistry BusSELinuxRegistry;
 typedef struct NameSet NameSet;
 typedef struct PolicyBatch PolicyBatch;
@@ -112,6 +113,7 @@ struct PolicyRegistryNode {
         }
 
 struct PolicyRegistry {
+        BusAppArmorRegistry *apparmor;
         BusSELinuxRegistry *selinux;
         PolicyBatch *default_batch;
         CRBTree uid_range_tree;
@@ -126,6 +128,7 @@ struct PolicyRegistry {
         }
 
 struct PolicySnapshot {
+        BusAppArmorRegistry *apparmor;
         BusSELinuxRegistry *selinux;
         char *seclabel;
         size_t n_batches;
