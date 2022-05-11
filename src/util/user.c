@@ -48,7 +48,7 @@ static int user_usage_new(UserUsage **usagep, User *user, uid_t uid) {
                 return error_origin(-ENOMEM);
 
         usage->n_refs = REF_INIT;
-        usage->user = user;
+        usage->user = user_ref(user);
         usage->uid = uid;
         usage->user_node = (CRBNode)C_RBNODE_INIT(usage->user_node);
 
@@ -64,6 +64,7 @@ static void user_usage_free(_Atomic unsigned long *n_refs, void *userdata) {
                 c_assert(!usage->slots[i]);
 
         user_usage_unlink(usage);
+        user_unref(usage->user);
         free(usage);
 }
 

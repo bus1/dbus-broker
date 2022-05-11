@@ -358,12 +358,12 @@ Peer *peer_free(Peer *peer) {
         name_owner_deinit(&peer->owned_names);
         policy_snapshot_free(peer->policy);
         connection_deinit(&peer->connection);
-        user_unref(peer->user);
         user_charge_deinit(&peer->charges[2]);
         user_charge_deinit(&peer->charges[1]);
         user_charge_deinit(&peer->charges[0]);
         free(peer->seclabel);
         free(peer->gids);
+        user_unref(peer->user);
         free(peer);
 
         close(fd);
