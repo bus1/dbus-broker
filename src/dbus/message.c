@@ -83,7 +83,7 @@ int message_new_incoming(Message **messagep, MessageHeader header) {
         message->vecs[3] = (struct iovec){ message->body, n_body };
 
         message->n_copied += sizeof(header);
-        memcpy(message->data, &header, sizeof(header));
+        c_memcpy(message->data, &header, sizeof(header));
 
         *messagep = message;
         message = NULL;
@@ -616,11 +616,11 @@ void message_stitch_sender(Message *message, uint64_t sender_id) {
         message->patch[2] = 's';
         message->patch[3] = 0;
         if (message->big_endian)
-                memcpy(message->patch + 4, (uint32_t[1]){ htobe32(n_sender) }, sizeof(uint32_t));
+                c_memcpy(message->patch + 4, (uint32_t[1]){ htobe32(n_sender) }, sizeof(uint32_t));
         else
-                memcpy(message->patch + 4, (uint32_t[1]){ htole32(n_sender) }, sizeof(uint32_t));
-        memcpy(message->patch + 8, sender, n_sender + 1);
-        memset(message->patch + 8 + n_sender + 1, 0, n_stitch - n_field);
+                c_memcpy(message->patch + 4, (uint32_t[1]){ htole32(n_sender) }, sizeof(uint32_t));
+        c_memcpy(message->patch + 8, sender, n_sender + 1);
+        c_memset(message->patch + 8 + n_sender + 1, 0, n_stitch - n_field);
 
         /*
          * After we cut the previous sender field and inserted the new, adjust

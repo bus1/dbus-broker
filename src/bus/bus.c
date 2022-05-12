@@ -36,11 +36,11 @@ int bus_init(Bus *bus,
         *bus = (Bus)BUS_NULL(*bus);
         bus->log = log;
 
-        memcpy(bus->machine_id, machine_id, sizeof(bus->machine_id));
+        c_memcpy(bus->machine_id, machine_id, sizeof(bus->machine_id));
 
         random = (void *)getauxval(AT_RANDOM);
         c_assert(random);
-        memcpy(bus->guid, random, sizeof(bus->guid));
+        c_memcpy(bus->guid, random, sizeof(bus->guid));
 
         r = user_registry_init(&bus->users, log, _USER_SLOT_N, maxima);
         if (r)

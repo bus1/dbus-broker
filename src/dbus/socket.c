@@ -115,7 +115,7 @@ static int socket_buffer_new_message(SocketBuffer **bufferp,
                 return error_trace(r);
 
         buffer->message = message_ref(message);
-        memcpy(buffer->vecs, message->vecs, sizeof(message->vecs));
+        c_memcpy(buffer->vecs, message->vecs, sizeof(message->vecs));
 
         r = user_charge(socket->user,
                         &buffer->charges[0],
@@ -472,11 +472,11 @@ int socket_queue_line(Socket *socket, User *user, const char *line_in, size_t n)
 
         socket_buffer_get_line_cursor(buffer, &line_out, &pos);
 
-        memcpy(line_out, line_in, n);
+        c_memcpy(line_out, line_in, n);
         line_out += n;
         *pos += n;
 
-        memcpy(line_out, "\r\n", strlen("\r\n"));
+        c_memcpy(line_out, "\r\n", strlen("\r\n"));
         *pos += strlen("\r\n");
 
         return 0;

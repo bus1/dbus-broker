@@ -389,7 +389,7 @@ int user_registry_init(UserRegistry *registry,
 
         registry->log = log;
         registry->n_slots = n_slots;
-        memcpy(registry->maxima, maxima, n_slots * sizeof(*registry->maxima));
+        c_memcpy(registry->maxima, maxima, n_slots * sizeof(*registry->maxima));
 
         return 0;
 }

@@ -43,7 +43,7 @@ static void test_message_append(void **buf, size_t *n_buf, const void *data, siz
         p = realloc(*buf, *n_buf + n_data);
         c_assert(p);
 
-        memcpy(p + *n_buf, data, n_data);
+        c_memcpy(p + *n_buf, data, n_data);
 
         *buf = p;
         *n_buf += n_data;

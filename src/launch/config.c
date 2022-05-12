@@ -64,11 +64,11 @@ int config_path_new(ConfigPath **filep, ConfigPath *parent, const char *prefix, 
         file->parent = config_path_ref(parent);
 
         if (n_prefix) {
-                memcpy(file->path, prefix, n_prefix);
+                c_memcpy(file->path, prefix, n_prefix);
                 file->path[n_prefix] = '/';
-                memcpy(file->path + n_prefix + 1, path, n_path + 1);
+                c_memcpy(file->path + n_prefix + 1, path, n_path + 1);
         } else {
-                memcpy(file->path, path, n_path + 1);
+                c_memcpy(file->path, path, n_path + 1);
         }
 
         *filep = file;
@@ -1204,8 +1204,8 @@ static void config_parser_blob_fn(void *userdata, const XML_Char *data, int n_da
                 return;
         }
 
-        memcpy(t, state->current->cdata, state->current->n_cdata);
-        memcpy(t + state->current->n_cdata, data, n_data);
+        c_memcpy(t, state->current->cdata, state->current->n_cdata);
+        c_memcpy(t + state->current->n_cdata, data, n_data);
         t[state->current->n_cdata + n_data] = 0;
         free(state->current->cdata);
         state->current->cdata = t;
@@ -1241,7 +1241,7 @@ static int config_parser_include(ConfigParser *parser, ConfigRoot *root, ConfigN
         c_assert(node->type == CONFIG_NODE_INCLUDE);
         c_assert(node->include.file);
 
-        memset(&parser->state, 0, sizeof(parser->state));
+        c_memset(&parser->state, 0, sizeof(parser->state));
         parser->state.nss = nss_cache;
         parser->state.dirwatch = dirwatch;
         parser->state.file = node->include.file;

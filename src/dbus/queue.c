@@ -170,14 +170,14 @@ int iqueue_get_cursor(IQueue *iq,
                 c_assert(!iq->data_start);
                 c_assert(iq->data == iq->buffer);
 
-                memcpy(p, iq->data, iq->data_end);
+                c_memcpy(p, iq->data, iq->data_end);
                 iq->data = p;
                 iq->data_size = IQUEUE_LINE_MAX;
         } else if (_c_unlikely_(iq->data != iq->buffer && iq->pending.data)) {
                 c_assert(!iq->data_start);
                 c_assert(iq->data_end <= sizeof(iq->buffer));
 
-                memcpy(iq->buffer, iq->data, iq->data_end);
+                c_memcpy(iq->buffer, iq->data, iq->data_end);
                 free(iq->data);
                 user_charge_deinit(&iq->charge_data);
                 iq->data = iq->buffer;
@@ -314,9 +314,9 @@ int iqueue_pop_data(IQueue *iq, FDList **fdsp) {
         if (n_data > 0) {
                 n = c_min(n_data, iq->pending.n_data - iq->pending.n_copied);
 
-                memcpy(iq->pending.data + iq->pending.n_copied,
-                       iq->data + iq->data_start,
-                       n);
+                c_memcpy(iq->pending.data + iq->pending.n_copied,
+                         iq->data + iq->data_start,
+                         n);
 
                 n_data -= n;
                 iq->data_start += n;

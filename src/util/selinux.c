@@ -71,7 +71,7 @@ static int bus_selinux_name_new(const char *name, const char *context, CRBTree *
                 return error_origin(-ENOMEM);
         selinux_name->rb = (CRBNode)C_RBNODE_INIT(selinux_name->rb);
         selinux_name->context = NULL;
-        memcpy(selinux_name->name, name, n_name);
+        c_memcpy(selinux_name->name, name, n_name);
 
         selinux_name->context = strdup(context);
         if (!selinux_name->context)
@@ -105,7 +105,7 @@ int bus_selinux_registry_new(BusSELinuxRegistry **registryp, const char *fallbac
         registry->n_refs = REF_INIT;
         registry->fallback_context = (const char *)(registry + 1);
         registry->names = (CRBTree)C_RBTREE_INIT;
-        memcpy((char *)registry->fallback_context, fallback_context, n_fallback_context);
+        c_memcpy((char *)registry->fallback_context, fallback_context, n_fallback_context);
 
         *registryp = registry;
         registry = NULL;

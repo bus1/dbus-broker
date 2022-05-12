@@ -278,7 +278,7 @@ static int log_fd_send(int destination_fd, int payload_fd) {
         control.cmsg.cmsg_len = CMSG_LEN(sizeof(int));
         control.cmsg.cmsg_level = SOL_SOCKET;
         control.cmsg.cmsg_type = SCM_RIGHTS;
-        memcpy(CMSG_DATA(&control.cmsg), &payload_fd, sizeof(int));
+        c_memcpy(CMSG_DATA(&control.cmsg), &payload_fd, sizeof(int));
 
         msg = (struct msghdr){
                 .msg_control = &control.cmsg,
@@ -590,7 +590,7 @@ void log_append(Log *log, const void *data, size_t n_data) {
                 return;
         }
 
-        memcpy(log->map + log->offset, data, n_data);
+        c_memcpy(log->map + log->offset, data, n_data);
         log->offset += n_data;
 }
 

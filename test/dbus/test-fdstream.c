@@ -74,7 +74,7 @@ static void test_fd_stream_send(Connection *c, unsigned int unix_fds, unsigned i
         if (n_fds > 0) {
                 int fds[n_fds];
 
-                memset(fds, 0, sizeof(fds));
+                c_memset(fds, 0, sizeof(fds));
                 r = fdlist_new_with_fds(&m->fds, fds, n_fds);
                 c_assert(!r);
         }

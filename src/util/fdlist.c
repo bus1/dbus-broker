@@ -37,7 +37,7 @@ int fdlist_new_with_fds(FDList **listp, const int *fds, size_t n_fds) {
         list->cmsg->cmsg_len = CMSG_LEN(n_fds * sizeof(int));
         list->cmsg->cmsg_level = SOL_SOCKET;
         list->cmsg->cmsg_type = SCM_RIGHTS;
-        memcpy(fdlist_data(list), fds, n_fds * sizeof(int));
+        c_memcpy(fdlist_data(list), fds, n_fds * sizeof(int));
 
         *listp = list;
         return 0;

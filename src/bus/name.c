@@ -214,7 +214,7 @@ static int name_new(Name **namep, NameRegistry *registry, const char *name_str) 
 
         *name = (Name)NAME_INIT(*name);
         name->registry = registry;
-        memcpy(name->name, name_str, n_name + 1);
+        c_memcpy(name->name, name_str, n_name + 1);
 
         *namep = name;
         name = NULL;

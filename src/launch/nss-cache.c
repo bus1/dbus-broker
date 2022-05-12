@@ -213,7 +213,7 @@ static int nss_cache_add_user(NSSCache *cache, struct passwd *pw) {
                 return error_trace(r);
 
         if (node) {
-                memset(&node->pw, 0, sizeof(node->pw));
+                c_memset(&node->pw, 0, sizeof(node->pw));
                 node->pw.pw_name = node->name;
                 node->pw.pw_uid = pw->pw_uid;
                 node->pw.pw_gid = pw->pw_gid;
@@ -235,7 +235,7 @@ static int nss_cache_add_group(NSSCache *cache, struct group *gr) {
                 return error_trace(r);
 
         if (node) {
-                memset(&node->gr, 0, sizeof(node->gr));
+                c_memset(&node->gr, 0, sizeof(node->gr));
                 node->gr.gr_name = node->name;
                 node->gr.gr_gid = gr->gr_gid;
         }

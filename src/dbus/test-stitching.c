@@ -62,7 +62,7 @@ static Message *test_new_message(size_t before, const char *sender_early, size_t
         if (before) {
                 p = malloc(before + 1);
                 c_assert(p);
-                memset(p, 'a', before);
+                c_memset(p, 'a', before);
                 p[before] = 0;
 
                 c_dvar_write(&v, "(y<s>)",
@@ -82,7 +82,7 @@ static Message *test_new_message(size_t before, const char *sender_early, size_t
         if (after) {
                 p = malloc(after + 1);
                 c_assert(p);
-                memset(p, 'a', after);
+                c_memset(p, 'a', after);
                 p[0] = '/';
                 p[after] = 0;
 
@@ -127,7 +127,7 @@ static void test_assert_message(Message *message, size_t before, const char *sen
         c_assert(p);
 
         for (n = 0, i = 0; i < C_ARRAY_SIZE(message->vecs); ++i) {
-                memcpy(p + n, message->vecs[i].iov_base, message->vecs[i].iov_len);
+                c_memcpy(p + n, message->vecs[i].iov_base, message->vecs[i].iov_len);
                 n += message->vecs[i].iov_len;
         }
 
@@ -155,7 +155,7 @@ static void test_stitching(void) {
                 n = 8 + i % 8;
                 from = malloc(n + 1);
                 c_assert(from);
-                memset(from, '1', n);
+                c_memset(from, '1', n);
                 from[0] = ':';
                 from[1] = '1';
                 from[2] = '.';
@@ -164,7 +164,7 @@ static void test_stitching(void) {
                 n = 8 + i % 11;
                 to = malloc(n + 1);
                 c_assert(to);
-                memset(to, '2', n);
+                c_memset(to, '2', n);
                 to[0] = ':';
                 to[1] = '1';
                 to[2] = '.';

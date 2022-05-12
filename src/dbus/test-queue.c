@@ -59,7 +59,7 @@ static void test_in_special(void) {
                         if (!n)
                                 break;
 
-                        memcpy(buffer + *from, blob, n);
+                        c_memcpy(buffer + *from, blob, n);
                         *from += n;
                         total += n;
 
@@ -110,7 +110,7 @@ static void test_in_special(void) {
                 c_assert(!r);
                 c_assert(to - *from >= 128);
 
-                memcpy(buffer + *from, (char [1]){}, 1);
+                c_memcpy(buffer + *from, (char [1]){}, 1);
                 *from += 1;
                 r = fdlist_new_with_fds(fds, (int [1]){}, 1);
                 c_assert(!r);
@@ -149,7 +149,7 @@ static void test_in_special(void) {
                 c_assert(!r);
                 c_assert(to - *from >= 128);
 
-                memcpy(buffer + *from, (char [2]){}, 2);
+                c_memcpy(buffer + *from, (char [2]){}, 2);
                 *from += 2;
                 r = fdlist_new_with_fds(fds, (int [1]){ 1 }, 1);
                 c_assert(!r);
@@ -199,7 +199,7 @@ static void test_in_special(void) {
                 c_assert(!r);
                 c_assert(to - *from >= 128);
 
-                memcpy(buffer + *from, (char [1]){}, 1);
+                c_memcpy(buffer + *from, (char [1]){}, 1);
                 *from += 1;
                 r = fdlist_new_with_fds(fds, (int [1]){}, 1);
                 c_assert(!r);
@@ -307,7 +307,7 @@ static void test_in_lines(void) {
                                 n = rand() % c_min(n, strlen(send) - i_send);
                                 ++n;
 
-                                memcpy(buffer + *from, send + i_send, n);
+                                c_memcpy(buffer + *from, send + i_send, n);
                                 i_send += n;
                                 *from += n;
                         }
