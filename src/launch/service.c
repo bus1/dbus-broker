@@ -98,8 +98,12 @@ Service *service_free(Service *service) {
 }
 
 int service_update(Service *service, const char *path, const char *unit, size_t argc, char **argv, const char *user, uid_t uid) {
+        size_t i;
+
         service->path = c_free(service->path);
         service->unit = c_free(service->unit);
+        for (i = 0; i < service->argc; ++i)
+                free(service->argv[i]);
         service->argc = 0;
         service->argv = c_free(service->argv);
         service->user = c_free(service->user);
@@ -124,7 +128,7 @@ int service_update(Service *service, const char *path, const char *unit, size_t 
 
                 service->argc = argc;
 
-                for (size_t i = 0; i < argc; ++i) {
+                for (i = 0; i < argc; ++i) {
                         service->argv[i] = strdup(argv[i]);
                         if (!service->argv[i])
                                 return error_origin(-ENOMEM);
