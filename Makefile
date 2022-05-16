@@ -33,6 +33,8 @@ VPREV="$$((${VNEXT} - 1))"
 release:
 	@echo "Checklist for release of dbus-broker-${VNEXT}:"
 	@echo
+	@echo " * Update subprojects via:"
+	@echo "       meson subprojects update"
 	@echo " * Fill in NEWS via:"
 	@echo "       git log v${VPREV}..HEAD"
 	@echo " * List contributors in NEWS via:"
