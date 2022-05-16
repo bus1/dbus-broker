@@ -1,5 +1,21 @@
 # dbus-broker - Linux D-Bus Message Broker
 
+## CHANGES WITH 31:
+
+        * Fix assertion failures in the user accounting, uncovered by the
+          changes to accounting in v30.
+
+        * Fix a memory leak in service-file re-loading, in particular in the
+          command-line argument handling.
+
+        * Fix a set of UBs related to memcpy(3), memset(3), and others, called
+          with NULL on empty memory areas.
+
+        Contributions from: David Rheinsberg, Evgeny Vereshchagin, Mel34,
+                            Torge Matthies
+
+        - Dußlingen, 2022-05-16
+
 ## CHANGES WITH 30:
 
         * Pull in subprojects via meson wraps. Subprojects are no longer
