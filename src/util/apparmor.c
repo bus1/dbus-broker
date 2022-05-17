@@ -59,7 +59,7 @@ int bus_apparmor_is_enabled(bool *enabledp) {
 }
 
 /**
- * bus_apparmor_dbus_supported() - checks if Kernel has AppArmor support for DBus
+ * bus_apparmor_dbus_supported() - check for apparmor dbus support
  * @supported:            return argument telling if AppArmor DBus is supported
  *
  * If the AppArmor module is not loaded, or AppArmor does not support DBus,
@@ -76,8 +76,8 @@ int bus_apparmor_dbus_supported(bool *supportedp) {
         if (f) {
                 errno = 0;
                 if (!fgets(buffer, sizeof(buffer), f)) {
-                        if (ferror(f) && errno != EINVAL)
-                                return errno ? error_origin(-errno) : error_origin(-ENOTRECOVERABLE);
+                        if (ferror(f))
+                                return error_origin(-c_errno());
                 }
 
                 if (strstr(buffer, "acquire") && strstr(buffer, "send") && strstr(buffer, "receive"))
