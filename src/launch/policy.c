@@ -639,7 +639,7 @@ int policy_import(Policy *policy, ConfigRoot *root) {
 
         c_list_for_each_entry(i_cnode, &root->node_list, root_link) {
                 if (i_cnode->type == CONFIG_NODE_TYPE) {
-                        policy->bus_type = i_cnode->bus_type.type;
+                        policy->bus_type = i_cnode->bustype.name;
                         continue;
                 }
 
@@ -1155,7 +1155,7 @@ int policy_export(Policy *policy, sd_bus_message *m, uint32_t *at_console_uids, 
         if (r < 0)
                 return error_origin(r);
 
-        r = sd_bus_message_append(m, "s", (policy->bus_type == CONFIG_BUS_TYPE_SESSION ? "session" : "system"));
+        r = sd_bus_message_append(m, "s", policy->bus_type);
         if (r < 0)
                 return error_origin(r);
 

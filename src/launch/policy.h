@@ -103,7 +103,7 @@ struct Policy {
 
         CList selinux_list;
         unsigned int apparmor_mode;
-        unsigned int bus_type;
+        char *bus_type;
 };
 
 #define POLICY_INIT(_x) {                                                               \
@@ -115,7 +115,7 @@ struct Policy {
                 .gid_tree = C_RBTREE_INIT,                                              \
                 .selinux_list = C_LIST_INIT((_x).selinux_list),                         \
                 .apparmor_mode = CONFIG_APPARMOR_ENABLED,                               \
-                .bus_type = CONFIG_BUS_TYPE_SYSTEM,                                     \
+                .bus_type = NULL,                                                       \
         }
 
 /* records */

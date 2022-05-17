@@ -150,6 +150,9 @@ ConfigNode *config_node_free(ConfigNode *node) {
                 return NULL;
 
         switch (node->type) {
+        case CONFIG_NODE_TYPE:
+                free(node->bustype.name);
+                break;
         case CONFIG_NODE_INCLUDEDIR:
                 config_path_unref(node->includedir.dir);
                 break;
@@ -1025,12 +1028,11 @@ static void config_parser_end_fn(void *userdata, const XML_Char *name) {
          */
         switch (state->current->type) {
         case CONFIG_NODE_TYPE:
-                if (!strcmp(state->current->cdata, "system"))
-                        state->current->bus_type.type = CONFIG_BUS_TYPE_SYSTEM;
-                else if (!strcmp(state->current->cdata, "session"))
-                        state->current->bus_type.type = CONFIG_BUS_TYPE_SESSION;
-                else
-                        CONFIG_ERR(state, "Unknown bus type", ": %s", state->current->cdata);
+                state->current->bustype.name = strdup(state->current->cdata);
+                if (!state->current->bustype.name) {
+                        state->error = error_origin(-ENOMEM);
+                        return;
+                }
 
                 break;
 
