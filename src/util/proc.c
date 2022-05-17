@@ -24,6 +24,12 @@ int proc_get_seclabel(pid_t pid, char **labelp, size_t *n_labelp) {
         if (f) {
                 errno = 0;
                 if (!fgets(buffer, sizeof(buffer), f)) {
+                        /*
+                         * If LSM core code is enabled, but no LSM is loaded,
+                         * the kernel returns EINVAL. In that case, we treat
+                         * the seclabel as empty string, similar to how the
+                         * user-space LSM libraries do.
+                         */
                         if (ferror(f) && errno != EINVAL)
                                 return errno ? error_origin(-errno) : error_origin(-ENOTRECOVERABLE);
                 }

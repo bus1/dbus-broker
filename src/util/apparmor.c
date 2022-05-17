@@ -34,8 +34,8 @@ int bus_apparmor_is_enabled(bool *enabledp) {
         if (f) {
                 errno = 0;
                 if (!fgets(buffer, sizeof(buffer), f)) {
-                        if (ferror(f) && errno != EINVAL)
-                                return errno ? error_origin(-errno) : error_origin(-ENOTRECOVERABLE);
+                        if (ferror(f))
+                                return error_origin(-c_errno());
                 }
 
                 switch (buffer[0]) {
