@@ -53,3 +53,23 @@ release:
 	@echo " * Upload tarball to github via custom release"
 	@echo
 .PHONY: release
+
+fedpkg:
+	@echo "Checklist for Fedora releases (for each branch):"
+	@echo
+	@echo " * Fetch Kerberos ticket:"
+	@echo "       kinit <fas>@FEDORAPROJECT.ORG"
+	@echo
+	@echo " * Edit and Update dbus-broker.spec"
+	@echo
+	@echo " * Pull new sources:"
+	@echo "       curl -O dbus-broker-${VNEXT}.tar.xz https://github.com/bus1/dbus-broker/releases/download/v${VNEXT}/dbus-broker-${VNEXT}.tar.xz"
+	@echo " * Push new sources:"
+	@echo "       fedpkg new-sources dbus-broker-${VNEXT}.tar.xz"
+	@echo
+	@echo " * Commit and push at least once"
+	@echo
+	@echo " * Submit build to Koji:"
+	@echo "       fedpkg build"
+	@echo
+	@echo " * Submit update to Bodhi"
