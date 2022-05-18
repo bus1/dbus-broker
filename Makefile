@@ -8,25 +8,9 @@
 
 all:
 	@echo "Available targets:"
-	@echo "    osi: Build test-container via mkosi"
-	@echo "    run: Run test-container via nspawn"
 	@echo "release: Print checklist for releases"
+	@echo " fedpkg: Print checklist for fedora packaging"
 .PHONY: all
-
-osi:
-	mkosi \
-		-C test/osi/ \
-		--build-sources "../../" \
-		--force
-.PHONY: osi
-
-run:
-	systemd-nspawn \
-		-b \
-		-D test/osi/rootfs/ \
-		--bind-ro "${BUILDDIR}/src/dbus-broker:/usr/bin/dbus-broker" \
-		--bind-ro "${BUILDDIR}/src/dbus-broker-launch:/usr/bin/dbus-broker-launch"
-.PHONY: run
 
 VNEXT=2
 VPREV="$$((${VNEXT} - 1))"
