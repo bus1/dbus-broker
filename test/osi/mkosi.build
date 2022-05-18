@@ -1,9 +1,0 @@
-#!/bin/bash
-
-set -e
-
-cd $SRCDIR
-
-meson build --prefix=/usr
-ninja -C build
-ninja -C build install
