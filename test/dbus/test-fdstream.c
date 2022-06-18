@@ -197,10 +197,11 @@ static int test_fd_stream_fn(DispatchFile *file) {
 }
 
 static void test_fd_stream(void) {
+        _c_cleanup_(c_closep) int fd = -1;
         _c_cleanup_(dispatch_context_deinit) DispatchContext d = DISPATCH_CONTEXT_NULL(d);
         _c_cleanup_(connection_deinit) Connection c = CONNECTION_NULL(c);
         _c_cleanup_(util_broker_freep) Broker *broker = NULL;
-        int r, fd;
+        int r;
 
         /*
          * This test connects a single client to the broker, performs a SASL
