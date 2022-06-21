@@ -189,6 +189,7 @@ static int controller_end_read(CDVar *var) {
 
         r = c_dvar_end_read(var);
         switch (r) {
+        case C_DVAR_E_DEPTH_OVERFLOW:
         case C_DVAR_E_CORRUPT_DATA:
         case C_DVAR_E_OUT_OF_BOUNDS:
         case C_DVAR_E_TYPE_MISMATCH:
