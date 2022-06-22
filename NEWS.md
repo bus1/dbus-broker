@@ -1,5 +1,21 @@
 # dbus-broker - Linux D-Bus Message Broker
 
+## CHANGES WITH 32:
+
+        * Fix several bugs in the d-bus marshalling layer c-dvar, including
+          out-of-bound reads.
+
+        * Fix ubsan and asan warnings in c-stdaux and related subprojects.
+
+        * Add initial infrastructure for the upcoming AppArmor security layer.
+          This does not include full AppArmor support, yet, but merely prepares
+          the code-base for it.
+
+        Contributions from: David Rheinsberg, Evgeny Vereshchagin, Sebastian
+                            Reichel
+
+        - Brno, 2022-06-22
+
 ## CHANGES WITH 31:
 
         * Fix assertion failures in the user accounting, uncovered by the
