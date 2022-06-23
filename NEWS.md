@@ -11,10 +11,10 @@
           This does not include full AppArmor support, yet, but merely prepares
           the code-base for it.
 
-        Contributions from: David Rheinsberg, Evgeny Vereshchagin, Sebastian
-                            Reichel
+        Contributions from: David Rheinsberg, Evgeny Vereshchagin, Frantisek
+                            Sumsal, Sebastian Reichel
 
-        - Brno, 2022-06-22
+        - Brno, 2022-06-23
 
 ## CHANGES WITH 31:
 
