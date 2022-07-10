@@ -22,10 +22,8 @@ mod_pkgconfig = import('pkgconfig')
 #
 
 dep_cdvar = dependency('libcdvar-1')
-dep_cini = dependency('libcini-1')
 dep_clist = dependency('libclist-3')
 dep_crbtree = dependency('libcrbtree-3')
-dep_cshquote = dependency('libcshquote-1')
 dep_cstdaux = dependency('libcstdaux-1')
 dep_math = cc.find_library('m')
 dep_thread = dependency('threads')
@@ -72,6 +70,8 @@ endif
 
 use_launcher = get_option('launcher')
 if use_launcher
+        dep_cini = dependency('libcini-1')
+        dep_cshquote = dependency('libcshquote-1')
         dep_expat = dependency('expat', version: '>=2.2')
         dep_libsystemd = dependency('libsystemd', version: '>=230')
         dep_systemd = dependency('systemd', version: '>=230')
