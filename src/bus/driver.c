@@ -1838,8 +1838,8 @@ static int driver_method_become_monitor(Peer *peer, const char *path, CDVar *in_
         r = bus_apparmor_check_eavesdrop(peer->policy->apparmor, peer->policy->seclabel);
         if (r == BUS_APPARMOR_E_DENIED)
                 return DRIVER_E_PEER_NOT_PRIVILEGED;
-        if (r)
-                return r;
+        else if (r)
+                return error_fold(r);
 
         /* first create all the match objects before modifying the peer */
         match_owner_init(&owned_matches);
