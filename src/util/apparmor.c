@@ -20,8 +20,8 @@
 
 struct BusAppArmorRegistry {
         _Atomic unsigned long n_refs;
-        char *fallback_context;
         char *bustype;
+        char fallback_context[];
 };
 
 /**
@@ -125,22 +125,22 @@ static int bus_apparmor_log(const char *fmt, ...) {
 
 /**
  * bus_apparmor_registry_new() - create a new AppArmor registry
- * @registryp:          pointer to the new registry
+ * @registryp:          output pointer to the new registry
  * @fallback_context:   fallback security context for queries against this registry
  *
  * Return: 0 on success, or a negative error code on failure.
  */
 int bus_apparmor_registry_new(struct BusAppArmorRegistry **registryp, const char *fallback_context) {
         _c_cleanup_(bus_apparmor_registry_unrefp) BusAppArmorRegistry *registry = NULL;
-        size_t n_fallback_context = strlen(fallback_context) + 1;
+        size_t n_fallback_context;
 
-        registry = malloc(sizeof(*registry) + n_fallback_context);
+        n_fallback_context = strlen(fallback_context);
+        registry = calloc(1, sizeof(*registry) + n_fallback_context + 1);
         if (!registry)
                 return error_origin(-ENOMEM);
 
         registry->n_refs = REF_INIT;
-        registry->fallback_context = (char *)(registry + 1);
-        memcpy((char *)registry->fallback_context, fallback_context, n_fallback_context);
+        strcpy(registry->fallback_context, fallback_context);
 
         *registryp = registry;
         registry = NULL;
