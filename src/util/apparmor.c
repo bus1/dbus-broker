@@ -1,13 +1,9 @@
 /*
  * Bus AppArmor Helpers
  *
- * AppArmor support is not implemented upstream in dbus-broker, as the
- * required kernel infrastructure is not yet upstream in the kernel.
- *
- * We just do the bare minimum of refusing to start if AppArmor is
- * configured to be required, and to warn if support is enabled in
- * the kernel, and AppArmor is configured to be enabled by the
- * applicable policy.
+ * Required AppArmor kernel support is still not merged in upstream linux as of
+ * July 2022, yet we provide basic AppArmor support based on the downstream
+ * Ubuntu patches. This follows closely what dbus-daemon does.
  */
 
 #include <c-rbtree.h>
