@@ -452,8 +452,8 @@ int bus_apparmor_check_xmit(BusAppArmorRegistry *registry,
                             const char *path,
                             const char *interface,
                             const char *method) {
-        _c_cleanup_(c_freep) char *sender_context_dup = strdup(sender_context ?: registry->fallback_context);
-        _c_cleanup_(c_freep) char *receiver_context_dup = strdup(receiver_context ?: registry->fallback_context);
+        _c_cleanup_(c_freep) char *sender_context_dup = NULL;
+        _c_cleanup_(c_freep) char *receiver_context_dup = NULL;
         char *sender_security_label, *sender_security_mode;
         char *receiver_security_label, *receiver_security_mode;
         const char *direction = check_send ? "send" : "receive";
@@ -464,7 +464,12 @@ int bus_apparmor_check_xmit(BusAppArmorRegistry *registry,
         if (!registry->bustype)
                 return 0;
 
-        if (!sender_context_dup || !receiver_context_dup)
+        sender_context_dup = strdup(sender_context ?: registry->fallback_context);
+        if (!sender_context_dup)
+                return -ENOMEM;
+
+        receiver_context_dup = strdup(receiver_context ?: registry->fallback_context);
+        if (!receiver_context_dup)
                 return -ENOMEM;
 
         sender_security_label = aa_splitcon(sender_context_dup, &sender_security_mode);
@@ -506,9 +511,8 @@ int bus_apparmor_check_xmit(BusAppArmorRegistry *registry,
 int bus_apparmor_check_eavesdrop(BusAppArmorRegistry *registry,
                                  const char *context)
 {
-        _c_cleanup_(c_freep) char *condup = strdup(context);
+        _c_cleanup_(c_freep) char *condup = NULL, *qstr = NULL;
         char *security_label, *security_mode;
-        _c_cleanup_(c_freep) char *qstr = NULL;
         int r;
         /* the AppArmor API uses pointers to int for pointers to boolean */
         int allow = false, audit = true;
@@ -518,6 +522,7 @@ int bus_apparmor_check_eavesdrop(BusAppArmorRegistry *registry,
         if (is_unconfined(context))
                 return 0;
 
+        condup = strdup(context);
         if (!condup)
                 return -ENOMEM;
 
