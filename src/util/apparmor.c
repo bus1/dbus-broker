@@ -102,10 +102,6 @@ int bus_apparmor_dbus_supported(bool *supportedp) {
         return 0;
 }
 
-static inline bool is_apparmor_enabled(BusAppArmorRegistry *registry) {
-        return registry->bustype ? true : false;
-}
-
 static int bus_apparmor_log(const char *fmt, ...) {
         _c_cleanup_(c_freep) char *message = NULL;
         va_list ap;
@@ -391,7 +387,7 @@ int bus_apparmor_check_own(struct BusAppArmorRegistry *registry,
         /* the AppArmor API uses pointers to int for pointers to boolean */
         int allow = false, audit = true;
 
-        if (!is_apparmor_enabled(registry))
+        if (!registry->bustype)
                 return 0;
 
         condup = strdup(owner_context);
@@ -465,7 +461,7 @@ int bus_apparmor_check_xmit(BusAppArmorRegistry *registry,
         /* the AppArmor API uses pointers to int for pointers to boolean */
         int allow = false, audit = true;
 
-        if (!is_apparmor_enabled(registry))
+        if (!registry->bustype)
                 return 0;
 
         if (!sender_context_dup || !receiver_context_dup)
@@ -517,7 +513,9 @@ int bus_apparmor_check_eavesdrop(BusAppArmorRegistry *registry,
         /* the AppArmor API uses pointers to int for pointers to boolean */
         int allow = false, audit = true;
 
-        if (!is_apparmor_enabled(registry) || is_unconfined(context))
+        if (!registry->bustype)
+                return 0;
+        if (is_unconfined(context))
                 return 0;
 
         if (!condup)
