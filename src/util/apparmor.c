@@ -168,12 +168,20 @@ BusAppArmorRegistry *bus_apparmor_registry_unref(BusAppArmorRegistry *registry) 
         return NULL;
 }
 
-int bus_apparmor_set_bus_type(BusAppArmorRegistry *registry, const char* bustype) {
-        c_assert(!registry->bustype);
+int bus_apparmor_set_bus_type(BusAppArmorRegistry *registry, const char *bustype) {
+        char *dup;
 
-        registry->bustype = strdup(bustype);
-        if (!registry->bustype)
-                return error_origin(-ENOMEM);
+        if (bustype) {
+                dup = strdup(bustype);
+                if (!dup)
+                        return error_origin(-ENOMEM);
+        } else {
+                dup = NULL;
+        }
+
+        free(registry->bustype);
+        registry->bustype = dup;
+
         return 0;
 }
 
