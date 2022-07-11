@@ -697,11 +697,9 @@ int policy_registry_import(PolicyRegistry *registry, CDVar *v) {
 
         c_dvar_read(v, "]bs)>", &apparmor, &bustype);
 
-        if (apparmor) {
-                r = bus_apparmor_set_bus_type(registry->apparmor, bustype ? bustype : "");
-                if (r)
-                        return error_trace(r);
-        }
+        r = bus_apparmor_set_bus_type(registry->apparmor, apparmor ? bustype : NULL);
+        if (r)
+                return error_fold(r);
 
         r = c_dvar_get_poison(v);
         if (r)
