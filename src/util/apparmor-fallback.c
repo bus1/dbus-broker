@@ -11,7 +11,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "util/apparmor.h"
-#include "util/error.h"
 
 /**
  * bus_apparmor_is_enabled() - checks if AppArmor is currently enabled
