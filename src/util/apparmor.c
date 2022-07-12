@@ -186,6 +186,11 @@ static int bus_apparmor_log(BusAppArmorRegistry *registry, const char *fmt, ...)
         return 0;
 }
 
+static bool is_unconfined(const char *label, const char *mode) {
+        return string_equal(mode, "unconfined") ||
+                (!mode && string_equal(label, "unconfined"));
+}
+
 static int build_service_query(
         char **queryp,
         size_t *n_queryp,
@@ -447,6 +452,9 @@ int bus_apparmor_check_own(struct BusAppArmorRegistry *registry,
 
         security_label = aa_splitcon(condup, &security_mode);
 
+        if (is_unconfined(security_label, security_mode))
+                return 0;
+
         r = build_service_query(
                 &qstr,
                 &n_qstr,
@@ -527,9 +535,9 @@ int bus_apparmor_check_xmit(BusAppArmorRegistry *registry,
         sender_security_label = aa_splitcon(sender_context_dup, &sender_security_mode);
         receiver_security_label = aa_splitcon(receiver_context_dup, &receiver_security_mode);
 
-        if (string_equal(sender_security_label, "unconfined"))
+        if (is_unconfined(sender_security_label, sender_security_mode))
                 return 0;
-        if (string_equal(receiver_security_label, "unconfined"))
+        if (is_unconfined(receiver_security_label, receiver_security_mode))
                 return 0;
 
         if (check_send)
@@ -589,14 +597,15 @@ int bus_apparmor_check_eavesdrop(BusAppArmorRegistry *registry,
 
         if (!registry->bustype)
                 return 0;
-        if (string_equal(context, "unconfined"))
-                return 0;
 
         condup = strdup(context);
         if (!condup)
                 return error_origin(-ENOMEM);
 
         security_label = aa_splitcon(condup, &security_mode);
+
+        if (is_unconfined(security_label, security_mode))
+                return 0;
 
         r = build_eavesdrop_query(
                 &qstr,
