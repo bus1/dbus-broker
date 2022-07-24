@@ -1,0 +1,52 @@
+name: Code Fuzzer
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  fuzzer:
+    name: OSS-Fuzz Code Testing
+    concurrency:
+      group: ${{ github.workflow }}-${{ matrix.sanitizer }}-${{ matrix.architecture }}-${{ github.ref }}
+      cancel-in-progress: true
+    if: github.repository == 'bus1/dbus-broker'
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        architecture: [x86_64]
+        sanitizer: [address, undefined, memory]
+        include:
+        - architecture: i386
+          sanitizer: address
+
+    steps:
+    - name: Build Fuzzers (${{ matrix.sanitizer }})
+      id: build
+      uses: google/oss-fuzz/infra/cifuzz/actions/build_fuzzers@master
+      with:
+        allowed-broken-targets-percentage: 0
+        architecture: ${{ matrix.architecture }}
+        dry-run: false
+        oss-fuzz-project-name: 'dbus-broker'
+        sanitizer: ${{ matrix.sanitizer }}
+    - name: Run Fuzzers (${{ matrix.sanitizer }})
+      uses: google/oss-fuzz/infra/cifuzz/actions/run_fuzzers@master
+      with:
+        dry-run: false
+        fuzz-seconds: 600
+        oss-fuzz-project-name: 'dbus-broker'
+        sanitizer: ${{ matrix.sanitizer }}
+    - name: Upload Crash
+      if: failure() && steps.build.outcome == 'success'
+      uses: actions/upload-artifact@v3
+      with:
+        name: ${{ matrix.sanitizer }}-${{ matrix.architecture }}-artifacts
+        path: ./out/artifacts
