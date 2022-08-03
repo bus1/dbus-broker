@@ -1064,7 +1064,7 @@ int policy_snapshot_check_send(PolicySnapshot *snapshot,
         size_t i;
         int r;
 
-        r = bus_apparmor_check_xmit(snapshot->apparmor, true, snapshot->seclabel, subject_seclabel,
+        r = bus_apparmor_check_send(snapshot->apparmor, snapshot->seclabel, subject_seclabel,
                                     subject, subject_id, path, interface, method);
         if (r) {
                 if (r == BUS_APPARMOR_E_DENIED)
@@ -1111,16 +1111,6 @@ int policy_snapshot_check_receive(PolicySnapshot *snapshot,
                                   size_t n_fds) {
         PolicyVerdict verdict = POLICY_VERDICT_INIT;
         size_t i;
-        int r;
-
-        r = bus_apparmor_check_xmit(snapshot->apparmor, false, subject_seclabel, snapshot->seclabel,
-                                    subject, subject_id, path, interface, method);
-        if (r) {
-                if (r == BUS_APPARMOR_E_DENIED)
-                        return POLICY_E_APPARMOR_ACCESS_DENIED;
-
-                return error_fold(r);
-        }
 
         for (i = 0; i < snapshot->n_batches; ++i)
                 policy_snapshot_check_xmit(snapshot->batches[i],
