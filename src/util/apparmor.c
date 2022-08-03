@@ -485,9 +485,8 @@ int bus_apparmor_check_own(struct BusAppArmorRegistry *registry,
 }
 
 /**
- * bus_apparmor_check_xmit() - check if the given transaction is allowed
+ * bus_apparmor_check_send() - check if the given transaction is allowed
  * @registry:           AppArmor registry to operate on
- * @check_send:         true if sending should be checked, false if receiving
  * @sender_context:     security context of the sender
  * @receiver_context:   security context of the receiver, or NULL
  * @subject:            List of names
@@ -506,8 +505,7 @@ int bus_apparmor_check_own(struct BusAppArmorRegistry *registry,
  * Return: 0 if the transaction is allowed, BUS_APPARMOR_E_DENIED if it is not,
  *         or a negative error code on failure.
  */
-int bus_apparmor_check_xmit(BusAppArmorRegistry *registry,
-                            bool check_send,
+int bus_apparmor_check_send(BusAppArmorRegistry *registry,
                             const char *sender_context,
                             const char *receiver_context,
                             NameSet *subject,
@@ -519,7 +517,7 @@ int bus_apparmor_check_xmit(BusAppArmorRegistry *registry,
         _c_cleanup_(c_freep) char *receiver_context_dup = NULL;
         char *sender_security_label, *sender_security_mode;
         char *receiver_security_label, *receiver_security_mode;
-        int r, allow, audit;
+        int r, src_allow = false, src_audit = true, dst_allow = false, dst_audit = true;
 
         if (!registry->bustype)
                 return 0;
@@ -534,46 +532,69 @@ int bus_apparmor_check_xmit(BusAppArmorRegistry *registry,
         sender_security_label = aa_splitcon(sender_context_dup, &sender_security_mode);
         receiver_security_label = aa_splitcon(receiver_context_dup, &receiver_security_mode);
 
-        if (is_unconfined(sender_security_label, sender_security_mode))
-                return 0;
-        if (is_unconfined(receiver_security_label, receiver_security_mode))
-                return 0;
-
-        if (check_send)
+        if (is_unconfined(sender_security_label, sender_security_mode)) {
+                src_allow = true;
+                src_audit = false;
+        } else {
                 r = apparmor_message_query(true,
                                            sender_security_label,
                                            registry->bustype,
                                            receiver_security_label,
                                            subject, subject_id, path,
-                                           interface, method, &allow, &audit);
-        else
+                                           interface, method, &src_allow, &src_audit);
+
+                if (r)
+                        return error_fold(r);
+        }
+
+        if (is_unconfined(receiver_security_label, receiver_security_mode)) {
+                dst_allow = true;
+                dst_audit = false;
+        } else {
                 r = apparmor_message_query(false,
                                            receiver_security_label,
                                            registry->bustype,
                                            sender_security_label,
                                            subject, subject_id, path,
-                                           interface, method, &allow, &audit);
-        if (r)
-                return error_fold(r);
+                                           interface, method, &dst_allow, &dst_audit);
+                if (r)
+                        return error_fold(r);
+        }
 
-        if (audit)
-                bus_apparmor_log(
-                        registry,
-                        "apparmor=\"%s\" operation=\"dbus_%s\" bus=\"%s\" "
-                        "path=\"%s\" interface=\"%s\" method=\"%s\"",
-                        allow ? "ALLOWED" : "DENIED",
-                        check_send ? "send" : "receive",
+        if (string_equal(sender_security_mode, "complain"))
+                src_allow = 1;
+        if (string_equal(receiver_security_mode, "complain"))
+                dst_allow = 1;
+
+        if (src_audit) {
+                bus_apparmor_log(registry,
+                        "apparmor=\"%s\" bus=\"%s\" path=\"%s\" interface=\"%s\" method=\"%s\" "
+                        "label=\"%s\" peer_label=\"%s\"",
+                        src_allow ? "ALLOWED" : "DENIED",
                         registry->bustype,
                         path,
                         interface,
-                        method
+                        method,
+                        sender_security_label,
+                        receiver_security_label
                 );
+        }
 
-        if ((check_send && string_equal(sender_security_mode, "complain")) ||
-            (!check_send && string_equal(receiver_security_mode, "complain")))
-                allow = 1;
+        if (dst_audit) {
+                bus_apparmor_log(registry,
+                        "apparmor=\"%s\" bus=\"%s\" path=\"%s\" interface=\"%s\" method=\"%s\" "
+                        "label=\"%s\" peer_label=\"%s\"",
+                        dst_allow ? "ALLOWED" : "DENIED",
+                        registry->bustype,
+                        path,
+                        interface,
+                        method,
+                        receiver_security_label,
+                        sender_security_label
+                );
+        }
 
-        return allow ? 0 : BUS_APPARMOR_E_DENIED;
+        return (src_allow && dst_allow) ? 0 : BUS_APPARMOR_E_DENIED;
 }
 
 /**
