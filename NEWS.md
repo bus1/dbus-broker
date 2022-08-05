@@ -14,7 +14,7 @@
         Contributions from: David Rheinsberg, Evgeny Vereshchagin, Frantisek
                             Sumsal, Sebastian Reichel
 
-        - Brno, 2022-06-23
+        - Dußlingen, 2022-08-05
 
 ## CHANGES WITH 31:
 
