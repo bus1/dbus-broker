@@ -31,6 +31,8 @@ release:
 	@echo "       git tag -s -m 'dbus-broker ${VNEXT}' v${VNEXT} HEAD"
 	@echo " * Create tarball via: (VERIFY YOU HAVE v${VNEXT} CHECKED OUT!)"
 	@echo "       meson dist -C build --include-subprojects"
+	@echo " * Sign tarball via:"
+	@echo "       gpg --armor --detach-sign \"./build/meson-dist/dbus-broker-${VNEXT}.tar.xz\""
 	@echo
 	@echo " * Push tag via:"
 	@echo "       git push <remote> v${VNEXT}"
