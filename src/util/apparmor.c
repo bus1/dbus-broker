@@ -473,6 +473,9 @@ int bus_apparmor_check_own(struct BusAppArmorRegistry *registry,
         if (r)
                 return error_origin(-c_errno());
 
+        if (string_equal(security_mode, "complain"))
+                allow = true;
+
         if (audit)
                 bus_apparmor_log(
                         registry,
@@ -482,9 +485,6 @@ int bus_apparmor_check_own(struct BusAppArmorRegistry *registry,
                         registry->bustype,
                         name
                 );
-
-        if (string_equal(security_mode, "complain"))
-                allow = true;
 
         return allow ? 0 : BUS_APPARMOR_E_DENIED;
 }
@@ -645,6 +645,9 @@ int bus_apparmor_check_eavesdrop(BusAppArmorRegistry *registry,
         if (r)
                 return error_origin(-c_errno());
 
+        if (string_equal(security_mode, "complain"))
+                allow = 1;
+
         if (audit)
                 bus_apparmor_log(
                         registry,
@@ -654,9 +657,6 @@ int bus_apparmor_check_eavesdrop(BusAppArmorRegistry *registry,
                         registry->bustype,
                         context
                 );
-
-        if (string_equal(security_mode, "complain"))
-                allow = 1;
 
         return allow ? 0 : BUS_APPARMOR_E_DENIED;
 }
