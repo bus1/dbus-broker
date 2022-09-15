@@ -1440,6 +1440,7 @@ int launcher_run(Launcher *launcher) {
                         return error_fold(r);
         }
 
+        log_append_here(&launcher->log, LOG_INFO, 0, NULL);
         r = log_commitf(&launcher->log, "Ready\n");
         if (r)
                 return error_fold(r);
