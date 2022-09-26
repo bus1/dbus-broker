@@ -8,7 +8,6 @@
 
 #include <c-rbtree.h>
 #include <c-stdaux.h>
-#include <libaudit.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <sys/apparmor.h>
