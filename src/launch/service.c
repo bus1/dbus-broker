@@ -658,7 +658,7 @@ static int service_start_transient_unit(Service *service) {
         if (r)
                 return error_fold(r);
 
-        r = asprintf(&unit, "dbus-%s-%s@%"PRIu64".service", unique_name, escaped_name, service->instance++);
+        r = asprintf(&unit, "app-dbus-%s@%s-%"PRIu64".service", escaped_name, unique_name, service->instance++);
         if (r < 0)
                 return error_origin(-errno);
 
