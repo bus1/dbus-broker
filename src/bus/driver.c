@@ -2234,7 +2234,7 @@ static int driver_method_get_stats(Peer *peer, const char *path, CDVar *in_v, ui
         if (r)
                 return error_trace(r);
 
-        return DRIVER_E_PEER_NOT_PRIVILEGED;
+        return 0;
 }
 
 static int driver_method_get_connection_stats(Peer *peer, const char *path, CDVar *in_v, uint32_t serial, CDVar *out_v) {
