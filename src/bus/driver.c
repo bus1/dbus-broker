@@ -307,9 +307,9 @@ static void driver_write_signal_header(CDVar *var, Peer *peer, const char *membe
 
 static const char *driver_error_to_string(int r) {
         static const char *error_strings[_DRIVER_E_MAX] = {
-                [DRIVER_E_PEER_NOT_REGISTERED]                  = "Message forwarding attempted without calling Hello()",
-                [DRIVER_E_PEER_NOT_YET_REGISTERED]              = "Hello() was not yet called",
                 [DRIVER_E_PEER_ALREADY_REGISTERED]              = "Hello() already called",
+                [DRIVER_E_PEER_NOT_YET_REGISTERED]              = "Hello() was not yet called",
+                [DRIVER_E_PEER_NOT_REGISTERED]                  = "Message forwarding attempted without calling Hello()",
                 [DRIVER_E_PEER_NOT_PRIVILEGED]                  = "The caller does not have the necessary privileged to call this method",
                 [DRIVER_E_MONITOR_READ_ONLY]                    = "Monitor attempted to send message",
                 [DRIVER_E_UNEXPECTED_FDS]                       = "Peer does not support file descriptor passing.",
