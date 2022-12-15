@@ -307,6 +307,7 @@ static void driver_write_signal_header(CDVar *var, Peer *peer, const char *membe
 
 static const char *driver_error_to_string(int r) {
         static const char *error_strings[_DRIVER_E_MAX] = {
+                [DRIVER_E_UNIMPLEMENTED]                        = "Unimplemented functionality",
                 [DRIVER_E_PEER_ALREADY_REGISTERED]              = "Hello() already called",
                 [DRIVER_E_PEER_NOT_YET_REGISTERED]              = "Hello() was not yet called",
                 [DRIVER_E_PEER_NOT_REGISTERED]                  = "Message forwarding attempted without calling Hello()",
@@ -2238,11 +2239,11 @@ static int driver_method_get_stats(Peer *peer, const char *path, CDVar *in_v, ui
 }
 
 static int driver_method_get_connection_stats(Peer *peer, const char *path, CDVar *in_v, uint32_t serial, CDVar *out_v) {
-        return DRIVER_E_PEER_NOT_PRIVILEGED;
+        return DRIVER_E_UNIMPLEMENTED;
 }
 
 static int driver_method_get_all_match_rules(Peer *peer, const char *path, CDVar *in_v, uint32_t serial, CDVar *out_v) {
-        return DRIVER_E_PEER_NOT_PRIVILEGED;
+        return DRIVER_E_UNIMPLEMENTED;
 }
 
 static int driver_handle_method(const DriverMethod *method, Peer *peer, const char *path, uint32_t serial, const char *signature_in, Message *message_in) {
@@ -2687,6 +2688,7 @@ int driver_dispatch(Peer *peer, Message *message) {
         switch (r) {
         case DRIVER_E_PEER_NOT_REGISTERED:
                 return r;
+        case DRIVER_E_UNIMPLEMENTED:
         case DRIVER_E_PEER_ALREADY_REGISTERED:
         case DRIVER_E_UNEXPECTED_FDS:
                 r = driver_send_error(peer, message_read_serial(message), "org.freedesktop.DBus.Error.Failed", driver_error_to_string(r));
