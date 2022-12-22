@@ -475,7 +475,7 @@ int bus_apparmor_check_own(struct BusAppArmorRegistry *registry,
                 bus_apparmor_log(
                         registry,
                         "apparmor=\"%s\" operation=\"dbus_bind\" "
-                        "bus=\"%s\" name=\"%s\"",
+                        "bus=\"%s\" name=\"%s\" mask=\"bind\"",
                         allow ? "ALLOWED" : "DENIED",
                         registry->bustype,
                         name
@@ -568,8 +568,9 @@ int bus_apparmor_check_send(BusAppArmorRegistry *registry,
 
         if (src_audit) {
                 bus_apparmor_log(registry,
-                        "apparmor=\"%s\" bus=\"%s\" path=\"%s\" interface=\"%s\" method=\"%s\" "
-                        "label=\"%s\" peer_label=\"%s\"",
+                        "apparmor=\"%s\" operation=\"dbus_method_call\" "
+                        "bus=\"%s\" path=\"%s\" interface=\"%s\" method=\"%s\" "
+                        "mask=\"send\" label=\"%s\" peer_label=\"%s\"",
                         src_allow ? "ALLOWED" : "DENIED",
                         registry->bustype,
                         path,
@@ -582,8 +583,9 @@ int bus_apparmor_check_send(BusAppArmorRegistry *registry,
 
         if (dst_audit) {
                 bus_apparmor_log(registry,
-                        "apparmor=\"%s\" bus=\"%s\" path=\"%s\" interface=\"%s\" method=\"%s\" "
-                        "label=\"%s\" peer_label=\"%s\"",
+                        "apparmor=\"%s\" operation=\"dbus_method_call\" "
+                        "bus=\"%s\" path=\"%s\" interface=\"%s\" method=\"%s\" "
+                        "mask=\"receive\" label=\"%s\" peer_label=\"%s\"",
                         dst_allow ? "ALLOWED" : "DENIED",
                         registry->bustype,
                         path,
