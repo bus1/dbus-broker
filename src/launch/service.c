@@ -52,7 +52,7 @@ static void log_append_service_user(Log *log, const char *user) {
 static void log_append_service(Log *log, Service *service) {
         log_append_service_path(log, service->path);
         log_append_service_name(log, service->name);
-        log_append_service_unit(log, service->unit);
+        log_append_service_unit(log, service->active_unit);
         log_append_service_user(log, service->user);
 
         log_appendf(log, "DBUS_BROKER_LAUNCH_SERVICE_UID=%"PRIu32"\n", service->uid);
@@ -82,6 +82,7 @@ Service *service_free(Service *service) {
         c_rbnode_unlink(&service->rb_by_name);
         c_rbnode_unlink(&service->rb);
         free(service->job);
+        free(service->active_unit);
         free(service->user);
         for (size_t i = 0; i < service->argc; ++i)
                 free(service->argv[i]);
@@ -188,6 +189,8 @@ int service_new(Service **servicep,
 
 static void service_discard_activation(Service *service) {
         service->job = c_free(service->job);
+        service->active_unit = c_free(service->active_unit);
+        service->is_transient = false;
         service->slot_start_unit = sd_bus_slot_unref(service->slot_start_unit);
         service->slot_watch_unit = sd_bus_slot_unref(service->slot_watch_unit);
         service->slot_watch_jobs = sd_bus_slot_unref(service->slot_watch_jobs);
@@ -562,7 +565,7 @@ static int service_start_unit_handler(sd_bus_message *message, void *userdata, s
                                 r = log_commitf(&launcher->log,
                                                 "Activation request for '%s' failed: The systemd unit '%s' could not be found.\n",
                                                 service->name,
-                                                service->unit);
+                                                service->active_unit);
                                 if (r)
                                         return error_fold(r);
                         }
@@ -577,7 +580,7 @@ static int service_start_unit_handler(sd_bus_message *message, void *userdata, s
                                 r = log_commitf(&launcher->log,
                                                 "Activation request for '%s' failed: The systemd unit '%s' is masked.\n",
                                                 service->name,
-                                                service->unit);
+                                                service->active_unit);
                                 if (r)
                                         return error_fold(r);
                         }
@@ -612,7 +615,7 @@ static int service_start_unit(Service *service) {
         _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *method_call = NULL;
         int r;
 
-        r = service_watch_unit(service, service->unit);
+        r = service_watch_unit(service, service->active_unit);
         if (r)
                 return error_trace(r);
 
@@ -624,7 +627,7 @@ static int service_start_unit(Service *service) {
         if (r < 0)
                 return error_origin(r);
 
-        r = sd_bus_message_append(method_call, "ss", service->unit, "replace");
+        r = sd_bus_message_append(method_call, "ss", service->active_unit, "replace");
         if (r < 0)
                 return error_origin(r);
 
@@ -638,23 +641,9 @@ static int service_start_unit(Service *service) {
 static int service_start_transient_unit(Service *service) {
         Launcher *launcher = service->launcher;
         _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *method_call = NULL;
-        _c_cleanup_(c_freep) char *unit = NULL, *escaped_name = NULL;
-        const char *unique_name;
         int r;
 
-        r = sd_bus_get_unique_name(launcher->bus_regular, &unique_name);
-        if (r < 0)
-                return error_origin(r);
-
-        r = systemd_escape_unit(&escaped_name, service->name);
-        if (r)
-                return error_fold(r);
-
-        r = asprintf(&unit, "dbus-%s-%s@%"PRIu64".service", unique_name, escaped_name, service->instance++);
-        if (r < 0)
-                return error_origin(-errno);
-
-        r = service_watch_unit(service, unit);
+        r = service_watch_unit(service, service->active_unit);
         if (r)
                 return error_trace(r);
 
@@ -666,7 +655,7 @@ static int service_start_transient_unit(Service *service) {
         if (r < 0)
                 return error_origin(r);
 
-        r = sd_bus_message_append(method_call, "ss", unit, "replace");
+        r = sd_bus_message_append(method_call, "ss", service->active_unit, "replace");
         if (r < 0)
                 return error_origin(r);
 
@@ -873,36 +862,17 @@ static int service_start_transient_unit(Service *service) {
 static int service_start(Service *service) {
         int r;
 
-        if (service->unit) {
+        if (service->active_unit) {
                 r = service_watch_jobs(service);
                 if (r)
                         return error_trace(r);
 
-                r = service_start_unit(service);
+                if (service->is_transient)
+                        r = service_start_transient_unit(service);
+                else
+                        r = service_start_unit(service);
                 if (r)
                         return error_trace(r);
-        } else if (service->argc > 0) {
-                r = service_watch_jobs(service);
-                if (r)
-                        return error_trace(r);
-
-                r = service_start_transient_unit(service);
-                if (r)
-                        return error_trace(r);
-        } else {
-                /*
-                 * If no unit-file, nor any command-line is specified, we
-                 * expect the service to self-activate. This is an extension
-                 * over the reference-implementation, which refuses to load
-                 * such service files.
-                 * However, this is very handy for services like PID1, or other
-                 * auto-start services, which we know will appear on the bus at
-                 * some point, but don't need to be triggered. They can now
-                 * provide service-files and be available on the bus right from
-                 * the beginning, without requiring activation from us.
-                 * Technically, you could achieve the same with `/bin/true` as
-                 * command, but being explicit is always preferred.
-                 */
         }
 
         return 0;
@@ -944,6 +914,9 @@ static int service_start(Service *service) {
  * Returns: 0 on success, negative error code on failure.
  */
 int service_activate(Service *service, uint64_t serial) {
+        _c_cleanup_(c_freep) char *escaped_name = NULL;
+        Launcher *launcher = service->launcher;
+        const char *unique_name;
         int r;
 
         service_discard_activation(service);
@@ -960,6 +933,47 @@ int service_activate(Service *service, uint64_t serial) {
         }
 
         c_assert(service->running);
+        c_assert(!service->active_unit);
+
+        if (service->unit) {
+                service->active_unit = strdup(service->unit);
+                if (!service->active_unit)
+                        return error_origin(-ENOMEM);
+        } else if (service->argc > 0) {
+                r = sd_bus_get_unique_name(launcher->bus_regular, &unique_name);
+                if (r < 0)
+                        return error_origin(r);
+
+                r = systemd_escape_unit(&escaped_name, service->name);
+                if (r)
+                        return error_fold(r);
+
+                r = asprintf(
+                        &service->active_unit,
+                        "dbus-%s-%s@%"PRIu64".service",
+                        unique_name,
+                        escaped_name,
+                        service->instance++
+                );
+                if (r < 0)
+                        return error_origin(-errno);
+
+                service->is_transient = true;
+        } else {
+                /*
+                 * If no unit-file, nor any command-line is specified, we
+                 * expect the service to self-activate. This is an extension
+                 * over the reference-implementation, which refuses to load
+                 * such service files.
+                 * However, this is very handy for services like PID1, or other
+                 * auto-start services, which we know will appear on the bus at
+                 * some point, but don't need to be triggered. They can now
+                 * provide service-files and be available on the bus right from
+                 * the beginning, without requiring activation from us.
+                 * Technically, you could achieve the same with `/bin/true` as
+                 * command, but being explicit is always preferred.
+                 */
+        }
 
         r = service_start(service);
         if (r) {

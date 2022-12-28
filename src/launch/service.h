@@ -17,6 +17,7 @@ struct Service {
         bool not_found;
         bool running;
         bool reload_tag;
+        bool is_transient;
         sd_bus_slot *slot_watch_jobs;
         sd_bus_slot *slot_watch_unit;
         sd_bus_slot *slot_start_unit;
@@ -33,6 +34,7 @@ struct Service {
         uint64_t n_missing_unit;
         uint64_t n_masked_unit;
         uint64_t last_serial;
+        char *active_unit;
         char *job;
         char id[];
 };
