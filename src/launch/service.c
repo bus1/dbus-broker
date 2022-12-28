@@ -612,10 +612,6 @@ static int service_start_unit(Service *service) {
         _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *method_call = NULL;
         int r;
 
-        r = service_watch_jobs(service);
-        if (r)
-                return error_trace(r);
-
         r = service_watch_unit(service, service->unit);
         if (r)
                 return error_trace(r);
@@ -645,10 +641,6 @@ static int service_start_transient_unit(Service *service) {
         _c_cleanup_(c_freep) char *unit = NULL, *escaped_name = NULL;
         const char *unique_name;
         int r;
-
-        r = service_watch_jobs(service);
-        if (r)
-                return error_trace(r);
 
         r = sd_bus_get_unique_name(launcher->bus_regular, &unique_name);
         if (r < 0)
@@ -882,10 +874,18 @@ static int service_start(Service *service) {
         int r;
 
         if (service->unit) {
+                r = service_watch_jobs(service);
+                if (r)
+                        return error_trace(r);
+
                 r = service_start_unit(service);
                 if (r)
                         return error_trace(r);
         } else if (service->argc > 0) {
+                r = service_watch_jobs(service);
+                if (r)
+                        return error_trace(r);
+
                 r = service_start_transient_unit(service);
                 if (r)
                         return error_trace(r);
