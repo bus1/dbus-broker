@@ -878,6 +878,36 @@ static int service_start_transient_unit(Service *service) {
         return 0;
 }
 
+static int service_start(Service *service) {
+        int r;
+
+        if (service->unit) {
+                r = service_start_unit(service);
+                if (r)
+                        return error_trace(r);
+        } else if (service->argc > 0) {
+                r = service_start_transient_unit(service);
+                if (r)
+                        return error_trace(r);
+        } else {
+                /*
+                 * If no unit-file, nor any command-line is specified, we
+                 * expect the service to self-activate. This is an extension
+                 * over the reference-implementation, which refuses to load
+                 * such service files.
+                 * However, this is very handy for services like PID1, or other
+                 * auto-start services, which we know will appear on the bus at
+                 * some point, but don't need to be triggered. They can now
+                 * provide service-files and be available on the bus right from
+                 * the beginning, without requiring activation from us.
+                 * Technically, you could achieve the same with `/bin/true` as
+                 * command, but being explicit is always preferred.
+                 */
+        }
+
+        return 0;
+}
+
 /**
  * service_activate() - trigger a service activation
  * @service:            service to activate
@@ -931,35 +961,13 @@ int service_activate(Service *service, uint64_t serial) {
 
         c_assert(service->running);
 
-        if (service->unit) {
-                r = service_start_unit(service);
-                if (error_trace(r))
-                        goto error;
-        } else if (service->argc > 0) {
-                r = service_start_transient_unit(service);
-                if (error_trace(r))
-                        goto error;
-        } else {
-                /*
-                 * If no unit-file, nor any command-line is specified, we
-                 * expect the service to self-activate. This is an extension
-                 * over the reference-implementation, which refuses to load
-                 * such service files.
-                 * However, this is very handy for services like PID1, or other
-                 * auto-start services, which we know will appear on the bus at
-                 * some point, but don't need to be triggered. They can now
-                 * provide service-files and be available on the bus right from
-                 * the beginning, without requiring activation from us.
-                 * Technically, you could achieve the same with `/bin/true` as
-                 * command, but being explicit is always preferred.
-                 */
+        r = service_start(service);
+        if (r) {
+                service_discard_activation(service);
+                return error_trace(r);
         }
 
         return 0;
-
-error:
-        service_discard_activation(service);
-        return error_trace(r);
 }
 
 int service_add(Service *service) {
