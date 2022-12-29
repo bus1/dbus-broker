@@ -50,17 +50,17 @@ static void log_append_service_user(Log *log, const char *user) {
 }
 
 static void log_append_service(Log *log, Service *service) {
-        log_append_service_path(log, service->path);
+        log_append_service_path(log, service->data->path);
         log_append_service_name(log, service->name);
         log_append_service_unit(log, service->active_unit);
-        log_append_service_user(log, service->user);
+        log_append_service_user(log, service->data->user);
 
-        log_appendf(log, "DBUS_BROKER_LAUNCH_SERVICE_UID=%"PRIu32"\n", service->uid);
+        log_appendf(log, "DBUS_BROKER_LAUNCH_SERVICE_UID=%"PRIu32"\n", service->data->uid);
         log_appendf(log, "DBUS_BROKER_LAUNCH_SERVICE_INSTANCE=%"PRIu64"\n", service->instance);
         log_appendf(log, "DBUS_BROKER_LAUNCH_SERVICE_ID=%s\n", service->id);
 
-        for (size_t i = 0; i < service->argc; ++i)
-                log_appendf(log, "DBUS_BROKER_LAUNCH_ARG%zu=%s\n", i, service->argv[i]);
+        for (size_t i = 0; i < service->data->argc; ++i)
+                log_appendf(log, "DBUS_BROKER_LAUNCH_ARG%zu=%s\n", i, service->data->argv[i]);
 }
 
 int service_compare(CRBTree *t, void *k, CRBNode *n) {
@@ -83,13 +83,8 @@ Service *service_free(Service *service) {
         c_rbnode_unlink(&service->rb);
         free(service->job);
         free(service->active_unit);
-        free(service->user);
-        for (size_t i = 0; i < service->argc; ++i)
-                free(service->argv[i]);
-        free(service->argv);
-        free(service->unit);
+        service_data_free(service->data);
         free(service->name);
-        free(service->path);
         service->slot_start_unit = sd_bus_slot_unref(service->slot_start_unit);
         service->slot_watch_unit = sd_bus_slot_unref(service->slot_watch_unit);
         service->slot_watch_jobs = sd_bus_slot_unref(service->slot_watch_jobs);
@@ -99,49 +94,15 @@ Service *service_free(Service *service) {
 }
 
 int service_update(Service *service, const char *path, const char *unit, size_t argc, char **argv, const char *user, uid_t uid) {
-        size_t i;
+        ServiceData *data;
+        int r;
 
-        service->path = c_free(service->path);
-        service->unit = c_free(service->unit);
-        for (i = 0; i < service->argc; ++i)
-                free(service->argv[i]);
-        service->argc = 0;
-        service->argv = c_free(service->argv);
-        service->user = c_free(service->user);
-        service->uid = uid;
+        r = service_data_new(&data, path, unit, user, uid, argc, argv);
+        if (r)
+                return error_fold(r);
 
-        if (path) {
-                service->path = strdup(path);
-                if (!service->path)
-                        return error_origin(-ENOMEM);
-        }
-
-        if (unit) {
-                service->unit = strdup(unit);
-                if (!service->unit)
-                        return error_origin(-ENOMEM);
-        }
-
-        if (argc > 0) {
-                service->argv = calloc(1, argc * sizeof(char*));
-                if (!service->argv)
-                        return error_origin(-ENOMEM);
-
-                service->argc = argc;
-
-                for (i = 0; i < argc; ++i) {
-                        service->argv[i] = strdup(argv[i]);
-                        if (!service->argv[i])
-                                return error_origin(-ENOMEM);
-                }
-        }
-
-        if (user) {
-                service->user = strdup(user);
-                if (!service->user)
-                        return error_origin(-ENOMEM);
-        }
-
+        service_data_free(service->data);
+        service->data = data;
         return 0;
 }
 
@@ -173,9 +134,9 @@ int service_new(Service **servicep,
         if (!service->name)
                 return error_origin(-ENOMEM);
 
-        r = service_update(service, path, unit, argc, argv, user, uid);
+        r = service_data_new(&service->data, path, unit, user, uid, argc, argv);
         if (r)
-                return error_trace(r);
+                return error_fold(r);
 
         slot = c_rbtree_find_slot(&launcher->services, service_compare, service->id, &parent);
         c_assert(slot);
@@ -688,7 +649,7 @@ static int service_start_transient_unit(Service *service) {
                                                 return error_origin(r);
 
                                         {
-                                                r = sd_bus_message_append(method_call, "s", service->argv[0]);
+                                                r = sd_bus_message_append(method_call, "s", service->data->argv[0]);
                                                 if (r < 0)
                                                         return error_origin(r);
 
@@ -697,8 +658,8 @@ static int service_start_transient_unit(Service *service) {
                                                         return error_origin(r);
 
                                                 {
-                                                        for (size_t i = 0; i < service->argc; ++i) {
-                                                                r = sd_bus_message_append(method_call, "s", service->argv[i]);
+                                                        for (size_t i = 0; i < service->data->argc; ++i) {
+                                                                r = sd_bus_message_append(method_call, "s", service->data->argv[i]);
                                                                 if (r < 0)
                                                                         return error_origin(r);
                                                         }
@@ -788,7 +749,7 @@ static int service_start_transient_unit(Service *service) {
                 if (r < 0)
                         return error_origin(r);
 
-                if (service->user) {
+                if (service->data->user) {
                         /*
                          * Ideally we would unconditionally pass the UID
                          * we are accounting on to systemd to run the service
@@ -824,7 +785,7 @@ static int service_start_transient_unit(Service *service) {
                                          * caution, we try to avoid any
                                          * inconsistencies.
                                          */
-                                        r = asprintf(&uid, "%"PRIu32, service->uid);
+                                        r = asprintf(&uid, "%"PRIu32, service->data->uid);
                                         if (r < 0)
                                                 return error_origin(-errno);
 
@@ -935,11 +896,11 @@ int service_activate(Service *service, uint64_t serial) {
         c_assert(service->running);
         c_assert(!service->active_unit);
 
-        if (service->unit) {
-                service->active_unit = strdup(service->unit);
+        if (service->data->unit) {
+                service->active_unit = strdup(service->data->unit);
                 if (!service->active_unit)
                         return error_origin(-ENOMEM);
-        } else if (service->argc > 0) {
+        } else if (service->data->argc > 0) {
                 r = sd_bus_get_unique_name(launcher->bus_regular, &unique_name);
                 if (r < 0)
                         return error_origin(r);
@@ -1006,7 +967,7 @@ int service_add(Service *service) {
                                "osu",
                                object_path,
                                service->name,
-                               service->uid);
+                               service->data->uid);
         if (r < 0)
                 return error_origin(r);
 
@@ -1041,4 +1002,69 @@ int service_remove(Service *service) {
 
         service->running = false;
         return 0;
+}
+
+int service_data_new(
+        ServiceData **datap,
+        const char *path,
+        const char *unit,
+        const char *user,
+        uid_t uid,
+        size_t argc,
+        char **argv
+) {
+        _c_cleanup_(service_data_freep) ServiceData *data = NULL;
+        size_t i;
+
+        data = calloc(1, sizeof(*data) + argc * sizeof(*argv));
+        if (!data)
+                return error_origin(-ENOMEM);
+
+        if (path) {
+                data->path = strdup(path);
+                if (!data->path)
+                        return error_origin(-ENOMEM);
+        }
+
+        if (unit) {
+                data->unit = strdup(unit);
+                if (!data->unit)
+                        return error_origin(-ENOMEM);
+        }
+
+        if (user) {
+                data->user = strdup(user);
+                if (!data->user)
+                        return error_origin(-ENOMEM);
+        }
+
+        data->uid = uid;
+        data->argc = argc;
+
+        for (i = 0; i < argc; ++i) {
+                data->argv[i] = strdup(argv[i]);
+                if (!data->argv[i])
+                        return error_origin(-ENOMEM);
+        }
+
+        *datap = data;
+        data = NULL;
+        return 0;
+}
+
+ServiceData *service_data_free(ServiceData *data) {
+        size_t i;
+
+        if (!data)
+                return NULL;
+
+        for (i = 0; i < data->argc; ++i)
+                c_free(data->argv[i]);
+
+        c_free(data->user);
+        c_free(data->unit);
+        c_free(data->path);
+        c_free(data);
+
+        return NULL;
 }
