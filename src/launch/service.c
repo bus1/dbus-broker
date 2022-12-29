@@ -616,10 +616,6 @@ static int service_start_unit(Service *service) {
         _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *method_call = NULL;
         int r;
 
-        r = service_watch_unit(service, service->active_unit);
-        if (r)
-                return error_trace(r);
-
         r = sd_bus_message_new_method_call(launcher->bus_regular, &method_call,
                                            "org.freedesktop.systemd1",
                                            "/org/freedesktop/systemd1",
@@ -643,10 +639,6 @@ static int service_start_transient_unit(Service *service) {
         Launcher *launcher = service->launcher;
         _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *method_call = NULL;
         int r;
-
-        r = service_watch_unit(service, service->active_unit);
-        if (r)
-                return error_trace(r);
 
         r = sd_bus_message_new_method_call(launcher->bus_regular, &method_call,
                                            "org.freedesktop.systemd1",
@@ -865,6 +857,10 @@ static int service_start(Service *service) {
 
         if (service->active_unit) {
                 r = service_watch_jobs(service);
+                if (r)
+                        return error_trace(r);
+
+                r = service_watch_unit(service, service->active_unit);
                 if (r)
                         return error_trace(r);
 
