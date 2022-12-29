@@ -981,10 +981,8 @@ int service_activate(Service *service, uint64_t serial) {
         }
 
         r = service_start(service);
-        if (r) {
-                service_discard_activation(service);
-                return error_trace(r);
-        }
+        if (r)
+                return error_fold(r);
 
         return 0;
 }
