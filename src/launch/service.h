@@ -69,8 +69,9 @@ int service_update(Service *service, const char *path, const char *unit, size_t 
 int service_compare(CRBTree *t, void *k, CRBNode *n);
 int service_compare_by_name(CRBTree *t, void *k, CRBNode *n);
 
-int service_add(Service *service);
 int service_activate(Service *service, uint64_t serial);
+
+int service_add(Service *service);
 int service_remove(Service *service);
 
 int service_data_new(
