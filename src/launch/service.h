@@ -11,6 +11,7 @@
 #include "launch/launcher.h"
 
 typedef struct Service Service;
+typedef struct ServiceData ServiceData;
 
 struct Service {
         Launcher *launcher;
@@ -23,13 +24,8 @@ struct Service {
         sd_bus_slot *slot_start_unit;
         CRBNode rb;
         CRBNode rb_by_name;
-        char *path;
         char *name;
-        char *unit;
-        size_t argc;
-        char **argv;
-        char *user;
-        uid_t uid;
+        ServiceData *data;
         uint64_t instance;
         uint64_t n_missing_unit;
         uint64_t n_masked_unit;
@@ -37,6 +33,16 @@ struct Service {
         char *active_unit;
         char *job;
         char id[];
+};
+
+struct ServiceData {
+        char *path;
+        char *unit;
+        char *user;
+        uid_t uid;
+
+        size_t argc;
+        char *argv[];
 };
 
 int service_new(Service **servicep,
@@ -62,3 +68,16 @@ int service_compare_by_name(CRBTree *t, void *k, CRBNode *n);
 int service_add(Service *service);
 int service_activate(Service *service, uint64_t serial);
 int service_remove(Service *service);
+
+int service_data_new(
+        ServiceData **datap,
+        const char *path,
+        const char *unit,
+        const char *user,
+        uid_t uid,
+        size_t argc,
+        char **argv
+);
+ServiceData *service_data_free(ServiceData *data);
+
+C_DEFINE_CLEANUP(ServiceData *, service_data_free);
