@@ -24,6 +24,7 @@ struct Service {
         uint64_t n_masked_unit;
 
         uint64_t last_serial;
+        ServiceData *active_data;
         char *active_unit;
         char *job;
 
@@ -84,3 +85,5 @@ int service_data_new(
 ServiceData *service_data_free(ServiceData *data);
 
 C_DEFINE_CLEANUP(ServiceData *, service_data_free);
+
+int service_data_duplicate(ServiceData *data, ServiceData **dupp);

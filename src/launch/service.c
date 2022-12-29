@@ -50,17 +50,52 @@ static void log_append_service_user(Log *log, const char *user) {
 }
 
 static void log_append_service(Log *log, Service *service) {
-        log_append_service_path(log, service->data->path);
         log_append_service_name(log, service->name);
-        log_append_service_unit(log, service->active_unit);
-        log_append_service_user(log, service->data->user);
 
-        log_appendf(log, "DBUS_BROKER_LAUNCH_SERVICE_UID=%"PRIu32"\n", service->data->uid);
-        log_appendf(log, "DBUS_BROKER_LAUNCH_SERVICE_INSTANCE=%"PRIu64"\n", service->instance);
-        log_appendf(log, "DBUS_BROKER_LAUNCH_SERVICE_ID=%s\n", service->id);
+        if (service->active_data) {
+                log_append_service_path(log, service->active_data->path);
+                log_append_service_unit(log, service->active_data->unit);
+                log_append_service_user(log, service->active_data->user);
+                log_appendf(
+                        log,
+                        "DBUS_BROKER_LAUNCH_SERVICE_UID=%"PRIu32"\n",
+                        service->active_data->uid
+                );
+                for (size_t i = 0; i < service->active_data->argc; ++i)
+                        log_appendf(
+                                log,
+                                "DBUS_BROKER_LAUNCH_ARG%zu=%s\n",
+                                i,
+                                service->active_data->argv[i]
+                        );
+        } else {
+                log_append_service_path(log, service->data->path);
+                log_append_service_unit(log, service->data->unit);
+                log_append_service_user(log, service->data->user);
+                log_appendf(
+                        log,
+                        "DBUS_BROKER_LAUNCH_SERVICE_UID=%"PRIu32"\n",
+                        service->data->uid
+                );
+                for (size_t i = 0; i < service->data->argc; ++i)
+                        log_appendf(
+                                log,
+                                "DBUS_BROKER_LAUNCH_ARG%zu=%s\n",
+                                i,
+                                service->data->argv[i]
+                        );
+        }
 
-        for (size_t i = 0; i < service->data->argc; ++i)
-                log_appendf(log, "DBUS_BROKER_LAUNCH_ARG%zu=%s\n", i, service->data->argv[i]);
+        log_appendf(
+                log,
+                "DBUS_BROKER_LAUNCH_SERVICE_INSTANCE=%"PRIu64"\n",
+                service->instance
+        );
+        log_appendf(
+                log,
+                "DBUS_BROKER_LAUNCH_SERVICE_ID=%s\n",
+                service->id
+        );
 }
 
 int service_compare(CRBTree *t, void *k, CRBNode *n) {
@@ -87,6 +122,7 @@ Service *service_free(Service *service) {
 
         free(service->job);
         free(service->active_unit);
+        service_data_free(service->active_data);
 
         service->slot_start_unit = sd_bus_slot_unref(service->slot_start_unit);
         service->slot_watch_unit = sd_bus_slot_unref(service->slot_watch_unit);
@@ -154,6 +190,7 @@ int service_new(Service **servicep,
 static void service_discard_activation(Service *service) {
         service->job = c_free(service->job);
         service->active_unit = c_free(service->active_unit);
+        service->active_data = service_data_free(service->active_data);
         service->is_transient = false;
         service->slot_start_unit = sd_bus_slot_unref(service->slot_start_unit);
         service->slot_watch_unit = sd_bus_slot_unref(service->slot_watch_unit);
@@ -652,7 +689,7 @@ static int service_start_transient_unit(Service *service) {
                                                 return error_origin(r);
 
                                         {
-                                                r = sd_bus_message_append(method_call, "s", service->data->argv[0]);
+                                                r = sd_bus_message_append(method_call, "s", service->active_data->argv[0]);
                                                 if (r < 0)
                                                         return error_origin(r);
 
@@ -661,8 +698,8 @@ static int service_start_transient_unit(Service *service) {
                                                         return error_origin(r);
 
                                                 {
-                                                        for (size_t i = 0; i < service->data->argc; ++i) {
-                                                                r = sd_bus_message_append(method_call, "s", service->data->argv[i]);
+                                                        for (size_t i = 0; i < service->active_data->argc; ++i) {
+                                                                r = sd_bus_message_append(method_call, "s", service->active_data->argv[i]);
                                                                 if (r < 0)
                                                                         return error_origin(r);
                                                         }
@@ -752,7 +789,7 @@ static int service_start_transient_unit(Service *service) {
                 if (r < 0)
                         return error_origin(r);
 
-                if (service->data->user) {
+                if (service->active_data->user) {
                         /*
                          * Ideally we would unconditionally pass the UID
                          * we are accounting on to systemd to run the service
@@ -788,7 +825,7 @@ static int service_start_transient_unit(Service *service) {
                                          * caution, we try to avoid any
                                          * inconsistencies.
                                          */
-                                        r = asprintf(&uid, "%"PRIu32, service->data->uid);
+                                        r = asprintf(&uid, "%"PRIu32, service->active_data->uid);
                                         if (r < 0)
                                                 return error_origin(-errno);
 
@@ -886,6 +923,10 @@ int service_activate(Service *service, uint64_t serial) {
         service_discard_activation(service);
         service->last_serial = serial;
 
+        r = service_data_duplicate(service->data, &service->active_data);
+        if (r)
+                return error_fold(r);
+
         if (!strcmp(service->name, "org.freedesktop.systemd1")) {
                 /*
                  * systemd activation requests are silently ignored.
@@ -899,11 +940,11 @@ int service_activate(Service *service, uint64_t serial) {
         c_assert(service->running);
         c_assert(!service->active_unit);
 
-        if (service->data->unit) {
-                service->active_unit = strdup(service->data->unit);
+        if (service->active_data->unit) {
+                service->active_unit = strdup(service->active_data->unit);
                 if (!service->active_unit)
                         return error_origin(-ENOMEM);
-        } else if (service->data->argc > 0) {
+        } else if (service->active_data->argc > 0) {
                 r = sd_bus_get_unique_name(launcher->bus_regular, &unique_name);
                 if (r < 0)
                         return error_origin(r);
@@ -1070,4 +1111,16 @@ ServiceData *service_data_free(ServiceData *data) {
         c_free(data);
 
         return NULL;
+}
+
+int service_data_duplicate(ServiceData *data, ServiceData **dupp) {
+        return service_data_new(
+                dupp,
+                data->path,
+                data->unit,
+                data->user,
+                data->uid,
+                data->argc,
+                data->argv
+        );
 }
