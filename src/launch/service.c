@@ -98,53 +98,6 @@ static void log_append_service(Log *log, Service *service) {
         );
 }
 
-int service_compare(CRBTree *t, void *k, CRBNode *n) {
-        Service *service = c_container_of(n, Service, rb);
-
-        return strcmp(k, service->id);
-}
-
-int service_compare_by_name(CRBTree *t, void *k, CRBNode *n) {
-        Service *service = c_container_of(n, Service, rb_by_name);
-
-        return strcmp(k, service->name);
-}
-
-Service *service_free(Service *service) {
-        if (!service)
-                return NULL;
-
-        c_rbnode_unlink(&service->rb_by_name);
-        c_rbnode_unlink(&service->rb);
-
-        service_data_free(service->data);
-        free(service->name);
-
-        free(service->job);
-        free(service->active_unit);
-        service_data_free(service->active_data);
-
-        service->slot_start_unit = sd_bus_slot_unref(service->slot_start_unit);
-        service->slot_watch_unit = sd_bus_slot_unref(service->slot_watch_unit);
-        service->slot_watch_jobs = sd_bus_slot_unref(service->slot_watch_jobs);
-        free(service);
-
-        return NULL;
-}
-
-int service_update(Service *service, const char *path, const char *unit, size_t argc, char **argv, const char *user, uid_t uid) {
-        ServiceData *data;
-        int r;
-
-        r = service_data_new(&data, path, unit, user, uid, argc, argv);
-        if (r)
-                return error_fold(r);
-
-        service_data_free(service->data);
-        service->data = data;
-        return 0;
-}
-
 int service_new(Service **servicep,
                 Launcher *launcher,
                 const char *name,
@@ -185,6 +138,53 @@ int service_new(Service **servicep,
         *servicep = service;
         service = NULL;
         return 0;
+}
+
+Service *service_free(Service *service) {
+        if (!service)
+                return NULL;
+
+        c_rbnode_unlink(&service->rb_by_name);
+        c_rbnode_unlink(&service->rb);
+
+        service_data_free(service->data);
+        free(service->name);
+
+        free(service->job);
+        free(service->active_unit);
+        service_data_free(service->active_data);
+
+        service->slot_start_unit = sd_bus_slot_unref(service->slot_start_unit);
+        service->slot_watch_unit = sd_bus_slot_unref(service->slot_watch_unit);
+        service->slot_watch_jobs = sd_bus_slot_unref(service->slot_watch_jobs);
+        free(service);
+
+        return NULL;
+}
+
+int service_update(Service *service, const char *path, const char *unit, size_t argc, char **argv, const char *user, uid_t uid) {
+        ServiceData *data;
+        int r;
+
+        r = service_data_new(&data, path, unit, user, uid, argc, argv);
+        if (r)
+                return error_fold(r);
+
+        service_data_free(service->data);
+        service->data = data;
+        return 0;
+}
+
+int service_compare(CRBTree *t, void *k, CRBNode *n) {
+        Service *service = c_container_of(n, Service, rb);
+
+        return strcmp(k, service->id);
+}
+
+int service_compare_by_name(CRBTree *t, void *k, CRBNode *n) {
+        Service *service = c_container_of(n, Service, rb_by_name);
+
+        return strcmp(k, service->name);
 }
 
 static void service_discard_activation(Service *service) {
