@@ -299,199 +299,6 @@ static int service_watch_jobs(Service *service) {
         return 0;
 }
 
-static int service_watch_unit_handler(sd_bus_message *message, void *userdata, sd_bus_error *errorp) {
-        Service *service = userdata;
-        const char *interface = NULL, *property = NULL, *value = NULL;
-        int r, condition_result = 1;
-
-        /*
-         * If we still watch the job-signals it means systemd has not yet fully
-         * finished our job. In this case, any errors will be caught by the
-         * `JobRemoved` handler and we do not have to track the unit, yet.
-         * Moreover, we must not track the unit, since it might still return
-         * failures before our job was actually handled by systemd.
-         *
-         * Hence, simply ignore any PropertiesChanged signals until we got
-         * confirmation by systemd that our job finished. Bus ordering will
-         * guarantee that we catch unit-failures both before and after the job
-         * completion.
-         */
-        if (service->slot_watch_jobs)
-                return 0;
-
-        /*
-         * The properties of the bus unit changed. We are only interested in
-         * the "ActiveState" and "ConditionResult" properties. We check whether
-         * it is included in the payload. If not, we ignore the signal.
-         *
-         * Note that we rely on systemd including it with value in the signal.
-         * We will not query it, if it was merely invalidated. This is a
-         * systemd API guarantee, and we rely on it.
-         */
-
-        /* Parse: "s" */
-        {
-                r = sd_bus_message_read(message, "s", &interface);
-                if (r < 0)
-                        return error_origin(r);
-        }
-
-        /* We are not interested in properties other than the Unit-Interface */
-        if (strcmp(interface, "org.freedesktop.systemd1.Unit") != 0)
-                return 0;
-
-        /* Parse: "a{sv}" */
-        {
-                r = sd_bus_message_enter_container(message, 'a', "{sv}");
-                if (r < 0)
-                        return error_origin(r);
-
-                while (!sd_bus_message_at_end(message, false)) {
-                        r = sd_bus_message_enter_container(message, 'e', "sv");
-                        if (r < 0)
-                                return error_origin(r);
-
-                        r = sd_bus_message_read(message, "s", &property);
-                        if (r < 0)
-                                return error_origin(r);
-
-                        if (!strcmp(property, "ActiveState")) {
-                                r = sd_bus_message_enter_container(message, 'v', "s");
-                                if (r < 0)
-                                        return error_origin(r);
-
-                                r = sd_bus_message_read(message, "s", &value);
-                                if (r < 0)
-                                        return error_origin(r);
-
-                                r = sd_bus_message_exit_container(message);
-                                if (r < 0)
-                                        return error_origin(r);
-                        } else if (!strcmp(property, "ConditionResult")) {
-                                r = sd_bus_message_enter_container(message, 'v', "b");
-                                if (r < 0)
-                                        return error_origin(r);
-
-                                r = sd_bus_message_read(message, "b", &condition_result);
-                                if (r < 0)
-                                        return error_origin(r);
-
-                                r = sd_bus_message_exit_container(message);
-                                if (r < 0)
-                                        return error_origin(r);
-                        } else {
-                                r = sd_bus_message_skip(message, "v");
-                                if (r < 0)
-                                        return error_origin(r);
-                        }
-
-                        r = sd_bus_message_exit_container(message);
-                        if (r < 0)
-                                return error_origin(r);
-                }
-
-                r = sd_bus_message_exit_container(message);
-                if (r < 0)
-                        return error_origin(r);
-        }
-
-        /*
-         * The possible values of "ActiveState" are:
-         *
-         *   active, reloading, inactive, failed, activating, deactivating
-         *
-         * We are never interested in positive results, because the broker
-         * already gets those by tracking the name to be acquired. Therefore,
-         * we only ever track negative results. This means we only ever react
-         * to "failed".
-         * We could also react to units entering "inactive", but we cannot know
-         * upfront whether the unit is just a oneshot unit and thus is expected
-         * to enter "inactive" when it finished. Hence, we simply require
-         * anything to explicitly fail if they want to reset the activation.
-         *
-         * Additionally, we also check for "ConditionResult". If false, systemd
-         * did not start the unit due to unsatisfied conditions, however, it
-         * still considers the job a success. We need to consider it a failure,
-         * though, as the job will never end up claiming its name.
-         */
-        if ((value && !strcmp(value, "failed")) || !condition_result) {
-                r = service_reset_activation(service, CONTROLLER_NAME_ERROR_UNIT_FAILURE);
-                if (r)
-                        return error_trace(r);
-        }
-
-        return 0;
-}
-
-static int service_watch_unit_load_handler(sd_bus_message *message, void *userdata, sd_bus_error *errorp) {
-        Service *service = userdata;
-        const char *object_path;
-        int r;
-
-        service->slot_watch_unit = sd_bus_slot_unref(service->slot_watch_unit);
-
-        if (sd_bus_message_get_error(message)) {
-                service_reset_activation(service, CONTROLLER_NAME_ERROR_UNIT_FAILURE);
-                return 1;
-        }
-
-        r = sd_bus_message_read(message, "o", &object_path);
-        if (r < 0)
-                return error_origin(r);
-
-        r = sd_bus_match_signal_async(
-                service->launcher->bus_regular,
-                &service->slot_watch_unit,
-                "org.freedesktop.systemd1",
-                object_path,
-                "org.freedesktop.DBus.Properties",
-                "PropertiesChanged",
-                service_watch_unit_handler,
-                NULL,
-                service
-        );
-        if (r < 0)
-                return error_origin(r);
-
-        return 1;
-}
-
-static int service_watch_unit(Service *service, const char *unit) {
-        int r;
-
-        assert(!service->slot_watch_unit);
-
-        /*
-         * We first fetch the object-path for the unit in question, then we
-         * install a watch-handler for its properties. We re-use the
-         * `slot_watch_unit` slot for both operations.
-         * By fetching the object-path first, we resolve possible aliases and
-         * avoid hard-coding the object-path translation of systemd.
-         *
-         * XXX: Changes to the unit that cause changes to the object-path while
-         *      we use it will likely cause us to watch the wrong signals. We
-         *      accept this for now as it can be argued to be a
-         *      misconfiguration. But a proper fix would be nice in the future.
-         */
-
-        r = sd_bus_call_method_async(
-                service->launcher->bus_regular,
-                &service->slot_watch_unit,
-                "org.freedesktop.systemd1",
-                "/org/freedesktop/systemd1",
-                "org.freedesktop.systemd1.Manager",
-                "LoadUnit",
-                service_watch_unit_load_handler,
-                service,
-                "s",
-                unit
-        );
-        if (r < 0)
-                return error_origin(r);
-
-        return 0;
-}
-
 static int service_start_unit_handler(sd_bus_message *message, void *userdata, sd_bus_error *errorp) {
         Service *service = userdata;
         Launcher *launcher = service->launcher;
@@ -846,6 +653,199 @@ static int service_start_transient_unit(Service *service) {
                 return error_origin(r);
 
         r = sd_bus_call_async(launcher->bus_regular, &service->slot_start_unit, method_call, service_start_unit_handler, service, -1);
+        if (r < 0)
+                return error_origin(r);
+
+        return 0;
+}
+
+static int service_watch_unit_handler(sd_bus_message *message, void *userdata, sd_bus_error *errorp) {
+        Service *service = userdata;
+        const char *interface = NULL, *property = NULL, *value = NULL;
+        int r, condition_result = 1;
+
+        /*
+         * If we still watch the job-signals it means systemd has not yet fully
+         * finished our job. In this case, any errors will be caught by the
+         * `JobRemoved` handler and we do not have to track the unit, yet.
+         * Moreover, we must not track the unit, since it might still return
+         * failures before our job was actually handled by systemd.
+         *
+         * Hence, simply ignore any PropertiesChanged signals until we got
+         * confirmation by systemd that our job finished. Bus ordering will
+         * guarantee that we catch unit-failures both before and after the job
+         * completion.
+         */
+        if (service->slot_watch_jobs)
+                return 0;
+
+        /*
+         * The properties of the bus unit changed. We are only interested in
+         * the "ActiveState" and "ConditionResult" properties. We check whether
+         * it is included in the payload. If not, we ignore the signal.
+         *
+         * Note that we rely on systemd including it with value in the signal.
+         * We will not query it, if it was merely invalidated. This is a
+         * systemd API guarantee, and we rely on it.
+         */
+
+        /* Parse: "s" */
+        {
+                r = sd_bus_message_read(message, "s", &interface);
+                if (r < 0)
+                        return error_origin(r);
+        }
+
+        /* We are not interested in properties other than the Unit-Interface */
+        if (strcmp(interface, "org.freedesktop.systemd1.Unit") != 0)
+                return 0;
+
+        /* Parse: "a{sv}" */
+        {
+                r = sd_bus_message_enter_container(message, 'a', "{sv}");
+                if (r < 0)
+                        return error_origin(r);
+
+                while (!sd_bus_message_at_end(message, false)) {
+                        r = sd_bus_message_enter_container(message, 'e', "sv");
+                        if (r < 0)
+                                return error_origin(r);
+
+                        r = sd_bus_message_read(message, "s", &property);
+                        if (r < 0)
+                                return error_origin(r);
+
+                        if (!strcmp(property, "ActiveState")) {
+                                r = sd_bus_message_enter_container(message, 'v', "s");
+                                if (r < 0)
+                                        return error_origin(r);
+
+                                r = sd_bus_message_read(message, "s", &value);
+                                if (r < 0)
+                                        return error_origin(r);
+
+                                r = sd_bus_message_exit_container(message);
+                                if (r < 0)
+                                        return error_origin(r);
+                        } else if (!strcmp(property, "ConditionResult")) {
+                                r = sd_bus_message_enter_container(message, 'v', "b");
+                                if (r < 0)
+                                        return error_origin(r);
+
+                                r = sd_bus_message_read(message, "b", &condition_result);
+                                if (r < 0)
+                                        return error_origin(r);
+
+                                r = sd_bus_message_exit_container(message);
+                                if (r < 0)
+                                        return error_origin(r);
+                        } else {
+                                r = sd_bus_message_skip(message, "v");
+                                if (r < 0)
+                                        return error_origin(r);
+                        }
+
+                        r = sd_bus_message_exit_container(message);
+                        if (r < 0)
+                                return error_origin(r);
+                }
+
+                r = sd_bus_message_exit_container(message);
+                if (r < 0)
+                        return error_origin(r);
+        }
+
+        /*
+         * The possible values of "ActiveState" are:
+         *
+         *   active, reloading, inactive, failed, activating, deactivating
+         *
+         * We are never interested in positive results, because the broker
+         * already gets those by tracking the name to be acquired. Therefore,
+         * we only ever track negative results. This means we only ever react
+         * to "failed".
+         * We could also react to units entering "inactive", but we cannot know
+         * upfront whether the unit is just a oneshot unit and thus is expected
+         * to enter "inactive" when it finished. Hence, we simply require
+         * anything to explicitly fail if they want to reset the activation.
+         *
+         * Additionally, we also check for "ConditionResult". If false, systemd
+         * did not start the unit due to unsatisfied conditions, however, it
+         * still considers the job a success. We need to consider it a failure,
+         * though, as the job will never end up claiming its name.
+         */
+        if ((value && !strcmp(value, "failed")) || !condition_result) {
+                r = service_reset_activation(service, CONTROLLER_NAME_ERROR_UNIT_FAILURE);
+                if (r)
+                        return error_trace(r);
+        }
+
+        return 0;
+}
+
+static int service_watch_unit_load_handler(sd_bus_message *message, void *userdata, sd_bus_error *errorp) {
+        Service *service = userdata;
+        const char *object_path;
+        int r;
+
+        service->slot_watch_unit = sd_bus_slot_unref(service->slot_watch_unit);
+
+        if (sd_bus_message_get_error(message)) {
+                service_reset_activation(service, CONTROLLER_NAME_ERROR_UNIT_FAILURE);
+                return 1;
+        }
+
+        r = sd_bus_message_read(message, "o", &object_path);
+        if (r < 0)
+                return error_origin(r);
+
+        r = sd_bus_match_signal_async(
+                service->launcher->bus_regular,
+                &service->slot_watch_unit,
+                "org.freedesktop.systemd1",
+                object_path,
+                "org.freedesktop.DBus.Properties",
+                "PropertiesChanged",
+                service_watch_unit_handler,
+                NULL,
+                service
+        );
+        if (r < 0)
+                return error_origin(r);
+
+        return 1;
+}
+
+static int service_watch_unit(Service *service, const char *unit) {
+        int r;
+
+        assert(!service->slot_watch_unit);
+
+        /*
+         * We first fetch the object-path for the unit in question, then we
+         * install a watch-handler for its properties. We re-use the
+         * `slot_watch_unit` slot for both operations.
+         * By fetching the object-path first, we resolve possible aliases and
+         * avoid hard-coding the object-path translation of systemd.
+         *
+         * XXX: Changes to the unit that cause changes to the object-path while
+         *      we use it will likely cause us to watch the wrong signals. We
+         *      accept this for now as it can be argued to be a
+         *      misconfiguration. But a proper fix would be nice in the future.
+         */
+
+        r = sd_bus_call_method_async(
+                service->launcher->bus_regular,
+                &service->slot_watch_unit,
+                "org.freedesktop.systemd1",
+                "/org/freedesktop/systemd1",
+                "org.freedesktop.systemd1.Manager",
+                "LoadUnit",
+                service_watch_unit_load_handler,
+                service,
+                "s",
+                unit
+        );
         if (r < 0)
                 return error_origin(r);
 
