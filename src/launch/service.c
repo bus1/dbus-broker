@@ -813,6 +813,19 @@ static int service_watch_unit_load_handler(sd_bus_message *message, void *userda
         if (r < 0)
                 return error_origin(r);
 
+        /*
+         * With the correct `PropertiesChanged` match installed, we can start
+         * the service. For classic activation, we use transient units. For
+         * systemd activation, we just spawn the specified unit.
+         */
+
+        if (service->is_transient)
+                r = service_start_transient_unit(service);
+        else
+                r = service_start_unit(service);
+        if (r)
+                return error_fold(r);
+
         return 1;
 }
 
@@ -848,29 +861,6 @@ static int service_watch_unit(Service *service, const char *unit) {
         );
         if (r < 0)
                 return error_origin(r);
-
-        return 0;
-}
-
-static int service_start(Service *service) {
-        int r;
-
-        if (service->active_unit) {
-                r = service_watch_jobs(service);
-                if (r)
-                        return error_trace(r);
-
-                r = service_watch_unit(service, service->active_unit);
-                if (r)
-                        return error_trace(r);
-
-                if (service->is_transient)
-                        r = service_start_transient_unit(service);
-                else
-                        r = service_start_unit(service);
-                if (r)
-                        return error_trace(r);
-        }
 
         return 0;
 }
@@ -976,9 +966,20 @@ int service_activate(Service *service, uint64_t serial) {
                  */
         }
 
-        r = service_start(service);
-        if (r)
-                return error_fold(r);
+        if (service->active_unit) {
+                r = service_watch_jobs(service);
+                if (r)
+                        return error_fold(r);
+
+                r = service_watch_unit(service, service->active_unit);
+                if (r)
+                        return error_fold(r);
+
+                /*
+                 * Actual start of the service unit is delayed until all the
+                 * correct D-Bus matches are configured.
+                 */
+        }
 
         return 0;
 }
