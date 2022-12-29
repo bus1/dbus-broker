@@ -15,23 +15,26 @@ typedef struct ServiceData ServiceData;
 
 struct Service {
         Launcher *launcher;
-        bool not_found;
-        bool running;
-        bool reload_tag;
-        bool is_transient;
         sd_bus_slot *slot_watch_jobs;
         sd_bus_slot *slot_watch_unit;
         sd_bus_slot *slot_start_unit;
         CRBNode rb;
         CRBNode rb_by_name;
-        char *name;
-        ServiceData *data;
-        uint64_t instance;
         uint64_t n_missing_unit;
         uint64_t n_masked_unit;
+
         uint64_t last_serial;
         char *active_unit;
         char *job;
+
+        bool not_found;
+        bool running;
+        bool reload_tag;
+        bool is_transient;
+
+        char *name;
+        uint64_t instance;
+        ServiceData *data;
         char id[];
 };
 

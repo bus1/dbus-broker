@@ -81,10 +81,13 @@ Service *service_free(Service *service) {
 
         c_rbnode_unlink(&service->rb_by_name);
         c_rbnode_unlink(&service->rb);
-        free(service->job);
-        free(service->active_unit);
+
         service_data_free(service->data);
         free(service->name);
+
+        free(service->job);
+        free(service->active_unit);
+
         service->slot_start_unit = sd_bus_slot_unref(service->slot_start_unit);
         service->slot_watch_unit = sd_bus_slot_unref(service->slot_watch_unit);
         service->slot_watch_jobs = sd_bus_slot_unref(service->slot_watch_jobs);
