@@ -934,6 +934,13 @@ void match_owner_deinit(MatchOwner *owner) {
         c_assert(!c_list_is_linked(&owner->destinations_link));
 }
 
+void rule_string_deinit(CList *rule_string_list) {
+        RuleString *rs;
+        c_list_for_each_entry(rs, rule_string_list, rule_string_link) {
+                free(rs->rule_string);
+        }
+}
+
 /**
  * match_owner_get_stats() - XXX
  */

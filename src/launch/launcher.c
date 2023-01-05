@@ -28,7 +28,10 @@
 #include "util/error.h"
 #include "util/log.h"
 #include "util/misc.h"
+#include "util/proc.h"
 #include "util/string.h"
+#include "util/serialize.h"
+#include "util/syscall.h"
 
 /*
  * These are the default limits used when spawning dbus-broker. They are
@@ -42,6 +45,18 @@ static const uint64_t main_max_connections_per_user = 64; /* 256 */
 static const uint64_t main_max_match_rules_per_connection = 256;
 
 static const char *     main_arg_broker = BINDIR "/dbus-broker";
+
+static int bus_method_reload_config(sd_bus_message *message, void *userdata, sd_bus_error *error);
+static int bus_method_reexecute(sd_bus_message *message, void *userdata, sd_bus_error *error);
+
+const sd_bus_vtable launcher_vtable[] = {
+        SD_BUS_VTABLE_START(0),
+
+        SD_BUS_METHOD("ReloadConfig",   NULL,   NULL,   bus_method_reload_config,       0),
+        SD_BUS_METHOD("Reexecute",      NULL,   NULL,   bus_method_reexecute,           0),
+
+        SD_BUS_VTABLE_END
+};
 
 static sd_bus *bus_close_unref(sd_bus *bus) {
         /*
@@ -100,6 +115,80 @@ static void log_append_service_user(Log *log, const char *user) {
 }
 
 static int launcher_reload_config(Launcher *launcher);
+static int launcher_on_message(sd_bus_message *m, void *userdata, sd_bus_error *error);
+
+static int launcher_execv_with_args(Launcher *launcher) {
+        _c_cleanup_(c_freep) char *str_controller_fd = NULL, *str_listen_pid = NULL, *str_broker_pid = NULL;
+        pid_t pid;
+        int r;
+
+        pid = getpid();
+
+        /* Generate used strings */
+        r = asprintf(&str_controller_fd, "%d", launcher->controller_fd);
+        if (r < 0)
+                return error_fold(r);
+        r = asprintf(&str_broker_pid, "%d", launcher->broker_pid);
+        if (r < 0)
+                return error_fold(r);
+
+        /* Set environment we need */
+        r = setenv("LISTEN_FDS", "1", 1);
+        if (r < 0)
+                return error_fold(r);
+        r = setenv("LISTEN_FDNAMES", "dbus.socket", 1);
+        if (r < 0)
+                return error_fold(r);
+        r = asprintf(&str_listen_pid, "%d", pid);
+        if (r < 0)
+                return error_fold(r);
+        r = setenv("LISTEN_PID", str_listen_pid, 1);
+        if (r < 0)
+                return error_fold(r);
+
+        /* execv */
+        char *binary_launcher = "/usr/bin/dbus-broker-launch";
+        char * const args[] = {
+                binary_launcher,
+                "--scope",              launcher->user_scope ? "user" : "system",
+                "--controller-fd",      str_controller_fd,
+                "--broker-pid",         str_broker_pid,
+                launcher->audit ? "--audit" : NULL, /* note that this needs to be the last argument to work */
+                NULL,
+        };
+
+        log_append_here(&launcher->log, LOG_INFO, 0, NULL);
+        r = log_commitf(&launcher->log, "Launcher now reexecuting...");
+        if (r < 0)
+                return error_fold(r);
+
+        execv(binary_launcher, args);
+
+        return 0;
+}
+
+static int launcher_reexecute(Launcher *launcher) {
+        int r = 0, controller_fd_flag = 0, listener_fd_flag = 0;
+
+        /* Don't close controller_fd listen_fd after exec */
+        controller_fd_flag = fcntl (launcher->controller_fd, F_GETFD, 0);
+        if (controller_fd_flag < 0)
+                return controller_fd_flag;
+        controller_fd_flag &= ~FD_CLOEXEC;
+        r = fcntl(launcher->controller_fd, F_SETFD, controller_fd_flag);
+        if (r)
+                return error_fold(r);
+
+        listener_fd_flag = fcntl (launcher->fd_listen, F_GETFD, 0);
+        if (listener_fd_flag < 0)
+                return listener_fd_flag;
+        listener_fd_flag &= ~FD_CLOEXEC;
+        r = fcntl(launcher->fd_listen, F_SETFD, listener_fd_flag);
+        if (r)
+                return error_fold(r);
+
+        return launcher_execv_with_args(launcher);
+}
 
 static int launcher_on_sighup(sd_event_source *s, const struct signalfd_siginfo *si, void *userdata) {
         Launcher *launcher = userdata;
@@ -187,7 +276,8 @@ static int launcher_open_log(Launcher *launcher) {
         return 0;
 }
 
-int launcher_new(Launcher **launcherp, int fd_listen, bool audit, const char *configfile, bool user_scope) {
+int launcher_new(Launcher **launcherp, int fd_listen, bool audit, const char *configfile,
+                 bool user_scope, int controller_fd, pid_t broker_pid) {
         _c_cleanup_(launcher_freep) Launcher *launcher = NULL;
         int r;
 
@@ -199,7 +289,10 @@ int launcher_new(Launcher **launcherp, int fd_listen, bool audit, const char *co
         launcher->fd_listen = fd_listen;
         launcher->uid = -1;
         launcher->gid = -1;
+        launcher->broker_pid = broker_pid;
+        launcher->controller_fd = controller_fd;
         launcher->audit = audit;
+        launcher->broker_reexecuted = 0;
         launcher->user_scope = user_scope;
 
         if (configfile)
@@ -266,7 +359,7 @@ static noreturn void launcher_run_child(Launcher *launcher, int fd_log, int fd_c
              str_max_fds[C_DECIMAL_MAX(uint64_t)],
              str_max_matches[C_DECIMAL_MAX(uint64_t)];
         const char * const argv[] = {
-                "dbus-broker",
+                main_arg_broker,
                 "--log",
                 str_log,
                 "--controller",
@@ -288,12 +381,6 @@ static noreturn void launcher_run_child(Launcher *launcher, int fd_log, int fd_c
                 r = util_audit_drop_permissions(launcher->uid, launcher->gid);
                 if (r)
                         goto exit;
-        }
-
-        r = prctl(PR_SET_PDEATHSIG, SIGTERM);
-        if (r) {
-                r = error_origin(-errno);
-                goto exit;
         }
 
         r = fcntl(fd_log, F_GETFD);
@@ -361,8 +448,35 @@ static int launcher_on_child_exit(sd_event_source *source, const siginfo_t *si, 
         if (r)
                 return error_fold(r);
 
-        return sd_event_exit(sd_event_source_get_event(source),
+        /* Don't exit from sd_event loop even caught sigchld. Instead, return the errno in si. */
+        if (launcher->broker_reexecuted > 0) {
+                if (si->si_errno)
+                        return si->si_errno;
+                return launcher_reexecute(launcher);
+        } else
+                return sd_event_exit(sd_event_source_get_event(source),
                              (si->si_code == CLD_EXITED) ? si->si_status : EXIT_FAILURE);
+}
+
+static int launcher_on_sigchld(sd_event_source *source, const struct signalfd_siginfo *si, void *userdata) {
+        Launcher *launcher = userdata;
+        int r;
+
+        if (si->ssi_pid != launcher->broker_pid)
+                return 0;
+
+        if (launcher->broker_reexecuted > 0) {
+                if (si->ssi_errno)
+                        return si->ssi_errno;
+                log_append_here(&launcher->log, LOG_INFO, 0, NULL);
+                r = log_commitf(&launcher->log, "Caught SIGCHLD from broker, it is trying to reexecute.\n");
+                if (r < 0) {
+                        return error_fold(r);
+                }
+                return launcher_reexecute(launcher);
+        } else
+                return sd_event_exit(sd_event_source_get_event(source),
+                             (si->ssi_code == CLD_EXITED) ? si->ssi_status : EXIT_FAILURE);
 }
 
 static int launcher_fork(Launcher *launcher, int fd_controller) {
@@ -376,6 +490,7 @@ static int launcher_fork(Launcher *launcher, int fd_controller) {
         if (!pid)
                 launcher_run_child(launcher, log_get_fd(&launcher->log), fd_controller);
 
+        launcher->broker_pid = pid;
         r = sd_event_add_child(launcher->event, NULL, pid, WEXITED, launcher_on_child_exit, launcher);
         if (r < 0)
                 return error_origin(-errno);
@@ -1101,7 +1216,8 @@ static int launcher_load_policy(Launcher *launcher, ConfigRoot *root, Policy *po
         return 0;
 }
 
-static int launcher_add_listener(Launcher *launcher, Policy *policy, uint32_t *system_console_users, size_t n_system_console_users) {
+static int launcher_add_listener(Launcher *launcher, Policy *policy, uint32_t *system_console_users,
+                                 size_t n_system_console_users) {
         _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *m = NULL;
         int r;
 
@@ -1303,13 +1419,18 @@ static int bus_method_reload_config(sd_bus_message *message, void *userdata, sd_
         return sd_bus_reply_method_return(message, NULL);
 }
 
-const sd_bus_vtable launcher_vtable[] = {
-        SD_BUS_VTABLE_START(0),
+static int bus_method_reexecute(sd_bus_message *message, void *userdata, sd_bus_error *error) {
+        Launcher *launcher = userdata;
+        int r;
 
-        SD_BUS_METHOD("ReloadConfig", NULL, NULL, bus_method_reload_config, 0),
+        launcher->broker_reexecuted = 1;
+        log_append_here(&launcher->log, LOG_INFO, 0, NULL);
+        r = log_commitf(&launcher->log, "Launcher has received Reexecute message.");
+        if (r < 0)
+                return error_fold(r);
 
-        SD_BUS_VTABLE_END
-};
+        return sd_bus_reply_method_return(message, NULL);
+}
 
 int launcher_run(Launcher *launcher) {
         _c_cleanup_(config_root_freep) ConfigRoot *root = NULL;
@@ -1377,26 +1498,39 @@ int launcher_run(Launcher *launcher) {
                 return 0;
         }
 
-        c_assert(launcher->fd_listen >= 0);
+        if (!launcher->controller_fd) {
+                c_assert(launcher->fd_listen >= 0);
 
-        r = socketpair(PF_UNIX, SOCK_STREAM | SOCK_CLOEXEC | SOCK_NONBLOCK, 0, controller);
+                r = socketpair(PF_UNIX, SOCK_STREAM | SOCK_CLOEXEC | SOCK_NONBLOCK, 0, controller);
+                if (r < 0)
+                        return error_origin(-errno);
+
+                /* consumes FD controller[0] */
+                r = sd_bus_set_fd(launcher->bus_controller, controller[0], controller[0]);
+                if (r < 0) {
+                        close(controller[0]);
+                        close(controller[1]);
+                        return error_origin(r);
+                }
+
+                launcher->controller_fd = controller[0];
+
+                /* consumes FD controller[1] */
+                r = launcher_fork(launcher, controller[1]);
+                if (r) {
+                        close(controller[1]);
+                        return error_trace(r);
+                }
+        } else {
+                r = sd_bus_set_fd(launcher->bus_controller, launcher->controller_fd, launcher->controller_fd);
+                if (r < 0) {
+                        close(launcher->controller_fd);
+                        return error_origin(r);
+                }
+        }
+        r = sd_event_add_signal(launcher->event, NULL, SIGCHLD, launcher_on_sigchld, launcher);
         if (r < 0)
-                return error_origin(-errno);
-
-        /* consumes FD controller[0] */
-        r = sd_bus_set_fd(launcher->bus_controller, controller[0], controller[0]);
-        if (r < 0) {
-                close(controller[0]);
-                close(controller[1]);
                 return error_origin(r);
-        }
-
-        /* consumes FD controller[1] */
-        r = launcher_fork(launcher, controller[1]);
-        if (r) {
-                close(controller[1]);
-                return error_trace(r);
-        }
 
         r = sd_bus_add_object_vtable(launcher->bus_controller, NULL, "/org/bus1/DBus/Controller", "org.bus1.DBus.Controller", launcher_vtable, launcher);
         if (r < 0)
@@ -1444,6 +1578,8 @@ int launcher_run(Launcher *launcher) {
         r = log_commitf(&launcher->log, "Ready\n");
         if (r)
                 return error_fold(r);
+
+        (void) sd_bus_emit_signal(launcher->bus_regular, "/org/bus1/DBus/Controller", "org.bus1.DBus.Controller", "Ready", "");
 
         r = sd_event_loop(launcher->event);
         if (r < 0)

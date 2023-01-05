@@ -216,7 +216,6 @@ static int controller_dispatch_connection(DispatchFile *file) {
 
         do {
                 _c_cleanup_(message_unrefp) Message *m = NULL;
-
                 r = connection_dequeue(&controller->connection, &m);
                 if (r) {
                         if (r == CONNECTION_E_EOF)
@@ -370,6 +369,22 @@ int controller_request_reload(Controller *controller,
                 return error_trace(r);
 
         reload = NULL;
+        return 0;
+}
+
+/**
+* controller_request_reexecute() - XXX
+*/
+int controller_request_reexecute(Controller *controller,
+                              User *sender_user,
+                              uint64_t sender_id,
+                              uint32_t sender_serial) {
+        int r;
+
+        r = controller_dbus_send_reexecute(controller, sender_user, sender_serial);
+        if (r)
+                return error_trace(r);
+
         return 0;
 }
 

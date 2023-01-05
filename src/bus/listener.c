@@ -23,7 +23,8 @@ static int listener_dispatch(DispatchFile *file) {
         if (!(dispatch_file_events(file) & EPOLLIN))
                 return 0;
 
-        fd = accept4(listener->socket_fd, NULL, NULL, SOCK_CLOEXEC | SOCK_NONBLOCK);
+        /* Don't close fd after exec */
+        fd = accept4(listener->socket_fd, NULL, NULL, SOCK_NONBLOCK);
         if (fd < 0) {
                 if (errno == EAGAIN) {
                         /*
@@ -43,7 +44,8 @@ static int listener_dispatch(DispatchFile *file) {
                 }
         }
 
-        r = peer_new_with_fd(&peer, listener->bus, listener->policy, listener->guid, file->context, fd);
+        r = peer_new_with_fd(&peer, listener->bus, listener->policy, listener->guid,
+                             file->context, fd, -1);
         if (r == PEER_E_QUOTA || r == PEER_E_CONNECTION_REFUSED)
                 /*
                  * The user has too many open connections, or a policy disallows it to

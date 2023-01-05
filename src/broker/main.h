@@ -10,6 +10,7 @@
 enum {
         _MAIN_SUCCESS,
         MAIN_EXIT,
+        MAIN_REEXEC,
         MAIN_FAILED,
 };
 

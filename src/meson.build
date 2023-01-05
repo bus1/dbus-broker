@@ -40,6 +40,7 @@ sources_bus = [
         'util/metrics.c',
         'util/misc.c',
         'util/proc.c',
+        'util/serialize.c',
         'util/sockopt.c',
         'util/string.c',
         'util/systemd.c',

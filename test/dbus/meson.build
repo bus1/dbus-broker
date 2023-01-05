@@ -67,6 +67,12 @@ test('Client Lifetime', test_lifetime)
 test_matches = executable('test-matches', ['test-matches.c'], dependencies: [ dep_test ])
 test('Signals and Matches', test_matches)
 
+test_serialize = executable('test-serialize', ['test-serialize.c'], dependencies: [ dep_test ])
+test('Serialize and Deserialize', test_serialize)
+
+test_reexecute = executable('test-reexecute', ['test-reexecute.c'], dependencies: [ dep_test ])
+test('Reexecute', test_reexecute)
+
 if use_reference_test
         dbus_bin = dep_dbus.get_pkgconfig_variable('bindir') + '/dbus-daemon'
 

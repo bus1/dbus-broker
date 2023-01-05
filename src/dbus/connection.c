@@ -244,7 +244,7 @@ int connection_dequeue(Connection *connection, Message **messagep) {
         size_t n_input;
         int r;
 
-        if (_c_unlikely_(!connection->authenticated)) {
+        if (_c_unlikely_(!connection->authenticated) && connection->recovered == 0) {
                 do {
                         r = socket_dequeue_line(&connection->socket, &input, &n_input);
                         if (r)

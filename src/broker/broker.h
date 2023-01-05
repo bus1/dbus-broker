@@ -6,10 +6,13 @@
 
 #include <c-stdaux.h>
 #include <stdlib.h>
+#include <systemd/sd-event.h>
 #include "broker/controller.h"
 #include "bus/bus.h"
 #include "util/dispatch.h"
 #include "util/log.h"
+
+#define OPTION_NUM_MAX 20
 
 enum {
         _BROKER_E_SUCCESS,
@@ -18,14 +21,42 @@ enum {
 };
 
 typedef struct Broker Broker;
+typedef struct BrokerArg BrokerArg;
 typedef struct User User;
 
+struct BrokerArg {
+        const char *bin_path;
+        const char *machine_id;
+        bool arg_audit;
+        int log_fd;
+        int controller_fd;
+        int mem_fd;
+        uint64_t max_bytes;
+        uint64_t max_fds;
+        uint64_t max_matches;
+        uint64_t max_objects;
+};
+
 struct Broker {
+        sd_event *event;
         Log log;
         Bus bus;
         DispatchContext dispatcher;
 
         int signals_fd;
+        int reexec_serial;
+        bool arg_audit;
+        bool do_reexec;
+        const char *bin_path;
+        const char *machine_id;
+        int log_fd;
+        int controller_fd;
+        int mem_fd;
+        uint64_t max_bytes;
+        uint64_t max_fds;
+        uint64_t max_matches;
+        uint64_t max_objects;
+        pid_t launcher_pid;
         DispatchFile signals_file;
 
         Controller controller;
@@ -33,7 +64,7 @@ struct Broker {
 
 /* broker */
 
-int broker_new(Broker **brokerp, const char *machine_id, int log_fd, int controller_fd, uint64_t max_bytes, uint64_t max_fds, uint64_t max_matches, uint64_t max_objects);
+int broker_new(Broker **brokerp, BrokerArg *broker_arg);
 Broker *broker_free(Broker *broker);
 
 int broker_run(Broker *broker);
@@ -58,3 +89,4 @@ static inline Broker *BROKER(Bus *bus) {
          */
         return c_container_of(bus, Broker, bus);
 }
+int deserialize_broker(Broker *broker, int mem_fd);

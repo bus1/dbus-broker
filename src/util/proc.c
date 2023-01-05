@@ -8,6 +8,7 @@
 #include <unistd.h>
 #include "util/error.h"
 #include "util/proc.h"
+#include "util/serialize.h"
 
 int proc_get_seclabel(pid_t pid, char **labelp, size_t *n_labelp) {
         _c_cleanup_(c_fclosep) FILE *f = NULL;

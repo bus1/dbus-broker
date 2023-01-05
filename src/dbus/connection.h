@@ -33,6 +33,7 @@ struct Connection {
         SASLClient sasl_client;
 
         bool server : 1;
+        bool recovered : 1;
         bool authenticated : 1;
 };
 

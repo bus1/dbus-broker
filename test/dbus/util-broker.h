@@ -20,6 +20,8 @@ struct Broker {
         pthread_t thread;
         struct sockaddr_un address;
         socklen_t n_address;
+        bool test_reexec;
+        int lc_fd; /* launcher controller fd */
         int listener_fd;
         int pipe_fds[2];
         pid_t pid;
@@ -29,6 +31,8 @@ struct Broker {
 #define BROKER_NULL {                                                           \
                 .address.sun_family = AF_UNIX,                                  \
                 .n_address = sizeof(struct sockaddr_un),                        \
+                .test_reexec = false,                                           \
+                .lc_fd = -1,                                                    \
                 .listener_fd = -1,                                              \
                 .pipe_fds[0] = -1,                                              \
                 .pipe_fds[1] = -1,                                              \
@@ -37,7 +41,9 @@ struct Broker {
 /* misc */
 
 void util_event_new(sd_event **eventp);
-void util_fork_broker(sd_bus **busp, sd_event *event, int listener_fd, pid_t *pidp);
+int util_append_policy(sd_bus_message *m);
+int create_broker_listener(Broker *broker);
+void util_fork_broker(sd_bus **busp, sd_event *event, int listener_fd, pid_t *pidp, bool is_reexec, int *lc_fd);
 void util_fork_daemon(sd_event *event, int pipe_fd, pid_t *pidp);
 
 /* broker */

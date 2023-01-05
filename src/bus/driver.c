@@ -1604,6 +1604,45 @@ static int driver_method_reload_config(Peer *peer, const char *path, CDVar *in_v
         return 0;
 }
 
+static int driver_method_reexecute(Peer *peer, const char *path, CDVar *in_v, uint32_t serial, CDVar *out_v) {
+        int r;
+
+        if (peer->user->uid != 0) {
+                r = driver_send_error(peer, serial, "org.freedesktop.DBus.Error.AccessDenied", "Only root can trigger reexecuting");
+                if (r < 0)
+                        return error_fold(r);
+                return 0;
+        }
+
+        /* verify the input argument */
+        c_dvar_read(in_v, "()");
+
+        r = driver_end_read(in_v);
+        if (r)
+                return error_trace(r);
+
+        r = controller_request_reexecute(&(BROKER(peer->bus))->controller, peer->user, peer->id, serial);
+        if (r) {
+                if (r == CONTROLLER_E_SERIAL_EXHAUSTED ||
+                r == CONTROLLER_E_QUOTA)
+                        return BROKER_E_FORWARD_FAILED;
+
+                return error_fold(r);
+        }
+
+        /* Remember the sender_serial in reexec_serial. When we got reply from
+         * launcher, we compare the reply serial with this reexec_serial in
+         * controller_dispatch_reply. */
+        BROKER(peer->bus)->reexec_serial = serial;
+        c_dvar_write(out_v, "(s)", "OK");
+
+        r = driver_send_reply(peer, out_v, serial);
+        if (r)
+                return error_trace(r);
+
+        return 0;
+}
+
 static int driver_method_get_id(Peer *peer, const char *path, CDVar *in_v, uint32_t serial, CDVar *out_v) {
         char buffer[sizeof(peer->bus->guid) * 2 + 1] = {};
         int r;
@@ -2303,6 +2342,7 @@ static const DriverMethod driver_methods[] = {
         { "UpdateActivationEnvironment",                true,   "/org/freedesktop/DBus",        driver_method_update_activation_environment,                    driver_type_in_apss,    driver_type_out_unit },
         { "GetNameOwner",                               true,   NULL,                           driver_method_get_name_owner,                                   driver_type_in_s,       driver_type_out_s },
         { "ReloadConfig",                               true,   NULL,                           driver_method_reload_config,                                    c_dvar_type_unit,       driver_type_out_unit },
+        { "Reexecute",                                  true,   NULL,                           driver_method_reexecute,                                        c_dvar_type_unit,       driver_type_out_s },
         { "GetId",                                      true,   NULL,                           driver_method_get_id,                                           c_dvar_type_unit,       driver_type_out_s },
         { },
 };

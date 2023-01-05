@@ -8,6 +8,7 @@
 #include <sys/epoll.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+#include "broker/controller.h"
 #include "bus/bus.h"
 #include "bus/driver.h"
 #include "bus/match.h"
@@ -25,7 +26,9 @@
 #include "util/fdlist.h"
 #include "util/log.h"
 #include "util/metrics.h"
+#include "util/serialize.h"
 #include "util/sockopt.h"
+#include "util/string.h"
 #include "util/user.h"
 
 static int peer_dispatch_connection(Peer *peer, uint32_t events) {
@@ -227,6 +230,7 @@ int peer_dispatch(DispatchFile *file) {
 
                 if (!connection_is_running(&peer->connection))
                         peer_free(peer);
+
         }
 
         /* Careful: @peer might be deallocated here */
@@ -254,7 +258,8 @@ int peer_new_with_fd(Peer **peerp,
                      PolicyRegistry *policy,
                      const char guid[],
                      DispatchContext *dispatcher,
-                     int fd) {
+                     int fd,
+                     int peer_id) {
         _c_cleanup_(peer_freep) Peer *peer = NULL;
         _c_cleanup_(user_unrefp) User *user = NULL;
         _c_cleanup_(c_freep) gid_t *gids = NULL;
@@ -269,7 +274,11 @@ int peer_new_with_fd(Peer **peerp,
         if (r < 0)
                 return error_origin(-errno);
 
-        r = user_registry_ref_user(&bus->users, &user, ucred.uid);
+        if (ucred.pid == getppid()) {
+                r = user_registry_ref_user(&bus->users, &user, bus->user->uid);
+        } else {
+                r = user_registry_ref_user(&bus->users, &user, ucred.uid);
+        }
         if (r < 0)
                 return error_fold(r);
 
@@ -324,7 +333,10 @@ int peer_new_with_fd(Peer **peerp,
         if (r < 0)
                 return error_fold(r);
 
-        peer->id = bus->peers.ids++;
+        if (peer_id < 0)
+                peer->id = bus->peers.ids++;
+        else
+                peer->id = peer_id;
         slot = c_rbtree_find_slot(&bus->peers.peer_tree, peer_compare, &peer->id, &parent);
         c_assert(slot); /* peer->id is guaranteed to be unique */
         c_rbtree_add(&bus->peers.peer_tree, parent, slot, &peer->registry_node);
@@ -353,6 +365,7 @@ Peer *peer_free(Peer *peer) {
         reply_owner_deinit(&peer->owned_replies);
         reply_registry_deinit(&peer->replies);
         match_owner_deinit(&peer->owned_matches);
+        rule_string_deinit(&peer->rule_string_list);
         match_registry_deinit(&peer->name_owner_changed_matches);
         match_registry_deinit(&peer->sender_matches);
         name_owner_deinit(&peer->owned_names);
@@ -376,7 +389,6 @@ int peer_spawn(Peer *peer) {
 }
 
 void peer_register(Peer *peer) {
-        c_assert(!peer->registered);
         c_assert(!peer->monitor);
 
         peer->registered = true;
@@ -460,6 +472,22 @@ int peer_release_name(Peer *peer, const char *name, NameChange *change) {
 
 void peer_release_name_ownership(Peer *peer, NameOwnership *ownership, NameChange *change) {
         name_ownership_release(ownership, change);
+}
+
+static int peer_link_rule_string(Peer *peer, const char *rule_string) {
+        RuleString *rs;
+
+        rs = malloc(sizeof(RuleString));
+        if (!rs)
+                return error_origin(-ENOMEM);
+        *rs = (RuleString)RULE_STRING_INIT(*rs);
+
+        rs->rule_string = strdup(rule_string);
+        if (!rs->rule_string)
+                return error_origin(-ENOMEM);
+
+        c_list_link_tail(&peer->rule_string_list, &rs->rule_string_link);
+        return 0;
 }
 
 static int peer_link_match(Peer *peer, MatchRule *rule, bool monitor) {
@@ -592,6 +620,10 @@ static int peer_link_match(Peer *peer, MatchRule *rule, bool monitor) {
 int peer_add_match(Peer *peer, const char *rule_string) {
         _c_cleanup_(match_rule_user_unrefp) MatchRule *rule = NULL;
         int r;
+
+        r = peer_link_rule_string(peer, rule_string);
+        if (r < 0)
+                return error_fold(r);
 
         r = match_owner_ref_rule(&peer->owned_matches, &rule, peer->user, rule_string, false);
         if (r) {
@@ -833,7 +865,7 @@ int peer_queue_unicast(PolicySnapshot *sender_policy, NameSet *sender_names, Rep
 
 int peer_queue_reply(Peer *sender, const char *destination, uint32_t reply_serial, Message *message) {
         _c_cleanup_(reply_slot_freep) ReplySlot *slot = NULL;
-        Peer *receiver;
+        Peer *receiver = NULL;
         Address addr;
         int r;
 
@@ -842,10 +874,13 @@ int peer_queue_reply(Peer *sender, const char *destination, uint32_t reply_seria
                 return PEER_E_UNEXPECTED_REPLY;
 
         slot = reply_slot_get_by_id(&sender->replies, addr.id, reply_serial);
-        if (!slot)
-                return PEER_E_UNEXPECTED_REPLY;
+        if (slot)
+                receiver = c_container_of(slot->owner, Peer, owned_replies);
+        else
+                receiver = peer_registry_find_peer(&sender->bus->peers, addr.id);
 
-        receiver = c_container_of(slot->owner, Peer, owned_replies);
+        if (!receiver)
+                return PEER_E_UNEXPECTED_REPLY;
 
         r = connection_queue(&receiver->connection, NULL, message);
         if (r) {
@@ -901,4 +936,225 @@ Peer *peer_registry_find_peer(PeerRegistry *registry, uint64_t id) {
         peer = c_rbtree_find_entry(&registry->peer_tree, peer_compare, &id, Peer, registry_node);
 
         return peer && peer->registered ? peer : NULL;
+}
+
+static int peer_deserialize_key_members(char *peer_str, int *fd, uint64_t *id, pid_t *pid,
+                                        char **name, char **match_rule, char **sasl) {
+        int tmp_str_length[_PEER_INDEX_MAX] = {FD_LENGTH_MAX, ID_LENGTH_MAX, PID_LENGTH_MAX,
+                                               UID_LENGTH_MAX, NAME_LENGTH_MAX, LINE_LENGTH_MAX,
+                                               SASL_LENGTH_MAX};
+        for (int i = 0; i < _PEER_INDEX_MAX; i++) {
+                char *tmp_str = malloc(tmp_str_length[i]);
+                peer_str = extract_word_inlist(peer_str, &tmp_str);
+                if (strlen(tmp_str) <= 0) {
+                        return error_origin(-EINVAL);
+                }
+                switch (i) {
+                case PEER_INDEX_FD:
+                        *fd = atoi(tmp_str);
+                        break;
+                case PEER_INDEX_ID:
+                        *id = atoi(tmp_str);
+                        break;
+                case PEER_INDEX_PID:
+                        *pid = atoi(tmp_str);
+                        break;
+                case PEER_INDEX_UID:
+                        break;
+                case PEER_INDEX_NAME:
+                        *name = strndup(tmp_str, NAME_LENGTH_MAX - 1);
+                        if (!name)
+                                return error_origin(-ENOMEM);
+                        break;
+                case PEER_INDEX_MATCH_RULE:
+                        *match_rule = strndup(tmp_str, LINE_LENGTH_MAX - 1);
+                        if (!match_rule)
+                                return error_origin(-ENOMEM);
+                        break;
+                case PEER_INDEX_SASL:
+                        *sasl = strndup(tmp_str, SASL_LENGTH_MAX - 1);
+                        if (!sasl)
+                                return error_origin(-ENOMEM);
+                        break;
+                default:
+                        break;
+                }
+                if (tmp_str) {
+                        free(tmp_str);
+                        tmp_str = NULL;
+                }
+        }
+        return 0;
+}
+
+static int peer_recover_match_rule(Peer *peer, char *match_rule) {
+        char *rule_str = NULL;
+        char *match_rule_cur = match_rule;
+
+        while (true) {
+                match_rule_cur = extract_list_element(match_rule_cur, &rule_str);
+                if (!match_rule_cur)
+                        break;
+                if (!rule_str)
+                        break;
+                peer_add_match(peer, rule_str);
+                free(rule_str);
+                rule_str = NULL;
+        }
+        if (rule_str) {
+                free(rule_str);
+                rule_str = NULL;
+        }
+        return 0;
+}
+
+static int peer_recover_sasl(Peer *peer, char *sasl) {
+        int sasl_index = SASL_INDEX_SERVER_STATE;
+        char *sasl_str = NULL;
+        char *sasl_cur = sasl;
+
+        while (sasl_index < _SASL_INDEX_MAX) {
+                sasl_cur = extract_list_element(sasl_cur, &sasl_str);
+                if (!sasl_cur)
+                        break;
+                if (!sasl_str)
+                        break;
+                if (sasl_index == SASL_INDEX_SERVER_STATE)
+                        peer->connection.sasl_server.state = atoi(sasl_str);
+                else if (sasl_index == SASL_INDEX_SERVER_FDSALLOWED)
+                        peer->connection.sasl_server.fds_allowed = atoi(sasl_str);
+                else if (sasl_index == SASL_INDEX_CLIENT_STATE)
+                        peer->connection.sasl_client.state = atoi(sasl_str);
+                sasl_index++;
+                free(sasl_str);
+                sasl_str = NULL;
+        }
+
+        if (sasl_str) {
+                free(sasl_str);
+                sasl_str = NULL;
+        }
+        return 0;
+}
+
+static int peer_recover_full(ControllerListener *controller_listener, int fd, uint64_t id, pid_t pid,
+                             char *name, char *match_rule, char *sasl) {
+        Listener *listener = &controller_listener->listener;
+        Peer *peer;
+        int r;
+
+        /* Recover: fd and id */
+        r = peer_new_with_fd(&peer, listener->bus, listener->policy, listener->guid,
+                             listener->socket_file.context, fd, id);
+        c_list_link_tail(&listener->peer_list, &peer->listener_link);
+        r = peer_spawn(peer);
+        if (r)
+                return error_fold(r);
+
+        /* Recover: sasl */
+        peer_recover_sasl(peer, sasl);
+        if (r < 0)
+                return error_fold(r);
+
+        /* register and mark as recovered */
+        peer_register(peer);
+        peer->connection.recovered = 1;
+
+        /* Recover: pid */
+        peer->pid = pid;
+
+        /* Recover: name */
+        NameChange change = NAME_CHANGE_INIT;
+        r = name_registry_request_name(&peer->bus->names,
+                &peer->owned_names,
+                peer->user,
+                name,
+                0,
+                &change);
+        if (r != 0 && r != NAME_E_IN_QUEUE)
+                return error_fold(r);
+
+        /* Recover: match_rule */
+        r = peer_recover_match_rule(peer, match_rule);
+        if (r < 0)
+                return error_fold(r);
+        return 0;
+}
+
+char* free_key_member(char *member) {
+        if (member) {
+                free(member);
+        }
+        return NULL;
+}
+
+int peer_recover_with_fd(int mem_fd, ControllerListener *controller_listener) {
+        FILE *f = NULL;
+        _c_cleanup_(c_freep) char *buf = malloc(LINE_LENGTH_MAX);
+        int r;
+
+        errno = 0;
+        f = fdopen(mem_fd, "r");
+        if (!f)
+                return error_trace(-errno);
+
+        fseek(f, 0, SEEK_SET);
+        while (fgets(buf, LINE_LENGTH_MAX, f) != NULL) {
+                char *peer_str = string_prefix(buf, "peer=");
+                if (!peer_str)
+                        continue;
+
+                /* Deserialize key members */
+                int fd = 0;
+                uint64_t id = 0;
+                pid_t pid = 0;
+                char *name = NULL, *match_rule = NULL, *sasl = NULL, *pid_path = NULL;
+                r = peer_deserialize_key_members(peer_str, &fd, &id, &pid, &name, &match_rule, &sasl);
+                if (r < 0) {
+                        if (fd > 0)
+                                close(fd);
+                        name = free_key_member(name);
+                        match_rule = free_key_member(match_rule);
+                        sasl = free_key_member(sasl);
+                        pid_path = free_key_member(pid_path);
+                        continue;
+                }
+                /* If we can't find the pid, skip */
+                r = asprintf(&pid_path, "/proc/%"PRIu32, (uint32_t)pid);
+                if (r < 0) {
+                        if (fd > 0)
+                                close(fd);
+                        name = free_key_member(name);
+                        match_rule = free_key_member(match_rule);
+                        sasl = free_key_member(sasl);
+                        pid_path = free_key_member(pid_path);
+                        continue;
+                }
+                if (access(pid_path, F_OK) != 0) {
+                        if (fd > 0)
+                                close(fd);
+                        name = free_key_member(name);
+                        match_rule = free_key_member(match_rule);
+                        sasl = free_key_member(sasl);
+                        pid_path = free_key_member(pid_path);
+                        continue;
+                }
+
+                r = peer_recover_full(controller_listener, fd, id, pid, name, match_rule, sasl);
+                if (r < 0) {
+                        if (fd > 0)
+                                close(fd);
+                        name = free_key_member(name);
+                        match_rule = free_key_member(match_rule);
+                        sasl = free_key_member(sasl);
+                        pid_path = free_key_member(pid_path);
+                        continue;
+                }
+                name = free_key_member(name);
+                match_rule = free_key_member(match_rule);
+                sasl = free_key_member(sasl);
+                pid_path = free_key_member(pid_path);
+        }
+        fclose(f);
+        return 0;
 }

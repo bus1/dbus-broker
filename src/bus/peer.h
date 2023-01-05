@@ -8,6 +8,7 @@
 #include <c-stdaux.h>
 #include <stdlib.h>
 #include <sys/types.h>
+#include "broker/controller.h"
 #include "bus/match.h"
 #include "bus/name.h"
 #include "bus/policy.h"
@@ -75,6 +76,7 @@ struct Peer {
         MatchRegistry sender_matches;
         MatchRegistry name_owner_changed_matches;
         MatchOwner owned_matches;
+        CList rule_string_list;
         ReplyRegistry replies;
         ReplyOwner owned_replies;
 };
@@ -88,6 +90,7 @@ struct Peer {
                 .sender_matches = MATCH_REGISTRY_INIT((_x).sender_matches),                             \
                 .name_owner_changed_matches = MATCH_REGISTRY_INIT((_x).name_owner_changed_matches),     \
                 .owned_matches = MATCH_OWNER_INIT((_x).owned_matches),                                  \
+                .rule_string_list = C_LIST_INIT((_x).rule_string_list),                                 \
                 .replies = REPLY_REGISTRY_INIT,                                                         \
                 .owned_replies = REPLY_OWNER_INIT((_x).owned_replies),                                  \
         }
@@ -99,7 +102,8 @@ struct PeerRegistry {
 
 #define PEER_REGISTRY_INIT {}
 
-int peer_new_with_fd(Peer **peerp, Bus *bus, PolicyRegistry *policy, const char guid[], DispatchContext *dispatcher, int fd);
+int peer_new_with_fd(Peer **peerp, Bus *bus, PolicyRegistry *policy, const char guid[],
+                     DispatchContext *dispatcher, int fd, int peer_id);
 Peer *peer_free(Peer *peer);
 
 int peer_dispatch(DispatchFile *file);
@@ -127,6 +131,8 @@ void peer_registry_init(PeerRegistry *registry);
 void peer_registry_deinit(PeerRegistry *registry);
 void peer_registry_flush(PeerRegistry *registry);
 Peer *peer_registry_find_peer(PeerRegistry *registry, uint64_t id);
+
+int peer_recover_with_fd(int mem_fd, ControllerListener *listener);
 
 static inline bool peer_is_registered(Peer *peer) {
         return peer->registered;
