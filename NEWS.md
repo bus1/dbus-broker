@@ -1,5 +1,28 @@
 # dbus-broker - Linux D-Bus Message Broker
 
+## CHANGES WITH 33:
+
+        * Fix a race-condition when starting systemd-services from the
+          launcher. In particular, services with guarding systemd `Condition*`
+          configurations might have incorrectly stalled activation attempts.
+
+        * Return `org.freedesktop.DBus.Error.Failed` rather than a permission
+          error for unimplemented functionality. The human-readable part of the
+          error will contain "Unimplemented functionality" as explanation.
+
+        * Improve resiliency of the launcher against runtime changes in dbus
+          service-files. Changes to the files will no longer affect ongoing
+          activation attempts.
+
+        * Fix `GetStats()` returning two replies.
+
+        * Fix missing origin-information in the startup log-message.
+
+        Contributions from: David Rheinsberg, draconicfae, Marcus Sundberg,
+                            Mike Gilbert, Stefan Agner, Tom Gundersen
+
+        - Dußlingen, 2023-02-03
+
 ## CHANGES WITH 32:
 
         * Fix several bugs in the d-bus marshalling layer c-dvar, including

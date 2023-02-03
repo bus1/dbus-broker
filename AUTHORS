@@ -12,7 +12,7 @@ LICENSE:
         limitations under the License.
 
 COPYRIGHT: (ordered alphabetically)
-        Copyright (C) 2016-2022 Red Hat, Inc.
+        Copyright (C) 2016-2023 Red Hat, Inc.
 
 AUTHORS: (ordered alphabetically)
         Chris Paulson-Ellis <chris.paulson-ellis@motorolasolutions.com>
@@ -29,9 +29,11 @@ AUTHORS: (ordered alphabetically)
         Laurent Bigonville <bigon@bigon.be>
         Luca Boccassi <luca.boccassi@microsoft.com>
         Marc-Antoine Perennou <Marc-Antoine@Perennou.com>
+        Marcus Sundberg <marcus.sundberg@aptilo.com>
         Michal Schmidt <mschmidt@redhat.com>
         Mike Gilbert <floppym@gentoo.org>
         msizanoen1 <msizanoen@qtmlabs.xyz>
+        Stefan Agner <stefan@agner.ch>
         Thomas Mühlbacher <tmuehlbacher@posteo.net>
         Tim Gates <tim.gates@iress.com>
         Tom Gundersen <teg@jklm.no>
