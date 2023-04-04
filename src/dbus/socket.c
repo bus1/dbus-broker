@@ -806,7 +806,7 @@ static int socket_dispatch_write(Socket *socket) {
                     buffer->message->fds &&
                     socket_buffer_is_uncomsumed(buffer)) {
                         msg->msg_control = buffer->message->fds->cmsg;
-                        msg->msg_controllen = buffer->message->fds->cmsg->cmsg_len;
+                        msg->msg_controllen = fdlist_size(buffer->message->fds);
                 } else {
                         msg->msg_control = NULL;
                         msg->msg_controllen = 0;
