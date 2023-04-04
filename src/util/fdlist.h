@@ -33,6 +33,10 @@ static inline size_t fdlist_count(FDList *list) {
         return list ? (list->cmsg->cmsg_len - CMSG_LEN(0)) / sizeof(int) : 0;
 }
 
+static inline size_t fdlist_size(FDList *list) {
+        return list ? CMSG_SPACE(fdlist_count(list) * sizeof(int)) : 0;
+}
+
 static inline int fdlist_get(FDList *list, size_t index) {
         return index < fdlist_count(list) ? fdlist_data(list)[index] : -1;
 }
