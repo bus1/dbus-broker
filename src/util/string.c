@@ -55,3 +55,25 @@ int util_strtou64(uint64_t *valp, const char *string) {
 
         return 0;
 }
+
+int util_strtoint(int *valp, const char *string) {
+        long val;
+        char *end;
+
+        errno = 0;
+        val = strtol(string, &end, 10);
+        if (errno != 0) {
+                if (errno == ERANGE)
+                        return UTIL_STRING_E_RANGE;
+
+                return error_origin(-errno);
+        } else if (*end || string == end) {
+                return UTIL_STRING_E_INVALID;
+        } else if (val > INT_MAX || val < INT_MIN) {
+                return UTIL_STRING_E_RANGE;
+        }
+
+        *valp = val;
+
+        return 0;
+}

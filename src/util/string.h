@@ -17,6 +17,7 @@ enum {
 
 int util_strtou32(uint32_t *valp, const char *string);
 int util_strtou64(uint64_t *valp, const char *string);
+int util_strtoint(int *valp, const char *string);
 
 /**
  * string_compare() - compare two strings
