@@ -36,3 +36,25 @@ static inline int syscall_memfd_create(const char *name, unsigned int flags) {
 #endif
         return (int)syscall(nr, name, flags);
 }
+
+/**
+ * syscall_pidfd_open() - wrapper for pidfd_open(2) syscall
+ * @pid:        pid to open
+ * @flags:      pidfd flags
+ *
+ * This is a wrapper for the pidfd_open(2) syscall. Only a very recent version
+ * of glibc (2.36) exports a wrapper for this syscall, so we provide our own
+ * for compatibility with other libc implementations.
+ *
+ * Return: New pidfd file-descriptor on success, -1 on failure.
+ */
+static inline int syscall_pidfd_open(pid_t pid, unsigned int flags) {
+#if defined __NR_pidfd_open
+        long nr = __NR_pidfd_open;
+#elif defined(__x86_64__) || defined(__i386__) || defined(__aarch64__) || defined(__arm__)
+        long nr = 434;
+#else
+#  error "__NR_pidfd_open is undefined"
+#endif
+        return (int)syscall(nr, pid, flags);
+}
