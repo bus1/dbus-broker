@@ -84,8 +84,27 @@ static void test_read(void) {
         c_free(data);
 }
 
+static void test_resolve_pidfd(void) {
+        _c_cleanup_(c_closep) int pidfd = -1;
+        pid_t pid;
+        int r;
+
+        pidfd = syscall_pidfd_open(getpid(), 0);
+        if (pidfd < 0) {
+                c_assert(errno == ENOSYS);
+                return;
+        }
+
+        c_assert(pidfd >= 0);
+
+        r = proc_resolve_pidfd(pidfd, &pid);
+        c_assert(!r);
+        c_assert(pid == getpid());
+}
+
 int main(int argc, char **argv) {
         test_field();
         test_read();
+        test_resolve_pidfd();
         return 0;
 }

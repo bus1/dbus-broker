@@ -8,6 +8,15 @@
 #include <unistd.h>
 #include "util/error.h"
 #include "util/proc.h"
+#include "util/string.h"
+
+/*
+ * A file in /proc can be at most 4M minus one. If required, we start with a 4K
+ * read, then try a 4M one if that fails. In the vast majority of cases, 4K
+ * will be enough.
+ */
+#define PROC_SIZE_MIN (4U*1024U)
+#define PROC_SIZE_MAX (4U*1024U*1024U - 1U)
 
 /**
  * proc_field() - Extract individual field from proc-text-file
@@ -174,5 +183,31 @@ int proc_get_seclabel(pid_t pid, char **labelp, size_t *n_labelp) {
         if (n_labelp)
                 *n_labelp = strlen(label);
         *labelp = label;
+        return 0;
+}
+
+int proc_resolve_pidfd(int pidfd, pid_t *pidp) {
+        _c_cleanup_(c_freep) char *data = NULL, *field = NULL;
+        _c_cleanup_(c_closep) int fd = -1;
+        char path[64];
+        int r;
+
+        sprintf(path, "/proc/self/fdinfo/%d", pidfd);
+        fd = open(path, O_RDONLY | O_CLOEXEC);
+        if (fd < 0)
+                return error_origin(-errno);
+
+        r = proc_read(fd, &data, NULL);
+        if (r)
+                return error_fold(r);
+
+        r = proc_field(data, "Pid", &field);
+        if (r)
+                return error_fold(r);
+
+        r = util_strtoint(pidp, field);
+        if (r)
+                return error_fold(r);
+
         return 0;
 }
