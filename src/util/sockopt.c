@@ -194,3 +194,54 @@ int sockopt_get_peergroups(int fd, Log *log, uid_t uid, gid_t primary_gid, gid_t
 
         return 0;
 }
+
+/**
+ * sockopt_get_peerpidfd() - query pidfd of remote peer
+ * @fd:         socket to operate on
+ * @pidfdp:     output variable to store pidfd
+ *
+ * Query the given socket for the PID of the remote peer and return a
+ * pidfd linked to this PID. The file-desciptor is granted to the caller,
+ * which is responsible to close it when no longer in use.
+ *
+ * If the kernel does not support the underlying `SO_PEERPIDFD` socket
+ * option, SOCKOPT_E_UNSUPPORTED is returned.
+ *
+ * If the socket type does not support `SO_PEERPIDFD`, SOCKOPT_E_UNAVAILABLE
+ * is returned.
+ *
+ * Regardless of the state of the target process, a valid pidfd is returned
+ * for the PID pinned on the socket at creation time.
+ *
+ * Return: 0 on success, SOCKOPT_E_UNSUPPORTED if not supported by the
+ *         running kernel, SOCKOPT_E_UNAVAILABLE if the socket type does not
+ *         support the option, negative error code on failure.
+ */
+int sockopt_get_peerpidfd(int fd, int *pidfdp) {
+        socklen_t socklen = sizeof(int);
+        int r, pidfd;
+
+        /* XXX: Drop this once we require `linux-api-headers >= 6.5` */
+#       ifndef SO_PEERPIDFD
+#         if defined(__parisc__)
+#           define SO_PEERPIDFD 0x404B
+#         elif defined(__sparc__)
+#           define SO_PEERPIDFD 0x0056
+#         else
+#           define SO_PEERPIDFD 77
+#         endif
+#       endif
+
+        r = getsockopt(fd, SOL_SOCKET, SO_PEERPIDFD, &pidfd, &socklen);
+        if (r < 0) {
+                if (errno == ENOPROTOOPT)
+                        return SOCKOPT_E_UNSUPPORTED;
+                if (errno == ESRCH)
+                        return SOCKOPT_E_UNAVAILABLE;
+
+                return error_origin(-errno);
+        }
+
+        *pidfdp = pidfd;
+        return 0;
+}
