@@ -56,6 +56,7 @@ struct Peer {
         Bus *bus;
         User *user;
         pid_t pid;
+        int pid_fd;
         gid_t *gids;
         size_t n_gids;
         char *seclabel;

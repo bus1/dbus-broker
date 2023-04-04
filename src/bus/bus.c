@@ -55,6 +55,7 @@ void bus_deinit(Bus *bus) {
         bus->n_gids = 0;
         bus->gids = c_free(bus->gids);
         bus->pid = 0;
+        bus->pid_fd = c_close(bus->pid_fd);
         bus->user = user_unref(bus->user);
         metrics_deinit(&bus->metrics);
         peer_registry_deinit(&bus->peers);

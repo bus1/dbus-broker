@@ -36,6 +36,7 @@ struct Bus {
         Log *log;
         User *user;
         pid_t pid;
+        int pid_fd;
         gid_t *gids;
         size_t n_gids;
         char *seclabel;
@@ -57,6 +58,7 @@ struct Bus {
 };
 
 #define BUS_NULL(_x) {                                                          \
+                .pid_fd = -1,                                                   \
                 .users = USER_REGISTRY_NULL,                                    \
                 .names = NAME_REGISTRY_INIT,                                    \
                 .wildcard_matches = MATCH_REGISTRY_INIT((_x).wildcard_matches), \

@@ -259,6 +259,7 @@ int peer_new_with_fd(Peer **peerp,
         _c_cleanup_(user_unrefp) User *user = NULL;
         _c_cleanup_(c_freep) gid_t *gids = NULL;
         _c_cleanup_(c_freep) char *seclabel = NULL;
+        _c_cleanup_(c_closep) int pid_fd = -1;
         CRBNode **slot, *parent;
         size_t n_seclabel, n_gids = 0;
         struct ucred ucred;
@@ -281,6 +282,16 @@ int peer_new_with_fd(Peer **peerp,
         if (r)
                 return error_trace(r);
 
+        r = sockopt_get_peerpidfd(fd, &pid_fd);
+        if (r) {
+                if (r != SOCKOPT_E_UNSUPPORTED &&
+                    r != SOCKOPT_E_UNAVAILABLE &&
+                    r != SOCKOPT_E_REAPED)
+                        return error_fold(r);
+
+                /* keep `pid_fd == -1` if unavailable */
+        }
+
         peer = calloc(1, sizeof(*peer));
         if (!peer)
                 return error_origin(-ENOMEM);
@@ -290,6 +301,8 @@ int peer_new_with_fd(Peer **peerp,
         peer->user = user;
         user = NULL;
         peer->pid = ucred.pid;
+        peer->pid_fd = pid_fd;
+        pid_fd = -1;
         peer->gids = gids;
         gids = NULL;
         peer->n_gids = n_gids;
@@ -350,6 +363,7 @@ Peer *peer_free(Peer *peer) {
 
         fd = peer->connection.socket.fd;
 
+        c_close(peer->pid_fd);
         reply_owner_deinit(&peer->owned_replies);
         reply_registry_deinit(&peer->replies);
         match_owner_deinit(&peer->owned_matches);

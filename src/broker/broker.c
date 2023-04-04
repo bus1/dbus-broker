@@ -117,6 +117,16 @@ int broker_new(Broker **brokerp, const char *machine_id, int log_fd, int control
         if (r)
                 return error_fold(r);
 
+        r = sockopt_get_peerpidfd(controller_fd, &broker->bus.pid_fd);
+        if (r) {
+                if (r != SOCKOPT_E_UNSUPPORTED &&
+                    r != SOCKOPT_E_UNAVAILABLE &&
+                    r != SOCKOPT_E_REAPED)
+                        return error_fold(r);
+
+                /* keep `pid_fd == -1` if unavailable */
+        }
+
         r = dispatch_context_init(&broker->dispatcher);
         if (r)
                 return error_fold(r);
