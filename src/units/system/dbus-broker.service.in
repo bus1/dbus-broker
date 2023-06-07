@@ -20,3 +20,4 @@ ExecReload=@bindir@/busctl call org.freedesktop.DBus /org/freedesktop/DBus org.f
 
 [Install]
 Alias=dbus.service
+WantedBy=multi-user.target
