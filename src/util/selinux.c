@@ -27,6 +27,7 @@ struct BusSELinuxName {
 typedef struct BusSELinuxName BusSELinuxName;
 
 static bool bus_selinux_avc_open;
+static bool bus_selinux_status_open;
 
 /**
  * bus_selinux_is_enabled() - checks if SELinux is currently enabled
@@ -345,6 +346,29 @@ int bus_selinux_init_global(void) {
                 bus_selinux_avc_open = true;
         }
 
+        if (!bus_selinux_status_open) {
+                r = selinux_status_open(0);
+                if (r == 0) {
+                        /*
+                         * The status page was successfully opened and can now
+                         * be used for faster selinux status-checks.
+                         */
+                        bus_selinux_status_open = true;
+                } else if (r > 0) {
+                        /*
+                         * >0 indicates success but with the netlink-fallback.
+                         * We didn't request the netlink-fallback, so close the
+                         * status-page again and treat it as unavailable.
+                         */
+                        selinux_status_close();
+                } else {
+                        /*
+                         * If the status page could not be opened, treat it as
+                         * unavailable and use the slower fallback functions.
+                         */
+                }
+        }
+
         selinux_set_callback(SELINUX_CB_LOG, (union selinux_callback)bus_selinux_log);
 
         /* XXX: set audit callback to get more metadata in the audit log? */
@@ -362,6 +386,11 @@ int bus_selinux_init_global(void) {
 void bus_selinux_deinit_global(void) {
         if (!is_selinux_enabled())
                 return;
+
+        if (bus_selinux_status_open) {
+                selinux_status_close();
+                bus_selinux_status_open = false;
+        }
 
         if (bus_selinux_avc_open) {
                 avc_destroy();
