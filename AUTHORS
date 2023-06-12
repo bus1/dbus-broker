@@ -13,6 +13,8 @@ LICENSE:
 
 COPYRIGHT: (ordered alphabetically)
         Copyright (C) 2016-2023 Red Hat, Inc.
+        Copyright (C) 2023 David Rheinsberg <david@readahead.eu>
+        Copyright (C) 2023 Tom Gundersen <teg@jklm.no>
 
 AUTHORS: (ordered alphabetically)
         Chris Paulson-Ellis <chris.paulson-ellis@motorolasolutions.com>
@@ -30,6 +32,7 @@ AUTHORS: (ordered alphabetically)
         Luca Boccassi <luca.boccassi@microsoft.com>
         Marc-Antoine Perennou <Marc-Antoine@Perennou.com>
         Marcus Sundberg <marcus.sundberg@aptilo.com>
+        Mark Esler <mark.esler@canonical.com>
         Michal Schmidt <mschmidt@redhat.com>
         Mike Gilbert <floppym@gentoo.org>
         msizanoen1 <msizanoen@qtmlabs.xyz>
