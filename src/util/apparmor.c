@@ -364,6 +364,8 @@ static int apparmor_message_query(
                         receiver_context, "org.freedesktop.DBus",
                         path, interface, method, allow, audit
                 );
+                if (r)
+                        return error_fold(r);
         } else if (nameset->type == NAME_SET_TYPE_OWNER) {
                 if (c_rbtree_is_empty(&nameset->owner->ownership_tree)) {
                         struct Address addr;
@@ -375,6 +377,8 @@ static int apparmor_message_query(
                                 receiver_context, address_to_string(&addr),
                                 path, interface, method, allow, audit
                         );
+                        if (r)
+                                return error_fold(r);
                 } else {
                         *allow = 0;
                         *audit = 0;
@@ -417,10 +421,10 @@ static int apparmor_message_query(
                 *audit = 1;
         } else {
                 c_assert(0);
-                r = error_origin(-ENOTRECOVERABLE);
+                return error_origin(-ENOTRECOVERABLE);
         }
 
-        return r;
+        return 0;
 }
 
 /**
