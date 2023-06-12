@@ -16,6 +16,7 @@ enum {
 };
 
 bool bus_selinux_is_enabled(void);
+bool bus_selinux_is_enforcing(void);
 const char *bus_selinux_policy_root(void);
 
 int bus_selinux_registry_new(BusSELinuxRegistry **registryp, const char *fallback_context);

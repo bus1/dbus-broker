@@ -16,6 +16,10 @@ bool bus_selinux_is_enabled(void) {
         return false;
 }
 
+bool bus_selinux_is_enforcing(void) {
+        return false;
+}
+
 const char *bus_selinux_policy_root(void) {
         return NULL;
 }
