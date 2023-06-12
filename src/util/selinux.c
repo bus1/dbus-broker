@@ -39,6 +39,22 @@ bool bus_selinux_is_enabled(void) {
 }
 
 /**
+ * bus_selinux_is_enforcing() - checks if SELinux is in enforcing mode
+ *
+ * If selinux is not enabled or otherwise unavailable, this will return true.
+ * That is, this will only return false, if selinux is enabled and in
+ * permissive mode.
+ *
+ * Returns: true if SELinux is in enforcing mode, false otherwise.
+ */
+bool bus_selinux_is_enforcing(void) {
+        if (bus_selinux_status_open)
+                return selinux_status_getenforce() != 0;
+        else
+                return security_getenforce() != 0;
+}
+
+/**
  * bus_selinux_policy_root() - the root directory where the current SELinux policy can be found
  *
  * The current SELinux policy can be found in a different directory depending on the
