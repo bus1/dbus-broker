@@ -242,7 +242,7 @@ int bus_selinux_check_own(BusSELinuxRegistry *registry,
                                  "dbus",
                                  "acquire_svc",
                                  NULL);
-        if (r < 0) {
+        if (r < 0 && bus_selinux_is_enforcing()) {
                 /*
                  * Treat unknown contexts (possibly due to policy reload)
                  * as access denied.
@@ -289,7 +289,7 @@ int bus_selinux_check_send(BusSELinuxRegistry *registry,
                                  "dbus",
                                  "send_msg",
                                  NULL);
-        if (r < 0) {
+        if (r < 0 && bus_selinux_is_enforcing()) {
                 /*
                  * Treat unknown contexts (possibly due to policy reload)
                  * as access denied.
