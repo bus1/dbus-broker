@@ -17,6 +17,9 @@ enum {
 
 int util_strtou32(uint32_t *valp, const char *string);
 int util_strtou64(uint64_t *valp, const char *string);
+void generate_args_string(bool valid_arg, char **ret, int size, int *cur_i, char *option, char *val);
+char *extract_word_inlist(char *string, char **ret);
+char *extract_list_element(char *string, char **ret);
 
 /**
  * string_compare() - compare two strings

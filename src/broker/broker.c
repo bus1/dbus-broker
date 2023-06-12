@@ -10,6 +10,7 @@
 #include <sys/signalfd.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+#include <unistd.h>
 #include "broker/broker.h"
 #include "broker/controller.h"
 #include "broker/main.h"
@@ -21,7 +22,9 @@
 #include "util/error.h"
 #include "util/log.h"
 #include "util/proc.h"
+#include "util/serialize.h"
 #include "util/sockopt.h"
+#include "util/string.h"
 #include "util/user.h"
 
 static int broker_dispatch_signals(DispatchFile *file) {
@@ -40,12 +43,113 @@ static int broker_dispatch_signals(DispatchFile *file) {
         return DISPATCH_E_EXIT;
 }
 
-int broker_new(Broker **brokerp, const char *machine_id, int log_fd, int controller_fd, uint64_t max_bytes, uint64_t max_fds, uint64_t max_matches, uint64_t max_objects) {
+static int serialize_broker(Broker *broker) {
+        FILE *f = NULL;
+        int mem_fd;
+        mem_fd = state_file_init(&f);
+        if (mem_fd < 0)
+                return error_fold(mem_fd);
+
+        (void) serialize_basic(f, "max_ids", "%d", broker->bus.peers.ids);
+        (void) serialize_peers(f, broker);
+        fseeko(f, 0, SEEK_SET);
+
+        return mem_fd;
+}
+
+static int broker_execv_with_args(Broker *broker, int mem_fd) {
+        _c_cleanup_(c_freep) char *str_mem_fd = NULL, *str_log = NULL, *str_controller = NULL;
+        _c_cleanup_(c_freep) char *str_max_bytes = NULL, *str_max_fds = NULL, *str_max_matches = NULL;
+        int r;
+        /* Generating args */
+        r = asprintf(&str_mem_fd, "%d", mem_fd);
+        if (r < 0)
+                return error_fold(r);
+        r = asprintf(&str_log, "%d", broker->log_fd);
+        if (r < 0)
+                return error_fold(r);
+        r = asprintf(&str_controller, "%d", broker->controller_fd);
+        if (r < 0)
+                return error_fold(r);
+        r = asprintf(&str_max_bytes, "%lu", broker->max_bytes);
+        if (r < 0)
+                return error_fold(r);
+        r = asprintf(&str_max_fds, "%lu", broker->max_fds + 1);
+        if (r < 0)
+                return error_fold(r);
+        r = asprintf(&str_max_matches, "%lu", broker->max_matches);
+        if (r < 0)
+                return error_fold(r);
+
+        /* execv */
+        char *args[OPTION_NUM_MAX];
+        int i = 0;
+        args[i++] = broker->bin_path;
+        generate_args_string(broker->log_fd > 0, args, OPTION_NUM_MAX, &i, "--log", str_log);
+        generate_args_string(true, args, OPTION_NUM_MAX, &i, "--controller", str_controller);
+        generate_args_string(true, args, OPTION_NUM_MAX, &i, "--machine-id", broker->machine_id);
+        generate_args_string(true, args, OPTION_NUM_MAX, &i, "--max-bytes", str_max_bytes);
+        generate_args_string(true, args, OPTION_NUM_MAX, &i, "--max-fds", str_max_fds);
+        generate_args_string(true, args, OPTION_NUM_MAX, &i, "--max-matches", str_max_matches);
+        generate_args_string(true, args, OPTION_NUM_MAX, &i, "--reexec", str_mem_fd);
+        if (broker->arg_audit && i + 2 < OPTION_NUM_MAX)
+                args[i++] = "--audit";
+        args[i++] = NULL;
+
+        log_append_here(&broker->log, LOG_INFO, 0, NULL);
+        r = log_commitf(&broker->log, "Broker now reexecuting...");
+        if (r)
+                return error_fold(r);
+
+        execv(broker->bin_path, args);
+        return 0;
+}
+
+static void set_broker_from_arg(Broker *broker, BrokerArg *broker_arg) {
+        broker->arg_audit = broker_arg->arg_audit;
+        broker->bin_path = broker_arg->bin_path;
+        broker->machine_id = broker_arg->machine_id;
+        broker->log_fd = broker_arg->log_fd;
+        broker->controller_fd = broker_arg->controller_fd;
+        broker->mem_fd = broker_arg->mem_fd;
+        broker->max_bytes = broker_arg->max_bytes;
+        broker->max_fds = broker_arg->max_fds;
+        broker->max_matches = broker_arg->max_matches;
+        broker->max_objects = broker_arg->max_objects;
+}
+
+static int broker_reexecute(Broker *broker) {
+        int mem_fd;
+        int r;
+
+        log_append_here(&broker->log, LOG_INFO, 0, NULL);
+        r = log_commitf(&broker->log, "Serializing broker.\n");
+        if (r)
+                return error_fold(r);
+
+        /* serialize */
+        mem_fd = serialize_broker(broker);
+        if (mem_fd < 0) {
+                log_append_here(&broker->log, LOG_INFO, errno, DBUS_BROKER_CATALOG_BROKER_EXITED);
+                r = log_commitf(&broker->log, "Failed to serialize broker.\n");
+                if (r < 0)
+                        return error_fold(r);
+        }
+
+        kill(broker->launcher_pid, SIGCHLD);
+        return broker_execv_with_args(broker, mem_fd);
+}
+
+int broker_new(Broker **brokerp, BrokerArg *broker_arg) {
         _c_cleanup_(broker_freep) Broker *broker = NULL;
         struct ucred ucred;
         socklen_t z;
         sigset_t sigmask;
         int r, log_type;
+        int log_fd = broker_arg->log_fd, controller_fd = broker_arg->controller_fd;
+        const char* machine_id = broker_arg->machine_id;
+        uint64_t max_bytes = broker_arg->max_bytes, max_fds = broker_arg->max_fds;
+        uint64_t max_matches = broker_arg->max_matches, max_objects = broker_arg->max_objects;
 
         if (log_fd >= 0) {
                 z = sizeof(log_type);
@@ -67,6 +171,10 @@ int broker_new(Broker **brokerp, const char *machine_id, int log_fd, int control
         broker->bus = (Bus)BUS_NULL(broker->bus);
         broker->dispatcher = (DispatchContext)DISPATCH_CONTEXT_NULL(broker->dispatcher);
         broker->signals_fd = -1;
+        broker->reexec_serial = -1;
+        broker->do_reexec = false;
+        broker->launcher_pid = getppid();
+        set_broker_from_arg(broker, broker_arg);
         broker->signals_file = (DispatchFile)DISPATCH_FILE_NULL(broker->signals_file);
         broker->controller = (Controller)CONTROLLER_NULL(broker->controller);
 
@@ -209,6 +317,12 @@ int broker_run(Broker *broker) {
         else if (r)
                 return error_fold(r);
 
+        if (broker->mem_fd) {
+                r = deserialize_broker(broker, broker->mem_fd);
+                if (r)
+                        return error_trace(r);
+        }
+
         do {
                 r = dispatch_context_dispatch(&broker->dispatcher);
                 if (r == DISPATCH_E_EXIT)
@@ -217,7 +331,19 @@ int broker_run(Broker *broker) {
                         r = MAIN_FAILED;
                 else
                         r = error_fold(r);
+
+                if (broker->do_reexec)
+                        r = MAIN_REEXEC;
+
         } while (!r);
+
+        Peer *peeri;
+        c_rbtree_for_each_entry(peeri, &broker->bus.peers.peer_tree, registry_node) {
+                socket_dispatch_write(&peeri->connection.socket);
+        }
+
+        if (r == MAIN_REEXEC)
+                (void) broker_reexecute(broker);
 
         peer_registry_flush(&broker->bus.peers);
 
@@ -244,6 +370,27 @@ int broker_reload_config(Broker *broker, User *sender_user, uint64_t sender_id, 
                         return BROKER_E_FORWARD_FAILED;
 
                 return error_fold(r);
+        }
+
+        return 0;
+}
+
+int deserialize_broker(Broker *broker, int mem_fd) {
+        FILE *f = NULL;
+        int max_ids_length = ID_LENGTH_MAX + strlen("max_ids=");
+        _c_cleanup_(c_freep) char *buf = malloc(max_ids_length);
+
+        errno = 0;
+        f = fdopen(mem_fd, "r");
+        if (!f)
+                return error_trace(-errno);
+
+        while (fgets(buf, max_ids_length, f) != NULL) {
+                char *max_ids = string_prefix(buf, "max_ids=");
+                if (max_ids) {
+                        broker->bus.peers.ids = atoi(max_ids);
+                        break;
+                }
         }
 
         return 0;

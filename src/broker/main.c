@@ -18,8 +18,10 @@
 
 bool main_arg_audit = false;
 int main_arg_controller = 3;
+int main_reexec_fd = 0;
 int main_arg_log = -1;
 const char *main_arg_machine_id = NULL;
+const char *main_bin_path = NULL;
 uint64_t main_arg_max_bytes = 512 * 1024 * 1024;
 uint64_t main_arg_max_fds = 128;
 uint64_t main_arg_max_matches = 16 * 1024;
@@ -52,6 +54,7 @@ static int parse_argv(int argc, char *argv[]) {
                 ARG_MAX_FDS,
                 ARG_MAX_MATCHES,
                 ARG_MAX_OBJECTS,
+                ARG_REEXEC,
         };
         static const struct option options[] = {
                 { "help",               no_argument,            NULL,   'h'                     },
@@ -64,9 +67,13 @@ static int parse_argv(int argc, char *argv[]) {
                 { "max-fds",            required_argument,      NULL,   ARG_MAX_FDS             },
                 { "max-matches",        required_argument,      NULL,   ARG_MAX_MATCHES         },
                 { "max-objects",        required_argument,      NULL,   ARG_MAX_OBJECTS         },
+                { "reexec",             required_argument,      NULL,   ARG_REEXEC              },
                 {}
         };
         int r, c;
+
+        /* save the binary path, we use it when reexecuting. */
+        main_bin_path = argv[0] ? : BINDIR "/dbus-broker";
 
         while ((c = getopt_long(argc, argv, "h", options, NULL)) >= 0) {
                 switch (c) {
@@ -157,6 +164,21 @@ static int parse_argv(int argc, char *argv[]) {
                         }
 
                         break;
+
+                case ARG_REEXEC: {
+                        unsigned long vul;
+                        char *end;
+
+                        errno = 0;
+                        vul = strtoul(optarg, &end, 10);
+                        if (errno != 0 || *end || optarg == end || vul > INT_MAX) {
+                                fprintf(stderr, "%s: invalid controller file-descriptor -- '%s'\n", program_invocation_name, optarg);
+                                return MAIN_FAILED;
+                        }
+
+                        main_reexec_fd = vul;
+                        break;
+                }
 
                 case '?':
                         /* getopt_long() prints warning */
@@ -252,9 +274,21 @@ static int setup(void) {
 
 static int run(void) {
         _c_cleanup_(broker_freep) Broker *broker = NULL;
+        BrokerArg broker_arg = {
+                bin_path: main_bin_path,
+                machine_id: main_arg_machine_id,
+                arg_audit: main_arg_audit,
+                log_fd: main_arg_log,
+                controller_fd: main_arg_controller,
+                mem_fd: main_reexec_fd,
+                max_bytes: main_arg_max_bytes,
+                max_fds: main_arg_max_fds,
+                max_matches: main_arg_max_matches,
+                max_objects: main_arg_max_objects,
+        };
         int r;
 
-        r = broker_new(&broker, main_arg_machine_id, main_arg_log, main_arg_controller, main_arg_max_bytes, main_arg_max_fds, main_arg_max_matches, main_arg_max_objects);
+        r = broker_new(&broker, &broker_arg);
         if (!r)
                 r = broker_run(broker);
 

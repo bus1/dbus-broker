@@ -21,6 +21,7 @@ typedef struct MatchRegistryByPath MatchRegistryByPath;
 typedef struct MatchRegistry MatchRegistry;
 typedef struct MatchRule MatchRule;
 typedef struct MessageMetadata MessageMetadata;
+typedef struct RuleString RuleString;
 
 #define MATCH_RULE_LENGTH_MAX (1024UL) /* taken from dbus-daemon(1) */
 
@@ -161,6 +162,16 @@ struct MatchRegistry {
                 .monitor_tree = C_RBTREE_INIT,          \
         }
 
+struct RuleString {
+        char *rule_string;
+        CList rule_string_link;
+};
+
+#define RULE_STRING_INIT(_x) {                                          \
+                .rule_string = NULL,                                    \
+                .rule_string_link = C_LIST_INIT((_x).rule_string_link), \
+        }
+
 /* rules */
 
 MatchRule *match_rule_user_ref(MatchRule *rule);
@@ -175,6 +186,7 @@ C_DEFINE_CLEANUP(MatchRule *, match_rule_user_unref);
 
 void match_owner_init(MatchOwner *owner);
 void match_owner_deinit(MatchOwner *owner);
+void rule_string_deinit(CList *rule_string_list);
 
 void match_owner_get_stats(MatchOwner *owner, unsigned int *n_bytesp, unsigned int *n_matchesp);
 void match_owner_move(MatchOwner *to, MatchOwner *from);

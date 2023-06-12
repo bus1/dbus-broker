@@ -15,6 +15,7 @@
 #include <systemd/sd-bus.h>
 #include <systemd/sd-event.h>
 #include "dbus/protocol.h"
+#include "util/proc.h"
 #include "util/syscall.h"
 #include "util-broker.h"
 
@@ -59,7 +60,7 @@ static int util_event_sigchld(sd_event_source *source, const siginfo_t *si, void
                 "a(ss)"                                                         \
                 "bs"
 
-static int util_append_policy(sd_bus_message *m) {
+int util_append_policy(sd_bus_message *m) {
         int r;
 
         r = sd_bus_message_open_container(m, 'v', "(" POLICY_T ")");
@@ -171,16 +172,54 @@ static int util_method_reload_config(sd_bus_message *message, void *userdata, sd
         return sd_bus_reply_method_return(message, NULL);
 }
 
+static int util_method_reexecute(sd_bus_message *message, void *userdata, sd_bus_error *error) {
+        (void) sd_bus_reply_method_return(message, NULL);
+
+        /* lc_fd is used by two threads(T1: main thread in test-reexecute;
+           T2: current thread used to fork broker). Once this reply is
+           returned to cmd_bus, we will reuse lc_fd to establish a new dbus
+           connection named listener_bus in T1. The message received from
+           lc_fd will trigger epoll event on both threads. If the event is
+           processed by T1, everything works fine. But if it is processed
+           T2, the event loop will be confused by the message, since it doesn't
+           know how it is generated. This will make T2 sets dbus's state to
+           closing and closes lc_fd eventually in time_callback, then broker
+           will get ECONNRESET errno and exits. When T1 wants to send
+           AddListener to broker, it fails. So T2 must exit here. */
+
+        pthread_exit(NULL);
+        return 0;
+}
+
 const sd_bus_vtable util_vtable[] = {
         SD_BUS_VTABLE_START(0),
 
         SD_BUS_METHOD("ReloadConfig", NULL, NULL, util_method_reload_config, 0),
+        SD_BUS_METHOD("Reexecute",    NULL, NULL, util_method_reexecute,     0),
 
         SD_BUS_VTABLE_END
 };
 
-void util_fork_broker(sd_bus **busp, sd_event *event, int listener_fd, pid_t *pidp) {
-        _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+int create_broker_listener(Broker *broker) {
+        int r;
+
+        broker->listener_fd = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
+        c_assert(broker->listener_fd >= 0);
+
+        r = bind(broker->listener_fd, (struct sockaddr *)&broker->address, offsetof(struct sockaddr_un, sun_path));
+        c_assert(r >= 0);
+
+        r = getsockname(broker->listener_fd, (struct sockaddr *)&broker->address, &broker->n_address);
+        c_assert(r >= 0);
+
+        r = listen(broker->listener_fd, 256);
+        c_assert(r >= 0);
+
+        return 0;
+}
+
+void util_fork_broker(sd_bus **busp, sd_event *event, int listener_fd, pid_t *pidp, bool is_reexec, int *lc_fd) {
+        sd_bus *bus = NULL;
         _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *message = NULL;
         _c_cleanup_(c_freep) char *fdstr = NULL;
         int r, pair[2];
@@ -220,8 +259,10 @@ void util_fork_broker(sd_bus **busp, sd_event *event, int listener_fd, pid_t *pi
         if (pidp)
                 *pidp = pid;
 
-        r = sd_event_add_child(event, NULL, pid, WEXITED, util_event_sigchld, NULL);
-        c_assert(r >= 0);
+        if (!is_reexec) {
+                r = sd_event_add_child(event, NULL, pid, WEXITED, util_event_sigchld, NULL);
+                c_assert(r >= 0);
+        }
 
         r = sd_bus_new(&bus);
         c_assert(r >= 0);
@@ -229,6 +270,7 @@ void util_fork_broker(sd_bus **busp, sd_event *event, int listener_fd, pid_t *pi
         /* consumes the fd */
         r = sd_bus_set_fd(bus, pair[0], pair[0]);
         c_assert(r >= 0);
+        *lc_fd = pair[0];
 
         r = sd_bus_attach_event(bus, event, SD_EVENT_PRIORITY_NORMAL);
         c_assert(r >= 0);
@@ -388,7 +430,7 @@ static void *util_broker_thread(void *userdata) {
         c_assert(r >= 0);
 
         if (broker->listener_fd >= 0) {
-                util_fork_broker(&bus, event, broker->listener_fd, &broker->child_pid);
+                util_fork_broker(&bus, event, broker->listener_fd, &broker->child_pid, broker->test_reexec, &broker->lc_fd);
                 /* dbus-broker reports its controller in GetConnectionUnixProcessID */
                 broker->pid = getpid();
                 broker->listener_fd = c_close(broker->listener_fd);
@@ -484,17 +526,7 @@ void util_broker_spawn(Broker *broker) {
                  * run and babysit the broker.
                  */
 
-                broker->listener_fd = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
-                c_assert(broker->listener_fd >= 0);
-
-                r = bind(broker->listener_fd, (struct sockaddr *)&broker->address, offsetof(struct sockaddr_un, sun_path));
-                c_assert(r >= 0);
-
-                r = getsockname(broker->listener_fd, (struct sockaddr *)&broker->address, &broker->n_address);
-                c_assert(r >= 0);
-
-                r = listen(broker->listener_fd, 256);
-                c_assert(r >= 0);
+                create_broker_listener(broker);
 
                 r = pthread_create(&broker->thread, NULL, util_broker_thread, broker);
                 c_assert(r >= 0);

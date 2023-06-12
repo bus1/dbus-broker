@@ -153,6 +153,10 @@ int controller_request_reload(Controller *controller,
                               User *user,
                               uint64_t sender_id,
                               uint32_t sender_serial);
+int controller_request_reexecute(Controller *controller,
+                                 User *user,
+                                 uint64_t sender_id,
+                                 uint32_t sender_serial);
 ControllerName *controller_find_name(Controller *controller, const char *path);
 ControllerListener *controller_find_listener(Controller *controller, const char *path);
 ControllerReload *controller_find_reload(Controller *controller, uint32_t serial);
@@ -160,6 +164,7 @@ ControllerReload *controller_find_reload(Controller *controller, uint32_t serial
 int controller_dbus_dispatch(Controller *controller, Message *message);
 int controller_dbus_send_activation(Controller *controller, const char *path, uint64_t serial);
 int controller_dbus_send_reload(Controller *controller, User *user, uint32_t serial);
+int controller_dbus_send_reexecute(Controller *controller, User *user, uint32_t serial);
 int controller_dbus_send_environment(Controller *controller, const char * const *env, size_t n_env);
 
 C_DEFINE_CLEANUP(Controller *, controller_deinit);

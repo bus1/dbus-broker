@@ -29,6 +29,7 @@ struct Launcher {
         Log log;
         int fd_listen;
         bool audit;
+        int broker_reexecuted;
         bool user_scope;
         char *configfile;
         Dirwatch *dirwatch;
@@ -38,13 +39,16 @@ struct Launcher {
         uint64_t service_ids;
         uint32_t uid;
         uint32_t gid;
+        uint32_t controller_fd;
         uint64_t max_bytes;
         uint64_t max_fds;
         uint64_t max_matches;
+        pid_t broker_pid;
         bool at_console;
 };
 
-int launcher_new(Launcher **launcherp, int listen_fd, bool audit, const char *configfile, bool user_scope);
+int launcher_new(Launcher **launcherp, int listen_fd, bool audit, const char *configfile,
+                 bool user_scope, int controller_fd, int broker_pid);
 Launcher *launcher_free(Launcher *launcher);
 
 C_DEFINE_CLEANUP(Launcher *, launcher_free);

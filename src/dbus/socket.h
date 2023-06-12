@@ -72,6 +72,7 @@ int socket_queue_line(Socket *socket, User *user, const char *line, size_t n);
 int socket_queue(Socket *socket, User *user, Message *message);
 
 int socket_dispatch(Socket *socket, uint32_t event);
+int socket_dispatch_write(Socket *socket);
 void socket_shutdown(Socket *socket);
 void socket_close(Socket *socket);
 void socket_get_stats(Socket *socket,

@@ -732,7 +732,7 @@ static int socket_dispatch_read(Socket *socket) {
                               charge_fds);
 }
 
-static int socket_dispatch_write(Socket *socket) {
+int socket_dispatch_write(Socket *socket) {
         SocketBuffer *buffer, *safe;
         struct mmsghdr msgs[SOCKET_MMSG_MAX];
         struct msghdr *msg;

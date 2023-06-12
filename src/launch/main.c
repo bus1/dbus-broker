@@ -7,8 +7,10 @@
 #include <getopt.h>
 #include <stdlib.h>
 #include <systemd/sd-daemon.h>
+#include <systemd/sd-bus.h>
 #include "launch/launcher.h"
 #include "util/error.h"
+#include "util/proc.h"
 
 enum {
         _MAIN_SUCCESS,
@@ -20,6 +22,9 @@ static bool             main_arg_audit = false;
 static const char *     main_arg_configfile = NULL;
 static bool             main_arg_user_scope = false;
 static int              main_fd_listen = -1;
+static bool             main_arg_cmd_reexec = false;
+static int              main_arg_controller_fd = 0;
+static pid_t            main_arg_broker_pid = -1;
 
 static void help(void) {
         printf("%s [GLOBALS...] ...\n\n"
@@ -29,6 +34,7 @@ static void help(void) {
                "     --audit            Enable audit support\n"
                "     --config-file PATH Specify path to configuration file\n"
                "     --scope SCOPE      Scope of message bus\n"
+               "     --reexec           Restart dbus with peers connected\n"
                , program_invocation_short_name);
 }
 
@@ -39,14 +45,20 @@ static int parse_argv(int argc, char *argv[]) {
                 ARG_AUDIT,
                 ARG_CONFIG,
                 ARG_SCOPE,
+                ARG_CONTROLLER_FD,
+                ARG_BROKER_PID,
+                ARG_REEXEC,
         };
         static const struct option options[] = {
                 { "help",               no_argument,            NULL,   'h'                     },
                 { "version",            no_argument,            NULL,   ARG_VERSION             },
                 { "verbose",            no_argument,            NULL,   ARG_VERBOSE             },
                 { "audit",              no_argument,            NULL,   ARG_AUDIT               },
-                { "config-file",        required_argument,      NULL,   ARG_CONFIG,             },
+                { "config-file",        required_argument,      NULL,   ARG_CONFIG              },
                 { "scope",              required_argument,      NULL,   ARG_SCOPE               },
+                { "controller-fd",      required_argument,      NULL,   ARG_CONTROLLER_FD       },
+                { "broker-pid",         required_argument,      NULL,   ARG_BROKER_PID          },
+                { "reexec",             no_argument,            NULL,   ARG_REEXEC              },
                 {}
         };
         int c;
@@ -82,6 +94,40 @@ static int parse_argv(int argc, char *argv[]) {
                                 fprintf(stderr, "%s: invalid message bus scope -- '%s'\n", program_invocation_name, optarg);
                                 return MAIN_FAILED;
                         }
+                        break;
+
+                case ARG_CONTROLLER_FD: {
+                        unsigned long vul;
+                        char *end;
+
+                        errno = 0;
+                        vul = strtoul(optarg, &end, 10);
+                        if (errno != 0 || *end || optarg == end || vul > INT_MAX) {
+                                fprintf(stderr, "%s: invalid controller fd -- '%s'\n", program_invocation_name, optarg);
+                                return MAIN_FAILED;
+                        }
+
+                        main_arg_controller_fd = vul;
+                        break;
+                }
+
+                case ARG_BROKER_PID: {
+                        unsigned long vul;
+                        char *end;
+
+                        errno = 0;
+                        vul = strtoul(optarg, &end, 10);
+                        if (errno != 0 || *end || optarg == end || vul > INT_MAX) {
+                                fprintf(stderr, "%s: invalid broker pid -- '%s'\n", program_invocation_name, optarg);
+                                return MAIN_FAILED;
+                        }
+
+                        main_arg_broker_pid = (pid_t) vul;
+                        break;
+                }
+
+                case ARG_REEXEC:
+                        main_arg_cmd_reexec = true;
                         break;
 
                 case '?':
@@ -144,12 +190,78 @@ static int run(void) {
         _c_cleanup_(launcher_freep) Launcher *launcher = NULL;
         int r;
 
-        r = launcher_new(&launcher, main_fd_listen, main_arg_audit, main_arg_configfile, main_arg_user_scope);
+        r = launcher_new(&launcher, main_fd_listen, main_arg_audit, main_arg_configfile,
+                         main_arg_user_scope, main_arg_controller_fd, main_arg_broker_pid);
         if (r)
                 return error_fold(r);
 
         r = launcher_run(launcher);
         return error_fold(r);
+}
+
+static int ready_signal_dispatch(sd_bus_message *message, void *userdata, sd_bus_error *errorp) {
+        int *reexec_ready = (int *) userdata;
+        *reexec_ready = 1;
+        return 0;
+}
+
+static int trigger_reexecute(void) {
+        _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+        _c_cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
+        _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *m = NULL;
+        int r, reexec_ready = 0;
+
+        r = sd_bus_open_system(&bus);
+        if (r < 0)
+                return error_origin(r);
+
+        r = sd_bus_match_signal(bus, NULL, NULL, "/org/bus1/DBus/Controller",
+                                "org.bus1.DBus.Controller",
+                                "Ready",
+                                ready_signal_dispatch,
+                                &reexec_ready);
+        if (r < 0) {
+                fprintf(stderr, "Failed to add match signal: %s\n", strerror(-r));
+                goto finish;
+        }
+
+        r = sd_bus_message_new_method_call(bus, &m, "org.freedesktop.DBus",
+                                           "/org/freedesktop/DBus",
+                                           "org.freedesktop.DBus",
+                                           "Reexecute");
+        if (r < 0)
+                return error_origin(r);
+
+        r = sd_bus_call(bus, m, 0, &error, NULL);
+
+        if (r < 0) {
+                fprintf(stderr, "Failed to reexecute dbus-broker due to fatal error: %s\n", strerror(-r));
+                goto finish;
+        }
+
+        for (;;) {
+                r = sd_bus_process(bus, NULL);
+                if (r < 0) {
+                        fprintf(stderr, "Failed to process bus: %s\n", strerror(-r));
+                        goto finish;
+                }
+
+                if (reexec_ready)
+                        break;
+
+                if (r > 0)
+                        continue;
+
+                r = sd_bus_wait(bus, (uint64_t) -1);
+                if (r < 0) {
+                        fprintf(stderr, "Failed to wait on bus: %s\n", strerror(-r));
+                        goto finish;
+                }
+        }
+
+        r = 0;
+finish:
+        return r < 0 ? EXIT_FAILURE : EXIT_SUCCESS;
 }
 
 int main(int argc, char **argv) {
@@ -159,6 +271,9 @@ int main(int argc, char **argv) {
         r = parse_argv(argc, argv);
         if (r)
                 goto exit;
+
+        if (main_arg_cmd_reexec)
+                return trigger_reexecute();
 
         r = inherit_fds();
         if (r)

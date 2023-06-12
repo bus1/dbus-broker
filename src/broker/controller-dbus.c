@@ -11,6 +11,7 @@
 #include "broker/broker.h"
 #include "broker/controller.h"
 #include "bus/policy.h"
+#include "bus/peer.h"
 #include "dbus/connection.h"
 #include "dbus/message.h"
 #include "dbus/protocol.h"
@@ -275,6 +276,16 @@ static int controller_method_add_listener(Controller *controller, const char *_p
 
         c_dvar_write(out_v, "()");
 
+        /* We choose to recover peer when adding listener. Because if before this,
+         * we do not know configs or polices of the new version. If after this, i.e.
+         * in listener_dispatch, the recover can't be done unless some new clients
+         * try to establish new connection. */
+        if (controller->broker->mem_fd) {
+                r = peer_recover_with_fd(controller->broker->mem_fd, listener);
+                if (r)
+                        return error_trace(r);
+        }
+
         return 0;
 }
 
@@ -528,6 +539,12 @@ static int controller_dispatch_reply(Controller *controller, uint32_t serial, co
         ControllerReload *reload;
         int r;
 
+        /* Set broker->do_reexec to true if we get the reply from launcher. */
+        if (controller->broker->reexec_serial != -1 && controller->broker->reexec_serial == serial) {
+                controller->broker->do_reexec = true;
+                return 0;
+        }
+
         reload = controller_find_reload(controller, serial);
         if (!reload)
                 return CONTROLLER_E_UNEXPECTED_REPLY;
@@ -769,6 +786,50 @@ int controller_dbus_send_reload(Controller *controller, User *user, uint32_t ser
                      DBUS_MESSAGE_FIELD_PATH, c_dvar_type_o, "/org/bus1/DBus/Controller",
                      DBUS_MESSAGE_FIELD_INTERFACE, c_dvar_type_s, "org.bus1.DBus.Controller",
                      DBUS_MESSAGE_FIELD_MEMBER, c_dvar_type_s, "ReloadConfig");
+
+        r = c_dvar_end_write(&var, &data, &n_data);
+        if (r)
+                return error_origin(r);
+
+        r = message_new_outgoing(&message, data, n_data);
+        if (r)
+                return error_fold(r);
+        data = NULL;
+
+        r = connection_queue(&controller->connection, user, message);
+        if (r) {
+                if (r == CONNECTION_E_QUOTA)
+                        return CONTROLLER_E_QUOTA;
+
+                return error_fold(r);
+        }
+
+        return 0;
+}
+
+/**
+ * controller_dbus_send_reexecute() - XXX
+ */
+int controller_dbus_send_reexecute(Controller *controller, User *user, uint32_t serial) {
+        static const CDVarType type[] = {
+                C_DVAR_T_INIT(
+                        CONTROLLER_T_MESSAGE(
+                                C_DVAR_T_TUPLE0
+                        )
+                )
+        };
+        _c_cleanup_(c_dvar_deinit) CDVar var = C_DVAR_INIT;
+        _c_cleanup_(message_unrefp) Message *message = NULL;
+        _c_cleanup_(c_freep) void *data = NULL;
+        size_t n_data;
+        int r;
+
+        c_dvar_begin_write(&var, (__BYTE_ORDER == __BIG_ENDIAN), type, 1);
+        c_dvar_write(&var, "((yyyyuu[(y<o>)(y<s>)(y<s>)])())",
+                     c_dvar_is_big_endian(&var) ? 'B' : 'l', DBUS_MESSAGE_TYPE_METHOD_CALL, 0, 1, 0, serial,
+                     DBUS_MESSAGE_FIELD_PATH, c_dvar_type_o, "/org/bus1/DBus/Controller",
+                     DBUS_MESSAGE_FIELD_INTERFACE, c_dvar_type_s, "org.bus1.DBus.Controller",
+                     DBUS_MESSAGE_FIELD_MEMBER, c_dvar_type_s, "Reexecute");
 
         r = c_dvar_end_write(&var, &data, &n_data);
         if (r)
