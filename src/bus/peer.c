@@ -548,7 +548,9 @@ static int peer_link_match(Peer *peer, MatchRule *rule, bool monitor) {
                 case ADDRESS_TYPE_ID: {
                         sender = peer_registry_find_peer(&peer->bus->peers, addr.id);
                         if (sender) {
-                                match_rule_link(rule, &sender->sender_matches, monitor);
+                                r = match_rule_link(rule, &sender->sender_matches, monitor);
+                                if (r)
+                                        return error_fold(r);
                         } else if (addr.id >= peer->bus->peers.ids) {
                                 /*
                                  * This peer does not yet exist, by the same
