@@ -28,7 +28,8 @@ typedef struct BusSELinuxName BusSELinuxName;
 
 static bool bus_selinux_avc_open;
 
-/** bus_selinux_is_enabled() - checks if SELinux is currently enabled
+/**
+ * bus_selinux_is_enabled() - checks if SELinux is currently enabled
  *
  * Returns: true if SELinux is enabled, false otherwise.
  */
