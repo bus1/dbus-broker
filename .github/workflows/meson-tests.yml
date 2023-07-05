@@ -1,3 +1,15 @@
+#
+# Meson Test Suite
+#
+# This workflow builds the project via meson, configures a suitable test
+# environment, and then runs the test-suite defined in meson.
+#
+# We run the test-suite multiple times in parallel, each run with a different
+# setup, ranging from release builds to non-standard configuration flags. We
+# do not test the fully expanded matrix, but instead test a pre-defined set
+# of setups, to reduce burden on the CI systems.
+#
+
 name: "Meson Test Suite"
 
 on:
@@ -19,6 +31,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
+        # Test a release build as recommended by upstream. This picks clang as
+        # compiler with debug-optimized as build-target. We do not run valgrind
+        # since it clashes with sd-bus used by the launcher. This test also
+        # builds documentation and related resources.
         - id: "release"
           name: "RELEASE @ CLANG-X86_64 @ +TEST -VALGRIND @ -APPARMOR +AUDIT +DOCS +LAUNCHER -SELINUX"
 
@@ -32,6 +48,7 @@ jobs:
           valgrind: "no"
           warnlevel: "2"
 
+        # A release build with `-m32` to test on 32-bit.
         - id: "32bit"
           name: "RELEASE @ CLANG-I686 @ +TEST -VALGRIND @ -APPARMOR +AUDIT -DOCS +LAUNCHER -SELINUX"
 
@@ -43,6 +60,9 @@ jobs:
           test: "yes"
           warnlevel: "2"
 
+        # A release build running through valgrind. We disable all features
+        # that currently do not support valgrind runs (in particular sd-bus in
+        # the launcher).
         - id: "valgrind"
           name: "RELEASE @ CLANG-X86_64 @ +TEST +VALGRIND @ -APPARMOR +AUDIT -DOCS -LAUNCHER -SELINUX"
 
@@ -54,6 +74,8 @@ jobs:
           valgrind: "yes"
           warnlevel: "2"
 
+        # A reduced build with `-O0` to verify we do not rely on dead-code
+        # elimination.
         - id: "O0-PLAIN"
           name: "PLAIN @ GCC-X86_64 @ +TEST -VALGRIND @ -APPARMOR +AUDIT -DOCS +LAUNCHER -SELINUX"
 
@@ -64,6 +86,8 @@ jobs:
           test: "yes"
           warnlevel: "2"
 
+        # An aggressive -O3 -DNDEBUG build that verfies that we properly
+        # follow strict aliasing rules and do not rely on debug builds.
         - id: "O3-NDEBUG"
           name: "OPTIMIZED @ GCC-X86_64 @ +TEST -VALGRIND @ -APPARMOR +AUDIT -DOCS +LAUNCHER -SELINUX"
 
