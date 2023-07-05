@@ -6,6 +6,7 @@
 #include <c-stdaux.h>
 #include <expat.h>
 #include <stdlib.h>
+#include <sys/auxv.h>
 #include "dbus/protocol.h"
 #include "launch/config.h"
 #include "launch/nss-cache.h"
@@ -1227,10 +1228,25 @@ static void config_parser_blob_fn(void *userdata, const XML_Char *data, int n_da
  * config_parser_init() - XXX
  */
 void config_parser_init(ConfigParser *parser) {
+        void *random;
+
         *parser = (ConfigParser)CONFIG_PARSER_NULL(*parser);
 
         parser->xml = XML_ParserCreate(NULL);
         c_assert(parser->xml);
+
+        /*
+         * The hash-tables of libexpat require a reliable random seed.
+         * Depending on libexpat compilation flags, this might end up using
+         * `/dev/urandom` and thus block until random-initialization is
+         * finished. We avoid this hidden dependency and instead use the
+         * entropy provided via `AT_RANDOM`. Hence, entropy availability is
+         * tightly coupled to process startup, and it is the job of the
+         * service manager to order processes accordingly.
+         */
+        random = (void *)getauxval(AT_RANDOM);
+        c_assert(random);
+        c_memcpy(&parser->salt, random, sizeof(parser->salt));
 }
 
 /**
@@ -1274,6 +1290,7 @@ static int config_parser_include(ConfigParser *parser, ConfigRoot *root, ConfigN
         }
 
         XML_ParserReset(parser->xml, NULL);
+        XML_SetHashSalt(parser->xml, parser->salt);
         XML_SetUserData(parser->xml, &parser->state);
         XML_SetElementHandler(parser->xml, config_parser_begin_fn, config_parser_end_fn);
         XML_SetCharacterDataHandler(parser->xml, config_parser_blob_fn);
