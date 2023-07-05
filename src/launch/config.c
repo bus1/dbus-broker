@@ -1230,6 +1230,7 @@ void config_parser_init(ConfigParser *parser) {
         *parser = (ConfigParser)CONFIG_PARSER_NULL(*parser);
 
         parser->xml = XML_ParserCreate(NULL);
+        c_assert(parser->xml);
 }
 
 /**
