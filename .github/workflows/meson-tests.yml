@@ -36,14 +36,14 @@ jobs:
         # since it clashes with sd-bus used by the launcher. This test also
         # builds documentation and related resources.
         - id: "release"
-          name: "RELEASE @ CLANG-X86_64 @ +TEST -VALGRIND @ -APPARMOR +AUDIT +DOCS +LAUNCHER -SELINUX"
+          name: "RELEASE @ CLANG-X86_64 @ +TEST -VALGRIND @ -APPARMOR +AUDIT +DOCS +LAUNCHER +SELINUX"
 
           # Explicitly set all options here to document them.
           buildtype: "debugoptimized"
           cc: "clang"
           cflags: "-Werror"
           m32: "no"
-          setupargs: "-Daudit=true -Ddocs=true -Dlauncher=true"
+          setupargs: "-Daudit=true -Ddocs=true -Dlauncher=true -Dselinux=true"
           test: "yes"
           valgrind: "no"
           warnlevel: "2"
@@ -77,24 +77,24 @@ jobs:
         # A reduced build with `-O0` to verify we do not rely on dead-code
         # elimination.
         - id: "O0-PLAIN"
-          name: "PLAIN @ GCC-X86_64 @ +TEST -VALGRIND @ -APPARMOR +AUDIT -DOCS +LAUNCHER -SELINUX"
+          name: "PLAIN @ GCC-X86_64 @ +TEST -VALGRIND @ -APPARMOR +AUDIT -DOCS +LAUNCHER +SELINUX"
 
           buildtype: "plain"
           cc: "gcc"
           cflags: "-O0 -Werror"
-          setupargs: "-Daudit=true -Dlauncher=true"
+          setupargs: "-Daudit=true -Dlauncher=true -Dselinux=true"
           test: "yes"
           warnlevel: "2"
 
         # An aggressive -O3 -DNDEBUG build that verfies that we properly
         # follow strict aliasing rules and do not rely on debug builds.
         - id: "O3-NDEBUG"
-          name: "OPTIMIZED @ GCC-X86_64 @ +TEST -VALGRIND @ -APPARMOR +AUDIT -DOCS +LAUNCHER -SELINUX"
+          name: "OPTIMIZED @ GCC-X86_64 @ +TEST -VALGRIND @ -APPARMOR +AUDIT -DOCS +LAUNCHER +SELINUX"
 
           buildtype: "release"
           cc: "gcc"
           cflags: "-O3 -Werror -DNDEBUG"
-          setupargs: "-Daudit=true -Dlauncher=true"
+          setupargs: "-Daudit=true -Dlauncher=true -Dselinux=true"
           test: "yes"
           warnlevel: "2"
 
