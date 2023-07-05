@@ -6,8 +6,9 @@
 
 #include <c-list.h>
 #include <c-stdaux.h>
-#include <expat.h>
 #include <stdlib.h>
+
+struct XML_ParserStruct;
 
 typedef struct ConfigPath ConfigPath;
 typedef struct ConfigNode ConfigNode;
@@ -218,7 +219,7 @@ struct ConfigRoot {
         }
 
 struct ConfigParser {
-        XML_Parser xml;
+        struct XML_ParserStruct *xml;
 
         struct ConfigState {
                 NSSCache *nss;
