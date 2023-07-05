@@ -1,0 +1,131 @@
+name: "Meson Test Suite"
+
+on:
+  pull_request:
+  push:
+    branches-ignore: ["pr/**"]
+    tags: ["**"]
+  workflow_dispatch:
+
+defaults:
+  run:
+    shell: "bash"
+
+jobs:
+  unittest:
+    name: "Unittest - ${{ matrix.id }} - ${{ matrix.name }}"
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - id: "release"
+          name: "RELEASE @ CLANG-X86_64 @ +TEST -VALGRIND @ -APPARMOR +AUDIT +DOCS +LAUNCHER -SELINUX"
+
+          # Explicitly set all options here to document them.
+          buildtype: "debugoptimized"
+          cc: "clang"
+          cflags: "-Werror"
+          m32: "no"
+          setupargs: "-Daudit=true -Ddocs=true -Dlauncher=true"
+          test: "yes"
+          valgrind: "no"
+          warnlevel: "2"
+
+        - id: "32bit"
+          name: "RELEASE @ CLANG-I686 @ +TEST -VALGRIND @ -APPARMOR +AUDIT -DOCS +LAUNCHER -SELINUX"
+
+          buildtype: "debugoptimized"
+          cc: "clang"
+          cflags: "-m32 -Werror"
+          m32: "yes"
+          setupargs: "-Daudit=true -Dlauncher=true"
+          test: "yes"
+          warnlevel: "2"
+
+        - id: "valgrind"
+          name: "RELEASE @ CLANG-X86_64 @ +TEST +VALGRIND @ -APPARMOR +AUDIT -DOCS -LAUNCHER -SELINUX"
+
+          buildtype: "debugoptimized"
+          cc: "clang"
+          cflags: "-Werror"
+          setupargs: "-Daudit=true -Dlauncher=false"
+          test: "yes"
+          valgrind: "yes"
+          warnlevel: "2"
+
+        - id: "O0-PLAIN"
+          name: "PLAIN @ GCC-X86_64 @ +TEST -VALGRIND @ -APPARMOR +AUDIT -DOCS +LAUNCHER -SELINUX"
+
+          buildtype: "plain"
+          cc: "gcc"
+          cflags: "-O0 -Werror"
+          setupargs: "-Daudit=true -Dlauncher=true"
+          test: "yes"
+          warnlevel: "2"
+
+        - id: "O3-NDEBUG"
+          name: "OPTIMIZED @ GCC-X86_64 @ +TEST -VALGRIND @ -APPARMOR +AUDIT -DOCS +LAUNCHER -SELINUX"
+
+          buildtype: "release"
+          cc: "gcc"
+          cflags: "-O3 -Werror -DNDEBUG"
+          setupargs: "-Daudit=true -Dlauncher=true"
+          test: "yes"
+          warnlevel: "2"
+
+    container:
+      image: "ghcr.io/bus1/ci-c-util:latest"
+
+    env:
+      CC: ${{ matrix.cc }}
+      CFLAGS: ${{ matrix.cflags }}
+
+    runs-on: "ubuntu-latest"
+
+    steps:
+    - name: "Fetch Sources"
+      uses: actions/checkout@v3
+
+    - name: "Setup 32-bit Environment"
+      if: matrix.m32 == 'yes'
+      run: |
+        echo \
+          "PKG_CONFIG_LIBDIR=/usr/lib/pkgconfig:/usr/share/pkgconfig" \
+          >> $GITHUB_ENV
+
+    - name: "Setup Meson"
+      run: |
+        meson setup \
+          --buildtype "${{ matrix.buildtype }}" \
+          --warnlevel "${{ matrix.warnlevel }}" \
+          ${{ matrix.setupargs }} \
+          "./build" \
+          "."
+
+    - name: "Compile Project"
+      run: |
+        meson compile \
+          -C "./build"
+
+    - name: "Run Tests"
+      if: matrix.test == 'yes'
+      run: |
+        meson test \
+          -C "./build" \
+          --print-errorlogs
+
+    - name: "Run Valgrind"
+      if: matrix.valgrind == 'yes'
+      run: |
+        args=(
+          "--gen-suppressions=all"
+          "--trace-children=yes"
+          "--leak-check=full"
+          "--error-exitcode=1"
+        )
+        meson test \
+          -C "./build" \
+          --print-errorlogs \
+          --timeout-multiplier=16 \
+          --wrapper="valgrind ${args[*]}"
