@@ -220,6 +220,7 @@ struct ConfigRoot {
 
 struct ConfigParser {
         struct XML_ParserStruct *xml;
+        unsigned long salt;
 
         struct ConfigState {
                 NSSCache *nss;
