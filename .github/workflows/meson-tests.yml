@@ -98,6 +98,18 @@ jobs:
           test: "yes"
           warnlevel: "2"
 
+        # Disable all options to compile-test their fallbacks. Run the test
+        # suite to run basic fallback verification.
+        - id: "fallback"
+          name: "OPTIMIZED @ CLANG-X86_64 @ +TEST -VALGRIND @ -APPARMOR -AUDIT -DOCS -LAUNCHER -SELINUX"
+
+          buildtype: "debugoptimized"
+          cc: "clang"
+          cflags: "-Werror"
+          setupargs: "-Dlauncher=false"
+          test: "yes"
+          warnlevel: "2"
+
     container:
       image: "ghcr.io/bus1/ci-c-util:latest"
 
