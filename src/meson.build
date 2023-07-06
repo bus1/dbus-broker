@@ -212,6 +212,9 @@ endif
 test_peersec = executable('test-peersec', ['util/test-peersec.c'], dependencies: dep_bus)
 test('SO_PEERSEC Queries', test_peersec)
 
+test_proc = executable('test-proc', ['util/test-proc.c'], dependencies: dep_bus)
+test('Proc Utilities', test_proc)
+
 test_queue = executable('test-queue', ['dbus/test-queue.c'], dependencies: dep_bus)
 test('D-Bus I/O Queues', test_queue)
 

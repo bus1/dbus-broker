@@ -9,6 +9,61 @@
 #include "util/error.h"
 #include "util/proc.h"
 
+/**
+ * proc_field() - Extract individual field from proc-text-file
+ * @data:       content of the file
+ * @key:        key to find
+ * @valuep:     output variable to store the duplicated value
+ *
+ * Search through a key-value proc-file for the specified key and return the
+ * value as newly allocated string.
+ *
+ * The caller is responsible to free the value via `free()`.
+ *
+ * The proc-file must be a standard text-file with no embedded string
+ * terminators. It is the caller's responsibility to use this only on
+ * suitable files.
+ *
+ * Return: 0 on success, PROC_E_NOT_FOUND if the key was not found, and
+ *         negative error code on failure.
+ */
+int proc_field(const char *data, const char *key, char **valuep) {
+        const size_t n_key = strlen(key);
+        const char *pos, *t;
+        char *value;
+
+        pos = data;
+        do {
+                do {
+                        /* Find next occurrence of they key. */
+                        t = strstr(pos, key);
+                        if (!t)
+                                return PROC_E_NOT_FOUND;
+
+                        pos = t + n_key;
+
+                        /* Continue if the key does not start a line. */
+                } while (t != data && t[-1] != '\n');
+
+                /* Skip possible whitespace before the colon. */
+                pos += strspn(pos, " \t");
+
+                /* Continue if the key is not complete. */
+        } while (*pos != ':');
+
+        /* Skip over the colon and whitespace. */
+        ++pos;
+        pos += strspn(pos, " \t");
+
+        /* Extract the value. */
+        value = strndup(pos, strcspn(pos, " \t\n\r"));
+        if (!value)
+                return error_origin(-ENOMEM);
+
+        *valuep = value;
+        return 0;
+}
+
 int proc_get_seclabel(pid_t pid, char **labelp, size_t *n_labelp) {
         _c_cleanup_(c_fclosep) FILE *f = NULL;
         char path[64], buffer[LINE_MAX] = {}, *c, *label;
