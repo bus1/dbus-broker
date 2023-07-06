@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include "util/proc.h"
 #include "util/string.h"
+#include "util/syscall.h"
 
 static void test_field(void) {
         char *value;
@@ -51,7 +52,40 @@ static void test_field(void) {
         c_assert(r == PROC_E_NOT_FOUND);
 }
 
+static void test_read(void) {
+        _c_cleanup_(c_closep) int fd = -1;
+        const char *str = "01234567";
+        size_t i, n_data;
+        char *data;
+        ssize_t l;
+        int r;
+
+        fd = syscall_memfd_create("test-proc", 0x1);
+        c_assert(fd >= 0);
+
+        for (i = 0; i < 1024; i += strlen(str)) {
+                l = pwrite(fd, str, strlen(str), i);
+                c_assert(l == 8);
+        }
+
+        r = proc_read(fd, &data, &n_data);
+        c_assert(!r);
+        c_assert(n_data == 1024);
+        c_free(data);
+
+        for ( ; i < 8192; i += strlen(str)) {
+                l = pwrite(fd, str, strlen(str), i);
+                c_assert(l == 8);
+        }
+
+        r = proc_read(fd, &data, &n_data);
+        c_assert(!r);
+        c_assert(n_data == 8192);
+        c_free(data);
+}
+
 int main(int argc, char **argv) {
         test_field();
+        test_read();
         return 0;
 }

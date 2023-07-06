@@ -17,5 +17,6 @@ enum {
 };
 
 int proc_field(const char *data, const char *key, char **valuep);
+int proc_read(int fd, char **datap, size_t *n_datap);
 
 int proc_get_seclabel(pid_t pid, char **labelp, size_t *n_labelp);

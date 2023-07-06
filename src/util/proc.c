@@ -64,6 +64,80 @@ int proc_field(const char *data, const char *key, char **valuep) {
         return 0;
 }
 
+/**
+ * proc_read() - Read a proc-file into memory
+ * @fd:         file-descriptor to a file in procfs
+ * @datap:      output variable for the read data
+ * @n_datap:    output variable for the length of the data blob
+ *
+ * Read the entire proc-fs file given as @fd into memory and return it to the
+ * caller. This will always read from file position 0 regardless of the current
+ * file position.
+ *
+ * The resulting data block is always terminated by a binary zero. This allows
+ * string operations on the data blob without any length checks. @n_datap will
+ * not include this sentinal zero, unless it was actually part of the file.
+ *
+ * Note that standard procfs files cannot exceed 4M-1 in size, and their API
+ * implementation actually limits it to 4M-2.
+ *
+ * If the proc-fs file in question does not follow the standard proc-fs rules,
+ * the caller should be aware of the limitations of this function.
+ *
+ * It is the responsibility of the caller to free the data via `free()`.
+ *
+ * Return: 0 on success, negative error code on failure.
+ */
+int proc_read(int fd, char **datap, size_t *n_datap) {
+        _c_cleanup_(c_freep) char *data = NULL;
+        ssize_t l;
+
+        data = malloc(PROC_SIZE_MIN);
+        if (!data)
+                return error_origin(-ENOMEM);
+
+        l = pread(fd, data, PROC_SIZE_MIN, 0);
+        if (l < 0)
+                return error_origin(-errno);
+
+        /*
+         * Proc never returns short reads unless end-of-file was reached. Thus,
+         * a short read implies end-of-file. Furthermore, in case the proc file
+         * is backed by a direct driver read, it might always return fresh data
+         * on each read, as if we used `pread(..., 0)`. Hence, we rely on short
+         * reads to know how long the file was.
+         *
+         * Lastly, note that we cannot ever attempt a read longer than
+         * PROC_SIZE_MAX, since it would be immediately refused by the kernel.
+         * So the longest successful read we can return to the caller is
+         * actually `PROC_SIZE_MAX - 1`, otherwise we wouldn't know whether it
+         * was complete.
+         */
+        if (l >= (ssize_t)PROC_SIZE_MIN) {
+                data = c_free(data);
+                data = malloc(PROC_SIZE_MAX);
+                if (!data)
+                        return error_origin(-ENOMEM);
+
+                l = pread(fd, data, PROC_SIZE_MAX, 0);
+                if (l < 0)
+                        return error_origin(-errno);
+                if (l >= (ssize_t)PROC_SIZE_MAX)
+                        return error_origin(-E2BIG);
+        }
+
+        /* Ensure a terminating 0 to allow direct searches of text-files. */
+        data[l] = 0;
+
+        if (datap) {
+                *datap = data;
+                data = NULL;
+        }
+        if (n_datap)
+                *n_datap = (size_t)l;
+        return 0;
+}
+
 int proc_get_seclabel(pid_t pid, char **labelp, size_t *n_labelp) {
         _c_cleanup_(c_fclosep) FILE *f = NULL;
         char path[64], buffer[LINE_MAX] = {}, *c, *label;
