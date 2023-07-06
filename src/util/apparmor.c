@@ -356,7 +356,8 @@ static int apparmor_message_query(
         int *audit
 ) {
         NameOwnership *ownership;
-        int i, r, audit_tmp = 0;
+        int r, audit_tmp = 0;
+        size_t i;
 
         if (!nameset) {
                 r = apparmor_message_query_name(
