@@ -13,7 +13,7 @@ int proc_get_seclabel(pid_t pid, char **labelp, size_t *n_labelp) {
         _c_cleanup_(c_fclosep) FILE *f = NULL;
         char path[64], buffer[LINE_MAX] = {}, *c, *label;
 
-        if (pid == PROC_SELF)
+        if (pid == PROC_PID_SELF)
                 strcpy(path, "/proc/self/attr/current");
         else if (pid > 0)
                 sprintf(path, "/proc/%"PRIu32"/attr/current", (uint32_t)pid);

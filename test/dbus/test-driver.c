@@ -1632,7 +1632,7 @@ static void test_verify_selinux_context(sd_bus_message *reply) {
         size_t n_own_context;
         int r;
 
-        r = proc_get_seclabel(PROC_SELF, &own_context, &n_own_context);
+        r = proc_get_seclabel(PROC_PID_SELF, &own_context, &n_own_context);
         c_assert(r >= 0);
 
         r = sd_bus_message_enter_container(reply, 'a', "y");
