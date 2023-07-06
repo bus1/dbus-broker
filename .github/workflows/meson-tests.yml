@@ -42,6 +42,7 @@ jobs:
           buildtype: "debugoptimized"
           cc: "clang"
           cflags: "-Werror"
+          image: "ghcr.io/bus1/dbrk-ci-fedora:latest"
           m32: "no"
           setupargs: "-Daudit=true -Ddocs=true -Dlauncher=true -Dselinux=true"
           test: "yes"
@@ -55,6 +56,7 @@ jobs:
           buildtype: "debugoptimized"
           cc: "clang"
           cflags: "-m32 -Werror"
+          image: "ghcr.io/bus1/dbrk-ci-fedora:latest"
           m32: "yes"
           setupargs: "-Daudit=true -Dlauncher=true"
           test: "yes"
@@ -69,6 +71,7 @@ jobs:
           buildtype: "debugoptimized"
           cc: "clang"
           cflags: "-Werror"
+          image: "ghcr.io/bus1/dbrk-ci-fedora:latest"
           setupargs: "-Daudit=true -Dlauncher=false"
           test: "yes"
           valgrind: "yes"
@@ -82,6 +85,7 @@ jobs:
           buildtype: "plain"
           cc: "gcc"
           cflags: "-O0 -Werror"
+          image: "ghcr.io/bus1/dbrk-ci-fedora:latest"
           setupargs: "-Daudit=true -Dlauncher=true -Dselinux=true"
           test: "yes"
           warnlevel: "2"
@@ -94,6 +98,7 @@ jobs:
           buildtype: "release"
           cc: "gcc"
           cflags: "-O3 -Werror -DNDEBUG"
+          image: "ghcr.io/bus1/dbrk-ci-fedora:latest"
           setupargs: "-Daudit=true -Dlauncher=true -Dselinux=true"
           test: "yes"
           warnlevel: "2"
@@ -106,12 +111,24 @@ jobs:
           buildtype: "debugoptimized"
           cc: "clang"
           cflags: "-Werror"
+          image: "ghcr.io/bus1/dbrk-ci-fedora:latest"
           setupargs: "-Dlauncher=false"
           test: "yes"
           warnlevel: "2"
 
+        - id: "ubuntu"
+          name: "RELEASE @ CLANG-X86_64 @ +TEST -VALGRIND @ +APPARMOR +AUDIT -DOCS +LAUNCHER -SELINUX"
+
+          buildtype: "debugoptimized"
+          cc: "clang"
+          cflags: "-Werror"
+          image: "ghcr.io/bus1/dbrk-ci-ubuntu:latest"
+          setupargs: "-Dapparmor=true -Daudit=true -Dlauncher=true"
+          test: "yes"
+          warnlevel: "2"
+
     container:
-      image: "ghcr.io/bus1/ci-c-util:latest"
+      image: ${{ matrix.image }}
 
     env:
       CC: ${{ matrix.cc }}
