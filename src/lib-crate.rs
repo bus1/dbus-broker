@@ -11,6 +11,7 @@
 extern crate alloc;
 extern crate core;
 
+pub mod session;
 pub mod util;
 
 #[cfg(test)]

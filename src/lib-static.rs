@@ -190,3 +190,23 @@ mod acct {
         r
     }
 }
+
+mod session {
+    #[unsafe(export_name = "session_run")]
+    pub unsafe extern "C" fn run(
+        argc: i32,
+        argv: *mut *mut u8,
+    ) -> i32 {
+        type_eq!(run, rbus_generated::session_main::session_run);
+
+        let args = unsafe {
+            std::slice::from_raw_parts(
+                argv,
+                argc.try_into()
+                    .expect("number of program arguments must be positive"),
+            )
+        };
+
+        rbus::session::run(args)
+    }
+}
