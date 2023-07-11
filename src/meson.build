@@ -49,6 +49,7 @@ sources_bus = [
 ]
 
 bindgen_bus = [
+        'session/main.h',
         'util/acct.h',
 ]
 
@@ -155,14 +156,15 @@ rbus_generated = static_library(
                         'generated': bindgen_generated,
                 },
         ),
-        dependencies: [
-                dep_libc_rs,
-        ],
 )
 
 rbus_crate = static_library(
         'rbus',
         ['lib-crate.rs'],
+        dependencies: [
+                dep_libc_rs,
+                dep_osi,
+        ],
         link_with: [
                 rbus_generated,
         ],
@@ -233,6 +235,26 @@ if use_launcher
                         dep_cshquote,
                         dep_cstdaux,
                         dep_libsystemd,
+                ],
+                install: true,
+                link_depends: [
+                        exe_dbus_broker,
+                ],
+        )
+endif
+
+#
+# target: dbus-broker-session
+#
+
+if use_launcher
+        exe_dbus_broker_session = executable(
+                'dbus-broker-session',
+                [
+                        'session/main.c',
+                ],
+                dependencies: [
+                        dep_bus,
                 ],
                 install: true,
                 link_depends: [

@@ -22,6 +22,7 @@ extern crate core;
     non_upper_case_globals,
 )]
 mod generated {
+    pub mod session_main;
     pub mod util_acct;
 }
 

@@ -49,7 +49,7 @@ dep_cshquote = dependency('libcshquote-1', version: '>=1.1.0')
 dep_cstdaux = dependency('libcstdaux-1', version: '>=1.5.0')
 dep_libc_rs = dependency('libc-rs-0.2', version: '>=0.2.175')
 dep_math = cc.find_library('m')
-dep_osi = dependency('libosi-1', default_options: {'libc': true}, version: '>=1.0.0')
+dep_osi = dependency('libosi-1', default_options: {'libc': true, 'std': true}, version: '>=1.0.0')
 dep_thread = dependency('threads')
 
 #
