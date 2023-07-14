@@ -9,7 +9,7 @@
 #include "launch/config.h"
 #include "launch/nss-cache.h"
 #include "util/dirwatch.h"
-#include "util/syscall.h"
+#include "util/misc.h"
 
 static const char *test_type2str[_CONFIG_NODE_N] = {
         [CONFIG_NODE_BUSCONFIG]         = "busconfig",
@@ -40,7 +40,7 @@ static int config_memfd(const char *data) {
         ssize_t n;
         int fd;
 
-        fd = syscall_memfd_create("dbus-broker-test-config", 0);
+        fd = misc_memfd("dbus-broker-test-config", MISC_MFD_NOEXEC_SEAL, 0);
         c_assert(fd >= 0);
         n = write(fd, data, strlen(data));
         c_assert(n == (ssize_t)strlen(data));
