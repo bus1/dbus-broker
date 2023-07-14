@@ -5,6 +5,7 @@
 #undef NDEBUG
 #include <c-stdaux.h>
 #include <stdlib.h>
+#include "util/misc.h"
 #include "util/proc.h"
 #include "util/string.h"
 #include "util/syscall.h"
@@ -60,7 +61,7 @@ static void test_read(void) {
         ssize_t l;
         int r;
 
-        fd = syscall_memfd_create("test-proc", 0x1);
+        fd = misc_memfd("test-proc", MISC_MFD_CLOEXEC | MISC_MFD_NOEXEC_SEAL, 0);
         c_assert(fd >= 0);
 
         for (i = 0; i < 1024; i += strlen(str)) {

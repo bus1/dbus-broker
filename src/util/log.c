@@ -85,7 +85,7 @@
 #include <sys/syslog.h>
 #include "util/error.h"
 #include "util/log.h"
-#include "util/syscall.h"
+#include "util/misc.h"
 
 /* lets retrict log records to 2MiB */
 #define LOG_SIZE_MAX (2ULL * 1024ULL * 1024ULL)
@@ -224,23 +224,25 @@ static bool log_alloc(Log *log) {
         c_assert(!log->offset);
 
         /*
-         * XXX: We hard-code the flags as 0x3 (CLOEXEC + ALLOW_SEALING), since
-         *      our CI infrastructure does not provide linux/memfd.h, yet. We
-         *      really ought to fix this!
+         * systemd-journald used to verify seals explicitly, and any new seal
+         * showing up was refused. Hence, we cannot set MFD_NOEXEC but have to
+         * use MFD_EXEC.
          */
-        mem_fd = syscall_memfd_create("dbus-broker-log", 0x3);
+        mem_fd = misc_memfd(
+                "dbus-broker-log",
+                MISC_MFD_CLOEXEC | MISC_MFD_ALLOW_SEALING | MISC_MFD_EXEC,
+                0
+        );
         if (mem_fd < 0) {
-                mem_fd = -1;
-
                 /*
                  * In case of EINVAL, memfd_create() is not available. We then
                  * use normal anonymous memory as backing.
                  */
-
-                if (errno != EINVAL) {
-                        log->error = error_origin(-errno);
+                if (mem_fd != -EINVAL) {
+                        log->error = error_fold(mem_fd);
                         return false;
                 }
+                mem_fd = -1;
 
                 p = mmap(NULL, log->map_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
                 if (p == MAP_FAILED) {
@@ -433,18 +435,11 @@ static int log_journal_send(Log *log) {
         if (r < 0)
                 return error_origin(-errno);
 
-        /*
-         * XXX: We hard-code F_ADD_SEALS and the seal-bitmask here, since we
-         *      cannot include <linux/fcntl.h> when we already
-         *      include <fcntl.h>... Give it up for shared namespaces!
-         *
-         *          fcntl(mfd,
-         *                F_ADD_SEALS,
-         *                F_SEAL_SHRINK | F_SEAL_GROW
-         *                              | F_SEAL_WRITE
-         *                              | F_SEAL_SEAL);
-         */
-        r = fcntl(mfd, 1033, 0xf);
+        r = misc_memfd_add_seals(
+                mfd,
+                MISC_F_SEAL_SEAL | MISC_F_SEAL_SHRINK |
+                MISC_F_SEAL_GROW | MISC_F_SEAL_WRITE
+        );
         if (r < 0)
                 return error_origin(-errno);
 
