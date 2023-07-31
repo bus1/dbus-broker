@@ -1086,6 +1086,14 @@ static int launcher_parse_config(Launcher *launcher, ConfigRoot **rootp, NSSCach
         /* Remember if our at_console compat logic is needed */
         launcher->at_console = at_console;
 
+        /*
+         * If we are not running as root but systemd launched us as a non-privileged user, enforce that
+         * the configuration is coherent with the unit setting and return an error otherwise, to avoid
+         * unexpected results.
+         */
+        if (launcher->uid != (uint32_t)-1 && geteuid() != 0 && geteuid() != launcher->uid)
+                return LAUNCHER_E_INVALID_CONFIG;
+
         return 0;
 }
 

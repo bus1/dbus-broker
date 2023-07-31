@@ -34,14 +34,15 @@ int util_audit_drop_permissions(uint32_t uid, uint32_t gid) {
         int r;
 
         /*
-         * This is modeled exactly after the behavior of dbus-daemon(1). We
-         * have to be compatibile and fail in the exact same situations. This
-         * means, only try to retain CAP_AUDIT_WRITE if we are running as root
-         * and own it. In all other cases, simply drop privileges to the
-         * requested IDs.
+         * This is similar but not indentical to the behavior of dbus-daemon(1).
+         * If we have CAP_AUDIT_WRITE, as root or non-root, then we retain it.
+         * In other cases simply drop privileges to the requested IDs.
          */
 
         if (geteuid() != 0) {
+                if (capng_have_capability(CAPNG_EFFECTIVE, CAP_AUDIT_WRITE))
+                        return 0; /* Nothing to do */
+
                 /*
                  * For compatibility to dbus-daemon, this must be
                  * non-fatal.

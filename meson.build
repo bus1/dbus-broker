@@ -55,6 +55,9 @@ use_audit = get_option('audit')
 if use_audit
         dep_libaudit = dependency('audit', version: '>=3.0')
         dep_libcapng = dependency('libcap-ng', version: '>=0.6')
+        conf.set('ambientcaps', 'AmbientCapabilities=CAP_AUDIT_WRITE')
+else
+        conf.set('ambientcaps', '')
 endif
 
 #

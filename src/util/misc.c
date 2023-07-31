@@ -33,6 +33,9 @@ uint64_t util_umul64_saturating(uint64_t a, uint64_t b) {
 int util_drop_permissions(uint32_t uid, uint32_t gid) {
         int r;
 
+        if (geteuid() == uid && getuid() == uid && getegid() == gid && getgid() == gid)
+                return 0; /* Nothing to do */
+
         /* for compatibility to dbus-daemon, this must be non-fatal */
         setgroups(0, NULL);
 

@@ -17,6 +17,9 @@ PrivateTmp=true
 PrivateDevices=true
 ExecStart=@bindir@/dbus-broker-launch --scope system --audit
 ExecReload=@bindir@/busctl call org.freedesktop.DBus /org/freedesktop/DBus org.freedesktop.DBus ReloadConfig
+User=messagebus
+Group=messagebus
+@ambientcaps@
 
 [Install]
 Alias=dbus.service
