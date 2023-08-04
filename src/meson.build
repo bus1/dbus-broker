@@ -227,6 +227,9 @@ test('D-Bus SASL Parser', test_sasl)
 test_socket = executable('test-socket', ['dbus/test-socket.c'], dependencies: dep_bus)
 test('D-Bus Socket Abstraction', test_socket)
 
+test_sockopt = executable('test-sockopt', ['util/test-sockopt.c'], dependencies: dep_bus)
+test('D-Bus Socket Options', test_sockopt)
+
 test_stitching = executable('test-stitching', ['dbus/test-stitching.c'], dependencies: dep_bus)
 test('Message Sender Stitching', test_stitching)
 
