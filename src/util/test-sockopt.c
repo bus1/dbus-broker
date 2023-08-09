@@ -79,10 +79,11 @@ static void test_peerpidfd_client(
 
         /* Verify that SO_PEERPIDFD resolves only non-stale PIDs. */
 
-        /* XXX: Investigate what behavior is expected for stale PIDs! */
-        if (!stale) {
-                r = sockopt_get_peerpidfd(fd, &pidfd);
-                if (r != SOCKOPT_E_UNSUPPORTED) {
+        r = sockopt_get_peerpidfd(fd, &pidfd);
+        if (r != SOCKOPT_E_UNSUPPORTED) {
+                if (stale) {
+                        c_assert(r == SOCKOPT_E_REAPED);
+                } else {
                         c_assert(!r);
                         c_assert(pidfd >= 0);
 

@@ -210,12 +210,12 @@ int sockopt_get_peergroups(int fd, Log *log, uid_t uid, gid_t primary_gid, gid_t
  * If the socket type does not support `SO_PEERPIDFD`, SOCKOPT_E_UNAVAILABLE
  * is returned.
  *
- * Regardless of the state of the target process, a valid pidfd is returned
- * for the PID pinned on the socket at creation time.
+ * If the target process was already reaped, SOCKOPT_E_REAPED is returned.
  *
  * Return: 0 on success, SOCKOPT_E_UNSUPPORTED if not supported by the
  *         running kernel, SOCKOPT_E_UNAVAILABLE if the socket type does not
- *         support the option, negative error code on failure.
+ *         support the option, SOCKOPT_E_REAPED if the target process was
+ *         already reaped, negative error code on failure.
  */
 int sockopt_get_peerpidfd(int fd, int *pidfdp) {
         socklen_t socklen = sizeof(int);
@@ -238,6 +238,8 @@ int sockopt_get_peerpidfd(int fd, int *pidfdp) {
                         return SOCKOPT_E_UNSUPPORTED;
                 if (errno == ESRCH)
                         return SOCKOPT_E_UNAVAILABLE;
+                if (errno == EINVAL)
+                        return SOCKOPT_E_REAPED;
 
                 return error_origin(-errno);
         }

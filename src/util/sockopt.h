@@ -12,6 +12,7 @@ enum {
 
         SOCKOPT_E_UNSUPPORTED,
         SOCKOPT_E_UNAVAILABLE,
+        SOCKOPT_E_REAPED,
 };
 
 typedef struct Log Log;
