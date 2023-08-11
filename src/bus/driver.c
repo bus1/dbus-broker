@@ -24,9 +24,25 @@
 #include "util/selinux.h"
 #include "util/string.h"
 
+typedef struct DriverCredentials DriverCredentials;
 typedef struct DriverInterface DriverInterface;
 typedef struct DriverMethod DriverMethod;
 typedef int (*DriverMethodFn) (Peer *peer, const char *path, CDVar *var_in, uint32_t serial, CDVar *var_out);
+
+struct DriverCredentials {
+        pid_t pid;
+        int pid_fd;
+        uid_t uid;
+        gid_t *gids;
+        size_t n_gids;
+        const char *seclabel;
+        size_t n_seclabel;
+};
+
+#define DRIVER_CREDENTIALS_NULL {       \
+                .pid_fd = -1,           \
+                .uid = -1,              \
+        }
 
 struct DriverMethod {
         const char *name;
@@ -1341,23 +1357,44 @@ static int driver_method_get_connection_unix_process_id(Peer *peer, const char *
         return 0;
 }
 
-static void driver_write_credentials_fields(CDVar *v, const char *seclabel, size_t n_seclabel, gid_t *gids, size_t n_gids, uid_t uid, pid_t pid, int pid_fd, size_t *n_fds) {
+static void driver_fetch_credentials(Bus *bus, Peer *peer, DriverCredentials *credp) {
+        if (peer) {
+                credp->pid = peer->pid;
+                credp->pid_fd = peer->pid_fd;
+                credp->uid = peer->user->uid;
+                credp->gids = peer->gids;
+                credp->n_gids = peer->n_gids;
+                credp->seclabel = peer->seclabel;
+                credp->n_seclabel = peer->n_seclabel;
+        } else {
+                credp->pid = bus->pid;
+                credp->pid_fd = bus->pid_fd;
+                credp->uid = bus->user->uid;
+                credp->gids = bus->gids;
+                credp->n_gids = bus->n_gids;
+                credp->seclabel = bus->seclabel;
+                credp->n_seclabel = bus->n_seclabel;
+        }
+}
 
-        c_assert(v);
-        c_assert(gids || n_gids == 0);
-        c_assert(n_fds || pid_fd < 0);
-        c_assert(pid >= 0);
+static void driver_append_credentials(CDVar *v, const DriverCredentials *cred, size_t *fd_iter) {
+        c_dvar_write(v, "[");
 
-        c_dvar_write(v, "[{s<u>}{s<u>}",
-                     "UnixUserID", c_dvar_type_u, uid,
-                     "ProcessID", c_dvar_type_u, pid);
+        if (cred->uid != (uid_t)-1)
+                c_dvar_write(v, "{s<u>}", "UnixUserID", c_dvar_type_u, cred->uid);
+        if (cred->pid != 0)
+                c_dvar_write(v, "{s<u>}", "ProcessID", c_dvar_type_u, cred->pid);
 
         /*
          * Append all groups of the peer as 'UnixGroupIDs'. This list includes
          * the primary group of the peer. Furthermore, it is sorted and
          * deduplicated, so its behavior is deterministic.
+         *
+         * Note that this also implies that the list cannot be empty, since the
+         * primary group must exist. So if the list is present, it has at least
+         * one element.
          */
-        {
+        if (cred->n_gids > 0) {
                 static const CDVarType type_au[] = {
                         C_DVAR_T_INIT(
                                 C_DVAR_T_ARRAY(
@@ -1367,12 +1404,12 @@ static void driver_write_credentials_fields(CDVar *v, const char *seclabel, size
                 };
 
                 c_dvar_write(v, "{s<[", "UnixGroupIDs", type_au);
-                for (size_t i = 0; i < n_gids; ++i)
-                        c_dvar_write(v, "u", gids[i]);
+                for (size_t i = 0; i < cred->n_gids; ++i)
+                        c_dvar_write(v, "u", cred->gids[i]);
                 c_dvar_write(v, "]>}");
         }
 
-        if (n_seclabel) {
+        if (cred->n_seclabel) {
                 /*
                  * The DBus specification says that the security-label is a
                  * byte array of non-0 values. The kernel disagrees.
@@ -1380,68 +1417,29 @@ static void driver_write_credentials_fields(CDVar *v, const char *seclabel, size
                  * rules. Hence, we simply ignore that part of the spec and
                  * insert the label unmodified, followed by a zero byte, which
                  * is mandated by the spec.
-                 * The @peer->seclabel field always has a trailing zero-byte,
+                 * Our seclabel-fields always have a trailing zero-byte,
                  * so we can safely copy from it.
                  */
                 c_dvar_write(v, "{s<", "LinuxSecurityLabel", (const CDVarType[]){ C_DVAR_T_INIT(C_DVAR_T_ARRAY(C_DVAR_T_y)) });
-                driver_write_bytes(v, seclabel, n_seclabel + 1);
+                driver_write_bytes(v, cred->seclabel, cred->n_seclabel + 1);
                 c_dvar_write(v, ">}");
         }
 
-        if (pid_fd >= 0)
-                c_dvar_write(v, "{s<h>}", "ProcessFD", c_dvar_type_h, (*n_fds)++);
+        if (fd_iter && cred->pid_fd >= 0) {
+                /* If @fd_iter is set, it must refer to the pidfd. */
+                c_dvar_write(v, "{s<h>}", "ProcessFD", c_dvar_type_h, *fd_iter);
+                ++*fd_iter;
+        }
 
         c_dvar_write(v, "]");
 }
 
-static int driver_parse_credentials_fields(Bus *bus, Peer *peer, const char **seclabel, size_t *n_seclabel, gid_t **gids, size_t *n_gids, uid_t *uid, pid_t *pid, int *pid_fd) {
-
-        assert(!!gids == !!n_gids);
-        assert(!!seclabel == !!n_seclabel);
-
-        if (peer) {
-                if (uid)
-                        *uid = peer->user->uid;
-                if (pid)
-                        *pid = peer->pid;
-                if (pid_fd)
-                        *pid_fd = peer->pid_fd;
-                if (gids) {
-                        *gids = peer->gids;
-                        *n_gids = peer->n_gids;
-                }
-                if (seclabel) {
-                        *seclabel = peer->seclabel;
-                        *n_seclabel = peer->n_seclabel;
-                }
-        } else {
-                if (uid)
-                        *uid = bus->user->uid;
-                if (pid)
-                        *pid = bus->pid;
-                if (pid_fd)
-                        *pid_fd = bus->pid_fd;
-                if (gids) {
-                        *gids = bus->gids;
-                        *n_gids = bus->n_gids;
-                }
-                if (seclabel) {
-                        *seclabel = bus->seclabel;
-                        *n_seclabel = bus->n_seclabel;
-                }
-        }
-
-        return 0;
-}
-
 static int driver_method_get_connection_credentials(Peer *peer, const char *path, CDVar *in_v, uint32_t serial, CDVar *out_v) {
+        DriverCredentials cred = DRIVER_CREDENTIALS_NULL;
         Peer *connection = NULL;
-        const char *name, *seclabel;
-        size_t n_seclabel, n_gids, n_fds = 0, fd_index = 0;
-        int pid_fd = -1, r;
-        gid_t *gids;
-        uid_t uid;
-        pid_t pid;
+        const char *name;
+        size_t n_fds = 0;
+        int r;
 
         c_dvar_read(in_v, "(s)", &name);
 
@@ -1455,31 +1453,17 @@ static int driver_method_get_connection_credentials(Peer *peer, const char *path
                         return DRIVER_E_PEER_NOT_FOUND;
         }
 
-        r = driver_parse_credentials_fields(peer->bus,
-                                            connection,
-                                            &seclabel,
-                                            &n_seclabel,
-                                            &gids,
-                                            &n_gids,
-                                            &uid,
-                                            &pid,
-                                            &pid_fd);
-        if (r < 0)
-                return error_fold(r);
-
-        /* We need to pass the number of FDs being sent via the header, but then use the FD
-         * array index in the actual message. */
-        if (pid_fd >= 0)
-                ++n_fds;
-
         driver_write_reply_header(out_v, peer, serial, driver_type_out_apsv, n_fds);
 
         c_dvar_write(out_v, "(");
-        driver_write_credentials_fields(out_v, seclabel, n_seclabel, gids, n_gids, uid, pid, pid_fd, &fd_index);
+        driver_fetch_credentials(peer->bus, connection, &cred);
+        driver_append_credentials(out_v, &cred, &n_fds);
         c_dvar_write(out_v, ")");
 
-        if (pid_fd >= 0)
-                r = driver_send_reply_with_fds(peer, out_v, serial, &pid_fd, n_fds);
+        c_assert(n_fds == 0 || n_fds == 1);
+
+        if (n_fds == 1)
+                r = driver_send_reply_with_fds(peer, out_v, serial, &cred.pid_fd, n_fds);
         else
                 r = driver_send_reply(peer, out_v, serial);
         if (r)
@@ -2201,31 +2185,15 @@ static void driver_append_peer_accounting(CDVar *v, Bus *bus) {
         c_dvar_write(v, "<[", dump_type);
 
         c_rbtree_for_each_entry(p, &bus->peers.peer_tree, registry_node) {
-                const char *seclabel;
-                size_t n_seclabel, n_gids;
-                gid_t *gids;
-                uid_t uid;
-                pid_t pid;
-                int r;
+                DriverCredentials cred = DRIVER_CREDENTIALS_NULL;
 
                 if (!peer_is_registered(p))
                         continue;
 
-                r = driver_parse_credentials_fields(bus,
-                                                    p,
-                                                    &seclabel,
-                                                    &n_seclabel,
-                                                    &gids,
-                                                    &n_gids,
-                                                    &uid,
-                                                    &pid,
-                                                    /* pid_fd= */ NULL);
-                if (r < 0)
-                        continue;
-
                 c_dvar_write(v, "(");
                 driver_dvar_write_unique_name(v, p);
-                driver_write_credentials_fields(v, seclabel, n_seclabel, gids, n_gids, uid, pid, /* pid_fd= */ -1, /* n_fds= */ NULL);
+                driver_fetch_credentials(bus, p, &cred);
+                driver_append_credentials(v, &cred, NULL);
                 driver_append_peer_accounting_stats(v, p);
                 c_dvar_write(v, ")");
         }
