@@ -271,16 +271,16 @@ int peer_new_with_fd(Peer **peerp,
                 return error_origin(-errno);
 
         r = user_registry_ref_user(&bus->users, &user, ucred.uid);
-        if (r < 0)
+        if (r)
                 return error_fold(r);
 
         r = sockopt_get_peersec(fd, &seclabel, &n_seclabel);
-        if (r < 0)
-                return error_trace(r);
+        if (r)
+                return error_fold(r);
 
         r = sockopt_get_peergroups(fd, bus->log, ucred.uid, ucred.gid, &gids, &n_gids);
         if (r)
-                return error_trace(r);
+                return error_fold(r);
 
         r = sockopt_get_peerpidfd(fd, &pid_fd);
         if (r) {
