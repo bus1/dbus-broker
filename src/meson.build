@@ -36,6 +36,7 @@ sources_bus = [
         'util/dirwatch.c',
         'util/dispatch.c',
         'util/fdlist.c',
+        'util/fs.c',
         'util/log.c',
         'util/metrics.c',
         'util/misc.c',
@@ -194,6 +195,9 @@ test('Error Handling', test_error)
 
 test_fdlist = executable('test-fdlist', ['util/test-fdlist.c'], dependencies: dep_bus)
 test('Utility File-Desciptor Lists', test_fdlist)
+
+test_fs = executable('test-fs', ['util/test-fs.c'], dependencies: dep_bus)
+test('File System Helpers', test_fs)
 
 test_match = executable('test-match', ['bus/test-match.c'], dependencies: dep_bus)
 test('D-Bus Match Handling', test_match)
