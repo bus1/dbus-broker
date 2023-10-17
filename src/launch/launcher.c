@@ -26,6 +26,7 @@
 #include "util/audit.h"
 #include "util/dirwatch.h"
 #include "util/error.h"
+#include "util/fs.h"
 #include "util/log.h"
 #include "util/misc.h"
 #include "util/string.h"
@@ -736,10 +737,11 @@ static int launcher_load_service_file(Launcher *launcher, const char *path, cons
 
 static int launcher_load_service_dir(Launcher *launcher, const char *dirpath, NSSCache *nss_cache) {
         const char suffix[] = ".service";
+        _c_cleanup_(fs_dirlist_freep) FsDirlist *list = NULL;
         _c_cleanup_(c_closedirp) DIR *dir = NULL;
         struct dirent *de;
         char *path;
-        size_t n;
+        size_t i, n;
         int r;
 
         dir = opendir(dirpath);
@@ -767,11 +769,12 @@ static int launcher_load_service_dir(Launcher *launcher, const char *dirpath, NS
         if (r)
                 return error_fold(r);
 
-        for (errno = 0, de = readdir(dir);
-             de;
-             errno = 0, de = readdir(dir)) {
-                if (de->d_name[0] == '.')
-                        continue;
+        r = fs_dir_list(dir, &list, FS_DIR_FLAG_NO_HIDDEN);
+        if (r)
+                return error_fold(r);
+
+        for (i = 0; i < list->n_entries; ++i) {
+                de = list->entries[i];
 
                 n = strlen(de->d_name);
                 if (n <= strlen(suffix))

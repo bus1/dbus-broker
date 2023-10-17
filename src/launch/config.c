@@ -13,6 +13,7 @@
 #include "util/common.h"
 #include "util/dirwatch.h"
 #include "util/error.h"
+#include "util/fs.h"
 #include "util/selinux.h"
 #include "util/string.h"
 
@@ -1058,10 +1059,11 @@ static void config_parser_end_fn(void *userdata, const XML_Char *name) {
                 break;
 
         case CONFIG_NODE_INCLUDEDIR: {
+                _c_cleanup_(fs_dirlist_freep) FsDirlist *list = NULL;
                 _c_cleanup_(c_closedirp) DIR *dir = NULL;
                 static const char suffix[] = ".conf";
                 struct dirent *de;
-                size_t n;
+                size_t i, n;
 
                 r = config_path_new_dir(&state->current->includedir.dir,
                                         state->file,
@@ -1091,11 +1093,16 @@ static void config_parser_end_fn(void *userdata, const XML_Char *name) {
                         return;
                 }
 
-                for (errno = 0, de = readdir(dir);
-                     de;
-                     errno = 0, de = readdir(dir)) {
+                r = fs_dir_list(dir, &list, 0);
+                if (r) {
+                        state->error = error_fold(r);
+                        return;
+                }
+
+                for (i = 0; i < list->n_entries; ++i) {
                         _c_cleanup_(config_node_freep) ConfigNode *node = NULL;
 
+                        de = list->entries[i];
                         n = strlen(de->d_name);
 
                         if (n <= strlen(suffix))
