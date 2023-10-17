@@ -1438,7 +1438,7 @@ static int driver_method_get_connection_credentials(Peer *peer, const char *path
         DriverCredentials cred = DRIVER_CREDENTIALS_NULL;
         Peer *connection = NULL;
         const char *name;
-        size_t n_fds = 0;
+        size_t n_fds = 0, n_fds_expected;
         int r;
 
         c_dvar_read(in_v, "(s)", &name);
@@ -1453,14 +1453,15 @@ static int driver_method_get_connection_credentials(Peer *peer, const char *path
                         return DRIVER_E_PEER_NOT_FOUND;
         }
 
-        driver_write_reply_header(out_v, peer, serial, driver_type_out_apsv, n_fds);
+        driver_fetch_credentials(peer->bus, connection, &cred);
+        n_fds_expected = (cred.pid_fd >= 0) ? 1 : 0;
+        driver_write_reply_header(out_v, peer, serial, driver_type_out_apsv, n_fds_expected);
 
         c_dvar_write(out_v, "(");
-        driver_fetch_credentials(peer->bus, connection, &cred);
         driver_append_credentials(out_v, &cred, &n_fds);
         c_dvar_write(out_v, ")");
 
-        c_assert(n_fds == 0 || n_fds == 1);
+        c_assert(n_fds == n_fds_expected);
 
         if (n_fds == 1)
                 r = driver_send_reply_with_fds(peer, out_v, serial, &cred.pid_fd, n_fds);
