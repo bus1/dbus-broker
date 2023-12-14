@@ -36,6 +36,9 @@ help:
 	@echo "    meson-build:        Build the Meson-based project"
 	@echo "    meson-setup:        Reconfigure the Meson setup"
 	@echo "    meson-test:         Run the Meson-based test suite"
+	@echo
+	@echo "    system-build:       Build system test-image"
+	@echo "    system-run:         Run system test-image"
 
 #
 # Target: BUILDDIR
@@ -147,3 +150,25 @@ release-github:
 	@echo "       git push <remote> v${VNEXT}"
 	@echo " * Upload tarball to github via custom release"
 	@echo
+
+#
+# Target: system-*
+#
+
+.PHONY: system-build
+system-build:
+	podman \
+		build \
+		--file "$(SRCDIR)/test/image/dbrk-fedora.Dockerfile" \
+		--tag "dbrk-fedora" \
+		-- \
+		"$(SRCDIR)"
+
+.PHONY: system-run
+system-run:
+	podman \
+		run \
+		--interactive \
+		--rm \
+		--tty \
+		"dbrk-fedora"
