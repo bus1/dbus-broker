@@ -14,6 +14,10 @@ deps_test = [
         dep_thread,
 ]
 
+targets_test = [
+        exe_dbus_broker,
+]
+
 static_test = static_library(
         'test-private',
         sources_test,
@@ -23,6 +27,7 @@ static_test = static_library(
         ],
         dependencies: deps_test,
         pic: true,
+        link_depends: targets_test,
 )
 
 dep_test = declare_dependency(

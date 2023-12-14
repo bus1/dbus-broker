@@ -162,6 +162,9 @@ if use_launcher
                         dep_libsystemd,
                 ],
                 install: true,
+                link_depends: [
+                        exe_dbus_broker,
+                ],
         )
 endif
 
