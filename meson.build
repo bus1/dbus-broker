@@ -21,12 +21,12 @@ mod_pkgconfig = import('pkgconfig')
 # Mandatory Dependencies
 #
 
-dep_cdvar = dependency('libcdvar-1')
-dep_cini = dependency('libcini-1')
-dep_clist = dependency('libclist-3')
-dep_crbtree = dependency('libcrbtree-3')
-dep_cshquote = dependency('libcshquote-1')
-dep_cstdaux = dependency('libcstdaux-1')
+dep_cdvar = dependency('libcdvar-1', version: '>=1.1.0')
+dep_cini = dependency('libcini-1', version: '>=1.1.0')
+dep_clist = dependency('libclist-3', version: '>=3.1.0')
+dep_crbtree = dependency('libcrbtree-3', version: '>=3.2.0')
+dep_cshquote = dependency('libcshquote-1', version: '>=1.1.0')
+dep_cstdaux = dependency('libcstdaux-1', version: '>=1.5.0')
 dep_math = cc.find_library('m')
 dep_thread = dependency('threads')
 
