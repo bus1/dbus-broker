@@ -1,5 +1,23 @@
 # dbus-broker - Linux D-Bus Message Broker
 
+## CHANGES WITH 34:
+
+        * Use `AT_RANDOM` for libexpat initialization to avoid a hidden
+          dependency in libexpat-hashtables on `/dev/urandom` at runtime.
+
+        * Check for SELinux Enforcing-mode and honor its value.
+
+        * Support the new `ProcessFD` key in `GetConnectionCredentials()`.
+
+        * Loading files from a directory will not enumerate the files in a
+          predictable order rather than the pseudo-random order returned by
+          the kernel.
+
+        Contributions from: David Rheinsberg, Luca Boccassi, Mark Esler,
+                            Stefan Agner, Tom Gundersen
+
+        - Dußlingen, 2023-12-12
+
 ## CHANGES WITH 33:
 
         * Fix a race-condition when starting systemd-services from the
