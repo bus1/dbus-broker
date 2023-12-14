@@ -32,6 +32,10 @@ help:
 	@echo
 	@echo "    release-fedora:     Print checklist for Fedora releases"
 	@echo "    release-github:     Print checklist for Github releases"
+	@echo
+	@echo "    meson-build:        Build the Meson-based project"
+	@echo "    meson-setup:        Reconfigure the Meson setup"
+	@echo "    meson-test:         Run the Meson-based test suite"
 
 #
 # Target: BUILDDIR
@@ -51,6 +55,43 @@ $(BUILDDIR)/%/:
 
 .PHONY: FORCE
 FORCE:
+
+#
+# Target: meson-*
+#
+
+MESON_SETUP		= \
+	meson \
+		setup \
+		--buildtype "debugoptimized" \
+		--reconfigure \
+		--warnlevel "2" \
+		-D "audit=true" \
+		-D "docs=true" \
+		-D "launcher=true" \
+		-- \
+		$(BUILDDIR)/meson \
+		$(SRCDIR)
+
+$(BUILDDIR)/meson/: | $(BUILDDIR)/
+	$(MESON_SETUP)
+
+.PHONY: meson-build
+meson-build: $(BUILDDIR)/meson/
+	meson \
+		compile \
+		-C "$(BUILDDIR)/meson/"
+
+.PHONY: meson-setup
+meson-setup: | $(BUILDDIR)/
+	$(MESON_SETUP)
+
+.PHONY: meson-test
+meson-test: $(BUILDDIR)/meson/
+	meson \
+		test \
+		--print-errorlogs \
+		-C "$(BUILDDIR)/meson/"
 
 #
 # Target: release-*
