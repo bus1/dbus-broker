@@ -791,8 +791,6 @@ static int launcher_load_service_dir(Launcher *launcher, const char *dirpath, NS
                 if (r && r != LAUNCHER_E_INVALID_SERVICE_FILE)
                         return error_trace(r);
         }
-        if (errno > 0)
-                return error_origin(-errno);
 
         return 0;
 }
