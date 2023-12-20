@@ -1,5 +1,14 @@
 # dbus-broker - Linux D-Bus Message Broker
 
+## CHANGES WITH 35:
+
+        * Fix crash on startup/reload when corrupt configuration or
+          service files are used.
+
+        Contributions from: Allison Karlitskaya, David Rheinsberg, Lily Danzig
+
+        - Dußlingen, 2023-12-20
+
 ## CHANGES WITH 34:
 
         * Use `AT_RANDOM` for libexpat initialization to avoid a hidden

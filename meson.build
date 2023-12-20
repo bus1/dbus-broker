@@ -10,7 +10,7 @@ project(
         ],
         license: 'Apache',
         meson_version: '>=0.60.0',
-        version: '34',
+        version: '35',
 )
 
 cc = meson.get_compiler('c')
