@@ -773,7 +773,12 @@ int driver_name_activation_failed(Bus *bus, Activation *activation, uint64_t ser
         if (!activation->pending || serial != activation->pending)
                 return 0;
 
-        r = asprintf(&error, "Could not activate remote peer: %s.", controller_name_error_to_human_readable(name_error));
+        r = asprintf(
+                &error,
+                "Could not activate remote peer '%s': %s",
+                activation->name->name,
+                controller_name_error_to_human_readable(name_error)
+        );
         if (r < 0)
                 return error_origin(-errno);
 
