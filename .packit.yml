@@ -1,0 +1,42 @@
+---
+# vi:ts=2 sw=2 et:
+#
+# Docs: https://packit.dev/docs/
+
+specfile_path: .packit_rpm/dbus-broker.spec
+files_to_sync:
+  - .packit.yml
+  - src: .packit_rpm/dbus-broker.spec
+    dest: dbus-broker.spec
+srpm_build_deps:
+  - meson
+upstream_package_name: dbus-broker
+downstream_package_name: dbus-broker
+upstream_tag_template: "v{version}"
+
+actions:
+  post-upstream-clone:
+    # Download all subprojects in advance, as we won't have networking during RPM build
+    - meson subprojects download
+    # Use the Fedora Rawhide specfile
+    - git clone https://src.fedoraproject.org/rpms/dbus-broker .packit_rpm --depth=1
+    # Drop the "sources" file so rebase-helper doesn't think we're a dist-git
+    - rm -fv .packit_rpm/sources
+    # Drop backported patches from the specfile
+    - sed -ri '/^Patch.*\\:.+\\.patch/d' .packit_rpm/dbus-broker.spec
+
+  create-archive:
+    # We have to override the default archive command (which is 'git archive'), since that ignores
+    # files in subprojects
+    - bash -c 'tar -pczf .packit_rpm/$PACKIT_PROJECT_NAME_VERSION.tar.gz --exclude="./.*" --transform="s/^\./$PACKIT_PROJECT_NAME_VERSION/" .'
+    - bash -c "echo .packit_rpm/$PACKIT_PROJECT_NAME_VERSION.tar.gz"
+
+jobs:
+- job: copr_build
+  trigger: pull_request
+  targets:
+  - fedora-all-aarch64
+  - fedora-all-i386
+  - fedora-all-ppc64le
+  - fedora-all-s390x
+  - fedora-all-x86_64
