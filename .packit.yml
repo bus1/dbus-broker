@@ -1,5 +1,5 @@
 ---
-# vi:ts=2 sw=2 et:
+# vi: set ts=2 sw=2 et:
 #
 # Docs: https://packit.dev/docs/
 
@@ -35,8 +35,20 @@ jobs:
 - job: copr_build
   trigger: pull_request
   targets:
-  - fedora-all-aarch64
-  - fedora-all-i386
-  - fedora-all-ppc64le
-  - fedora-all-s390x
-  - fedora-all-x86_64
+    - fedora-all-aarch64
+    - fedora-all-i386
+    - fedora-all-ppc64le
+    - fedora-all-s390x
+    - fedora-all-x86_64
+
+- job: tests
+  trigger: pull_request
+  fmf_path: test/integration/
+  tmt_plan: upstream_ci
+  targets:
+    # Limit the Testing Farm jobs to the latest stable and rawhide releases to conserve resources
+    # See: https://packit.dev/docs/configuration#aliases
+    - fedora-latest-stable-aarch64
+    - fedora-latest-stable-x86_64
+    - fedora-rawhide-aarch64
+    - fedora-rawhide-x86_64
