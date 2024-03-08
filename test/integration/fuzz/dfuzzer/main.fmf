@@ -1,0 +1,7 @@
+summary: Run dfuzzer on a couple of D-Bus interfaces
+test: ./test.sh
+recommend:
+    - dfuzzer
+    - systemd
+    - util-linux
+duration: 30m

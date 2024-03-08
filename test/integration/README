@@ -1,0 +1,54 @@
+# dbus-broker integration test suite
+
+dbus-broker's integration test suite uses tmt (Test Management Tool [0]) to organize and run tests. Since tmt
+offers a _lot_ of features, this document pinpoints the most _interesting_ ones to get stuff up and running
+quickly.
+
+## How to contribute
+
+Creating a new test case is pretty simple:
+
+```
+$ cd test/integration
+$ tmt test create --template=shell test/name
+Test directory '/home/.../dbus-broker/test/integration/test/name' created.
+Test metadata '/home/.../dbus-broker/test/integration/test/name/main.fmf' created.
+Test script '/home/.../dbus-broker/test/integration/test/name/test.sh' created.
+```
+
+The newly created `test.sh` will be the actual test case, and `main.fmf` contains the test metadata, including
+test summary & description, test dependencies, runtime, and so on. See [1] for more details.
+
+After tweaking the test metadata it's usually a good idea to run `tmt lint test/name` to make sure that the
+configuration is still valid:
+
+```
+$ tmt lint test/name
+/test/name
+pass C000 fmf node passes schema validation
+pass C001 summary key is set and is reasonably long
+...
+```
+
+To check if the test itself works as expected you can use `tmt run`:
+
+```
+$ cd test/name
+$ tmt run -vvv --all provision --how local tests --name .
+...
+total: 1 test passed
+```
+
+The `tmt run` command is _very_ customizable (as is the rest of `tmt`). In this particular example we tell it
+to run all steps (`--all`) and override the `provision` and `tests` steps to run just one particular test on
+the local machine. As in previous cases, check the `tmt` documentation [0] and examples [2] for more details.
+
+## Links
+
+[0] https://tmt.readthedocs.io/en/stable/overview.html
+
+[1] https://tmt.readthedocs.io/en/stable/spec/tests.html
+
+[2] https://tmt.readthedocs.io/en/stable/examples.html#run
+
+<!-- vim: set syntax=markdown tw=110 : -->

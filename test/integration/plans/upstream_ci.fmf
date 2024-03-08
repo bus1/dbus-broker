@@ -1,0 +1,9 @@
+# vi: set sw=2 ts=2 et ft=yaml tw=80:
+
+# This plan discovers and executes all (enabled) integration tests
+
+summary: Upstream integration test suite
+discover:
+  how: fmf
+execute:
+  how: tmt
