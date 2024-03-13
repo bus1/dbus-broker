@@ -465,14 +465,25 @@ void util_broker_spawn(Broker *broker) {
                 /* read address from pipe */
                 n = read(broker->pipe_fds[0], buffer, sizeof(buffer) - 1);
                 c_assert(n >= 0 && n < (ssize_t)sizeof(buffer));
-                c_assert(!strncmp(buffer, "unix:abstract=", strlen("unix:abstract=")));
 
                 /* copy over the path into @broker */
-                broker->address.sun_path[0] = '\0';
-                e = memccpy(broker->address.sun_path + 1,
-                            buffer + strlen("unix:abstract="),
-                            ',',
-                            sizeof(broker->address.sun_path) - 2);
+                if (strncmp(buffer, "unix:abstract=", strlen("unix:abstract=")) == 0) {
+                        /* Abstract socket (dbus-daemon pre-v1.15.2) */
+                        broker->address.sun_path[0] = '\0';
+                        e = memccpy(broker->address.sun_path + 1,
+                                    buffer + strlen("unix:abstract="),
+                                    ',',
+                                    sizeof(broker->address.sun_path) - 2);
+                } else if (strncmp(buffer, "unix:path=", strlen("unix:path=")) == 0) {
+                        /* Path-based socket (dbus-daemon v1.15.2 and later) */
+                        e = memccpy(broker->address.sun_path,
+                                    buffer + strlen("unix:path="),
+                                    ',',
+                                    sizeof(broker->address.sun_path) - 1);
+                } else
+                        /* Anything else is unexpected */
+                        assert(false);
+
                 c_assert(e);
                 --e;
                 c_assert(*e == ',');
