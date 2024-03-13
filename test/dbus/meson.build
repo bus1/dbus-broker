@@ -75,12 +75,28 @@ test('Signals and Matches', test_matches)
 if use_reference_test
         dbus_bin = dep_dbus.get_variable(pkgconfig: 'bindir') + '/dbus-daemon'
 
-        benchmark('dbus-daemon(1): Connection', bench_connect, env: [ 'DBUS_BROKER_TEST_DAEMON=' + dbus_bin ], timeout: 60)
-        benchmark('dbus-daemon(1): Message passing', bench_message, env: [ 'DBUS_BROKER_TEST_DAEMON=' + dbus_bin ], timeout: 120)
+        benchmark('Connection', bench_connect,
+                  suite: 'dbus-daemon(1)',
+                  env: [ 'DBUS_BROKER_TEST_DAEMON=' + dbus_bin ],
+                  timeout: 60)
+        benchmark('Message passing', bench_message,
+                  suite: 'dbus-daemon(1)',
+                  env: [ 'DBUS_BROKER_TEST_DAEMON=' + dbus_bin ],
+                  timeout: 120)
 
-        test('dbus-daemon(1): Broker API', test_broker, env: [ 'DBUS_BROKER_TEST_DAEMON=' + dbus_bin ])
-        test('dbus-daemon(1): Driver API', test_driver, env: [ 'DBUS_BROKER_TEST_DAEMON=' + dbus_bin ])
-        test('dbus-daemon(1): FD Stream Constraints', test_fdstream, env: [ 'DBUS_BROKER_TEST_DAEMON=' + dbus_bin ])
-        test('dbus-daemon(1): Client Lifetime', test_lifetime, env: [ 'DBUS_BROKER_TEST_DAEMON=' + dbus_bin ])
-        test('dbus-daemon(1): Signals and Matches', test_matches, env: [ 'DBUS_BROKER_TEST_DAEMON=' + dbus_bin ])
+        test('Broker API', test_broker,
+              suite: 'dbus-daemon(1)',
+              env: [ 'DBUS_BROKER_TEST_DAEMON=' + dbus_bin ])
+        test('Driver API', test_driver,
+             suite: 'dbus-daemon(1)',
+             env: [ 'DBUS_BROKER_TEST_DAEMON=' + dbus_bin ])
+        test('FD Stream Constraints', test_fdstream,
+             suite: 'dbus-daemon(1)',
+             env: [ 'DBUS_BROKER_TEST_DAEMON=' + dbus_bin ])
+        test('Client Lifetime', test_lifetime,
+             suite: 'dbus-daemon(1)',
+             env: [ 'DBUS_BROKER_TEST_DAEMON=' + dbus_bin ])
+        test('Signals and Matches', test_matches,
+             suite: 'dbus-daemon(1)',
+             env: [ 'DBUS_BROKER_TEST_DAEMON=' + dbus_bin ])
 endif
