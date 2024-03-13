@@ -73,7 +73,7 @@ test_matches = executable('test-matches', ['test-matches.c'], dependencies: [ de
 test('Signals and Matches', test_matches)
 
 if use_reference_test
-        dbus_bin = dep_dbus.get_pkgconfig_variable('bindir') + '/dbus-daemon'
+        dbus_bin = dep_dbus.get_variable(pkgconfig: 'bindir') + '/dbus-daemon'
 
         benchmark('dbus-daemon(1): Connection', bench_connect, env: [ 'DBUS_BROKER_TEST_DAEMON=' + dbus_bin ], timeout: 60)
         benchmark('dbus-daemon(1): Message passing', bench_message, env: [ 'DBUS_BROKER_TEST_DAEMON=' + dbus_bin ], timeout: 120)
