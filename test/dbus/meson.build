@@ -41,62 +41,44 @@ dep_test = declare_dependency(
 # target: tool-*
 #
 
-tool_flood = executable('tool-flood', ['tool-flood.c'], dependencies: [ dep_test ])
+tool_flood = executable('tool-flood', ['tool-flood.c'], dependencies: [dep_test])
 
 #
 # target: bench-*
 #
 
-bench_connect = executable('bench-connect', ['bench-connect.c'], dependencies: [ dep_test ])
-benchmark('Connection', bench_connect)
-
-bench_message = executable('bench-message', ['bench-message.c'], dependencies: [ dep_test ])
-benchmark('Message passing', bench_message)
+bench_connect = executable('bench-connect', ['bench-connect.c'], dependencies: [dep_test])
+bench_message = executable('bench-message', ['bench-message.c'], dependencies: [dep_test])
 
 #
 # target: test-*
 #
 
-test_broker = executable('test-broker', ['test-broker.c'], dependencies: [ dep_test ])
-test('Broker API', test_broker)
+test_broker = executable('test-broker', ['test-broker.c'], dependencies: [dep_test])
+test_driver = executable('test-driver', ['test-driver.c'], dependencies: [dep_test])
+test_fdstream = executable('test-fdstream', ['test-fdstream.c'], dependencies: [dep_test])
+test_lifetime = executable('test-lifetime', ['test-lifetime.c'], dependencies: [dep_test])
+test_matches = executable('test-matches', ['test-matches.c'], dependencies: [dep_test])
 
-test_driver = executable('test-driver', ['test-driver.c'], dependencies: [ dep_test ])
-test('Driver API', test_driver)
 
-test_fdstream = executable('test-fdstream', ['test-fdstream.c'], dependencies: [ dep_test ])
-test('FD Stream Constraints', test_fdstream)
-
-test_lifetime = executable('test-lifetime', ['test-lifetime.c'], dependencies: [ dep_test ])
-test('Client Lifetime', test_lifetime)
-
-test_matches = executable('test-matches', ['test-matches.c'], dependencies: [ dep_test ])
-test('Signals and Matches', test_matches)
+suites = [
+        { 'suite': 'dbus-broker(1)', 'env': ['DBUS_BROKER_TEST_BROKER=' + exe_dbus_broker.full_path()]},
+]
 
 if use_reference_test
-        dbus_bin = dep_dbus.get_variable(pkgconfig: 'bindir') + '/dbus-daemon'
-
-        benchmark('Connection', bench_connect,
-                  suite: 'dbus-daemon(1)',
-                  env: [ 'DBUS_BROKER_TEST_DAEMON=' + dbus_bin ],
-                  timeout: 60)
-        benchmark('Message passing', bench_message,
-                  suite: 'dbus-daemon(1)',
-                  env: [ 'DBUS_BROKER_TEST_DAEMON=' + dbus_bin ],
-                  timeout: 120)
-
-        test('Broker API', test_broker,
-              suite: 'dbus-daemon(1)',
-              env: [ 'DBUS_BROKER_TEST_DAEMON=' + dbus_bin ])
-        test('Driver API', test_driver,
-             suite: 'dbus-daemon(1)',
-             env: [ 'DBUS_BROKER_TEST_DAEMON=' + dbus_bin ])
-        test('FD Stream Constraints', test_fdstream,
-             suite: 'dbus-daemon(1)',
-             env: [ 'DBUS_BROKER_TEST_DAEMON=' + dbus_bin ])
-        test('Client Lifetime', test_lifetime,
-             suite: 'dbus-daemon(1)',
-             env: [ 'DBUS_BROKER_TEST_DAEMON=' + dbus_bin ])
-        test('Signals and Matches', test_matches,
-             suite: 'dbus-daemon(1)',
-             env: [ 'DBUS_BROKER_TEST_DAEMON=' + dbus_bin ])
+        dbus_daemon_bin = dep_dbus.get_variable(pkgconfig: 'bindir') + '/dbus-daemon'
+        suites += [
+                { 'suite': 'dbus-daemon(1)', 'env': ['DBUS_BROKER_TEST_DAEMON=' + dbus_daemon_bin]},
+        ]
 endif
+
+foreach suite : suites
+        benchmark('Connection', bench_connect, timeout: 60, kwargs: suite)
+        benchmark('Message passing', bench_message, timeout: 120, kwargs: suite)
+
+        test('Broker API', test_broker, kwargs: suite)
+        test('Driver API', test_driver, kwargs: suite)
+        test('FD Stream Constraints', test_fdstream, kwargs: suite)
+        test('Client Lifetime', test_lifetime, kwargs: suite)
+        test('Signals and Matches', test_matches, kwargs: suite)
+endforeach
