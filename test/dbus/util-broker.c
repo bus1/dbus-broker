@@ -183,6 +183,7 @@ void util_fork_broker(sd_bus **busp, sd_event *event, int listener_fd, pid_t *pi
         _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
         _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *message = NULL;
         _c_cleanup_(c_freep) char *fdstr = NULL;
+        const char *bin;
         int r, pair[2];
         pid_t pid;
 
@@ -203,8 +204,10 @@ void util_fork_broker(sd_bus **busp, sd_event *event, int listener_fd, pid_t *pi
                 r = asprintf(&fdstr, "%d", pair[1]);
                 c_assert(r >= 0);
 
-                r = execl("./src/dbus-broker",
-                          "./src/dbus-broker",
+                bin = getenv("DBUS_BROKER_TEST_BROKER") ?: "/usr/bin/dbus-broker";
+                fprintf(stderr, "Using dbus-broker binary %s\n", bin);
+                r = execl(bin,
+                          bin,
                           "--controller", fdstr,
                           "--machine-id", "0123456789abcdef0123456789abcdef",
                           "--max-matches", "1000000",
@@ -319,6 +322,7 @@ void util_fork_daemon(sd_event *event, int pipe_fd, pid_t *pidp) {
 
                 /* exec dbus-daemon */
                 bin = getenv("DBUS_BROKER_TEST_DAEMON") ?: "/usr/bin/dbus-daemon";
+                fprintf(stderr, "Using dbus-daemon binary %s\n", bin);
                 r = execl(bin,
                           bin,
                           path,
