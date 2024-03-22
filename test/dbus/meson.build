@@ -37,6 +37,11 @@ dep_test = declare_dependency(
         version: meson.project_version(),
 )
 
+test_dbus_install_kwargs = {
+        'install': install_tests,
+        'install_dir': test_install_dir / 'dbus',
+}
+
 #
 # target: tool-*
 #
@@ -47,19 +52,53 @@ tool_flood = executable('tool-flood', ['tool-flood.c'], dependencies: [dep_test]
 # target: bench-*
 #
 
-bench_connect = executable('bench-connect', ['bench-connect.c'], dependencies: [dep_test])
-bench_message = executable('bench-message', ['bench-message.c'], dependencies: [dep_test])
+bench_connect = executable(
+        'bench-connect',
+        sources: ['bench-connect.c'],
+        dependencies: [dep_test],
+        kwargs: test_dbus_install_kwargs
+)
+bench_message = executable(
+        'bench-message',
+        sources: ['bench-message.c'],
+        dependencies: [dep_test],
+        kwargs: test_dbus_install_kwargs
+)
 
 #
 # target: test-*
 #
 
-test_broker = executable('test-broker', ['test-broker.c'], dependencies: [dep_test])
-test_driver = executable('test-driver', ['test-driver.c'], dependencies: [dep_test])
-test_fdstream = executable('test-fdstream', ['test-fdstream.c'], dependencies: [dep_test])
-test_lifetime = executable('test-lifetime', ['test-lifetime.c'], dependencies: [dep_test])
-test_matches = executable('test-matches', ['test-matches.c'], dependencies: [dep_test])
-
+test_broker = executable(
+        'test-broker',
+        sources: ['test-broker.c'],
+        dependencies: [dep_test],
+        kwargs: test_dbus_install_kwargs
+)
+test_driver = executable(
+        'test-driver',
+        sources: ['test-driver.c'],
+        dependencies: [dep_test],
+        kwargs: test_dbus_install_kwargs
+)
+test_fdstream = executable(
+        'test-fdstream',
+        sources: ['test-fdstream.c'],
+        dependencies: [dep_test],
+        kwargs: test_dbus_install_kwargs
+)
+test_lifetime = executable(
+        'test-lifetime',
+        sources: ['test-lifetime.c'],
+        dependencies: [dep_test],
+        kwargs: test_dbus_install_kwargs
+)
+test_matches = executable(
+        'test-matches',
+        sources: ['test-matches.c'],
+        dependencies: [dep_test],
+        kwargs: test_dbus_install_kwargs
+)
 
 suites = [
         { 'suite': 'dbus-broker(1)', 'env': ['DBUS_BROKER_TEST_BROKER=' + exe_dbus_broker.full_path()]},
