@@ -67,6 +67,12 @@ if use_docs
 endif
 
 #
+# Config: install-tests
+#
+install_tests = get_option('install-tests')
+test_install_dir = get_option('prefix') / 'lib/dbus-broker/tests'
+
+#
 # Config: launcher
 #
 
