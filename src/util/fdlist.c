@@ -65,6 +65,47 @@ int fdlist_new_consume_fds(FDList **listp, const int *fds, size_t n_fds) {
 }
 
 /**
+ * fdlist_new_dup_fds() - create fdlist and duplicate FDs
+ * @listp:              output for new fdlist
+ * @fds:                FD array to duplicate
+ * @n_fds:              array size of @fds
+ *
+ * This is the same as fdlist_new_with_fds() but duplicates the FDs. That is,
+ * the caller retains the FDs, and an independent copy of each FD will be owned
+ * by the new object.
+ *
+ * Return: 0 on success, negative error code on failure.
+ */
+int fdlist_new_dup_fds(FDList **listp, const int *fds, size_t n_fds) {
+        _c_cleanup_(fdlist_freep) FDList *list = NULL;
+        size_t i;
+        int r, *p;
+
+        r = fdlist_new_with_fds(&list, fds, n_fds);
+        if (r)
+                return error_trace(r);
+
+        p = fdlist_data(list);
+        for (i = 0; i < n_fds; ++i) {
+                p[i] = fcntl(p[i], F_DUPFD_CLOEXEC, 3);
+                if (p[i] < 0) {
+                        r = -errno;
+                        while (i > 0) {
+                                --i;
+                                p[i] = c_close(p[i]);
+                        }
+                        return error_origin(r);
+                }
+        }
+
+        list->consumed = true;
+
+        *listp = list;
+        list = NULL;
+        return 0;
+}
+
+/**
  * fdlist_free() - free fdlist
  * @list:               fdlist to operate on, or NULL
  *

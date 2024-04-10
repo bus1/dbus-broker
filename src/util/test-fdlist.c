@@ -85,9 +85,56 @@ static void test_consumer(void) {
         l = fdlist_free(l);
 }
 
+static void test_dup(void) {
+        int r, prev, p[2], expected[2];
+        FDList *l;
+
+        /*
+         * Verify that the `dup' feature of FDList objects actually duplicates
+         * the passed FDs and closes them on destruction. We use epoll-fds as
+         * examples here, though any FD would work.
+         *
+         * We use the fact that FD spaces are sparse to verify that a given FD
+         * was actually properly closed.
+         */
+
+        prev = epoll_create1(EPOLL_CLOEXEC);
+        c_assert(prev >= 0);
+
+        p[0] = epoll_create1(EPOLL_CLOEXEC);
+        c_assert(p[0] >= 0);
+        c_assert(p[0] == prev + 1);
+
+        p[1] = epoll_create1(EPOLL_CLOEXEC);
+        c_assert(p[1] >= 0);
+        c_assert(p[1] == prev + 2);
+
+        r = fdlist_new_dup_fds(&l, p, C_ARRAY_SIZE(p));
+        c_assert(!r);
+
+        expected[0] = prev + 3;
+        expected[1] = prev + 4;
+
+        c_assert(fdlist_count(l) == C_ARRAY_SIZE(p));
+        c_assert(!memcmp(fdlist_data(l), expected, sizeof(expected)));
+
+        fdlist_truncate(l, 0);
+
+        r = epoll_create1(EPOLL_CLOEXEC);
+        c_assert(r == prev + 3);
+        close(r);
+
+        close(p[1]);
+        close(p[0]);
+        close(prev);
+
+        l = fdlist_free(l);
+}
+
 int main(int argc, char **argv) {
         test_setup();
         test_dummy();
         test_consumer();
+        test_dup();
         return 0;
 }
