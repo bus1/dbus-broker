@@ -63,13 +63,13 @@ test_lifetime = executable('test-lifetime', sources: ['test-lifetime.c'], kwargs
 test_matches = executable('test-matches', sources: ['test-matches.c'], kwargs: test_kwargs)
 
 suites = [
-        { 'suite': 'dbus-broker(1)', 'env': ['DBUS_BROKER_TEST_BROKER=' + exe_dbus_broker.full_path()]},
+        { 'suite': 'dbus-broker', 'env': ['DBUS_BROKER_TEST_BROKER=' + exe_dbus_broker.full_path()]},
 ]
 
 if use_reference_test
         dbus_daemon_bin = dep_dbus.get_variable(pkgconfig: 'bindir') + '/dbus-daemon'
         suites += [
-                { 'suite': 'dbus-daemon(1)', 'env': ['DBUS_BROKER_TEST_DAEMON=' + dbus_daemon_bin]},
+                { 'suite': 'dbus-daemon', 'env': ['DBUS_BROKER_TEST_DAEMON=' + dbus_daemon_bin]},
         ]
 endif
 
