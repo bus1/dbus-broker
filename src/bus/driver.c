@@ -524,7 +524,7 @@ static int driver_send_reply_with_fds(Peer *peer, CDVar *var, uint32_t serial, i
         data = NULL;
 
         if (n_fds > 0) {
-                r = fdlist_new_with_fds(&message->fds, fds, n_fds);
+                r = fdlist_new_dup_fds(&message->fds, fds, n_fds);
                 if (r)
                         return error_fold(r);
         }
