@@ -66,3 +66,8 @@ jobs:
   - fedora-latest-stable-x86_64
   - fedora-rawhide-aarch64
   - fedora-rawhide-x86_64
+
+- job: propose_downstream
+  trigger: release
+  dist_git_branches:
+  - main
