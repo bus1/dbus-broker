@@ -67,7 +67,7 @@ suites = [
 ]
 
 if use_reference_test
-        dbus_daemon_bin = dep_dbus.get_variable(pkgconfig: 'bindir') + '/dbus-daemon'
+        dbus_daemon_bin = dep_dbus.get_variable(pkgconfig: 'bindir') / 'dbus-daemon'
         suites += [
                 { 'suite': 'dbus-daemon', 'env': ['DBUS_BROKER_TEST_DAEMON=' + dbus_daemon_bin]},
         ]
