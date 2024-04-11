@@ -205,7 +205,6 @@ void util_fork_broker(sd_bus **busp, sd_event *event, int listener_fd, pid_t *pi
                 c_assert(r >= 0);
 
                 bin = getenv("DBUS_BROKER_TEST_BROKER") ?: "/usr/bin/dbus-broker";
-                fprintf(stderr, "Using dbus-broker binary %s\n", bin);
                 r = execl(bin,
                           bin,
                           "--controller", fdstr,
@@ -322,7 +321,6 @@ void util_fork_daemon(sd_event *event, int pipe_fd, pid_t *pidp) {
 
                 /* exec dbus-daemon */
                 bin = getenv("DBUS_BROKER_TEST_DAEMON") ?: "/usr/bin/dbus-daemon";
-                fprintf(stderr, "Using dbus-daemon binary %s\n", bin);
                 r = execl(bin,
                           bin,
                           path,
