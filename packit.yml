@@ -5,7 +5,7 @@ upstream_tag_template: "v{version}"
 specfile_path: ".dist-git/dbus-broker.spec"
 
 files_to_sync:
-- ".packit.yml"
+- "packit.yml"
 - src: ".dist-git/dbus-broker.spec"
   dest: "dbus-broker.spec"
 
