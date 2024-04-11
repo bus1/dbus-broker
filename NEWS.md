@@ -1,5 +1,25 @@
 # dbus-broker - Linux D-Bus Message Broker
 
+## CHANGES WITH 36:
+
+        * Fix possible file-descriptor use-after-close, which can lead to
+          broker termination or disclosure of internal file-desciptors to
+          clients.
+
+        * Be more verbose about activation failures and include suitable
+          information in related log messages.
+
+        * New Meson build option `tests` allows installing tests as part
+          of the distribution into `<prefix>/lib/dbus-broker/tests`. This
+          is not recommended for production environments.
+
+        * Many updates to the test suite and packing of the upstream project.
+
+        Contributions from: Camron Carter, David Rheinsberg, Frantisek Sumsal,
+                            Jake Dane, Tom Gundersen
+
+        - Dußlingen, 2024-04-12
+
 ## CHANGES WITH 35:
 
         * Fix crash on startup/reload when corrupt configuration or
