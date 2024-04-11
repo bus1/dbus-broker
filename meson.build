@@ -67,12 +67,6 @@ if use_docs
 endif
 
 #
-# Config: install-tests
-#
-install_tests = get_option('install-tests')
-test_install_dir = get_option('prefix') / 'lib/dbus-broker/tests'
-
-#
 # Config: launcher
 #
 
@@ -118,6 +112,13 @@ foreach user : use_system_console_users
 endforeach
 
 add_project_arguments('-DSYSTEM_CONSOLE_USERS=' + acc_sysusers, language: 'c')
+
+#
+# Config: tests
+#
+
+use_tests = get_option('tests')
+conf.set('testdir', get_option('prefix') / 'lib/dbus-broker/tests')
 
 #
 # Global Parameters

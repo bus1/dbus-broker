@@ -174,8 +174,8 @@ endif
 #
 
 test_unit_install_kwargs = {
-        'install': install_tests,
-        'install_dir': test_install_dir / 'unit',
+        'install': use_tests,
+        'install_dir': conf.get('testdir') / 'unit',
 }
 
 test_address = executable(

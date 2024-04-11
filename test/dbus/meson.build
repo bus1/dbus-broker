@@ -38,8 +38,8 @@ dep_test = declare_dependency(
 )
 
 test_dbus_install_kwargs = {
-        'install': install_tests,
-        'install_dir': test_install_dir / 'dbus',
+        'install': use_tests,
+        'install_dir': conf.get('testdir') / 'dbus',
 }
 
 #
