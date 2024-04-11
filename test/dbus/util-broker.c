@@ -18,6 +18,10 @@
 #include "util/syscall.h"
 #include "util-broker.h"
 
+bool util_is_reference(void) {
+        return !!getenv("DBUS_BROKER_TEST_DAEMON");
+}
+
 void util_event_new(sd_event **eventp) {
         _c_cleanup_(sd_event_unrefp) sd_event *event = NULL;
         sigset_t sigold;

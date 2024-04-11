@@ -1685,7 +1685,12 @@ static void test_verify_credentials(sd_bus_message *message) {
 
         c_assert(got_uid);
         c_assert(got_pid);
-        c_assert(got_gids);
+
+        if (!util_is_reference()) {
+                // Group-IDs are a relatively new feature, which might not be
+                // reported by the reference implementation used for this run.
+                c_assert(got_gids);
+        }
 
         /*
          * XXX: verify that we get the security label at least when SELinux is enabled

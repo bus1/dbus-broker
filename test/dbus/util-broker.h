@@ -36,6 +36,7 @@ struct Broker {
 
 /* misc */
 
+bool util_is_reference(void);
 void util_event_new(sd_event **eventp);
 void util_fork_broker(sd_bus **busp, sd_event *event, int listener_fd, pid_t *pidp);
 void util_fork_daemon(sd_event *event, int pipe_fd, pid_t *pidp);

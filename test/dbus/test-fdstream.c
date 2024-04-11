@@ -274,7 +274,7 @@ int main(int argc, char **argv) {
          * dbus-daemon(1), so we disable the test. Both issues are reported and
          * are hopefully fixed soon. See BZ #101754, #101755
          */
-        if (getenv("DBUS_BROKER_TEST_DAEMON"))
+        if (util_is_reference())
                 return 77;
 
         for (unsigned int i = 0; i < _TEST_FD_STREAM_N; ++i) {
