@@ -484,9 +484,10 @@ void util_broker_spawn(Broker *broker) {
                                     buffer + strlen("unix:path="),
                                     ',',
                                     sizeof(broker->address.sun_path) - 1);
-                } else
+                } else {
                         /* Anything else is unexpected */
-                        assert(false);
+                        c_assert(false);
+                }
 
                 c_assert(e);
                 --e;
