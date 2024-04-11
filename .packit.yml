@@ -30,6 +30,15 @@ actions:
 
 jobs:
 - job: copr_build
+  trigger: commit
+  targets:
+  - fedora-all-aarch64
+  - fedora-all-i386
+  - fedora-all-ppc64le
+  - fedora-all-s390x
+  - fedora-all-x86_64
+
+- job: copr_build
   trigger: pull_request
   targets:
   - fedora-all-aarch64
@@ -37,6 +46,16 @@ jobs:
   - fedora-all-ppc64le
   - fedora-all-s390x
   - fedora-all-x86_64
+
+- job: tests
+  trigger: commit
+  fmf_path: test/integration/
+  tmt_plan: upstream_ci
+  targets:
+  - fedora-latest-stable-aarch64
+  - fedora-latest-stable-x86_64
+  - fedora-rawhide-aarch64
+  - fedora-rawhide-x86_64
 
 - job: tests
   trigger: pull_request
