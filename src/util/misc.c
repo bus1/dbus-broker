@@ -49,7 +49,7 @@
  *    Throw in `MFD_CLOEXEC` or `F_SEAL_SEAL` as required.
  *
  *  * If `MFD_NOEXEC_SEAL` is used without `MFD_ALLOW_SEALING`, sealing will
- *    be disabled (even though the kernel implicitly enables it).
+ *    be disabled (even though some kernel versions implicitly enable it).
  *
  *  * An initial set of seals is applied to the memfd, if specified in
  *    @seals. Note that this is not allowed if sealing was not enabled.
@@ -111,11 +111,11 @@ int misc_memfd(const char *name, unsigned int uflags, unsigned int useals) {
         }
 
         /*
-         * If we ended up passing `MFG_NOEXEC_SEAL` to the kernel, the kernel
-         * will implicitly enable sealing. This is very unfortunate, so we
-         * revert this if the caller did not explicitly allow it. To disable
-         * sealing, simply set `F_SEAL_SEAL`, which is also what the kernel
-         * does.
+         * If we ended up passing `MFG_NOEXEC_SEAL` to the kernel, some kernel
+         * versions will implicitly enable sealing. This is very unfortunate,
+         * so we revert this if the caller did not explicitly allow it. To
+         * disable sealing, simply set `F_SEAL_SEAL`, which is also what the
+         * kernel does.
          */
         if ((flags & MISC_MFD_NOEXEC_SEAL) && !(flags & MISC_MFD_ALLOW_SEALING))
                 seals |= MISC_F_SEAL_SEAL;
@@ -126,9 +126,15 @@ int misc_memfd(const char *name, unsigned int uflags, unsigned int useals) {
          * into the kernel again.
          */
         if (seals) {
-                r = misc_memfd_add_seals(fd, seals);
-                if (r)
-                        return error_fold(r);
+                r = fcntl(fd, MISC_F_GET_SEALS);
+                if (r < 0)
+                        return error_origin(-errno);
+
+                if (seals & ~r) {
+                        r = misc_memfd_add_seals(fd, seals);
+                        if (r)
+                                return error_fold(r);
+                }
         }
 
         r = fd;
