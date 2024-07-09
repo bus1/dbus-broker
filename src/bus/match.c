@@ -422,12 +422,12 @@ static bool match_keys_match_metadata(MatchKeys *keys, MessageMetadata *metadata
                 return false;
 
         for (unsigned int i = 0; i < keys->filter.n_args || i < keys->filter.n_argpaths; i ++) {
-                if (keys->filter.args[i] && !(metadata->args[0].element == 's' && string_equal(keys->filter.args[i], metadata->args[i].value)))
+                if (keys->filter.args[i] && !(metadata->args[i].element == 's' && string_equal(keys->filter.args[i], metadata->args[i].value)))
                         return false;
 
                 if (keys->filter.argpaths[i]) {
                         if (!match_string_prefix(metadata->args[i].value, keys->filter.argpaths[i], '/', true) &&
-                            !match_string_prefix(keys->filter.argpaths[i], metadata->args[0].value, '/', true))
+                            !match_string_prefix(keys->filter.argpaths[i], metadata->args[i].value, '/', true))
                                 return false;
                 }
         }
