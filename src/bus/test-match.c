@@ -254,6 +254,33 @@ static void test_individual_matches(void) {
         c_assert(!test_match("arg0=com.example.foobar", &metadata));
         c_assert(!test_match("arg0=com.example", &metadata));
 
+        /* arg1 */
+        metadata = (MessageMetadata)MESSAGE_METADATA_INIT;
+        c_assert(!test_match("arg1=/com/example/foo/", &metadata));
+        metadata.args[0].value = "unrelated string";
+        metadata.args[0].element = 's';
+        metadata.args[1].value = "/com/example/foo/";
+        metadata.args[1].element = 's';
+        metadata.n_args = 2;
+        c_assert(test_match("arg1=/com/example/foo/", &metadata));
+        c_assert(!test_match("arg1=/com/example/foo/bar", &metadata));
+        c_assert(!test_match("arg1=/com/example/foobar", &metadata));
+        c_assert(!test_match("arg1=/com/example/", &metadata));
+        c_assert(!test_match("arg1=/com/example", &metadata));
+        metadata.args[1].value = "/com/example/foo";
+        metadata.args[1].element = 's';
+        c_assert(test_match("arg1=/com/example/foo", &metadata));
+        c_assert(!test_match("arg1=/com/example/foo/bar", &metadata));
+        c_assert(!test_match("arg1=/com/example/foobar", &metadata));
+        c_assert(!test_match("arg1=/com/example/", &metadata));
+        c_assert(!test_match("arg1=/com/example", &metadata));
+        metadata.args[1].value = "com.example.foo";
+        metadata.args[1].element = 's';
+        c_assert(test_match("arg1=com.example.foo", &metadata));
+        c_assert(!test_match("arg1=com.example.foo.bar", &metadata));
+        c_assert(!test_match("arg1=com.example.foobar", &metadata));
+        c_assert(!test_match("arg1=com.example", &metadata));
+
         /* arg0path - parent */
         metadata = (MessageMetadata)MESSAGE_METADATA_INIT;
         c_assert(!test_match("arg0path=/com/example/foo/", &metadata));
@@ -277,6 +304,34 @@ static void test_individual_matches(void) {
         c_assert(!test_match("arg0path=/com/example/foobar", &metadata));
         c_assert(test_match("arg0path=/com/example/", &metadata));
         c_assert(!test_match("arg0path=/com/example", &metadata));
+
+        /* arg1path - parent */
+        metadata = (MessageMetadata)MESSAGE_METADATA_INIT;
+        c_assert(!test_match("arg1path=/com/example/foo/", &metadata));
+        metadata.args[0].value = "unrelated string";
+        metadata.args[0].element = 's';
+        metadata.args[1].value = "/com/example/foo/";
+        metadata.args[1].element = 'o';
+        metadata.n_args = 2;
+        c_assert(test_match("arg1path=/com/example/foo/", &metadata));
+        c_assert(test_match("arg1path=/com/example/foo/bar", &metadata));
+        c_assert(!test_match("arg1path=/com/example/foobar", &metadata));
+        c_assert(test_match("arg1path=/com/example/", &metadata));
+        c_assert(!test_match("arg1path=/com/example", &metadata));
+
+        /* arg1path - child */
+        metadata = (MessageMetadata)MESSAGE_METADATA_INIT;
+        c_assert(!test_match("arg1path=/com/example/foo", &metadata));
+        metadata.args[0].value = "unrelated string";
+        metadata.args[0].element = 's';
+        metadata.args[1].value = "/com/example/foo";
+        metadata.args[1].element = 'o';
+        metadata.n_args = 2;
+        c_assert(test_match("arg1path=/com/example/foo", &metadata));
+        c_assert(!test_match("arg1path=/com/example/foo/bar", &metadata));
+        c_assert(!test_match("arg1path=/com/example/foobar", &metadata));
+        c_assert(test_match("arg1path=/com/example/", &metadata));
+        c_assert(!test_match("arg1path=/com/example", &metadata));
 
         /* arg0namespace */
         metadata = (MessageMetadata)MESSAGE_METADATA_INIT;
