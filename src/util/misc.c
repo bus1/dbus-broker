@@ -60,6 +60,7 @@ int misc_memfd(const char *name, unsigned int uflags, unsigned int useals) {
         _c_cleanup_(c_closep) int fd = -1;
         unsigned int flags = uflags;
         unsigned int seals = useals;
+        unsigned int kseals;
         struct stat st;
         int r;
 
@@ -126,11 +127,11 @@ int misc_memfd(const char *name, unsigned int uflags, unsigned int useals) {
          * into the kernel again.
          */
         if (seals) {
-                r = fcntl(fd, MISC_F_GET_SEALS);
-                if (r < 0)
-                        return error_origin(-errno);
+                r = misc_memfd_get_seals(fd, &kseals);
+                if (r)
+                        return error_fold(r);
 
-                if (seals & ~r) {
+                if (seals & ~kseals) {
                         r = misc_memfd_add_seals(fd, seals);
                         if (r)
                                 return error_fold(r);
