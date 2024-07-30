@@ -173,20 +173,24 @@ int misc_memfd_add_seals(int fd, unsigned int seals) {
 /**
  * misc_memfd_get_seals() - query seals of a memfd
  * @fd:         memfd to operate on
+ * @sealsp:     output argument to store retrieved seals
  *
  * Query the seals of the memfd. If the FD does not refer to a memfd (or other
  * file that supports sealing), an error will be returned.
  *
- * Return: Seal mask of the memfd is returned, negative error code on failure.
+ * On success, the seals are written to @sealsp.
+ *
+ * Return: 0 on success, negative error code on failure.
  */
-int misc_memfd_get_seals(int fd) {
+int misc_memfd_get_seals(int fd, unsigned int *sealsp) {
         int seals;
 
         seals = fcntl(fd, MISC_F_GET_SEALS);
         if (seals < 0)
                 return error_origin(-errno);
 
-        return seals;
+        *sealsp = seals;
+        return 0;
 }
 
 /**

@@ -87,10 +87,10 @@ static void test_memfd(void) {
                         .out_fmode = 0666,
                 },
         };
-        unsigned int seal_mask;
+        unsigned int seals, seal_mask;
         struct stat st;
         size_t i;
-        int r, fd, seals;
+        int r, fd;
 
         seal_mask = memfd_seals();
 
@@ -104,8 +104,8 @@ static void test_memfd(void) {
                 }
                 c_assert(!v[i].out_error);
 
-                seals = misc_memfd_get_seals(fd);
-                c_assert(seals >= 0);
+                r = misc_memfd_get_seals(fd, &seals);
+                c_assert(r >= 0);
                 c_assert((seals & seal_mask) == (v[i].out_seals & seal_mask));
 
                 r = fstat(fd, &st);

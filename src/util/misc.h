@@ -22,7 +22,7 @@
 
 int misc_memfd(const char *name, unsigned int uflags, unsigned int useals);
 int misc_memfd_add_seals(int fd, unsigned int seals);
-int misc_memfd_get_seals(int fd);
+int misc_memfd_get_seals(int fd, unsigned int *sealsp);
 
 uint64_t util_umul64_saturating(uint64_t a, uint64_t b);
 int util_drop_permissions(uint32_t uid, uint32_t gid);
