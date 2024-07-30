@@ -173,9 +173,13 @@ static bool socket_buffer_consume(SocketBuffer *buffer, size_t n) {
 
         for ( ; !socket_buffer_is_consumed(buffer); ++buffer->writer) {
                 t = c_min(buffer->writer->iov_len, n);
-                buffer->writer->iov_len -= t;
-                buffer->writer->iov_base += t;
-                n -= t;
+                // IOVs can be empty/NULL. Ensure we do not calculate
+                // `NULL + 0`, as this is, unfortunately, UB.
+                if (t) {
+                        buffer->writer->iov_len -= t;
+                        buffer->writer->iov_base += t;
+                        n -= t;
+                }
                 if (buffer->writer->iov_len)
                         break;
         }
