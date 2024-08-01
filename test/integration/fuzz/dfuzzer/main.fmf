@@ -1,6 +1,7 @@
 summary: Run dfuzzer on a couple of D-Bus interfaces
 test: ./test.sh
-recommend:
+require:
+    - dbus-broker
     - dfuzzer
     - systemd
     - util-linux
