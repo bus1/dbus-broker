@@ -405,7 +405,8 @@ static int policy_import_own(Policy *policy, ConfigNode *cnode) {
                 c_list_link_tail(&policy->default_entries.own_list, &record->link);
         }
 
-        record = NULL;
+        if (c_list_is_linked(&record->link))
+                record = NULL;
         return 0;
 }
 
@@ -497,7 +498,8 @@ static int policy_import_send(Policy *policy, ConfigNode *cnode) {
                 c_list_link_tail(&policy->default_entries.send_list, &record->link);
         }
 
-        record = NULL;
+        if (c_list_is_linked(&record->link))
+                record = NULL;
         return 0;
 }
 
@@ -589,7 +591,8 @@ static int policy_import_recv(Policy *policy, ConfigNode *cnode) {
                 c_list_link_tail(&policy->default_entries.recv_list, &record->link);
         }
 
-        record = NULL;
+        if (c_list_is_linked(&record->link))
+                record = NULL;
         return 0;
 }
 
