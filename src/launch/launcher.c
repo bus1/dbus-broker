@@ -925,6 +925,8 @@ static int launcher_load_standard_session_services(Launcher *launcher, NSSCache 
 
 static int launcher_load_standard_system_services(Launcher *launcher, NSSCache *nss_cache) {
         static const char *default_data_dirs[] = {
+                "/etc",
+                "/run",
                 "/usr/local/share",
                 "/usr/share",
                 "/lib",
