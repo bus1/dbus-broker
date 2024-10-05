@@ -23,3 +23,5 @@ systemctl status --no-pager dbus-broker.service
 # signatures. Also, it's fuzzed in upstream by dfuzzer as well, which should make the test less prone to fails
 # due to issues on systemd's side.
 setpriv --reuid="$TEST_USER" --init-group -- dfuzzer -v --buffer-limit=10240 --bus org.freedesktop.systemd1
+
+systemctl status --no-pager dbus-broker.service
