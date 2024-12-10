@@ -24,6 +24,10 @@
 #include "util/sockopt.h"
 #include "util/user.h"
 
+static int broker_propagate_sighup(Broker *broker) {
+	return controller_dbus_send_sighup(&broker->controller);
+}
+
 static int broker_dispatch_signals(DispatchFile *file) {
         Broker *broker = c_container_of(file, Broker, signals_file);
         struct signalfd_siginfo si;
@@ -36,6 +40,10 @@ static int broker_dispatch_signals(DispatchFile *file) {
                 return error_origin(-errno);
 
         c_assert(l == sizeof(si));
+
+        if (si.ssi_signo == SIGHUP) {
+                broker_propagate_sighup(broker);
+        }
 
         return DISPATCH_E_EXIT;
 }
@@ -134,6 +142,7 @@ int broker_new(Broker **brokerp, const char *machine_id, int log_fd, int control
         sigemptyset(&sigmask);
         sigaddset(&sigmask, SIGTERM);
         sigaddset(&sigmask, SIGINT);
+        sigaddset(&sigmask, SIGHUP);
 
         broker->signals_fd = signalfd(-1, &sigmask, SFD_CLOEXEC | SFD_NONBLOCK);
         if (broker->signals_fd < 0)
@@ -210,6 +219,7 @@ int broker_run(Broker *broker) {
         sigemptyset(&signew);
         sigaddset(&signew, SIGTERM);
         sigaddset(&signew, SIGINT);
+        sigaddset(&signew, SIGHUP);
 
         sigprocmask(SIG_BLOCK, &signew, &sigold);
 
