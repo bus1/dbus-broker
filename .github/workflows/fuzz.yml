@@ -46,7 +46,7 @@ jobs:
         sanitizer: ${{ matrix.sanitizer }}
     - name: Upload Crash
       if: failure() && steps.build.outcome == 'success'
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: ${{ matrix.sanitizer }}-${{ matrix.architecture }}-artifacts
         path: ./out/artifacts
