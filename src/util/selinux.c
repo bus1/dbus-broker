@@ -6,6 +6,7 @@
 #include <c-stdaux.h>
 #include <selinux/selinux.h>
 #include <selinux/avc.h>
+#include <signal.h>
 #include <stdlib.h>
 #include "util/audit.h"
 #include "util/error.h"
@@ -341,6 +342,15 @@ static int bus_selinux_log(int type, const char *fmt, ...) {
 }
 
 /**
+ * On a policy reload we need to reparse the SELinux configuration file, since
+ * this could have changed. The call back is registered in the broker, but
+ * we need to reload the configuration in the launcher.
+ */
+static int policy_reload_callback(int seqno) {
+	return raise(SIGHUP);
+}
+
+/**
  * bus_selinux_init_global() - initialize the global SELinux context
  *
  * Initialize the global SELinux context. This must be called before any
@@ -386,6 +396,7 @@ int bus_selinux_init_global(void) {
         }
 
         selinux_set_callback(SELINUX_CB_LOG, (union selinux_callback)bus_selinux_log);
+        selinux_set_callback(SELINUX_CB_POLICYLOAD, (union selinux_callback)policy_reload_callback);
 
         /* XXX: set audit callback to get more metadata in the audit log? */
 
