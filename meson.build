@@ -38,6 +38,11 @@ add_project_arguments(dep_cstdaux.get_variable('cflags').split(' '), language: '
 add_project_arguments('-DBINDIR="' + join_paths(get_option('prefix'), get_option('bindir')) + '"', language: 'c')
 add_project_arguments('-DPACKAGE_VERSION=' + meson.project_version(), language: 'c')
 
+if get_option('b_coverage')
+        # Include coverage-related tweaks only if we're built with -Db_coverage=true
+        add_project_arguments('-include', join_paths(meson.current_source_dir(), 'src/util/coverage.h'), language: 'c')
+endif
+
 #
 # Config: apparmor
 #
