@@ -8,7 +8,7 @@ Requires=dbus.socket
 Conflicts=shutdown.target
 
 [Service]
-Type=notify
+Type=notify-reload
 Sockets=dbus.socket
 OOMScoreAdjust=-900
 LimitNOFILE=16384
@@ -16,7 +16,6 @@ ProtectSystem=full
 PrivateTmp=true
 PrivateDevices=true
 ExecStart=@bindir@/dbus-broker-launch --scope system --audit
-ExecReload=@bindir@/busctl call org.freedesktop.DBus /org/freedesktop/DBus org.freedesktop.DBus ReloadConfig
 
 [Install]
 Alias=dbus.service
