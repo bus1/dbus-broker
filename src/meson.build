@@ -44,6 +44,7 @@ sources_bus = [
         'util/sockopt.c',
         'util/string.c',
         'util/systemd.c',
+        'util/time-util.c',
         'util/user.c',
 ]
 

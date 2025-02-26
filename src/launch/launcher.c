@@ -15,6 +15,7 @@
 #include <systemd/sd-daemon.h>
 #include <systemd/sd-event.h>
 #include <systemd/sd-id128.h>
+#include <time.h>
 #include "catalog/catalog-ids.h"
 #include "dbus/protocol.h"
 #include "launch/config.h"
@@ -30,6 +31,7 @@
 #include "util/log.h"
 #include "util/misc.h"
 #include "util/string.h"
+#include "util/time-util.h"
 
 /*
  * These are the default limits used when spawning dbus-broker. They are
@@ -1167,7 +1169,10 @@ static int launcher_reload_config(Launcher *launcher) {
         Service *service;
         int r, res;
 
-        r = sd_notify(false, "RELOADING=1");
+        r = sd_notifyf(/* unset_environment = */ false,
+                       "RELOADING=1\n"
+                       "MONOTONIC_USEC=" USEC_FMT,
+                       now(CLOCK_MONOTONIC));
         if (r < 0)
                 return error_origin(r);
 
