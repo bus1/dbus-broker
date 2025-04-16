@@ -238,7 +238,7 @@ int sockopt_get_peerpidfd(int fd, int *pidfdp) {
                         return SOCKOPT_E_UNSUPPORTED;
                 if (errno == ENODATA)
                         return SOCKOPT_E_UNAVAILABLE;
-                if (errno == EINVAL)
+                if (errno == EINVAL || errno == ESRCH)
                         return SOCKOPT_E_REAPED;
 
                 return error_origin(-errno);
