@@ -55,6 +55,8 @@ deps_bus = [
         dep_math,
 ]
 
+incs_bus = include_directories('.')
+
 if use_apparmor
         sources_bus += [
                 'util/apparmor.c',
@@ -119,7 +121,7 @@ static_bus = static_library(
 )
 
 dep_bus = declare_dependency(
-        include_directories: include_directories('.'),
+        include_directories: incs_bus,
         link_with: static_bus,
         dependencies: deps_bus,
         version: meson.project_version(),
