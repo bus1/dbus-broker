@@ -8,7 +8,7 @@ project(
         default_options: [
                 'c_std=c11',
         ],
-        license: 'Apache',
+        license: 'Apache-2.0',
         meson_version: '>=0.60.0',
         version: '36',
 )
