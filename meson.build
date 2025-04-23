@@ -4,7 +4,6 @@
 
 project(
         'dbus-broker',
-        'c',
         default_options: [
                 'c_std=c11',
         ],
@@ -12,6 +11,8 @@ project(
         meson_version: '>=0.60.0',
         version: '36',
 )
+
+add_languages('c', native: false)
 
 cc = meson.get_compiler('c')
 conf = configuration_data()
