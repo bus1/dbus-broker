@@ -48,6 +48,9 @@ sources_bus = [
         'util/user.c',
 ]
 
+bindgen_bus = [
+]
+
 deps_bus = [
         dep_cdvar,
         dep_clist,
@@ -110,6 +113,40 @@ else
         ]
 endif
 
+bindgen_args = [
+        '--formatter=prettyplease',
+        '--rust-edition=' + rust_edition,
+]
+
+bindgen_generated = []
+
+foreach i : bindgen_bus
+        bindgen_generated += mod_rust.bindgen(
+                args: bindgen_args + [
+                        '--allowlist-file=.*/' + i,
+                ],
+                bindgen_version: bindgen_version,
+                dependencies: deps_bus,
+                include_directories: incs_bus,
+                input: i,
+                # `foo-bar.h` -> `foo_bar.rs`
+                output: i.substring(0, -2).underscorify() + '.rs',
+        )
+endforeach
+
+rust_bus = static_library(
+        'rbus',
+        structured_sources(
+                [
+                        'lib.rs',
+                ],
+                {
+                        'generated': bindgen_generated,
+                },
+        ),
+        rust_abi: 'c',
+)
+
 static_bus = static_library(
         'bus-static',
         sources_bus,
@@ -118,6 +155,7 @@ static_bus = static_library(
                 '-fno-common',
         ],
         dependencies: deps_bus,
+        link_with: rust_bus,
         pic: true,
 )
 
@@ -175,6 +213,12 @@ endif
 #
 # target: test-*
 #
+
+mod_rust.test(
+        'rbus-tests',
+        rust_bus,
+        suite: 'unit',
+)
 
 test_kwargs = {
         'dependencies': dep_bus,
