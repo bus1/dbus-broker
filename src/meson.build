@@ -40,6 +40,7 @@ sources_bus = [
         'util/log.c',
         'util/metrics.c',
         'util/misc.c',
+        'util/nsec.c',
         'util/proc.c',
         'util/sockopt.c',
         'util/string.c',
@@ -218,6 +219,9 @@ test('Miscellaneous Helpers', test_misc, suite: 'unit')
 
 test_name = executable('test-name', sources: ['bus/test-name.c'], kwargs: test_kwargs)
 test('Name Registry', test_name, suite: 'unit')
+
+test_nsec = executable('test-nsec', sources: ['util/test-nsec.c'], kwargs: test_kwargs)
+test('Nanosecond Time', test_nsec, suite: 'unit')
 
 if use_launcher
         test_nss_cache = executable('test-nss-cache', sources: ['launch/test-nss-cache.c'], kwargs: test_kwargs)
