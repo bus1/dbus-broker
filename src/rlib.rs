@@ -20,6 +20,14 @@ extern crate core;
 #[allow(dead_code)]
 #[allow(non_camel_case_types)]
 pub mod generated {
+    pub mod util_acct;
+}
+
+/// # Utilities
+///
+/// A collection of independent utilities for the bus broker.
+pub mod util {
+    pub mod acct;
 }
 
 #[cfg(test)]
