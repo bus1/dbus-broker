@@ -114,8 +114,10 @@ else
 endif
 
 bindgen_args = [
-        '--formatter=prettyplease',
-        '--rust-edition=' + rust_edition,
+        '--formatter', 'prettyplease',
+        '--rust-edition', rust_edition,
+        '--rust-target', rust_msrv,
+        '--use-core',
 ]
 
 bindgen_generated = []
