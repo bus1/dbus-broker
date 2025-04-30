@@ -4,6 +4,11 @@
 //! most executables of dbus-broker as utility library, relying on link-time
 //! garbage collection to drop any unneeded code.
 
+#![no_std]
+
+extern crate alloc;
+extern crate core;
+
 /// # Generated Code
 ///
 /// This module exposes all bindgen-generated (or otherwise generated) code,
