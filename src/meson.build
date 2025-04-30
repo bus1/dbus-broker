@@ -138,12 +138,18 @@ rust_bus = static_library(
         'rbus',
         structured_sources(
                 [
-                        'lib.rs',
+                        'rlib.rs',
                 ],
                 {
                         'generated': bindgen_generated,
                 },
         ),
+)
+
+crust_bus = static_library(
+        'crbus',
+        ['clib.rs'],
+        link_with: rust_bus,
         rust_abi: 'c',
 )
 
@@ -155,7 +161,7 @@ static_bus = static_library(
                 '-fno-common',
         ],
         dependencies: deps_bus,
-        link_with: rust_bus,
+        link_with: crust_bus,
         pic: true,
 )
 
