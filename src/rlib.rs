@@ -17,7 +17,9 @@ extern crate core;
 /// Note that any C/Rust interaction is done via bindgen-generated C
 /// definitions, to guarantee that the Rust and C definitions never get out
 /// of sync.
-pub(crate) mod generated {
+#[allow(dead_code)]
+#[allow(non_camel_case_types)]
+pub mod generated {
 }
 
 #[cfg(test)]
