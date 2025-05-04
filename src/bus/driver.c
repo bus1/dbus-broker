@@ -2127,7 +2127,7 @@ static int driver_method_get_all(Peer *peer, const char *path, CDVar *in_v, uint
         return 0;
 }
 
-static void driver_append_peer_accounting_stats(CDVar *v, Peer *peer) {
+static void driver_append_peer_accounting_stats(CDVar *v, Peer *peer, unsigned int* n_all_name_objects, unsigned int* n_all_matches) {
         unsigned int n_name_objects, n_match_bytes, n_matches, n_reply_objects,
                      n_conn_in_bytes, n_conn_in_fds, n_conn_out_bytes, n_conn_out_fds,
                      n_activation_bytes, n_activation_fds;
@@ -2162,9 +2162,12 @@ static void driver_append_peer_accounting_stats(CDVar *v, Peer *peer) {
                         "OutgoingFds", n_conn_out_fds,
                         "ActivationRequestBytes", n_activation_bytes,
                         "ActivationRequestFds", n_activation_fds);
+
+        (*n_all_name_objects) += n_name_objects;
+        (*n_all_matches) += n_matches;
 }
 
-static void driver_append_peer_accounting(CDVar *v, Bus *bus) {
+static void driver_append_peer_accounting(CDVar *v, Bus *bus, unsigned int* n_registered_peers, unsigned int* n_unregistered_peers, unsigned int* n_name_objects, unsigned int* n_matches) {
         static const CDVarType dump_type[] = {
                 C_DVAR_T_INIT(
                         C_DVAR_T_ARRAY(
@@ -2193,14 +2196,17 @@ static void driver_append_peer_accounting(CDVar *v, Bus *bus) {
         c_rbtree_for_each_entry(p, &bus->peers.peer_tree, registry_node) {
                 DriverCredentials cred = DRIVER_CREDENTIALS_NULL;
 
-                if (!peer_is_registered(p))
+                if (!peer_is_registered(p)) {
+                        (*n_unregistered_peers)++;
                         continue;
+                }
 
+                (*n_registered_peers)++;
                 c_dvar_write(v, "(");
                 driver_dvar_write_unique_name(v, p);
                 driver_fetch_credentials(bus, p, &cred);
                 driver_append_credentials(v, &cred, NULL);
-                driver_append_peer_accounting_stats(v, p);
+                driver_append_peer_accounting_stats(v, p, n_name_objects, n_matches);
                 c_dvar_write(v, ")");
         }
 
@@ -2274,6 +2280,8 @@ static void driver_append_user_accounting(CDVar *v, Bus *bus) {
 }
 
 static int driver_method_get_stats(Peer *peer, const char *path, CDVar *in_v, uint32_t serial, CDVar *out_v) {
+        static unsigned int get_stats_serial = 0;
+        unsigned int n_registered_peers = 0, n_unregistered_peers = 0, n_name_objects = 0, n_matches = 0;
         int r;
 
         c_dvar_read(in_v, "()");
@@ -2283,15 +2291,32 @@ static int driver_method_get_stats(Peer *peer, const char *path, CDVar *in_v, ui
                 return error_trace(r);
 
         /*
-         * Append all supported statistics. So far, none of the dbus-daemon
-         * statistics are appended, since they are very specific to how the bus
-         * is implemented. We do, however, add our own (namespaced) statistics.
+         * Append all supported statistics.
+         *
+         * In addition to our own (namespaced) statistics, we also export the
+         * statistics in the GetStats dbus specification except:
+         * - PeakMatchRules
+         * - PeakMatchRulesPerConnection
+         * - PeakBusNames
+         * - PeakBusNamesPerConnection
+         * as we do not yet track peak statistics across dbus-broker lifetime.
          */
         c_dvar_write(out_v, "([{s", "org.bus1.DBus.Debug.Stats.PeerAccounting");
-        driver_append_peer_accounting(out_v, peer->bus);
+        driver_append_peer_accounting(out_v, peer->bus, &n_registered_peers, &n_unregistered_peers, &n_name_objects, &n_matches);
         c_dvar_write(out_v, "}{s", "org.bus1.DBus.Debug.Stats.UserAccounting");
         driver_append_user_accounting(out_v, peer->bus);
-        c_dvar_write(out_v, "}])");
+        c_dvar_write(out_v, "}"
+                            "{s<u>}"
+                            "{s<u>}"
+                            "{s<u>}"
+                            "{s<u>}"
+                            "{s<u>}"
+                            "])",
+                            "Serial", c_dvar_type_u, get_stats_serial++,
+                            "ActiveConnections", c_dvar_type_u, n_registered_peers,
+                            "IncompleteConnections", c_dvar_type_u, n_unregistered_peers,
+                            "BusNames", c_dvar_type_u, n_name_objects,
+                            "MatchRules", c_dvar_type_u, n_matches);
 
         r = driver_send_reply(peer, out_v, serial);
         if (r)
