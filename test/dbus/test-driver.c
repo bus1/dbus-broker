@@ -2581,6 +2581,23 @@ static void test_stats(void) {
 
                                 r = sd_bus_message_exit_container(reply);
                                 c_assert(r >= 0);
+                        } else if (strcmp(stat, "Serial") == 0 ||
+                                   strcmp(stat, "ActiveConnections") == 0 ||
+                                   strcmp(stat, "IncompleteConnections") == 0 ||
+                                   strcmp(stat, "BusNames") == 0 ||
+                                   strcmp(stat, "PeakBusNames") == 0 ||
+                                   strcmp(stat, "PeakBusNamesPerConnection") == 0 ||
+                                   strcmp(stat, "MatchRules") == 0 ||
+                                   strcmp(stat, "PeakMatchRules") == 0 ||
+                                   strcmp(stat, "PeakMatchRulesPerConnection") == 0) {
+                                r = sd_bus_message_enter_container(reply, 'v', "u");
+                                c_assert(r >= 0);
+
+                                r = sd_bus_message_skip(reply, "u");
+                                c_assert(r >= 0);
+
+                                r = sd_bus_message_exit_container(reply);
+                                c_assert(r >= 0);
                         } else {
                                 r = sd_bus_message_skip(reply, "v");
                                 c_assert(r >= 0);
