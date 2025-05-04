@@ -25,6 +25,8 @@ int misc_memfd_add_seals(int fd, unsigned int seals);
 int misc_memfd_get_seals(int fd, unsigned int *sealsp);
 
 uint64_t util_umul64_saturating(uint64_t a, uint64_t b);
+unsigned int util_z2u_saturating(size_t v);
+unsigned int util_t2u_saturating(uint64_t v);
 int util_drop_permissions(uint32_t uid, uint32_t gid);
 
 void util_peak_update(size_t *peak, size_t update);

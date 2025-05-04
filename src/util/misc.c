@@ -213,6 +213,44 @@ uint64_t util_umul64_saturating(uint64_t a, uint64_t b) {
         return res;
 }
 
+/**
+ * util_z2u_saturating() - saturating cast of size_t to unsigned int
+ * @v:                  value to cast
+ *
+ * This will cast a value of `size_t` to `unsigned int`, saturating the
+ * value at `UINT_MAX` in case of overflow.
+ *
+ * Return: The casted, saturated value is returned.
+ */
+unsigned int util_z2u_saturating(size_t v) {
+        unsigned int cast;
+
+        cast = (unsigned int)v;
+        if ((size_t)cast < v)
+                return UINT_MAX;
+        else
+                return cast;
+}
+
+/**
+ * util_t2u_saturating() - saturating cast of uint64_t to unsigned int
+ * @v:                  value to cast
+ *
+ * This will cast a value of `uint64_t` to `unsigned int`, saturating the
+ * value at `UINT_MAX` in case of overflow.
+ *
+ * Return: The casted, saturated value is returned.
+ */
+unsigned int util_t2u_saturating(uint64_t v) {
+        unsigned int cast;
+
+        cast = (unsigned int)v;
+        if ((uint64_t)cast < v)
+                return UINT_MAX;
+        else
+                return cast;
+}
+
 int util_drop_permissions(uint32_t uid, uint32_t gid) {
         int r;
 
