@@ -69,7 +69,6 @@ MESON_SETUP		= \
 		--buildtype "debugoptimized" \
 		--reconfigure \
 		--warnlevel "2" \
-		-D "audit=true" \
 		-D "docs=true" \
 		-D "launcher=true" \
 		-- \
@@ -88,6 +87,13 @@ meson-build: $(BUILDDIR)/meson/
 .PHONY: meson-setup
 meson-setup: | $(BUILDDIR)/
 	$(MESON_SETUP)
+
+.PHONY: meson-setup
+meson-setup-32: | $(BUILDDIR)/
+	CFLAGS="-m32" \
+	PKG_CONFIG_LIBDIR="/usr/lib32/pkgconfig:/usr/share/pkgconfig" \
+	RUSTFLAGS="--target i686-unknown-linux" \
+		$(MESON_SETUP)
 
 .PHONY: meson-test
 meson-test: $(BUILDDIR)/meson/
