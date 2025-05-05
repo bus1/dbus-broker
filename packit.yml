@@ -1,3 +1,4 @@
+create_sync_note: false
 downstream_package_name: "dbus-broker"
 upstream_package_name: "dbus-broker"
 upstream_tag_template: "v{version}"
