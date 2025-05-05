@@ -115,10 +115,15 @@ endif
 
 bindgen_args = [
         '--formatter', 'prettyplease',
-        '--rust-edition', rust_edition,
-        '--rust-target', rust_msrv,
         '--use-core',
 ]
+
+if bindgen_version.version_compare('>=0.71')
+        bindgen_args += [
+                '--rust-edition', rust_edition,
+                '--rust-target', rust_msv,
+        ]
+endif
 
 bindgen_generated = []
 
