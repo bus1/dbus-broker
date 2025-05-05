@@ -491,9 +491,13 @@ int nss_cache_get_gid(NSSCache *cache, uint32_t *gidp, const char *name) {
         return 0;
 }
 
-int nss_cache_resolve_system_console_users(NSSCache *nss_cache, uint32_t **uidsp, size_t *n_uidsp) {
-        static const char * const usernames[] = { SYSTEM_CONSOLE_USERS };
-        static const size_t n_usernames = C_ARRAY_SIZE(usernames);
+static int nss_cache_resolve_names(
+        NSSCache *nss_cache,
+        uint32_t **uidsp,
+        size_t *n_uidsp,
+        const char * const *usernames,
+        size_t n_usernames
+) {
         _c_cleanup_(c_freep) uint32_t *uids = NULL;
         size_t i, n_uids = 0;
         uid_t uid;
@@ -525,4 +529,15 @@ int nss_cache_resolve_system_console_users(NSSCache *nss_cache, uint32_t **uidsp
         *n_uidsp = n_uids;
         uids = NULL;
         return 0;
+}
+
+int nss_cache_resolve_system_console_users(NSSCache *nss_cache, uint32_t **uidsp, size_t *n_uidsp) {
+        static const char * const usernames[] = { SYSTEM_CONSOLE_USERS };
+        static const size_t n_usernames = C_ARRAY_SIZE(usernames);
+
+        // We avoid inlining `nss_cache_resolve_names()` here, as GCC will start
+        // complaining about use of `usernames` if it is empty, even though the
+        // function bails out early if it is empty.
+
+        return nss_cache_resolve_names(nss_cache, uidsp, n_uidsp, usernames, n_usernames);
 }
