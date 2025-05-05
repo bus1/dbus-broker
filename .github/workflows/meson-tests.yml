@@ -44,6 +44,7 @@ jobs:
           cflags: "-Werror"
           image: "ghcr.io/bus1/dbrk-ci-fedora:latest"
           m32: "no"
+          rustflags: ""
           setupargs: "-Daudit=true -Ddocs=true -Dlauncher=true -Dselinux=true"
           test: "yes"
           valgrind: "no"
@@ -58,6 +59,7 @@ jobs:
           cflags: "-m32 -Werror"
           image: "ghcr.io/bus1/dbrk-ci-fedora:latest"
           m32: "yes"
+          rustflags: "--target i686-unknown-linux-gnu"
           setupargs: "-Daudit=true -Dlauncher=true"
           test: "yes"
           warnlevel: "2"
@@ -133,6 +135,7 @@ jobs:
     env:
       CC: ${{ matrix.cc }}
       CFLAGS: ${{ matrix.cflags }}
+      RUSTFLAGS: ${{ matrix.rustflags }}
 
     runs-on: "ubuntu-latest"
 
