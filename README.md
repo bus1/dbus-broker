@@ -48,7 +48,7 @@ Additionally, the compatibility launcher requires:
 At build-time, the following software is required:
 
 ```
-  meson >= 0.60
+  meson >= 1.3
   pkg-config >= 0.29
   python-docutils >= 0.13
   linux-api-headers >= 4.13
