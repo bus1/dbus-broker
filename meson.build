@@ -6,32 +6,36 @@ project(
         'dbus-broker',
         default_options: [
                 'c_std=c11',
-                'rust_std=2024',
+                'rust_std=2021',
         ],
         license: 'Apache-2.0',
-        meson_version: '>=1.7.0',
+        meson_version: '>=1.3',
         version: '36',
 )
 
 add_languages('c', native: false)
 add_languages('rust', native: false)
 
-bindgen_version = '>=0.71.0'
+bindgen_msv = '>=0.60'
+rust_edition = '2021'
+rust_msv = '1.74'
+
 cc = meson.get_compiler('c')
 conf = configuration_data()
 mod_pkgconfig = import('pkgconfig')
 mod_rust = import('rust')
 rust = meson.get_compiler('rust')
-rust_edition = '2024'
-rust_msrv = '1.85'
 
 #
 # System Requirements
 #
 
-if rust.version().version_compare('<' + rust_msrv)
-        error('Found Rust ' + rust.version() + ' but requires >=' + rust_msrv)
+if rust.version().version_compare('<' + rust_msv)
+        error('Found Rust ' + rust.version() + ' but requires >=' + rust_msv)
 endif
+
+bindgen_prog = find_program('bindgen', native: true, required: true, version: bindgen_msv)
+bindgen_version = bindgen_prog.version()
 
 #
 # Mandatory Dependencies
