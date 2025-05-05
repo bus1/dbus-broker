@@ -78,7 +78,8 @@ _c_pure_ static inline char *string_prefix(const char *str, const char *prefix) 
  * destination buffer must be at least twice as big as the source.
  */
 static inline void string_to_hex(const char *str, size_t n, char *hex) {
-        static const char table[16] = "0123456789abcdef";
+        // Include terminating NUL to silence warnings about truncated strings.
+        static const char table[17] = "0123456789abcdef";
         size_t i;
 
         for (i = 0; i < n; ++i) {

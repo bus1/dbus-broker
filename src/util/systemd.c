@@ -15,7 +15,8 @@ static bool needs_escape(char c) {
 }
 
 static char *escape_char(char *t, char c) {
-        static const char table[16] = "0123456789abcdef";
+        // Include terminating NUL to silence warnings about truncated strings.
+        static const char table[17] = "0123456789abcdef";
 
         *t++ = '\\';
         *t++ = 'x';
