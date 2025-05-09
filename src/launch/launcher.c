@@ -29,6 +29,7 @@
 #include "util/fs.h"
 #include "util/log.h"
 #include "util/misc.h"
+#include "util/nsec.h"
 #include "util/string.h"
 
 /*
@@ -1167,7 +1168,10 @@ static int launcher_reload_config(Launcher *launcher) {
         Service *service;
         int r, res;
 
-        r = sd_notify(false, "RELOADING=1");
+        r = sd_notifyf(/* unset_environment = */ false,
+                       "RELOADING=1\n"
+                       "MONOTONIC_USEC=%" NSEC_PRI,
+                       nsec_to_usec(nsec_now(CLOCK_MONOTONIC)));
         if (r < 0)
                 return error_origin(r);
 
