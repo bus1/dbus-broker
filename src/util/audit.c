@@ -121,7 +121,11 @@ int util_audit_log(int type, const char *message, uid_t uid) {
         }
 
         if (audit_fd >= 0 && type != UTIL_AUDIT_TYPE_NOAUDIT) {
-                r = audit_log_user_avc_message(audit_fd, audit_type, message, NULL, NULL, NULL, uid);
+                if (type == UTIL_AUDIT_TYPE_AVC) {
+                        r = audit_log_user_avc_message(audit_fd, audit_type, message, NULL, NULL, NULL, uid);
+                } else {
+                        r = audit_log_user_message(audit_fd, audit_type, message, NULL, NULL, NULL, 1);
+                }
                 if (r <= 0)
                         return error_origin(-errno);
         } else {
