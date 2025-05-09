@@ -232,7 +232,7 @@ mod_rust.test(
         suite: 'unit',
 )
 
-if meson.version().version_compare('>=1.8')
+if meson.version().version_compare('>=1.8') and not meson.is_cross_build()
         mod_rust.doctest(
                 'rbus-doctests',
                 rust_bus,
