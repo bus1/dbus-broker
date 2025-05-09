@@ -16,7 +16,7 @@ project(
 add_languages('c', native: false)
 add_languages('rust', native: false)
 
-bindgen_msv = '>=0.60'
+bindgen_msv = '0.60'
 rust_edition = '2021'
 rust_msv = '1.74'
 
@@ -34,7 +34,7 @@ if rust.version().version_compare('<' + rust_msv)
         error('Found Rust ' + rust.version() + ' but requires >=' + rust_msv)
 endif
 
-bindgen_prog = find_program('bindgen', native: true, required: true, version: bindgen_msv)
+bindgen_prog = find_program('bindgen', native: true, required: true, version: '>=' + bindgen_msv)
 bindgen_version = bindgen_prog.version()
 
 #
