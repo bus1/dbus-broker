@@ -36,31 +36,29 @@ jobs:
         # since it clashes with sd-bus used by the launcher. This test also
         # builds documentation and related resources.
         - id: "release"
-          name: "RELEASE @ CLANG-X86_64 @ +TEST -VALGRIND @ -APPARMOR +AUDIT +DOCS +LAUNCHER +SELINUX"
+          name: "RELEASE @ CLANG-X86_64 @ +TEST -VALGRIND @ -APPARMOR +AUDIT +DOCS +LAUNCHER -SELINUX"
 
           # Explicitly set all options here to document them.
           buildtype: "debugoptimized"
           cc: "clang"
           cflags: "-Werror"
-          image: "ghcr.io/bus1/dbrk-ci-fedora:latest"
-          m32: "no"
+          image: "ghcr.io/readaheadeu/rae-ci-archlinux:latest"
           rustflags: ""
-          setupargs: "-Daudit=true -Ddocs=true -Dlauncher=true -Dselinux=true"
+          setupargs: "-Daudit=true -Ddocs=true -Dlauncher=true"
           test: "yes"
           valgrind: "no"
           warnlevel: "2"
 
-        # A release build with `-m32` to test on 32-bit.
+        # A release build with `--cross-file lib32` to test on 32-bit.
         - id: "32bit"
-          name: "RELEASE @ CLANG-I686 @ +TEST -VALGRIND @ -APPARMOR +AUDIT -DOCS +LAUNCHER -SELINUX"
+          name: "RELEASE @ CLANG-I686 @ +TEST -VALGRIND @ -APPARMOR -AUDIT -DOCS +LAUNCHER -SELINUX"
 
           buildtype: "debugoptimized"
           cc: "clang"
-          cflags: "-m32 -Werror"
-          image: "ghcr.io/bus1/dbrk-ci-fedora:latest"
-          m32: "yes"
+          cflags: "-Werror"
+          image: "ghcr.io/readaheadeu/rae-ci-archlinux:latest"
           rustflags: "--target i686-unknown-linux-gnu"
-          setupargs: "-Daudit=true -Dlauncher=true"
+          setupargs: "-Dlauncher=true --cross-file lib32"
           test: "yes"
           warnlevel: "2"
 
@@ -73,7 +71,7 @@ jobs:
           buildtype: "debugoptimized"
           cc: "clang"
           cflags: "-Werror"
-          image: "ghcr.io/bus1/dbrk-ci-fedora:latest"
+          image: "ghcr.io/readaheadeu/rae-ci-archlinux:latest"
           setupargs: "-Daudit=true -Dlauncher=false"
           test: "yes"
           valgrind: "yes"
@@ -82,26 +80,26 @@ jobs:
         # A reduced build with `-O0` to verify we do not rely on dead-code
         # elimination.
         - id: "O0-PLAIN"
-          name: "PLAIN @ GCC-X86_64 @ +TEST -VALGRIND @ -APPARMOR +AUDIT -DOCS +LAUNCHER +SELINUX"
+          name: "PLAIN @ GCC-X86_64 @ +TEST -VALGRIND @ -APPARMOR +AUDIT -DOCS +LAUNCHER -SELINUX"
 
           buildtype: "plain"
           cc: "gcc"
           cflags: "-O0 -Werror"
-          image: "ghcr.io/bus1/dbrk-ci-fedora:latest"
-          setupargs: "-Daudit=true -Dlauncher=true -Dselinux=true"
+          image: "ghcr.io/readaheadeu/rae-ci-archlinux:latest"
+          setupargs: "-Daudit=true -Dlauncher=true"
           test: "yes"
           warnlevel: "2"
 
         # An aggressive -O3 -DNDEBUG build that verfies that we properly
         # follow strict aliasing rules and do not rely on debug builds.
         - id: "O3-NDEBUG"
-          name: "OPTIMIZED @ GCC-X86_64 @ +TEST -VALGRIND @ -APPARMOR +AUDIT -DOCS +LAUNCHER +SELINUX"
+          name: "OPTIMIZED @ GCC-X86_64 @ +TEST -VALGRIND @ -APPARMOR +AUDIT -DOCS +LAUNCHER -SELINUX"
 
           buildtype: "release"
           cc: "gcc"
           cflags: "-O3 -Werror -DNDEBUG"
-          image: "ghcr.io/bus1/dbrk-ci-fedora:latest"
-          setupargs: "-Daudit=true -Dlauncher=true -Dselinux=true"
+          image: "ghcr.io/readaheadeu/rae-ci-archlinux:latest"
+          setupargs: "-Daudit=true -Dlauncher=true"
           test: "yes"
           warnlevel: "2"
 
@@ -113,11 +111,12 @@ jobs:
           buildtype: "debugoptimized"
           cc: "clang"
           cflags: "-Werror"
-          image: "ghcr.io/bus1/dbrk-ci-fedora:latest"
+          image: "ghcr.io/readaheadeu/rae-ci-archlinux:latest"
           setupargs: "-Dlauncher=false"
           test: "yes"
           warnlevel: "2"
 
+        # Run on Ubuntu to test the AppArmor integration.
         - id: "ubuntu"
           name: "RELEASE @ CLANG-X86_64 @ +TEST -VALGRIND @ +APPARMOR +AUDIT -DOCS +LAUNCHER -SELINUX"
 
@@ -131,24 +130,17 @@ jobs:
 
     container:
       image: ${{ matrix.image }}
+      options: --user root
 
     env:
       CC: ${{ matrix.cc }}
       CFLAGS: ${{ matrix.cflags }}
-      RUSTFLAGS: ${{ matrix.rustflags }}
 
     runs-on: "ubuntu-latest"
 
     steps:
     - name: "Fetch Sources"
       uses: actions/checkout@v4
-
-    - name: "Setup 32-bit Environment"
-      if: matrix.m32 == 'yes'
-      run: |
-        echo \
-          "PKG_CONFIG_LIBDIR=/usr/lib/pkgconfig:/usr/share/pkgconfig" \
-          >> $GITHUB_ENV
 
     - name: "Setup Meson"
       run: |
