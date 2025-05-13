@@ -29,7 +29,7 @@ int bus_apparmor_set_bus_type(BusAppArmorRegistry *registry, const char *bustype
 
 int bus_apparmor_check_own(struct BusAppArmorRegistry *registry, const char *context,
                            const char *name);
-int bus_apparmor_check_xmit(BusAppArmorRegistry *registry, bool check_send,
+int bus_apparmor_check_send(BusAppArmorRegistry *registry,
                             const char *sender_context, const char *receiver_context,
                             NameSet *subject, uint64_t subject_id,
                             const char *path, const char *interface, const char *method);
