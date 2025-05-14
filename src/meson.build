@@ -173,6 +173,23 @@ if use_launcher
 endif
 
 #
+# target: dbus-broker-session
+#
+
+if use_launcher
+        exe_dbus_broker_session = executable(
+                'dbus-broker-session',
+                [
+                        'session/main.c',
+                ],
+                dependencies: [
+                        dep_rlib,
+                ],
+                install: true,
+        )
+endif
+
+#
 # target: test-*
 #
 

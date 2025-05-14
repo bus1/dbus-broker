@@ -17,6 +17,7 @@ add_languages('c', native: false)
 cc = meson.get_compiler('c')
 conf = configuration_data()
 mod_pkgconfig = import('pkgconfig')
+mod_cargo = subproject('meson-cargo-1')
 
 #
 # Mandatory Dependencies
@@ -126,6 +127,44 @@ conf.set('testdir', get_option('prefix') / 'lib/dbus-broker/tests')
 #
 
 conf.set('bindir', join_paths(get_option('prefix'), get_option('bindir')))
+
+#
+# Cargo Integration
+#
+
+cargo = custom_target(
+        'cargo',
+        kwargs: mod_cargo.get_variable('build_dict') + {
+                'env': mod_cargo.get_variable('build_env') + {
+                        'DBRK_VERSION': meson.project_version(),
+                },
+                'input': meson.project_source_root() / 'Cargo.toml',
+                'output': [
+                        'libdbus_broker.a',
+                ],
+        },
+)
+cargo_libdbus_broker_a = cargo[0]
+
+dep_rlib = declare_dependency(
+        link_with: cargo_libdbus_broker_a,
+        version: meson.project_version(),
+)
+
+meson.add_dist_script(
+        mod_cargo.get_variable('dist_cmd') + [
+                meson.project_source_root() / 'Cargo.toml',
+        ],
+)
+
+run_target(
+        'vendor',
+        kwargs: mod_cargo.get_variable('vendor_dict') + {
+                'command': mod_cargo.get_variable('vendor_cmd') + [
+                        meson.project_source_root() / 'Cargo.toml',
+                ],
+        },
+)
 
 #
 # Subdirs
