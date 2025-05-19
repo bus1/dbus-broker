@@ -13,6 +13,7 @@
 #include "broker/main.h"
 #include "util/audit.h"
 #include "util/error.h"
+#include "util/log.h"
 #include "util/selinux.h"
 #include "util/string.h"
 
@@ -234,8 +235,9 @@ static int parse_argv(int argc, char *argv[]) {
         return 0;
 }
 
-static int setup(void) {
-        int r;
+static int setup(Log *logp) {
+        socklen_t z;
+        int r, log_type;
 
         /*
          * We never spawn external applications from within the broker itself,
@@ -247,14 +249,33 @@ static int setup(void) {
         if (r < 0)
                 return error_origin(-errno);
 
+        if (main_arg_log >= 0) {
+                z = sizeof(log_type);
+                r = getsockopt(main_arg_log, SOL_SOCKET, SO_TYPE, &log_type, &z);
+                if (r < 0)
+                        return error_origin(-errno);
+        }
+
+        if (main_arg_log < 0)
+                log_init(logp);
+        else if (log_type == SOCK_STREAM)
+                log_init_stderr(logp, main_arg_log);
+        else if (log_type == SOCK_DGRAM)
+                log_init_journal(logp, main_arg_log);
+        else
+                return error_origin(-ENOTRECOVERABLE);
+
+        /* XXX: make this run-time optional */
+        log_set_lossy(logp, true);
+
         return 0;
 }
 
-static int run(void) {
+static int run(Log *log) {
         _c_cleanup_(broker_freep) Broker *broker = NULL;
         int r;
 
-        r = broker_new(&broker, main_arg_machine_id, main_arg_log, main_arg_controller, main_arg_max_bytes, main_arg_max_fds, main_arg_max_matches, main_arg_max_objects);
+        r = broker_new(&broker, log, main_arg_machine_id, main_arg_controller, main_arg_max_bytes, main_arg_max_fds, main_arg_max_matches, main_arg_max_objects);
         if (!r)
                 r = broker_run(broker);
 
@@ -262,13 +283,14 @@ static int run(void) {
 }
 
 int main(int argc, char **argv) {
+        Log log = LOG_NULL;
         int r;
 
         r = parse_argv(argc, argv);
         if (r)
                 goto exit;
 
-        r = setup();
+        r = setup(&log);
         if (r)
                 goto exit;
 
@@ -286,11 +308,12 @@ int main(int argc, char **argv) {
                 goto exit;
         }
 
-        r = run();
+        r = run(&log);
 
 exit:
         bus_selinux_deinit_global();
         util_audit_deinit_global();
+        log_deinit(&log);
 
         r = error_trace(r);
         return (r == 0 || r == MAIN_EXIT) ? 0 : 1;
