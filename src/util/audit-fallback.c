@@ -22,13 +22,7 @@ int util_audit_drop_permissions(uint32_t uid, uint32_t gid) {
 }
 
 int util_audit_log(int type, const char *message, uid_t uid) {
-        int r;
-
-        r = fprintf(stderr, "%s\n", message);
-        if (r < 0)
-                return error_origin(r);
-
-        return 0;
+        return UTIL_AUDIT_E_UNAVAILABLE;
 }
 
 int util_audit_init_global(void) {
