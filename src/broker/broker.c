@@ -40,19 +40,12 @@ static int broker_dispatch_signals(DispatchFile *file) {
         return DISPATCH_E_EXIT;
 }
 
-int broker_new(Broker **brokerp, const char *machine_id, int log_fd, int controller_fd, uint64_t max_bytes, uint64_t max_fds, uint64_t max_matches, uint64_t max_objects) {
+int broker_new(Broker **brokerp, Log *log, const char *machine_id, int controller_fd, uint64_t max_bytes, uint64_t max_fds, uint64_t max_matches, uint64_t max_objects) {
         _c_cleanup_(broker_freep) Broker *broker = NULL;
         struct ucred ucred;
         socklen_t z;
         sigset_t sigmask;
-        int r, log_type;
-
-        if (log_fd >= 0) {
-                z = sizeof(log_type);
-                r = getsockopt(log_fd, SOL_SOCKET, SO_TYPE, &log_type, &z);
-                if (r < 0)
-                        return error_origin(-errno);
-        }
+        int r;
 
         z = sizeof(ucred);
         r = getsockopt(controller_fd, SOL_SOCKET, SO_PEERCRED, &ucred, &z);
@@ -63,26 +56,14 @@ int broker_new(Broker **brokerp, const char *machine_id, int log_fd, int control
         if (!broker)
                 return error_origin(-ENOMEM);
 
-        broker->log = (Log)LOG_NULL;
+        broker->log = log;
         broker->bus = (Bus)BUS_NULL(broker->bus);
         broker->dispatcher = (DispatchContext)DISPATCH_CONTEXT_NULL(broker->dispatcher);
         broker->signals_fd = -1;
         broker->signals_file = (DispatchFile)DISPATCH_FILE_NULL(broker->signals_file);
         broker->controller = (Controller)CONTROLLER_NULL(broker->controller);
 
-        if (log_fd < 0)
-                log_init(&broker->log);
-        else if (log_type == SOCK_STREAM)
-                log_init_stderr(&broker->log, log_fd);
-        else if (log_type == SOCK_DGRAM)
-                log_init_journal(&broker->log, log_fd);
-        else
-                return error_origin(-ENOTRECOVERABLE);
-
-        /* XXX: make this run-time optional */
-        log_set_lossy(&broker->log, true);
-
-        r = bus_init(&broker->bus, &broker->log, machine_id, max_bytes, max_fds, max_matches, max_objects);
+        r = bus_init(&broker->bus, broker->log, machine_id, max_bytes, max_fds, max_matches, max_objects);
         if (r)
                 return error_fold(r);
 
@@ -104,7 +85,7 @@ int broker_new(Broker **brokerp, const char *machine_id, int log_fd, int control
                 return error_fold(r);
 
         r = sockopt_get_peergroups(controller_fd,
-                                   &broker->log,
+                                   broker->log,
                                    ucred.uid,
                                    ucred.gid,
                                    &broker->bus.gids,
@@ -168,7 +149,6 @@ Broker *broker_free(Broker *broker) {
         c_close(broker->signals_fd);
         dispatch_context_deinit(&broker->dispatcher);
         bus_deinit(&broker->bus);
-        log_deinit(&broker->log);
         free(broker);
 
         return NULL;

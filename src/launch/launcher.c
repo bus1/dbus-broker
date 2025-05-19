@@ -160,15 +160,13 @@ static int launcher_on_dirwatch(sd_event_source *s, int fd, uint32_t revents, vo
         return 1;
 }
 
-static int launcher_open_log(Launcher *launcher) {
+static int launcher_open_journal(int *fdp) {
         _c_cleanup_(c_closep) int fd = -1;
         struct sockaddr_un address = {
                 .sun_family = AF_UNIX,
                 .sun_path = "/run/systemd/journal/socket",
         };
         int r;
-
-        c_assert(log_get_fd(&launcher->log) < 0);
 
         fd = socket(PF_UNIX, SOCK_DGRAM | SOCK_CLOEXEC, 0);
         if (fd < 0)
@@ -180,8 +178,21 @@ static int launcher_open_log(Launcher *launcher) {
         if (r < 0)
                 return error_origin(-errno);
 
-        log_init_journal_consume(&launcher->log, fd);
+        *fdp = fd;
         fd = -1;
+        return 0;
+}
+
+static int launcher_open_log(Launcher *launcher) {
+        int r, fd;
+
+        c_assert(log_get_fd(&launcher->log) < 0);
+
+        r = launcher_open_journal(&fd);
+        if (r)
+                return error_fold(r);
+
+        log_init_journal_consume(&launcher->log, fd);
 
         /* XXX: make this run-time optional */
         log_set_lossy(&launcher->log, true);
@@ -259,7 +270,7 @@ Launcher *launcher_free(Launcher *launcher) {
         return NULL;
 }
 
-static noreturn void launcher_run_child(Launcher *launcher, int fd_log, int fd_controller) {
+static noreturn void launcher_run_child(Launcher *launcher, int fd_controller) {
         sd_id128_t machine_id;
         char str_log[C_DECIMAL_MAX(int) + 1],
              str_controller[C_DECIMAL_MAX(int) + 1],
@@ -284,7 +295,7 @@ static noreturn void launcher_run_child(Launcher *launcher, int fd_log, int fd_c
                 launcher->audit ? "--audit" : NULL, /* note that this needs to be the last argument to work */
                 NULL,
         };
-        int r;
+        int r, fd_journal;
 
         if (launcher->uid != (uint32_t)-1) {
                 r = util_audit_drop_permissions(launcher->uid, launcher->gid);
@@ -298,13 +309,19 @@ static noreturn void launcher_run_child(Launcher *launcher, int fd_log, int fd_c
                 goto exit;
         }
 
-        r = fcntl(fd_log, F_GETFD);
+        r = launcher_open_journal(&fd_journal);
+        if (r) {
+                r = error_trace(r);
+                goto exit;
+        }
+
+        r = fcntl(fd_journal, F_GETFD);
         if (r < 0) {
                 r = error_origin(-errno);
                 goto exit;
         }
 
-        r = fcntl(fd_log, F_SETFD, r & ~FD_CLOEXEC);
+        r = fcntl(fd_journal, F_SETFD, r & ~FD_CLOEXEC);
         if (r < 0) {
                 r = error_origin(-errno);
                 goto exit;
@@ -330,7 +347,7 @@ static noreturn void launcher_run_child(Launcher *launcher, int fd_log, int fd_c
 
         sd_id128_to_string(machine_id, str_machine_id);
 
-        r = snprintf(str_log, sizeof(str_log), "%d", fd_log);
+        r = snprintf(str_log, sizeof(str_log), "%d", fd_journal);
         c_assert(r < (ssize_t)sizeof(str_log));
 
         r = snprintf(str_controller, sizeof(str_controller), "%d", fd_controller);
@@ -376,7 +393,7 @@ static int launcher_fork(Launcher *launcher, int fd_controller) {
                 return error_origin(-errno);
 
         if (!pid)
-                launcher_run_child(launcher, log_get_fd(&launcher->log), fd_controller);
+                launcher_run_child(launcher, fd_controller);
 
         r = sd_event_add_child(launcher->event, NULL, pid, WEXITED, launcher_on_child_exit, launcher);
         if (r < 0)
