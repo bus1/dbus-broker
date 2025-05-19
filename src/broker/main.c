@@ -302,7 +302,7 @@ int main(int argc, char **argv) {
                 }
         }
 
-        r = bus_selinux_init_global();
+        r = bus_selinux_init_global(&log);
         if (r) {
                 r = error_fold(r);
                 goto exit;

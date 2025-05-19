@@ -8,6 +8,7 @@
 #include <stdlib.h>
 
 typedef struct BusSELinuxRegistry BusSELinuxRegistry;
+typedef struct Log Log;
 
 enum {
         _SELINUX_E_SUCCESS,
@@ -34,5 +35,5 @@ int bus_selinux_check_send(BusSELinuxRegistry *registry,
                            const char *context_sender,
                            const char *context_receiver);
 
-int bus_selinux_init_global(void);
+int bus_selinux_init_global(Log *log);
 void bus_selinux_deinit_global(void);

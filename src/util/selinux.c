@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include "util/audit.h"
 #include "util/error.h"
+#include "util/log.h"
 #include "util/ref.h"
 #include "util/selinux.h"
 
@@ -26,6 +27,7 @@ struct BusSELinuxName {
 
 typedef struct BusSELinuxName BusSELinuxName;
 
+static Log *bus_selinux_log = NULL;
 static bool bus_selinux_avc_open;
 static bool bus_selinux_status_open;
 
@@ -303,10 +305,11 @@ int bus_selinux_check_send(BusSELinuxRegistry *registry,
         return 0;
 }
 
-static int bus_selinux_log(int type, const char *fmt, ...) {
+static int bus_selinux_log_fn(int type, const char *fmt, ...) {
         _c_cleanup_(c_freep) char *message = NULL;
+        const char *loghdr = NULL;
         va_list ap;
-        int r, audit_type;
+        int r, loglvl = 0;
 
         va_start(ap, fmt);
         r = vasprintf(&message, fmt, ap);
@@ -314,50 +317,76 @@ static int bus_selinux_log(int type, const char *fmt, ...) {
         if (r < 0)
                 return r;
 
-        switch(type) {
+        switch (type) {
         case SELINUX_AVC:
-                audit_type = UTIL_AUDIT_TYPE_AVC;
+                /* XXX: we don't have access to any context, so can't find
+                 * the right UID to use, follow dbus-daemon(1) and use our
+                 * own. */
+                r = util_audit_log(UTIL_AUDIT_TYPE_AVC, message, getuid());
+                if (r)
+                        return error_fold(r);
                 break;
         case SELINUX_POLICYLOAD:
-                audit_type = UTIL_AUDIT_TYPE_POLICYLOAD;
+                r = util_audit_log(UTIL_AUDIT_TYPE_POLICYLOAD, message, getuid());
+                if (r)
+                        return error_fold(r);
                 break;
         case SELINUX_SETENFORCE:
-                audit_type = UTIL_AUDIT_TYPE_MAC_STATUS;
+                r = util_audit_log(UTIL_AUDIT_TYPE_MAC_STATUS, message, getuid());
+                if (r)
+                        return error_fold(r);
+                break;
+        case SELINUX_ERROR:
+                loghdr = "selinux/error";
+                loglvl = LOG_ERR;
+                break;
+        case SELINUX_WARNING:
+                loghdr = "selinux/warning";
+                loglvl = LOG_WARNING;
+                break;
+        case SELINUX_INFO:
+                loghdr = "selinux/info";
+                loglvl = LOG_INFO;
                 break;
         default:
-                /* not an auditable message. */
-                audit_type = UTIL_AUDIT_TYPE_NOAUDIT;
+                loghdr = "selinux/unknown";
+                loglvl = LOG_WARNING;
                 break;
         }
 
-        /* XXX: we don't have access to any context, so can't find
-         * the right UID to use, follow dbus-daemon(1) and use our
-         * own. */
-        r = util_audit_log(audit_type, message, getuid());
-        if (r)
-                return error_fold(r);
+        if (loghdr && bus_selinux_log) {
+                log_append_here(bus_selinux_log, loglvl, 0, NULL);
+                r = log_commitf(bus_selinux_log, "%s: %s", loghdr, message);
+                if (r)
+                        return error_fold(r);
+        }
 
         return 0;
 }
 
 /**
  * bus_selinux_init_global() - initialize the global SELinux context
+ * @log:                log object to use
  *
  * Initialize the global SELinux context. This must be called before any
  * other SELinux function.
  *
  * Return: 0 on success, or a negative error code on failure.
  */
-int bus_selinux_init_global(void) {
+int bus_selinux_init_global(Log *log) {
         int r;
 
         if (!is_selinux_enabled())
                 return 0;
 
+        bus_selinux_log = log;
+
         if (!bus_selinux_avc_open) {
                 r = avc_open(NULL, 0);
-                if (r)
-                        return error_origin(-errno);
+                if (r) {
+                        r = error_origin(-errno);
+                        goto error;
+                }
 
                 bus_selinux_avc_open = true;
         }
@@ -385,11 +414,15 @@ int bus_selinux_init_global(void) {
                 }
         }
 
-        selinux_set_callback(SELINUX_CB_LOG, (union selinux_callback)bus_selinux_log);
+        selinux_set_callback(SELINUX_CB_LOG, (union selinux_callback)bus_selinux_log_fn);
 
         /* XXX: set audit callback to get more metadata in the audit log? */
 
         return 0;
+
+error:
+        bus_selinux_log = NULL;
+        return error_trace(r);
 }
 
 /**
@@ -412,4 +445,6 @@ void bus_selinux_deinit_global(void) {
                 avc_destroy();
                 bus_selinux_avc_open = false;
         }
+
+        bus_selinux_log = NULL;
 }
