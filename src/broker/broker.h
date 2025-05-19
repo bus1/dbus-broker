@@ -21,7 +21,7 @@ typedef struct Broker Broker;
 typedef struct User User;
 
 struct Broker {
-        Log log;
+        Log *log;
         Bus bus;
         DispatchContext dispatcher;
 
@@ -33,7 +33,7 @@ struct Broker {
 
 /* broker */
 
-int broker_new(Broker **brokerp, const char *machine_id, int log_fd, int controller_fd, uint64_t max_bytes, uint64_t max_fds, uint64_t max_matches, uint64_t max_objects);
+int broker_new(Broker **brokerp, Log *log, const char *machine_id, int controller_fd, uint64_t max_bytes, uint64_t max_fds, uint64_t max_matches, uint64_t max_objects);
 Broker *broker_free(Broker *broker);
 
 int broker_run(Broker *broker);
