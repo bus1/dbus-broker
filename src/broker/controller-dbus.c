@@ -789,3 +789,47 @@ int controller_dbus_send_reload(Controller *controller, User *user, uint32_t ser
 
         return 0;
 }
+
+/**
+ * controller_dbus_send_reload() - Will send a sighup up the chain to reload configs.
+ */
+int controller_dbus_send_sighup(Controller *controller) {
+        static const CDVarType type[] = {
+                C_DVAR_T_INIT(
+                        CONTROLLER_T_MESSAGE(
+                                C_DVAR_T_TUPLE0
+                        )
+                )
+        };
+        _c_cleanup_(c_dvar_deinit) CDVar var = C_DVAR_INIT;
+        _c_cleanup_(message_unrefp) Message *message = NULL;
+        _c_cleanup_(c_freep) void *data = NULL;
+        size_t n_data;
+        int r;
+
+        c_dvar_begin_write(&var, (__BYTE_ORDER == __BIG_ENDIAN), type, 1);
+        c_dvar_write(&var, "((yyyyuu[(y<o>)(y<s>)(y<s>)])())",
+                     c_dvar_is_big_endian(&var) ? 'B' : 'l', DBUS_MESSAGE_TYPE_SIGNAL, DBUS_HEADER_FLAG_NO_REPLY_EXPECTED, 1, 0, (uint32_t)-1,
+                     DBUS_MESSAGE_FIELD_PATH, c_dvar_type_o, "/org/bus1/DBus/Broker",
+                     DBUS_MESSAGE_FIELD_INTERFACE, c_dvar_type_s, "org.bus1.DBus.Broker",
+                     DBUS_MESSAGE_FIELD_MEMBER, c_dvar_type_s, "Sighup");
+
+        r = c_dvar_end_write(&var, &data, &n_data);
+        if (r)
+                return error_origin(r);
+
+        r = message_new_outgoing(&message, data, n_data);
+        if (r)
+                return error_fold(r);
+        data = NULL;
+
+        r = connection_queue(&controller->connection, NULL, message);
+        if (r) {
+                if (r == CONNECTION_E_QUOTA)
+                        return CONTROLLER_E_QUOTA;
+
+                return error_fold(r);
+        }
+
+        return 0;
+}
