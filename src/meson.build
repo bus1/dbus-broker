@@ -48,6 +48,10 @@ sources_bus = [
         'util/user.c',
 ]
 
+bindgen_bus = [
+        'util/acct.h',
+]
+
 deps_bus = [
         dep_cdvar,
         dep_clist,
@@ -110,6 +114,56 @@ else
         ]
 endif
 
+bindgen_args = [
+        '--formatter', 'prettyplease',
+        '--use-core',
+]
+
+if bindgen_version.version_compare('>=0.71')
+        bindgen_args += [
+                '--rust-edition', rust_edition,
+                '--rust-target', rust_msv,
+        ]
+endif
+
+bindgen_generated = []
+
+foreach i : bindgen_bus
+        bindgen_generated += mod_rust.bindgen(
+                args: bindgen_args + [
+                        '--allowlist-file=.*/' + i,
+                ],
+                bindgen_version: bindgen_version,
+                dependencies: deps_bus,
+                include_directories: incs_bus,
+                input: i,
+                # `foo-bar.h` -> `foo_bar.rs`
+                output: i.substring(0, -2).underscorify() + '.rs',
+        )
+endforeach
+
+rust_bus = static_library(
+        'rbus',
+        structured_sources(
+                [
+                        'rlib.rs',
+                ],
+                {
+                        'generated': bindgen_generated,
+                        'util': [
+                                'util/acct.rs',
+                        ],
+                },
+        ),
+)
+
+crust_bus = static_library(
+        'crbus',
+        ['clib.rs'],
+        link_with: rust_bus,
+        rust_abi: 'c',
+)
+
 static_bus = static_library(
         'bus-static',
         sources_bus,
@@ -118,6 +172,7 @@ static_bus = static_library(
                 '-fno-common',
         ],
         dependencies: deps_bus,
+        link_with: crust_bus,
         pic: true,
 )
 
@@ -175,6 +230,20 @@ endif
 #
 # target: test-*
 #
+
+mod_rust.test(
+        'rbus-tests',
+        rust_bus,
+        suite: 'unit',
+)
+
+if meson.version().version_compare('>=1.8') and not meson.is_cross_build()
+        mod_rust.doctest(
+                'rbus-doctests',
+                rust_bus,
+                suite: 'unit',
+        )
+endif
 
 test_kwargs = {
         'dependencies': dep_bus,
