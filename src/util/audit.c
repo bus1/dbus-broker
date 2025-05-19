@@ -96,43 +96,58 @@ int util_audit_drop_permissions(uint32_t uid, uint32_t gid) {
  * @message:    the message to be logged
  * @uid:        the UID of the user causing the message to be logged
  *
- * Log the message to the audit subsystem. If audit is disabled, log to
- * stderr instead.
+ * Log the message to the audit subsystem. If audit is disabled, return
+ * UTIL_AUDIT_E_UNAVAILABLE instead.
  *
- * Return: 0 on success, or a negative error code on failure.
+ * Return: 0 on success, UTIL_AUDIT_E_UNAVAILABLE if audit is not
+ *         available, or a negative error code on failure.
  */
 int util_audit_log(int type, const char *message, uid_t uid) {
-        int r, audit_type;
+        int r;
 
-        switch(type) {
+        if (audit_fd < 0)
+                return UTIL_AUDIT_E_UNAVAILABLE;
+
+        switch (type) {
         case UTIL_AUDIT_TYPE_AVC:
-                audit_type = AUDIT_USER_AVC;
+                r = audit_log_user_avc_message(
+                        audit_fd,
+                        AUDIT_USER_AVC,
+                        message,
+                        NULL,
+                        NULL,
+                        NULL,
+                        uid
+                );
                 break;
         case UTIL_AUDIT_TYPE_POLICYLOAD:
-                audit_type = AUDIT_USER_MAC_POLICY_LOAD;
+                r = audit_log_user_message(
+                        audit_fd,
+                        AUDIT_USER_MAC_POLICY_LOAD,
+                        message,
+                        NULL,
+                        NULL,
+                        NULL,
+                        1
+                );
                 break;
         case UTIL_AUDIT_TYPE_MAC_STATUS:
-                audit_type = AUDIT_USER_MAC_STATUS;
+                r = audit_log_user_message(
+                        audit_fd,
+                        AUDIT_USER_MAC_STATUS,
+                        message,
+                        NULL,
+                        NULL,
+                        NULL,
+                        1
+                );
                 break;
-        case UTIL_AUDIT_TYPE_NOAUDIT:
         default:
-                audit_type = 0;
-                break;
+                return error_origin(-ENOTRECOVERABLE);
         }
 
-        if (audit_fd >= 0 && type != UTIL_AUDIT_TYPE_NOAUDIT) {
-                if (type == UTIL_AUDIT_TYPE_AVC) {
-                        r = audit_log_user_avc_message(audit_fd, audit_type, message, NULL, NULL, NULL, uid);
-                } else {
-                        r = audit_log_user_message(audit_fd, audit_type, message, NULL, NULL, NULL, 1);
-                }
-                if (r <= 0)
-                        return error_origin(-errno);
-        } else {
-                r = fprintf(stderr, "%s\n", message);
-                if (r < 0)
-                        return error_origin(r);
-        }
+        if (r <= 0)
+                return error_origin(-errno);
 
         return 0;
 }
