@@ -179,7 +179,7 @@ static int bus_apparmor_log(BusAppArmorRegistry *registry, const char *fmt, ...)
          * the right UID to use, follow dbus-daemon(1) and use our
          * own. */
         r = util_audit_log(UTIL_AUDIT_TYPE_AVC, message, getuid());
-        if (r)
+        if (r != UTIL_AUDIT_E_UNAVAILABLE) // XXX: use a log fallback
                 return error_fold(r);
 
         return 0;

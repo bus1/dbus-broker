@@ -8,7 +8,12 @@
 #include <stdlib.h>
 
 enum {
-        UTIL_AUDIT_TYPE_NOAUDIT,
+        _UTIL_AUDIT_E_SUCCESS,
+
+        UTIL_AUDIT_E_UNAVAILABLE,
+};
+
+enum {
         UTIL_AUDIT_TYPE_AVC,
         UTIL_AUDIT_TYPE_POLICYLOAD,
         UTIL_AUDIT_TYPE_MAC_STATUS,

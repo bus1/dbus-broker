@@ -323,18 +323,33 @@ static int bus_selinux_log_fn(int type, const char *fmt, ...) {
                  * the right UID to use, follow dbus-daemon(1) and use our
                  * own. */
                 r = util_audit_log(UTIL_AUDIT_TYPE_AVC, message, getuid());
-                if (r)
+                if (r == UTIL_AUDIT_E_UNAVAILABLE) {
+                        loghdr = "selinux/avc";
+                        loglvl = LOG_INFO;
+                } else if (r) {
                         return error_fold(r);
+                }
+
                 break;
         case SELINUX_POLICYLOAD:
                 r = util_audit_log(UTIL_AUDIT_TYPE_POLICYLOAD, message, getuid());
-                if (r)
+                if (r == UTIL_AUDIT_E_UNAVAILABLE) {
+                        loghdr = "selinux/policyload";
+                        loglvl = LOG_INFO;
+                } else if (r) {
                         return error_fold(r);
+                }
+
                 break;
         case SELINUX_SETENFORCE:
                 r = util_audit_log(UTIL_AUDIT_TYPE_MAC_STATUS, message, getuid());
-                if (r)
+                if (r == UTIL_AUDIT_E_UNAVAILABLE) {
+                        loghdr = "selinux/macstatus";
+                        loglvl = LOG_INFO;
+                } else if (r) {
                         return error_fold(r);
+                }
+
                 break;
         case SELINUX_ERROR:
                 loghdr = "selinux/error";
