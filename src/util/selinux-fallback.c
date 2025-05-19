@@ -53,7 +53,7 @@ int bus_selinux_check_send(BusSELinuxRegistry *registry,
         return 0;
 }
 
-int bus_selinux_init_global(void) {
+int bus_selinux_init_global(Log *log) {
         return 0;
 }
 
