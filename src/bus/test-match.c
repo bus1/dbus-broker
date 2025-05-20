@@ -161,7 +161,7 @@ static bool test_match(const char *match_string, MessageMetadata *metadata) {
         r = match_owner_ref_rule(&owner, &rule, NULL, match_string, false);
         c_assert(!r);
 
-        r = match_rule_link(rule, &registry, false);
+        r = match_rule_link(rule, NULL, &registry, false);
         c_assert(!r);
 
         match_registry_get_subscribers(&registry, &subscribers, metadata);
@@ -361,25 +361,25 @@ static void test_iterator(void) {
         r = match_owner_ref_rule(&owner1, &rule1, NULL, "", false);
         c_assert(!r);
 
-        r = match_rule_link(rule1, &registry, false);
+        r = match_rule_link(rule1, NULL, &registry, false);
         c_assert(!r);
 
         r = match_owner_ref_rule(&owner1, &rule2, NULL, "", false);
         c_assert(!r);
 
-        r = match_rule_link(rule2, &registry, false);
+        r = match_rule_link(rule2, NULL, &registry, false);
         c_assert(!r);
 
         r = match_owner_ref_rule(&owner2, &rule3, NULL, "", false);
         c_assert(!r);
 
-        r = match_rule_link(rule3, &registry, false);
+        r = match_rule_link(rule3, NULL, &registry, false);
         c_assert(!r);
 
         r = match_owner_ref_rule(&owner2, &rule4, NULL, "", false);
         c_assert(!r);
 
-        r = match_rule_link(rule4, &registry, false);
+        r = match_rule_link(rule4, NULL, &registry, false);
         c_assert(!r);
 
         match_registry_get_subscribers(&registry, &subscribers, &metadata);
@@ -399,7 +399,94 @@ static void test_iterator(void) {
         match_owner_deinit(&owner2);
         match_owner_deinit(&owner1);
         match_registry_deinit(&registry);
+}
 
+static void test_counters(void) {
+        MatchCounters counters = MATCH_COUNTERS_INIT;
+        MatchRegistry registry = MATCH_REGISTRY_INIT(registry);
+        MatchOwner owner1, owner2;
+        MatchRule *rule1, *rule2, *rule3, *rule4;
+        int r;
+
+        match_owner_init(&owner1);
+        match_owner_init(&owner2);
+
+        c_assert(owner1.n_owner_subscriptions == 0);
+        c_assert(owner2.n_owner_subscriptions == 0);
+        c_assert(counters.n_subscriptions == 0);
+        c_assert(counters.n_subscriptions_peak == 0);
+        c_assert(counters.n_owner_subscriptions_peak == 0);
+
+        /* owner1: install a new match */
+
+        r = match_owner_ref_rule(&owner1, &rule1, NULL, "path=/a", false);
+        c_assert(!r);
+
+        r = match_rule_link(rule1, &counters, &registry, false);
+        c_assert(!r);
+
+        c_assert(owner1.n_owner_subscriptions == 1);
+        c_assert(owner2.n_owner_subscriptions == 0);
+        c_assert(counters.n_subscriptions == 1);
+        c_assert(counters.n_subscriptions_peak == 1);
+        c_assert(counters.n_owner_subscriptions_peak == 1);
+
+        /* owner1: install the same match again */
+
+        r = match_owner_ref_rule(&owner1, &rule2, NULL, "path=/a", false);
+        c_assert(!r);
+
+        r = match_rule_link(rule2, &counters, &registry, false);
+        c_assert(!r);
+
+        c_assert(owner1.n_owner_subscriptions == 1);
+        c_assert(owner2.n_owner_subscriptions == 0);
+        c_assert(counters.n_subscriptions == 1);
+        c_assert(counters.n_subscriptions_peak == 1);
+        c_assert(counters.n_owner_subscriptions_peak == 1);
+
+        /* owner2: install a new match */
+
+        r = match_owner_ref_rule(&owner2, &rule3, NULL, "path=/a", false);
+        c_assert(!r);
+
+        r = match_rule_link(rule3, &counters, &registry, false);
+        c_assert(!r);
+
+        c_assert(owner1.n_owner_subscriptions == 1);
+        c_assert(owner2.n_owner_subscriptions == 1);
+        c_assert(counters.n_subscriptions == 2);
+        c_assert(counters.n_subscriptions_peak == 2);
+        c_assert(counters.n_owner_subscriptions_peak == 1);
+
+        /* owner2: install another match */
+
+        r = match_owner_ref_rule(&owner2, &rule4, NULL, "path=/b", false);
+        c_assert(!r);
+
+        r = match_rule_link(rule4, &counters, &registry, false);
+        c_assert(!r);
+
+        c_assert(owner1.n_owner_subscriptions == 1);
+        c_assert(owner2.n_owner_subscriptions == 2);
+        c_assert(counters.n_subscriptions == 3);
+        c_assert(counters.n_subscriptions_peak == 3);
+        c_assert(counters.n_owner_subscriptions_peak == 2);
+
+        match_rule_user_unref(rule4);
+        match_rule_user_unref(rule3);
+        match_rule_user_unref(rule2);
+        match_rule_user_unref(rule1);
+
+        c_assert(owner1.n_owner_subscriptions == 0);
+        c_assert(owner2.n_owner_subscriptions == 0);
+        c_assert(counters.n_subscriptions == 0);
+        c_assert(counters.n_subscriptions_peak == 3);
+        c_assert(counters.n_owner_subscriptions_peak == 2);
+
+        match_owner_deinit(&owner2);
+        match_owner_deinit(&owner1);
+        match_registry_deinit(&registry);
 }
 
 int main(int argc, char **argv) {
@@ -413,8 +500,8 @@ int main(int argc, char **argv) {
         test_eavesdrop(&owner);
 
         test_individual_matches();
-
         test_iterator();
+        test_counters();
 
         match_owner_deinit(&owner);
         return 0;
