@@ -96,6 +96,8 @@ struct Peer {
 struct PeerRegistry {
         CRBTree peer_tree;
         uint64_t ids;
+        size_t n_peers;
+        size_t n_registered;
 };
 
 #define PEER_REGISTRY_INIT {}

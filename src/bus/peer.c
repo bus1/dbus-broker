@@ -298,6 +298,7 @@ int peer_new_with_fd(Peer **peerp,
         *peer = (Peer)PEER_INIT(*peer);
 
         peer->bus = bus;
+        ++peer->bus->peers.n_peers;
         peer->user = user;
         user = NULL;
         peer->pid = ucred.pid;
@@ -378,6 +379,7 @@ Peer *peer_free(Peer *peer) {
         free(peer->seclabel);
         free(peer->gids);
         user_unref(peer->user);
+        --peer->bus->peers.n_peers;
         free(peer);
 
         close(fd);
@@ -394,12 +396,14 @@ void peer_register(Peer *peer) {
         c_assert(!peer->monitor);
 
         peer->registered = true;
+        ++peer->bus->peers.n_registered;
 }
 
 void peer_unregister(Peer *peer) {
         c_assert(peer->registered);
         c_assert(!peer->monitor);
 
+        --peer->bus->peers.n_registered;
         peer->registered = false;
 }
 
