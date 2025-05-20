@@ -229,3 +229,8 @@ int util_drop_permissions(uint32_t uid, uint32_t gid) {
 
         return 0;
 }
+
+void util_peak_update(size_t *peak, size_t update) {
+        if (update > *peak)
+                *peak = update;
+}

@@ -76,6 +76,7 @@ struct Name {
         }
 
 struct NameOwner {
+        size_t n_owner_primaries;
         CRBTree ownership_tree;
 };
 
@@ -84,6 +85,9 @@ struct NameOwner {
         }
 
 struct NameRegistry {
+        size_t n_primaries;
+        size_t n_primaries_peak;
+        size_t n_owner_primaries_peak;
         CRBTree name_tree;
 };
 
