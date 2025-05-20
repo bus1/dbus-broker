@@ -46,6 +46,7 @@ struct Bus {
 
         UserRegistry users;
         NameRegistry names;
+        MatchCounters match_counters;
         MatchRegistry wildcard_matches;
         MatchRegistry sender_matches;
         PeerRegistry peers;
@@ -61,6 +62,7 @@ struct Bus {
                 .pid_fd = -1,                                                   \
                 .users = USER_REGISTRY_NULL,                                    \
                 .names = NAME_REGISTRY_INIT,                                    \
+                .match_counters = MATCH_COUNTERS_INIT,                          \
                 .wildcard_matches = MATCH_REGISTRY_INIT((_x).wildcard_matches), \
                 .sender_matches = MATCH_REGISTRY_INIT((_x).sender_matches),     \
                 .peers = PEER_REGISTRY_INIT,                                    \

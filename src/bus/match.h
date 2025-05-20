@@ -11,6 +11,7 @@
 #include "dbus/address.h"
 #include "util/user.h"
 
+typedef struct MatchCounters MatchCounters;
 typedef struct MatchFilter MatchFilter;
 typedef struct MatchKeys MatchKeys;
 typedef struct MatchOwner MatchOwner;
@@ -71,6 +72,7 @@ struct MatchRule {
         MatchRegistry *registry;
         MatchOwner *owner;
         CRBNode owner_node;
+        MatchCounters *counters;
 
         UserCharge charge[2];
         MatchKeys keys;
@@ -85,6 +87,7 @@ struct MatchRule {
         }
 
 struct MatchOwner {
+        size_t n_owner_subscriptions;
         CRBTree rule_tree;
         CList destinations_link;
 };
@@ -161,12 +164,20 @@ struct MatchRegistry {
                 .monitor_tree = C_RBTREE_INIT,          \
         }
 
+struct MatchCounters {
+        size_t n_subscriptions;
+        size_t n_subscriptions_peak;
+        size_t n_owner_subscriptions_peak;
+};
+
+#define MATCH_COUNTERS_INIT {}
+
 /* rules */
 
 MatchRule *match_rule_user_ref(MatchRule *rule);
 MatchRule *match_rule_user_unref(MatchRule *rule);
 
-int match_rule_link(MatchRule *rule, MatchRegistry *registry, bool monitor);
+int match_rule_link(MatchRule *rule, MatchCounters *counters, MatchRegistry *registry, bool monitor);
 void match_rule_unlink(MatchRule *rule);
 
 C_DEFINE_CLEANUP(MatchRule *, match_rule_user_unref);
