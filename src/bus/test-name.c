@@ -220,9 +220,219 @@ static void test_queue(void) {
         name_registry_deinit(&registry);
 }
 
+static void test_queue_counters(void) {
+        NameRegistry registry;
+        NameOwner owner1, owner2;
+        NameChange change;
+        int r;
+
+        /*
+         * Verify that primary counters are adjusted correctly on queue updates
+         * and replacements. They should only count primary ownerships, not any
+         * secondary name queuing.
+         */
+
+        name_registry_init(&registry);
+        name_owner_init(&owner1);
+        name_owner_init(&owner2);
+        name_change_init(&change);
+
+        c_assert(owner1.n_owner_primaries == 0);
+        c_assert(owner2.n_owner_primaries == 0);
+        c_assert(registry.n_primaries == 0);
+        c_assert(registry.n_primaries_peak == 0);
+        c_assert(registry.n_owner_primaries_peak == 0);
+
+        /* owner1: foobar */
+        r = name_registry_request_name(&registry, &owner1, NULL, "foobar", 0, &change);
+        c_assert(!r);
+        name_change_deinit(&change);
+
+        c_assert(owner1.n_owner_primaries == 1);
+        c_assert(owner2.n_owner_primaries == 0);
+        c_assert(registry.n_primaries == 1);
+        c_assert(registry.n_primaries_peak == 1);
+        c_assert(registry.n_owner_primaries_peak == 1);
+
+        /* re-request and queuing should not affect counters */
+        r = name_registry_request_name(&registry, &owner1, NULL, "foobar", 0, &change);
+        c_assert(r == NAME_E_ALREADY_OWNER);
+        r = name_registry_request_name(&registry, &owner2, NULL, "foobar", DBUS_NAME_FLAG_DO_NOT_QUEUE, &change);
+        c_assert(r == NAME_E_EXISTS);
+        r = name_registry_request_name(&registry, &owner2, NULL, "foobar", DBUS_NAME_FLAG_DO_NOT_QUEUE | DBUS_NAME_FLAG_REPLACE_EXISTING, &change);
+        c_assert(r == NAME_E_EXISTS);
+        r = name_registry_request_name(&registry, &owner2, NULL, "foobar", 0, &change);
+        c_assert(r == NAME_E_IN_QUEUE);
+
+        c_assert(owner1.n_owner_primaries == 1);
+        c_assert(owner2.n_owner_primaries == 0);
+        c_assert(registry.n_primaries == 1);
+        c_assert(registry.n_primaries_peak == 1);
+        c_assert(registry.n_owner_primaries_peak == 1);
+
+        /* dequeue again */
+        r = name_registry_release_name(&registry, &owner2, "foobar", &change);
+        c_assert(r == 0);
+
+        c_assert(owner1.n_owner_primaries == 1);
+        c_assert(owner2.n_owner_primaries == 0);
+        c_assert(registry.n_primaries == 1);
+        c_assert(registry.n_primaries_peak == 1);
+        c_assert(registry.n_owner_primaries_peak == 1);
+
+        /* queue owner2 then allow replacement (takes effect on next request) */
+        r = name_registry_request_name(&registry, &owner2, NULL, "foobar", DBUS_NAME_FLAG_REPLACE_EXISTING, &change);
+        c_assert(r == NAME_E_IN_QUEUE);
+        r = name_registry_request_name(&registry, &owner1, NULL, "foobar", DBUS_NAME_FLAG_ALLOW_REPLACEMENT, &change);
+        c_assert(r == NAME_E_ALREADY_OWNER);
+        r = name_registry_request_name(&registry, &owner2, NULL, "foobar", 0, &change);
+        c_assert(r == NAME_E_IN_QUEUE);
+
+        c_assert(owner1.n_owner_primaries == 1);
+        c_assert(owner2.n_owner_primaries == 0);
+        c_assert(registry.n_primaries == 1);
+        c_assert(registry.n_primaries_peak == 1);
+        c_assert(registry.n_owner_primaries_peak == 1);
+
+        /* now overtake the primary */
+        r = name_registry_request_name(&registry, &owner2, NULL, "foobar",
+                                       DBUS_NAME_FLAG_REPLACE_EXISTING |
+                                       DBUS_NAME_FLAG_ALLOW_REPLACEMENT |
+                                       DBUS_NAME_FLAG_DO_NOT_QUEUE,
+                                       &change);
+        c_assert(!r);
+        name_change_deinit(&change);
+
+        c_assert(owner1.n_owner_primaries == 0);
+        c_assert(owner2.n_owner_primaries == 1);
+        c_assert(registry.n_primaries == 1);
+        c_assert(registry.n_primaries_peak == 1);
+        c_assert(registry.n_owner_primaries_peak == 1);
+
+        /* overtake again */
+        r = name_registry_request_name(&registry, &owner1, NULL, "foobar", DBUS_NAME_FLAG_REPLACE_EXISTING, &change);
+        c_assert(!r);
+        name_change_deinit(&change);
+
+        c_assert(owner1.n_owner_primaries == 1);
+        c_assert(owner2.n_owner_primaries == 0);
+        c_assert(registry.n_primaries == 1);
+        c_assert(registry.n_primaries_peak == 1);
+        c_assert(registry.n_owner_primaries_peak == 1);
+
+        /* release names */
+        r = name_registry_release_name(&registry, &owner1, "foobar", &change);
+        c_assert(r == 0);
+        name_change_deinit(&change);
+
+        name_owner_deinit(&owner2);
+        name_owner_deinit(&owner1);
+        name_registry_deinit(&registry);
+}
+
+static void test_peak_counters(void) {
+        NameRegistry registry;
+        NameOwner owner1, owner2;
+        NameChange change;
+        int r;
+
+        /*
+         * Verify that primary peak-counters are adjusted correctly when peers
+         * acquire primary names.
+         */
+
+        name_registry_init(&registry);
+        name_owner_init(&owner1);
+        name_owner_init(&owner2);
+        name_change_init(&change);
+
+        c_assert(owner1.n_owner_primaries == 0);
+        c_assert(owner2.n_owner_primaries == 0);
+        c_assert(registry.n_primaries == 0);
+        c_assert(registry.n_primaries_peak == 0);
+        c_assert(registry.n_owner_primaries_peak == 0);
+
+        /* owner1: foobar0 */
+        r = name_registry_request_name(&registry, &owner1, NULL, "foobar0", 0, &change);
+        c_assert(!r);
+        name_change_deinit(&change);
+
+        c_assert(owner1.n_owner_primaries == 1);
+        c_assert(owner2.n_owner_primaries == 0);
+        c_assert(registry.n_primaries == 1);
+        c_assert(registry.n_primaries_peak == 1);
+        c_assert(registry.n_owner_primaries_peak == 1);
+
+        /* owner1: foobar1 */
+        r = name_registry_request_name(&registry, &owner1, NULL, "foobar1", 0, &change);
+        c_assert(!r);
+        name_change_deinit(&change);
+
+        c_assert(owner1.n_owner_primaries == 2);
+        c_assert(owner2.n_owner_primaries == 0);
+        c_assert(registry.n_primaries == 2);
+        c_assert(registry.n_primaries_peak == 2);
+        c_assert(registry.n_owner_primaries_peak == 2);
+
+        /* owner2: foobar2 */
+        r = name_registry_request_name(&registry, &owner2, NULL, "foobar2", 0, &change);
+        c_assert(!r);
+        name_change_deinit(&change);
+
+        c_assert(owner1.n_owner_primaries == 2);
+        c_assert(owner2.n_owner_primaries == 1);
+        c_assert(registry.n_primaries == 3);
+        c_assert(registry.n_primaries_peak == 3);
+        c_assert(registry.n_owner_primaries_peak == 2);
+
+        /* owner2: foobar3 */
+        r = name_registry_request_name(&registry, &owner2, NULL, "foobar3", 0, &change);
+        c_assert(!r);
+        name_change_deinit(&change);
+
+        c_assert(owner1.n_owner_primaries == 2);
+        c_assert(owner2.n_owner_primaries == 2);
+        c_assert(registry.n_primaries == 4);
+        c_assert(registry.n_primaries_peak == 4);
+        c_assert(registry.n_owner_primaries_peak == 2);
+
+        /* release names */
+        r = name_registry_release_name(&registry, &owner2, "foobar3", &change);
+        c_assert(r == 0);
+        name_change_deinit(&change);
+        r = name_registry_release_name(&registry, &owner2, "foobar2", &change);
+        c_assert(r == 0);
+        name_change_deinit(&change);
+
+        c_assert(owner1.n_owner_primaries == 2);
+        c_assert(owner2.n_owner_primaries == 0);
+        c_assert(registry.n_primaries == 2);
+        c_assert(registry.n_primaries_peak == 4);
+        c_assert(registry.n_owner_primaries_peak == 2);
+
+        r = name_registry_release_name(&registry, &owner1, "foobar1", &change);
+        c_assert(r == 0);
+        name_change_deinit(&change);
+        r = name_registry_release_name(&registry, &owner1, "foobar0", &change);
+        c_assert(r == 0);
+        name_change_deinit(&change);
+
+        c_assert(owner1.n_owner_primaries == 0);
+        c_assert(owner2.n_owner_primaries == 0);
+        c_assert(registry.n_primaries == 0);
+        c_assert(registry.n_primaries_peak == 4);
+        c_assert(registry.n_owner_primaries_peak == 2);
+
+        name_owner_deinit(&owner2);
+        name_owner_deinit(&owner1);
+        name_registry_deinit(&registry);
+}
+
 int main(int argc, char **argv) {
         test_setup();
         test_release();
         test_queue();
+        test_queue_counters();
+        test_peak_counters();
         return 0;
 }

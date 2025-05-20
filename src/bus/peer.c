@@ -298,6 +298,7 @@ int peer_new_with_fd(Peer **peerp,
         *peer = (Peer)PEER_INIT(*peer);
 
         peer->bus = bus;
+        ++peer->bus->peers.n_peers;
         peer->user = user;
         user = NULL;
         peer->pid = ucred.pid;
@@ -378,6 +379,7 @@ Peer *peer_free(Peer *peer) {
         free(peer->seclabel);
         free(peer->gids);
         user_unref(peer->user);
+        --peer->bus->peers.n_peers;
         free(peer);
 
         close(fd);
@@ -394,12 +396,14 @@ void peer_register(Peer *peer) {
         c_assert(!peer->monitor);
 
         peer->registered = true;
+        ++peer->bus->peers.n_registered;
 }
 
 void peer_unregister(Peer *peer) {
         c_assert(peer->registered);
         c_assert(!peer->monitor);
 
+        --peer->bus->peers.n_registered;
         peer->registered = false;
 }
 
@@ -477,12 +481,16 @@ void peer_release_name_ownership(Peer *peer, NameOwnership *ownership, NameChang
 }
 
 static int peer_link_match(Peer *peer, MatchRule *rule, bool monitor) {
+        MatchCounters *counters = NULL;
         Address addr;
         Peer *sender, *owner;
         int r;
 
+        if (!monitor)
+                counters = &peer->bus->match_counters;
+
         if (!rule->keys.sender) {
-                r = match_rule_link(rule, &peer->bus->wildcard_matches, monitor);
+                r = match_rule_link(rule, counters, &peer->bus->wildcard_matches, monitor);
                 if (r)
                         return error_fold(r);
         } else if (strcmp(rule->keys.sender, "org.freedesktop.DBus") == 0) {
@@ -499,7 +507,7 @@ static int peer_link_match(Peer *peer, MatchRule *rule, bool monitor) {
                         case ADDRESS_TYPE_ID: {
                                 owner = peer_registry_find_peer(&peer->bus->peers, addr.id);
                                 if (owner) {
-                                        r = match_rule_link(rule, &owner->name_owner_changed_matches, monitor);
+                                        r = match_rule_link(rule, counters, &owner->name_owner_changed_matches, monitor);
                                         if (r)
                                                 return error_fold(r);
                                 } else if (addr.id >= peer->bus->peers.ids) {
@@ -513,7 +521,7 @@ static int peer_link_match(Peer *peer, MatchRule *rule, bool monitor) {
                                          * forthcoming peer, so this is most likely
                                          * a bug in a client.
                                          */
-                                        r = match_rule_link(rule, &peer->bus->sender_matches, monitor);
+                                        r = match_rule_link(rule, counters, &peer->bus->sender_matches, monitor);
                                         if (r)
                                                 return error_fold(r);
                                 } else {
@@ -537,7 +545,7 @@ static int peer_link_match(Peer *peer, MatchRule *rule, bool monitor) {
                                 if (r)
                                         return error_fold(r);
 
-                                r = match_rule_link(rule, &name->name_owner_changed_matches, monitor);
+                                r = match_rule_link(rule, counters, &name->name_owner_changed_matches, monitor);
                                 if (r)
                                         return error_fold(r);
                                 name_ref(name); /* this reference must be explicitly released */
@@ -552,7 +560,7 @@ static int peer_link_match(Peer *peer, MatchRule *rule, bool monitor) {
                          * install other (unexpected) matches here, they will always be false negatives
                          * but for the sake of simplicity we do not attempt to optimize them away.
                          */
-                        r = match_rule_link(rule, &peer->bus->sender_matches, monitor);
+                        r = match_rule_link(rule, counters, &peer->bus->sender_matches, monitor);
                         if (r)
                                 return error_fold(r);
                 }
@@ -562,7 +570,7 @@ static int peer_link_match(Peer *peer, MatchRule *rule, bool monitor) {
                 case ADDRESS_TYPE_ID: {
                         sender = peer_registry_find_peer(&peer->bus->peers, addr.id);
                         if (sender) {
-                                r = match_rule_link(rule, &sender->sender_matches, monitor);
+                                r = match_rule_link(rule, counters, &sender->sender_matches, monitor);
                                 if (r)
                                         return error_fold(r);
                         } else if (addr.id >= peer->bus->peers.ids) {
@@ -571,7 +579,7 @@ static int peer_link_match(Peer *peer, MatchRule *rule, bool monitor) {
                                  * reasoning as above, keep it as a wildcard
                                  * match.
                                  */
-                                r = match_rule_link(rule, &peer->bus->wildcard_matches, monitor);
+                                r = match_rule_link(rule, counters, &peer->bus->wildcard_matches, monitor);
                                 if (r)
                                         return error_fold(r);
                         } else {
@@ -591,7 +599,7 @@ static int peer_link_match(Peer *peer, MatchRule *rule, bool monitor) {
                         if (r)
                                 return error_fold(r);
 
-                        r = match_rule_link(rule, &name->sender_matches, monitor);
+                        r = match_rule_link(rule, counters, &name->sender_matches, monitor);
                         if (r)
                                 return error_fold(r);
                         name_ref(name); /* this reference must be explicitly released */

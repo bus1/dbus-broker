@@ -21,6 +21,7 @@
 #include "dbus/socket.h"
 #include "util/apparmor.h"
 #include "util/error.h"
+#include "util/misc.h"
 #include "util/selinux.h"
 #include "util/string.h"
 
@@ -2274,6 +2275,7 @@ static void driver_append_user_accounting(CDVar *v, Bus *bus) {
 }
 
 static int driver_method_get_stats(Peer *peer, const char *path, CDVar *in_v, uint32_t serial, CDVar *out_v) {
+        Bus *bus = peer->bus;
         int r;
 
         c_dvar_read(in_v, "()");
@@ -2282,16 +2284,40 @@ static int driver_method_get_stats(Peer *peer, const char *path, CDVar *in_v, ui
         if (r)
                 return error_trace(r);
 
-        /*
-         * Append all supported statistics. So far, none of the dbus-daemon
-         * statistics are appended, since they are very specific to how the bus
-         * is implemented. We do, however, add our own (namespaced) statistics.
-         */
         c_dvar_write(out_v, "([{s", "org.bus1.DBus.Debug.Stats.PeerAccounting");
         driver_append_peer_accounting(out_v, peer->bus);
         c_dvar_write(out_v, "}{s", "org.bus1.DBus.Debug.Stats.UserAccounting");
         driver_append_user_accounting(out_v, peer->bus);
-        c_dvar_write(out_v, "}])");
+        c_dvar_write(out_v, "}"
+                            "{s<u>}"
+                            "{s<u>}"
+                            "{s<u>}"
+                            "{s<u>}"
+                            "{s<u>}"
+                            "{s<u>}"
+                            "{s<u>}"
+                            "{s<u>}"
+                            "{s<u>}"
+                            "])",
+                            "Serial", c_dvar_type_u,
+                                util_t2u_saturating(++peer->bus->stats_ids),
+                            "ActiveConnections", c_dvar_type_u,
+                                util_z2u_saturating(bus->peers.n_registered),
+                            "IncompleteConnections", c_dvar_type_u,
+                                util_z2u_saturating(bus->peers.n_peers - bus->peers.n_registered),
+                            "BusNames", c_dvar_type_u,
+                                util_z2u_saturating(bus->names.n_primaries),
+                            "PeakBusNames", c_dvar_type_u,
+                                util_z2u_saturating(bus->names.n_primaries_peak),
+                            "PeakBusNamesPerConnection", c_dvar_type_u,
+                                util_z2u_saturating(bus->names.n_owner_primaries_peak),
+                            "MatchRules", c_dvar_type_u,
+                                util_z2u_saturating(bus->match_counters.n_subscriptions),
+                            "PeakMatchRules", c_dvar_type_u,
+                                util_z2u_saturating(bus->match_counters.n_subscriptions_peak),
+                            "PeakMatchRulesPerConnection", c_dvar_type_u,
+                                util_z2u_saturating(bus->match_counters.n_owner_subscriptions_peak)
+        );
 
         r = driver_send_reply(peer, out_v, serial);
         if (r)

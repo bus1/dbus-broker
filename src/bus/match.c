@@ -11,6 +11,7 @@
 #include "dbus/message.h"
 #include "dbus/protocol.h"
 #include "util/error.h"
+#include "util/misc.h"
 #include "util/string.h"
 
 static bool match_key_equal(const char *key1, const char *key2, size_t n_key2) {
@@ -871,7 +872,7 @@ static int match_rule_link_by_path(MatchRule *rule, MatchRegistryByPath *registr
 /**
  * match_rule_link() - XXX
  */
-int match_rule_link(MatchRule *rule, MatchRegistry *registry, bool monitor) {
+int match_rule_link(MatchRule *rule, MatchCounters *counters, MatchRegistry *registry, bool monitor) {
         _c_cleanup_(match_registry_by_path_unrefp) MatchRegistryByPath *registry_by_path = NULL;
         CRBTree *tree;
         CRBNode **slot, *parent;
@@ -880,6 +881,7 @@ int match_rule_link(MatchRule *rule, MatchRegistry *registry, bool monitor) {
         if (rule->registry) {
                 c_assert(registry == rule->registry);
                 c_assert(c_list_is_linked(&rule->registry_link));
+                c_assert(counters == rule->counters);
 
                 return 0;
         }
@@ -903,7 +905,16 @@ int match_rule_link(MatchRule *rule, MatchRegistry *registry, bool monitor) {
         r = match_rule_link_by_path(rule, registry_by_path);
         if (r)
                 return error_trace(r);
+
         rule->registry = registry;
+        rule->counters = counters;
+
+        if (counters) {
+                ++counters->n_subscriptions;
+                ++rule->owner->n_owner_subscriptions;
+                util_peak_update(&counters->n_subscriptions_peak, counters->n_subscriptions);
+                util_peak_update(&counters->n_owner_subscriptions_peak, rule->owner->n_owner_subscriptions);
+        }
 
         return 0;
 }
@@ -913,8 +924,14 @@ int match_rule_link(MatchRule *rule, MatchRegistry *registry, bool monitor) {
  */
 void match_rule_unlink(MatchRule *rule) {
         if (rule->registry) {
+                if (rule->counters) {
+                        --rule->owner->n_owner_subscriptions;
+                        --rule->counters->n_subscriptions;
+                }
+
                 c_list_unlink(&rule->registry_link);
                 rule->registry_by_keys = match_registry_by_keys_unref(rule->registry_by_keys);
+                rule->counters = NULL;
                 rule->registry = NULL;
         }
 }
