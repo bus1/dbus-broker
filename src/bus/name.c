@@ -11,6 +11,7 @@
 #include "dbus/protocol.h"
 #include "dbus/socket.h"
 #include "util/error.h"
+#include "util/misc.h"
 #include "util/user.h"
 
 /**
@@ -115,20 +116,31 @@ bool name_ownership_is_primary(NameOwnership *ownership) {
  */
 void name_ownership_release(NameOwnership *ownership, NameChange *change) {
         NameOwnership *primary;
+        Name *name = ownership->name;
 
         c_assert(!change->name);
         c_assert(!change->old_owner);
         c_assert(!change->new_owner);
 
-        primary = name_primary(ownership->name);
+        primary = name_primary(name);
         c_list_unlink(&ownership->name_link);
 
         if (ownership == primary) {
-                primary = name_primary(ownership->name);
+                --ownership->owner->n_owner_primaries;
+                --name->registry->n_primaries;
 
-                change->name = name_ref(ownership->name);
+                primary = name_primary(name);
+
+                change->name = name_ref(name);
                 change->old_owner = ownership->owner;
                 change->new_owner = primary ? primary->owner : NULL;
+
+                if (primary) {
+                        // skip `n_primaries_peak` as `n_primaries` did not change
+                        ++name->registry->n_primaries;
+                        ++primary->owner->n_owner_primaries;
+                        util_peak_update(&name->registry->n_owner_primaries_peak, primary->owner->n_owner_primaries);
+                }
         }
 
         name_ownership_free(ownership);
@@ -156,6 +168,12 @@ static int name_ownership_update(NameOwnership *ownership, uint32_t flags, NameC
                 c_assert(!c_list_is_linked(&ownership->name_link));
 
                 c_list_link_front(&name->ownership_list, &ownership->name_link);
+
+                ++name->registry->n_primaries;
+                ++ownership->owner->n_owner_primaries;
+                util_peak_update(&name->registry->n_primaries_peak, name->registry->n_primaries);
+                util_peak_update(&name->registry->n_owner_primaries_peak, ownership->owner->n_owner_primaries);
+
                 r = 0;
         } else if (primary == ownership) {
                 /* we are already the primary owner */
@@ -169,6 +187,11 @@ static int name_ownership_update(NameOwnership *ownership, uint32_t flags, NameC
 
                 c_list_unlink(&ownership->name_link);
                 c_list_link_front(&name->ownership_list, &ownership->name_link);
+
+                // skip `n_primaries_peak` as `n_primaries` did not change
+                --primary->owner->n_owner_primaries;
+                ++ownership->owner->n_owner_primaries;
+                util_peak_update(&name->registry->n_owner_primaries_peak, ownership->owner->n_owner_primaries);
 
                 /* drop previous primary owner, if queuing is not requested */
                 if (primary->flags & DBUS_NAME_FLAG_DO_NOT_QUEUE) {
