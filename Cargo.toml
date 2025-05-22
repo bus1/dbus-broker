@@ -1,0 +1,30 @@
+[package]
+name = "dbus-broker"
+version = "0.1.0"
+
+categories = [
+        "os",
+]
+description = "Linux D-Bus Message Broker"
+edition = "2021"
+homepage = "https://bus1.eu/lib/dbus-broker"
+keywords = [
+        "broker",
+        "dbus",
+        "ipc",
+        "linux",
+        "message",
+]
+license = "Apache-2.0"
+readme = "README.md"
+repository = "https://github.com/bus1/dbus-broker"
+rust-version = "1.64"
+
+autobins = false
+autoexamples = false
+autotests = false
+autobenches = false
+
+[dependencies]
+clap = { version = "4.3" }
+libc = { version = "0.2" }
