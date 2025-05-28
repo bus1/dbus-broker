@@ -161,6 +161,7 @@ int controller_dbus_dispatch(Controller *controller, Message *message);
 int controller_dbus_send_activation(Controller *controller, const char *path, uint64_t serial);
 int controller_dbus_send_reload(Controller *controller, User *user, uint32_t serial);
 int controller_dbus_send_environment(Controller *controller, const char * const *env, size_t n_env);
+int controller_dbus_send_sighup(Controller *controller);
 
 C_DEFINE_CLEANUP(Controller *, controller_deinit);
 
