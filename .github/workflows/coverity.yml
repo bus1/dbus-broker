@@ -1,0 +1,36 @@
+---
+# vi: ts=2 sw=2 et:
+
+name: Coverity
+
+on:
+  schedule:
+    # Run Coverity daily at midnight
+    - cron:  '0 0 * * *'
+  pull_request:
+    paths:
+      - ".github/workflows/coverity.*"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    if: github.repository == 'bus1/dbus-broker'
+    env:
+      # Set in repo settings -> Secrets and variables -> Actions -> Repository secrets
+      COVERITY_SCAN_TOKEN:              "${{ secrets.COVERITY_SCAN_TOKEN }}"
+      COVERITY_SCAN_NOTIFICATION_EMAIL: "${{ secrets.COVERITY_SCAN_NOTIFICATION_EMAIL }}"
+    steps:
+      - name: Repository checkout
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo add-apt-repository -y --enable-source
+          sudo apt build-dep -y dbus-broker
+          sudo apt install -y libselinux1-dev libapparmor-dev libaudit-dev
+
+      - name: Build & upload the results
+        run: .github/workflows/coverity.sh
