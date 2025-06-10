@@ -144,8 +144,51 @@ static void test_umul_saturating(void) {
         }
 }
 
+static void test_casts(void) {
+        static const struct {
+                size_t from;
+                unsigned int to;
+        } casts_z2u_sat[] = {
+                { 0, 0 },
+                { 32, 32 },
+                { 256, 256 },
+                { (size_t)UINT_MAX, UINT_MAX },
+                { (size_t)UINT_MAX + 1, UINT_MAX },
+                { (size_t)UINT_MAX * 2, UINT_MAX },
+                { SIZE_MAX, UINT_MAX },
+        };
+        static const struct {
+                uint64_t from;
+                unsigned int to;
+        } casts_t2u_sat[] = {
+                { 0, 0 },
+                { 32, 32 },
+                { 256, 256 },
+                { (uint64_t)UINT_MAX, UINT_MAX },
+                { (uint64_t)UINT_MAX + 1, UINT_MAX },
+                { (uint64_t)UINT_MAX * 2, UINT_MAX },
+                { UINT64_MAX, UINT_MAX },
+        };
+        size_t i;
+
+        for (i = 0; i < C_ARRAY_SIZE(casts_z2u_sat); ++i) {
+                unsigned int r;
+
+                r = util_z2u_saturating(casts_z2u_sat[i].from);
+                c_assert(r == casts_z2u_sat[i].to);
+        }
+
+        for (i = 0; i < C_ARRAY_SIZE(casts_t2u_sat); ++i) {
+                unsigned int r;
+
+                r = util_t2u_saturating(casts_t2u_sat[i].from);
+                c_assert(r == casts_t2u_sat[i].to);
+        }
+}
+
 int main(int argc, char **argv) {
         test_memfd();
         test_umul_saturating();
+        test_casts();
         return 0;
 }

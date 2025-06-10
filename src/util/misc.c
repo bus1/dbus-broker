@@ -226,7 +226,7 @@ unsigned int util_z2u_saturating(size_t v) {
         unsigned int cast;
 
         cast = (unsigned int)v;
-        if ((size_t)cast < v)
+        if ((size_t)cast != v)
                 return UINT_MAX;
         else
                 return cast;
@@ -245,7 +245,7 @@ unsigned int util_t2u_saturating(uint64_t v) {
         unsigned int cast;
 
         cast = (unsigned int)v;
-        if ((uint64_t)cast < v)
+        if ((uint64_t)cast != v)
                 return UINT_MAX;
         else
                 return cast;
