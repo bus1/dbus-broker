@@ -152,10 +152,12 @@ static void test_casts(void) {
                 { 0, 0 },
                 { 32, 32 },
                 { 256, 256 },
+                { SIZE_MAX, UINT_MAX },
+#if SIZE_MAX > UINT_MAX
                 { (size_t)UINT_MAX, UINT_MAX },
                 { (size_t)UINT_MAX + 1, UINT_MAX },
                 { (size_t)UINT_MAX * 2, UINT_MAX },
-                { SIZE_MAX, UINT_MAX },
+#endif
         };
         static const struct {
                 uint64_t from;
