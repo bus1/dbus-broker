@@ -2777,7 +2777,7 @@ int driver_dispatch(Peer *peer, Message *message) {
                 r = driver_send_error(peer, message_read_serial(message), "org.freedesktop.DBus.Error.UnknownMethod", driver_error_to_string(r));
                 break;
         case DRIVER_E_UNEXPECTED_PROPERTY:
-                r = driver_send_error(peer, message_read_serial(message), "org.freedesktop.DBus.Error.UnkonwnProperty", driver_error_to_string(r));
+                r = driver_send_error(peer, message_read_serial(message), "org.freedesktop.DBus.Error.UnknownProperty", driver_error_to_string(r));
                 break;
         case DRIVER_E_READONLY_PROPERTY:
                 r = driver_send_error(peer, message_read_serial(message), "org.freedesktop.DBus.Error.PropertyReadOnly", driver_error_to_string(r));
