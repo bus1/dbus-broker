@@ -1,0 +1,48 @@
+#
+# Coverity Analysis
+#
+# This workflow analyzes the project via the Coverity Scan Analysis Tool, and
+# uploads the final artifacts to the Coverity servers for further analysis.
+#
+# This workflow can be triggered manually. It is also run in regular intervals.
+# Note that Coverity limits the amount of builds allowed, so ensure you do not
+# exceed this with manual triggers.
+#
+
+name: "Coverity Analysis"
+
+on:
+  schedule:
+  - cron:  '0 0 * * *' # daily at midnight
+  workflow_dispatch:
+
+defaults:
+  run:
+    shell: "bash"
+
+permissions:
+  contents: read
+
+jobs:
+  analysis:
+    name: "Coverity Analysis"
+
+    if: github.repository == 'bus1/dbus-broker'
+
+    container:
+      image: "ghcr.io/readaheadeu/rae-ci-ubuntu:latest"
+      options: --user root
+    env:
+      COVERITY_EMAIL: "no-reply@readahead.eu"
+      COVERITY_TOKEN: ${{ secrets.DEPLOY_COVERITY_TOKEN }}
+    runs-on: "ubuntu-latest"
+
+    steps:
+    - name: "Fetch Sources"
+      uses: actions/checkout@v4
+
+    - name: "Run Analysis"
+      run: make coverity-scan
+
+    - name: "Upload Analysis"
+      run: make coverity-upload
