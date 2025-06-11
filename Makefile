@@ -30,6 +30,9 @@ help:
 	@echo
 	@echo "    help:               Print this usage information"
 	@echo
+	@echo "    coverity-scan:      Run a full analysis via Coverity"
+	@echo "    coverity-upload:    Upload a Coverity analysis"
+	@echo
 	@echo "    release-fedora:     Print checklist for Fedora releases"
 	@echo "    release-github:     Print checklist for Github releases"
 	@echo
@@ -58,6 +61,104 @@ $(BUILDDIR)/%/:
 
 .PHONY: FORCE
 FORCE:
+
+#
+# Target: coverity-*
+#
+
+COVERITY_EMAIL		?= no-reply@example.com
+COVERITY_PROJECT	?= dbus-broker
+COVERITY_TOKEN		?=
+COVERITY_URL_DOWN	?= https://scan.coverity.com/download/linux64
+COVERITY_URL_UP		?= https://scan.coverity.com/builds
+
+COVERITY_P_BASE		= $(BUILDDIR)/coverity
+
+COVERITY_P_ANALYSIS	= $(COVERITY_P_BASE)/analysis.tar.gz
+COVERITY_P_BUILD	= $(COVERITY_P_BASE)/build
+COVERITY_P_INT		= $(COVERITY_P_BASE)/cov-int
+COVERITY_P_MD5		= $(COVERITY_P_BASE)/coverity.md5
+COVERITY_P_MD5SUM	= $(COVERITY_P_BASE)/coverity.md5sum
+COVERITY_P_SCAN		= $(COVERITY_P_BASE)/scan
+COVERITY_P_TAR		= $(COVERITY_P_BASE)/coverity.tar.gz
+
+$(COVERITY_P_MD5): FORCE | $(COVERITY_P_BASE)/
+	@echo -e "\033[33;1mcoverity: check for updates\033[0m"
+	@COVERITY_MD5=$$( \
+		curl \
+			--data "token=$(COVERITY_TOKEN)&project=$(COVERITY_PROJECT)&md5=1" \
+			--fail \
+			--show-error \
+			--silent \
+			"$(COVERITY_URL_DOWN)" \
+	) ; \
+	if [[ \
+		-e "$(COVERITY_P_MD5)" \
+		&& $${COVERITY_MD5} == $$(cat "$(COVERITY_P_MD5)") \
+	]] ; then \
+		echo -e "\033[33;1mcoverity: cached version is up to date\033[0m" ; \
+	else \
+		echo -e "\033[33;1mcoverity: local version is missing or outdated\033[0m" ; \
+		echo -n "$${COVERITY_MD5}" >"$(COVERITY_P_MD5)" ; \
+		echo "$${COVERITY_MD5}  coverity.tar.gz" >"$(COVERITY_P_MD5SUM)" ; \
+	fi ;
+
+$(COVERITY_P_TAR): $(COVERITY_P_MD5)
+	@echo -e "\033[33;1mcoverity: download analysis tool\033[0m"
+	@curl \
+		--data "token=$(COVERITY_TOKEN)&project=$(COVERITY_PROJECT)" \
+		--fail \
+		--output "$(COVERITY_P_TAR)" \
+		"$(COVERITY_URL_DOWN)"
+	@(cd "$(COVERITY_P_BASE)" && md5sum --check --status --strict "./coverity.md5sum")
+
+$(COVERITY_P_SCAN): $(COVERITY_P_TAR)
+	@echo -e "\033[33;1mcoverity: extract analysis tool\033[0m"
+	@rm -rf "$(COVERITY_P_SCAN)"
+	@mkdir -p "$@"
+	@tar -xf "$(COVERITY_P_TAR)" --strip 1 -C "$(COVERITY_P_SCAN)"
+
+.PHONY: coverity-scan
+coverity-scan: $(COVERITY_P_SCAN)
+	@echo -e "\033[33;1mcoverity: run full analysis\033[0m"
+	@rm -rf "$(COVERITY_P_BUILD)" "$(COVERITY_P_INT)"
+	@mkdir -p "$(COVERITY_P_BUILD)" "$(COVERITY_P_INT)"
+	@meson \
+		setup \
+		--buildtype debugoptimized \
+		--warnlevel 2 \
+		-D debug=true \
+		-D errorlogs=true \
+		\
+		-D apparmor=true \
+		-D audit=true \
+		-D launcher=true \
+		-D selinux=true \
+		-- \
+		$(COVERITY_P_BUILD) \
+		$(SRCDIR)
+	@PATH="$(COVERITY_P_SCAN)/bin:${PATH}" cov-build \
+		--dir $(COVERITY_P_INT) \
+		meson compile -C $(COVERITY_P_BUILD)
+	@PATH="$(COVERITY_P_SCAN)/bin:${PATH}" cov-import-scm \
+		--dir $(COVERITY_P_INT) \
+		--log $(COVERITY_P_INT)/scm_log.txt \
+		--scm git
+	@tar -czf "$(COVERITY_P_ANALYSIS)" -C "$(COVERITY_P_BASE)" "./cov-int"
+	@rm -rf "$(COVERITY_P_BUILD)" "$(COVERITY_P_INT)"
+
+.PHONY: coverity-upload
+coverity-upload: | $(COVERITY_P_ANALYSIS)
+	@echo -e "\033[33;1mcoverity: upload analysis\033[0m"
+	@curl \
+		--fail \
+		--form "description=automated build" \
+		--form "email=$(COVERITY_EMAIL)" \
+		--form "file=@$(COVERITY_P_ANALYSIS)" \
+		--form "project=$(COVERITY_PROJECT)" \
+		--form "token=$(COVERITY_TOKEN)" \
+		--form "version=$$(git rev-parse --short HEAD)" \
+		"$(COVERITY_URL_UP)"
 
 #
 # Target: meson-*
