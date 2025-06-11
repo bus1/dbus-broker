@@ -10,6 +10,7 @@
 #include <sys/syslog.h>
 
 typedef struct Log Log;
+typedef struct LogProvenance LogProvenance;
 
 enum {
         _LOG_E_SUCCESS,
@@ -40,11 +41,23 @@ struct Log {
         size_t offset;
 };
 
+struct LogProvenance {
+        const char *file;
+        int line;
+        const char *func;
+};
+
 #define LOG_NULL {                                                              \
                 .log_fd = -1,                                                   \
                 .mem_fd = -1,                                                   \
                 .map = MAP_FAILED,                                              \
         }
+
+#define LOG_PROVENANCE_HERE ((LogProvenance){                                   \
+                .file = __FILE__,                                               \
+                .line = __LINE__,                                               \
+                .func = __func__,                                               \
+        })
 
 /* log context */
 
@@ -65,9 +78,7 @@ void log_append_common(Log *log,
                        int level,
                        int error,
                        const char *id,
-                       const char *file,
-                       int line,
-                       const char *func);
+                       LogProvenance prov);
 
 /* inline helpers */
 
@@ -99,4 +110,4 @@ static inline void log_appendf(Log *log, const char *format, ...) {
 }
 
 #define log_append_here(_log, _level, _r, _id) \
-        log_append_common((_log), (_level), (_r), (_id), __FILE__, __LINE__, __func__)
+        log_append_common((_log), (_level), (_r), (_id), LOG_PROVENANCE_HERE)
