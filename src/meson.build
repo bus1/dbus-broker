@@ -18,6 +18,7 @@ sources_bus = [
         'broker/controller-dbus.c',
         'bus/activation.c',
         'bus/bus.c',
+        'bus/diag.c',
         'bus/driver.c',
         'bus/listener.c',
         'bus/match.c',
