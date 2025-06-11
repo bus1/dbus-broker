@@ -1,7 +1,14 @@
-name: CodeQL Configuration
+#
+# CodeQL Configuration
+#
+# Custom configuration for the codeql-action of GitHub. It is sourced by the
+# CodeQL workflow, but can be used by local builds as well.
+#
+
+name: "CodeQL Configuration"
 
 disable-default-queries: false
 
 queries:
-- name: Enable possibly useful queries which are disabled by default
-  uses: ./.github/codeql-custom.qls
+- name: "Custom Queries for dbus-broker"
+  uses: "./.github/codeql-custom.qls"
