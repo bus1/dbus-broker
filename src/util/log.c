@@ -622,9 +622,7 @@ void log_vappendf(Log *log, const char *format, va_list args) {
  * @level:              syslog level indicator
  * @error:              errno-style error code
  * @id:                 log message ID, or NULL
- * @file:               source file
- * @line:               source line
- * @func:               source function
+ * @prov:               log provenance
  *
  * This appends known, common fields to the current log message. This should be
  * called for every log message.
@@ -633,9 +631,7 @@ void log_append_common(Log *log,
                        int level,
                        int error,
                        const char *id,
-                       const char *file,
-                       int line,
-                       const char *func) {
+                       LogProvenance prov) {
         /*
          * Use LOG_DAEMON if the log-facility is 0. Most people don't specify
          * any facility, so lets just apply a default. Note that 0 actually
@@ -670,9 +666,9 @@ void log_append_common(Log *log,
                             LOG_FAC(level),
                             program_invocation_short_name,
                             error,
-                            file,
-                            line,
-                            func,
+                            prov.file ?: "<unknown>",
+                            prov.line,
+                            prov.func ?: "<unknown>",
                             log->n_dropped);
                 if (id)
                         log_appendf(log, "MESSAGE_ID=%s\n", id);
