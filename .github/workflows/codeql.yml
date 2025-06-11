@@ -1,44 +1,72 @@
-name: Code Scan
+#
+# CodeQL Analysis
+#
+# This workflow runs the CodeQL analyzer on the local code-base and reports
+# defects directly on GitHub.
+#
+
+#
+# NB: The actions log will show errors like:
+#
+#     ERROR: ld.so: object '/__t/CodeQL/2.21.4/x64/codeql/tools/linux64/${LIB}_${PLATFORM}_trace.so' from LD_PRELOAD cannot be preloaded (cannot open shared object file): ignored.
+#
+#     This can be ignored. This happens because `codeql-action/init` installs
+#     an LD_PRELOAD handler in a container, but the LD_PRELOAD environment
+#     variable will also be set for `docker exec`. Hence, the docker execution
+#     of each step will be unable to honor the LD_PRELOAD. This can be ignored
+#     since CodeQL has no interest in tracing the docker execution, but only
+#     the binaries _inside_ of the container.
+#
+
+name: "CodeQL Analysis"
 
 on:
-  push:
-    branches:
-    - main
-    - scan
   pull_request:
-    branches:
-    - main
-    - scan
+  push:
+    branches-ignore: ["pr/**"]
+    tags: ["**"]
+  workflow_dispatch:
+
+defaults:
+  run:
+    shell: "bash"
 
 jobs:
   scan:
-    name: Scan Codebase via CodeQL
-    runs-on: ubuntu-latest
-    permissions:
-      actions: read
-      contents: read
-      security-events: write
+    name: "CodeQL Analysis"
 
-    strategy:
-      fail-fast: false
-      matrix:
-        language:
-        - cpp
+    container:
+      image: "ghcr.io/readaheadeu/rae-ci-ubuntu:latest"
+      options: "--user root"
+    permissions:
+      actions: "read"
+      contents: "read"
+      security-events: "write"
+    runs-on: "ubuntu-latest"
 
     steps:
-    - name: Install dependencies
-      run: |
-        sudo apt -y update
-        sudo apt -y install dbus expat libaudit-dev libselinux-dev libsystemd-dev python3-pip
-        sudo pip3 install meson ninja
-    - name: Checkout repository
+    - name: "Fetch Sources"
       uses: actions/checkout@v4
-    - name: Initialize CodeQL
-      uses: github/codeql-action/init@v2
+
+    - name: "Initialize CodeQL"
+      uses: github/codeql-action/init@v3
       with:
-        config-file: ./.github/codeql-config.yml
-        languages: ${{ matrix.language }}
-    - name: Automatically Build Project
-      uses: github/codeql-action/autobuild@v2
-    - name: Perform CodeQL Analysis
-      uses: github/codeql-action/analyze@v2
+        config-file: "./.github/codeql-config.yml"
+        languages: "cpp"
+
+    - name: "Build Project"
+      run: |
+        meson setup \
+          --buildtype "debugoptimized" \
+          --warnlevel "2" \
+          -Dapparmor=true \
+          -Daudit=true \
+          -Dlauncher=true \
+          -Dselinux=true \
+          "./build" \
+          "."
+        meson compile \
+          -C "./build"
+
+    - name: "Perform CodeQL Analysis"
+      uses: github/codeql-action/analyze@v3
