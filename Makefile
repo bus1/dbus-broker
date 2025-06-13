@@ -69,6 +69,11 @@ MESON_SETUP		= \
 		--buildtype "debugoptimized" \
 		--reconfigure \
 		--warnlevel "2" \
+		-D "debug=true" \
+		-D "errorlogs=true" \
+		-D "werror=true" \
+		\
+		-D "audit=true" \
 		-D "docs=true" \
 		-D "launcher=true" \
 		-- \
