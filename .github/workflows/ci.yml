@@ -1,0 +1,372 @@
+#
+# Continuous Integration
+#
+# This is the main entry-point of the continuous integration of this project.
+# It is triggered by pull-requests and pushes, but can optionally be manually
+# triggered via the GitHub APIs.
+#
+# This workflow first runs sanity tests, a very basic build, and the test-suite
+# with default configurations. Only if all these succeed it will proceed and
+# spawn the more elaborate test-suite. This ensures that simple bugs are caught
+# early and do not trigger the full test-suite, fuzzers, or static analyzers.
+#
+# This workflow triggers on any pull-request and push, except for pushes to
+# branches called `pr/*`. This is a workaround for GitHub which can be used to
+# avoid running the test-suite on PR branches, and only run it in the PR
+# itself. For example, a push to a forked repository `dvdhrm/dbus-broker` named
+# `pr/socket-rework` will not trigger the CI of the forked repository for this
+# push. However, once a PR is filed against `bus1/dbus-broker`, the
+# pull-request trigger will run the CI. This workaround avoids running the CI
+# twice, once in the fork and once upstream. However, this workaround still
+# allows running the CI in forks by simply using branches other than `pr/*`.
+#
+# Lastly, the continuous integration can be triggered manually via the
+# workflow-dispatch trigger, either via the GitHub API or via the GitHub UI.
+#
+
+name: "Continuous Integration"
+
+on:
+  pull_request:
+  push:
+    branches-ignore: ["pr/**"]
+    tags: ["**"]
+  workflow_dispatch:
+
+defaults:
+  run:
+    shell: "bash"
+
+env:
+  CC: clang
+  CC_LD: lld
+  CI_MESON_ARGS: >-
+    --buildtype debugoptimized
+    --warnlevel 2
+    -D debug=true
+    -D errorlogs=true
+    -D werror=true
+
+    -D apparmor=true
+    -D audit=true
+    -D docs=true
+    -D launcher=true
+    -D selinux=true
+
+jobs:
+  #
+  # Run the Rust static analyzer (clippy) on the code-base and report any
+  # violations of the configured rules.
+  #
+  basic_clippy:
+    name: "Basic: clippy"
+
+    container:
+      image: "ghcr.io/readaheadeu/rae-ci-archlinux:latest"
+      options: "--user root"
+    runs-on: "ubuntu-latest"
+
+    steps:
+    - name: "Fetch Sources"
+      uses: actions/checkout@v4
+
+    - name: "Setup Meson"
+      run: |
+        meson setup \
+          ${CI_MESON_ARGS} \
+          -D apparmor=false \
+          -D selinux=false \
+          ./build \
+          .
+
+    - name: "Compile Project"
+      run: ninja -C "./build" clippy
+
+  #
+  # A complete but basic build of the project, running on common x86-64 ubuntu
+  # machines. This should catch most compilation errors or test-suite failures
+  # but runs pretty fast. No fuzzing, benchmarking, sanitizing, or other long
+  # running operations are done.
+  #
+  basic_meson:
+    name: "Basic: basic @ Ubuntu-x86_64-clang-release"
+
+    container:
+      image: "ghcr.io/readaheadeu/rae-ci-ubuntu:latest"
+      options: "--user root"
+    runs-on: "ubuntu-latest"
+
+    steps:
+    - name: "Fetch Sources"
+      uses: actions/checkout@v4
+
+    - name: "Setup Meson"
+      run: meson setup ${CI_MESON_ARGS} ./build .
+
+    - name: "Compile Project"
+      run: meson compile -C "./build"
+
+    - name: "Run Tests"
+      run: meson test -C "./build"
+
+  #
+  # A simple no-op job that serves as guard. All extended jobs depend on this
+  # job, and thus we can accumulate the basic dependencies here, instead of
+  # duplicating them everywhere.
+  #
+  ext_guard:
+    name: "Guard Ext-Jobs"
+    needs:
+    - basic_clippy
+    - basic_meson
+    runs-on: "ubuntu-latest"
+    steps:
+    - name: "No-op"
+      run: |
+
+  #
+  # A release build running on ARM64. This uses the standard image provided by
+  # GitHub and installs dependencies manually. All supported features are
+  # enabled and the full test suite is run.
+  #
+  ext_arm64:
+    name: "Ext: arm64 @ Ubuntu-arm64-clang-release"
+    needs: ext_guard
+
+    container:
+      image: "ghcr.io/readaheadeu/rae-ci-ubuntu:latest"
+      options: "--user root"
+    runs-on: "ubuntu-24.04-arm"
+
+    steps:
+    - name: "Fetch Sources"
+      uses: actions/checkout@v4
+
+    - name: "Setup Meson"
+      run: meson setup ${CI_MESON_ARGS} ./build .
+
+    - name: "Compile Project"
+      run: meson compile -C "./build"
+
+    - name: "Run Tests"
+      run: meson test -C "./build"
+
+  #
+  # Run the GitHub CodeQL infrastructure and perform static analysis on the
+  # entire codebase.
+  #
+  ext_codeql:
+    name: "Ext: codeql"
+    needs: ext_guard
+    permissions:
+      actions: "read"
+      contents: "read"
+      security-events: "write"
+    uses: ./.github/workflows/lib-codeql.yml
+
+  #
+  # A matrix of project builds with different settings. All builds run the
+  # included test suite. This includes builds with and without debug options,
+  # optimizations, and meson-options of the project.
+  #
+  ext_meson:
+    name: "Ext: ${{ matrix.id }} @ ${{ matrix.name }}"
+    needs: ext_guard
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        # Test a release build as recommended by upstream. This picks clang as
+        # compiler with debug-optimized as build-target. This test also builds
+        # documentation and related resources.
+        - id: "release"
+          name: "Arch-x86_64-clang-release"
+
+          # Explicitly set all options here to document them.
+          cc: "clang"
+          cc_ld: "lld"
+          image: "ghcr.io/readaheadeu/rae-ci-archlinux:latest"
+          rustflags: ""
+          setupargs: >-
+            -D apparmor=false
+            -D selinux=false
+
+        # Disable all options to compile-test their fallbacks. Run the test
+        # suite to run basic fallback verification.
+        - id: "fallback"
+          name: "Ubuntu-x86_64-clang-release"
+
+          cc: "clang"
+          cc_ld: "lld"
+          image: "ghcr.io/readaheadeu/rae-ci-ubuntu:latest"
+          setupargs: >-
+            -D apparmor=false
+            -D audit=false
+            -D docs=false
+            -D launcher=false
+            -D selinux=false
+
+        # A reduced build with `-O0` to verify we do not rely on dead-code
+        # elimination.
+        - id: "O0-PLAIN"
+          name: "Ubuntu-x86_64-gcc-plain"
+
+          buildtype: "plain"
+          cc: "gcc"
+          cc_ld: "bfd"
+          image: "ghcr.io/readaheadeu/rae-ci-ubuntu:latest"
+          setupargs: >-
+            --buildtype plain
+            -D c_args=-O0
+
+        # An aggressive -O3 -DNDEBUG build that verfies that we properly
+        # follow strict aliasing rules and do not rely on debug builds.
+        - id: "O3-NDEBUG"
+          name: "Ubuntu-x86_64-gcc-ndebug"
+
+          cc: "gcc"
+          cc_ld: "bfd"
+          image: "ghcr.io/readaheadeu/rae-ci-ubuntu:latest"
+          setupargs: >-
+            --buildtype release
+            -D b_ndebug=true
+            -D optimization=3
+            -D audit=true
+            -D launcher=true
+
+        # Run with LTO and all possible optimizations.
+        - id: "lto"
+          name: "Ubuntu-x86_64-clang-release"
+
+          cc: "clang"
+          cc_ld: "lld"
+          image: "ghcr.io/readaheadeu/rae-ci-ubuntu:latest"
+          setupargs: >-
+            --buildtype release
+            -D b_lto=true
+            -D b_lto_mode=default
+            -D b_ndebug=true
+            -D optimization=3
+
+        # Run with thinLTO and all possible optimizations.
+        - id: "thinlto"
+          name: "Ubuntu-x86_64-clang-release"
+
+          cc: "clang"
+          cc_ld: "lld"
+          image: "ghcr.io/readaheadeu/rae-ci-ubuntu:latest"
+          setupargs: >-
+            --buildtype release
+            -D b_lto=true
+            -D b_lto_mode=thin
+            -D b_ndebug=true
+            -D optimization=3
+
+        # A release build with `--cross-file lib32` to test on 32-bit.
+        - id: "32bit"
+          name: "Arch-i686-clang-release"
+
+          cc: "clang"
+          cc_ld: "lld"
+          image: "ghcr.io/readaheadeu/rae-ci-archlinux:latest"
+          rustflags: "--target i686-unknown-linux-gnu"
+          setupargs: >-
+            --cross-file lib32
+            -D apparmor=false
+            -D audit=false
+            -D selinux=false
+
+        # Run with address-sanitizers enabled.
+        - id: "asan"
+          name: "Ubuntu-x86_64-clang-release"
+
+          cc: "clang"
+          cc_ld: "lld"
+          image: "ghcr.io/readaheadeu/rae-ci-ubuntu:latest"
+          setupargs: >-
+            -D b_sanitize=address
+            -D b_lundef=false
+
+        # Run with undefined-behavior-sanitizers enabled.
+        - id: "ubsan"
+          name: "Ubuntu-x86_64-clang-release"
+
+          cc: "clang"
+          cc_ld: "lld"
+          image: "ghcr.io/readaheadeu/rae-ci-ubuntu:latest"
+          setupargs: >-
+            -D b_sanitize=undefined
+            -D b_lundef=false
+
+    container:
+      image: ${{ matrix.image }}
+      options: "--user root"
+    env:
+      ASAN_OPTIONS: "strict_string_checks=1:detect_stack_use_after_return=1:check_initialization_order=1:strict_init_order=1"
+      CC: ${{ matrix.cc }}
+      CC_LD: ${{ matrix.cc_ld }}
+      UBSAN_OPTIONS: "print_stacktrace=1:print_summary=1:halt_on_error=1"
+    runs-on: "ubuntu-latest"
+
+    steps:
+    - name: "Fetch Sources"
+      uses: actions/checkout@v4
+
+    - name: "Setup Meson"
+      run: |
+        meson setup \
+          ${CI_MESON_ARGS} \
+          ${{ matrix.setupargs }} \
+          "./build" \
+          "."
+
+    - name: "Compile Project"
+      run: meson compile -C "./build"
+
+    - name: "Run Tests"
+      run: meson test -C "./build"
+
+  #
+  # A release build running through valgrind. We disable all features
+  # that currently do not support valgrind runs (in particular sd-bus in
+  # the launcher).
+  #
+  ext_valgrind:
+    name: "Ext: valgrind @ Arch-x86_64-clang-release"
+    needs: ext_guard
+
+    container:
+      image: "ghcr.io/readaheadeu/rae-ci-archlinux:latest"
+      options: "--user root"
+    runs-on: "ubuntu-latest"
+
+    steps:
+    - name: "Fetch Sources"
+      uses: actions/checkout@v4
+
+    - name: "Setup Meson"
+      run: |
+        meson setup \
+          ${CI_MESON_ARGS} \
+          -D apparmor=false \
+          -D launcher=false \
+          -D selinux=false \
+          "./build" \
+          "."
+
+    - name: "Compile Project"
+      run: meson compile -C "./build"
+
+    - name: "Run Valgrind"
+      run: |
+        args=(
+          "--gen-suppressions=all"
+          "--trace-children=yes"
+          "--leak-check=full"
+          "--error-exitcode=1"
+        )
+        meson test \
+          -C "./build" \
+          --timeout-multiplier=16 \
+          --wrapper="valgrind ${args[*]}"
