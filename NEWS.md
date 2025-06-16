@@ -1,5 +1,30 @@
 # dbus-broker - Linux D-Bus Message Broker
 
+## CHANGES WITH 37:
+
+        * Add `/etc` and `/run` to the search-paths for system services. This
+          change is aligned with recent changes to the reference
+          implementation.
+
+        * Support systemd's `notify-reload` to trigger a reload operation.
+          This replaces the old `busctl call ...ReloadConfig` operation.
+
+        * Extend `org.freedesktop.DBus.Debug.Stats.GetStats` with all the
+          fields defined by the specification.
+
+        * Fix a bug in match-rule processing which caused argument processing
+          to fail for any but the first message argument.
+
+        * Fix a memory leak in configuration processing when parsing invalid
+          user or group IDs.
+
+        Contributions from: Attila Lakatos, Barnabás Pőcze, darkblaze69, David
+                            Rheinsberg, Evgeny Vereshchagin, Frantisek Sumsal,
+                            Jeffrey Bosboom, Luca Boccassi, Ryan Wilson,
+                            seaeunlee, Tomas Korbar
+
+        - Dußlingen, 2025-06-16
+
 ## CHANGES WITH 36:
 
         * Fix possible file-descriptor use-after-close, which can lead to

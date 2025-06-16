@@ -9,7 +9,7 @@ project(
         ],
         license: 'Apache-2.0',
         meson_version: '>=0.60.0',
-        version: '36',
+        version: '37',
 )
 
 add_languages('c', native: false)
