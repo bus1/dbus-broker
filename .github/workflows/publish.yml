@@ -1,0 +1,53 @@
+#
+# Publish Releases
+#
+# This workflow can be manually triggered and will then publish the
+# specified release to the configured release channels.
+#
+
+name: "Publish Releases"
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Git-Tag to Publish"
+        default: ""
+        required: true
+
+concurrency:
+  cancel-in-progress: false
+  group: "publish"
+
+defaults:
+  run:
+    shell: "bash"
+
+jobs:
+  publish:
+    name: "Publish GitHub"
+
+    env:
+      CTX_GITHUB_EVENT_INPUTS_TAG: ${{ github.event.inputs.tag }}
+    permissions:
+      contents: write
+    runs-on: "ubuntu-latest"
+
+    steps:
+    - name: "Verify Input"
+      run: |
+        if [[ -z "${CTX_GITHUB_EVENT_INPUTS_TAG}" ]] ; then
+          echo "error: empty git-tag specified as input"
+          exit 1
+        fi
+
+    - name: "Clone Repository"
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.inputs.tag }}
+
+    - name: "Publish GitHub"
+      uses: readaheadeu/rae-actions/publish-github@v1
+      with:
+        ghtoken: ${{ secrets.GITHUB_TOKEN }}
+        tag: ${{ github.event.inputs.tag }}
