@@ -236,7 +236,7 @@ if meson.version().version_compare('>=1.8') and not meson.is_cross_build()
         mod_rust.doctest(
                 'rbus-doctests',
                 rust_bus,
-                suite: 'unit',
+                suite: 'doctest',
         )
 endif
 
