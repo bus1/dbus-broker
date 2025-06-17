@@ -87,6 +87,12 @@ if use_docs
 endif
 
 #
+# Config: doctest
+#
+
+use_doctest = get_option('doctest')
+
+#
 # Config: launcher
 #
 

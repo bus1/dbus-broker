@@ -1,6 +1,7 @@
 option('apparmor', type: 'boolean', value: false, description: 'AppArmor support')
 option('audit', type: 'boolean', value: false, description: 'Audit support')
 option('docs', type: 'boolean', value: false, description: 'Build documentation')
+option('doctest', type: 'boolean', value: false, description: 'Test code of documentation')
 option('launcher', type: 'boolean', value: true, description: 'Build compatibility launcher')
 option('linux-4-17', type: 'boolean', value: false, description: 'Require linux-4.17 at runtime and make use of its features')
 option('reference-test', type: 'boolean', value: false, description: 'Run test suite against reference implementation')
