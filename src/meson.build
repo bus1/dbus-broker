@@ -49,6 +49,7 @@ sources_bus = [
 ]
 
 bindgen_bus = [
+        'util/acct.h',
 ]
 
 deps_bus = [
@@ -148,6 +149,9 @@ rust_bus = static_library(
                 ],
                 {
                         'generated': bindgen_generated,
+                        'util': [
+                                'util/acct.rs',
+                        ],
                 },
         ),
 )
