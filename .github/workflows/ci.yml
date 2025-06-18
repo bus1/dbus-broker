@@ -125,9 +125,8 @@ jobs:
       run: |
 
   #
-  # A release build running on ARM64. This uses the standard image provided by
-  # GitHub and installs dependencies manually. All supported features are
-  # enabled and the full test suite is run.
+  # A release build running on ARM64. All supported features are enabled and
+  # the full test suite is run.
   #
   ext_arm64:
     name: "Ext: arm64 @ Ubuntu-arm64-clang-release"
@@ -165,6 +164,40 @@ jobs:
     uses: ./.github/workflows/lib-codeql.yml
 
   #
+  # A release build running on i686. All supported features are enabled and the
+  # full test suite is run.
+  #
+  ext_i686:
+    name: "Ext: i686 @ Arch-i686-clang-release"
+    needs: ext_guard
+
+    container:
+      image: "ghcr.io/readaheadeu/rae-ci-archlinux:latest"
+      options: "--user root"
+    runs-on: "ubuntu-latest"
+
+    steps:
+    - name: "Fetch Sources"
+      uses: actions/checkout@v4
+
+    - name: "Setup Meson"
+      run: |
+        meson setup \
+          ${CI_MESON_ARGS} \
+          --cross-file ./.github/meson-arch-lib32.cross \
+          -D apparmor=false \
+          -D audit=false \
+          -D selinux=false \
+          "./build" \
+          "."
+
+    - name: "Compile Project"
+      run: meson compile -C "./build"
+
+    - name: "Run Tests"
+      run: meson test -C "./build"
+
+  #
   # A matrix of project builds with different settings. All builds run the
   # included test suite. This includes builds with and without debug options,
   # optimizations, and meson-options of the project.
@@ -187,7 +220,6 @@ jobs:
           cc: "clang"
           cc_ld: "lld"
           image: "ghcr.io/readaheadeu/rae-ci-archlinux:latest"
-          rustflags: ""
           setupargs: >-
             -D apparmor=false
             -D selinux=false
@@ -262,20 +294,6 @@ jobs:
             -D b_lto_mode=thin
             -D b_ndebug=true
             -D optimization=3
-
-        # A release build with `--cross-file lib32` to test on 32-bit.
-        - id: "32bit"
-          name: "Arch-i686-clang-release"
-
-          cc: "clang"
-          cc_ld: "lld"
-          image: "ghcr.io/readaheadeu/rae-ci-archlinux:latest"
-          rustflags: "--target i686-unknown-linux-gnu"
-          setupargs: >-
-            --cross-file lib32
-            -D apparmor=false
-            -D audit=false
-            -D selinux=false
 
         # Run with address-sanitizers enabled.
         - id: "asan"
