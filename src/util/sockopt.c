@@ -10,6 +10,7 @@
 #include "catalog/catalog-ids.h"
 #include "util/error.h"
 #include "util/log.h"
+#include "util/selinux.h"
 #include "util/sockopt.h"
 
 int sockopt_get_peersec(int fd, char **labelp, size_t *lenp) {
@@ -240,6 +241,13 @@ int sockopt_get_peerpidfd(int fd, int *pidfdp) {
                         return SOCKOPT_E_UNAVAILABLE;
                 if (errno == EINVAL || errno == ESRCH)
                         return SOCKOPT_E_REAPED;
+                /* Kernel 6.8 moves pidfds from anonymous inodes to a new
+                 * pidfs pseudo-filesystem, and the existing SELinux policy
+                 * denies access. If we are running in enforcing mode and
+                 * we get an EACCES, treat it as if pidfd support was not
+                 * available. */
+                if (errno == EACCES && bus_selinux_is_enforcing())
+                        return SOCKOPT_E_UNSUPPORTED;
 
                 return error_origin(-errno);
         }
