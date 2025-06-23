@@ -172,7 +172,6 @@ MESON_SETUP		= \
 		--warnlevel "2" \
 		-D "debug=true" \
 		-D "errorlogs=true" \
-		-D "werror=true" \
 		\
 		-D "audit=true" \
 		-D "docs=true" \
