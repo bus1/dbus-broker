@@ -9,6 +9,7 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include "bus/bus.h"
+#include "bus/diag.h"
 #include "bus/driver.h"
 #include "bus/match.h"
 #include "bus/name.h"
@@ -48,11 +49,7 @@ static int peer_dispatch_connection(Peer *peer, uint32_t events) {
                         NameSet peer_names = NAME_SET_INIT_FROM_OWNER(&peer->owned_names);
 
                         if (r == CONNECTION_E_QUOTA) {
-                                log_append_here(peer->bus->log, LOG_WARNING, 0, NULL);
-                                bus_log_append_sender(peer->bus, peer->id, &peer_names, peer->policy->seclabel);
-
-                                r = log_commitf(peer->bus->log, "Peer :1.%llu is being disconnected as it does not have the resources to perform an operation.",
-                                                peer->id);
+                                r = diag_quota_dequeue(peer, LOG_PROVENANCE_HERE);
                                 if (r)
                                         return error_fold(r);
 
@@ -873,7 +870,11 @@ int peer_queue_reply(Peer *sender, const char *destination, uint32_t reply_seria
 
         r = connection_queue(&receiver->connection, NULL, message);
         if (r) {
-                if (r == CONNECTION_E_QUOTA || r == CONNECTION_E_UNEXPECTED_FDS) {
+                if (r == CONNECTION_E_QUOTA) {
+                        r = diag_quota_queue_reply(sender, receiver, message, LOG_PROVENANCE_HERE);
+                        if (r)
+                                return error_fold(r);
+                } else if (r == CONNECTION_E_UNEXPECTED_FDS) {
                         NameSet sender_names = NAME_SET_INIT_FROM_OWNER(&sender->owned_names);
                         NameSet receiver_names = NAME_SET_INIT_FROM_OWNER(&receiver->owned_names);
 
@@ -882,13 +883,8 @@ int peer_queue_reply(Peer *sender, const char *destination, uint32_t reply_seria
                         log_append_here(receiver->bus->log, LOG_WARNING, 0, DBUS_BROKER_CATALOG_RECEIVE_FAILED);
                         bus_log_append_transaction(receiver->bus, sender->id, receiver->id, &sender_names, &receiver_names,
                                                    sender->policy->seclabel, receiver->policy->seclabel, message);
-                        if (r == CONNECTION_E_QUOTA)
-                                r = log_commitf(receiver->bus->log, "Peer :1.%llu is being disconnected as it does not have the resources to receive a reply it requested.",
-                                                receiver->id);
-                        else
-                                r = log_commitf(receiver->bus->log, "Peer :1.%llu is being disconnected as it does not support receiving file descriptors it requested.",
-                                                receiver->id);
-
+                        r = log_commitf(receiver->bus->log, "Peer :1.%llu is being disconnected as it does not support receiving file descriptors it requested.",
+                                        receiver->id);
                         if (r)
                                 return error_fold(r);
                 } else {
