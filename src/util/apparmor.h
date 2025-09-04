@@ -7,8 +7,9 @@
 #include <c-stdaux.h>
 #include <stdlib.h>
 
-typedef struct BusAppArmorRegistry BusAppArmorRegistry;
 typedef struct NameSet NameSet;
+
+typedef struct BusAppArmorRegistry BusAppArmorRegistry;
 
 enum {
         _BUS_APPARMOR_E_SUCCESS,
