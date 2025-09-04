@@ -419,7 +419,6 @@ static int apparmor_message_query(
                 *allow = 0;
                 *audit = 1;
         } else {
-                c_assert(0);
                 return error_origin(-ENOTRECOVERABLE);
         }
 
