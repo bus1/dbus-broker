@@ -148,14 +148,12 @@ BusAppArmorRegistry *bus_apparmor_registry_unref(BusAppArmorRegistry *registry) 
 }
 
 int bus_apparmor_set_bus_type(BusAppArmorRegistry *registry, const char *bustype) {
-        char *dup;
+        char *dup = NULL;
 
         if (bustype) {
                 dup = strdup(bustype);
                 if (!dup)
                         return error_origin(-ENOMEM);
-        } else {
-                dup = NULL;
         }
 
         free(registry->bustype);
