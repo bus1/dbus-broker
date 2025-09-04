@@ -81,17 +81,25 @@ static void test_peerpidfd_client(
 
         r = sockopt_get_peerpidfd(fd, &pidfd);
         if (r != SOCKOPT_E_UNSUPPORTED) {
-                if (stale) {
-                        c_assert(r == SOCKOPT_E_REAPED);
+                if (r == SOCKOPT_E_REAPED) {
+                        /*
+                         * Old kernels refused to return stale pidfds. Hence,
+                         * in that case verify that we expected a stale pidfd.
+                         */
+                        c_assert(stale);
                 } else {
                         c_assert(!r);
                         c_assert(pidfd >= 0);
 
                         r = proc_resolve_pidfd(pidfd, &pid_socket);
                         c_assert(!r);
-                        c_assert(pid_socket > 0);
 
-                        c_assert(pid_socket == pid_server);
+                        if (stale) {
+                                c_assert(pid_socket == -1);
+                        } else {
+                                c_assert(pid_socket > 0);
+                                c_assert(pid_socket == pid_server);
+                        }
                 }
         }
 }
