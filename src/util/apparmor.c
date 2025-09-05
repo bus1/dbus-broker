@@ -1,9 +1,8 @@
 /*
  * Bus AppArmor Helpers
  *
- * Required AppArmor kernel support is still not merged in upstream linux as of
- * July 2022, yet we provide basic AppArmor support based on the downstream
- * Ubuntu patches. This follows closely what dbus-daemon does.
+ * Required AppArmor kernel support is available in upstream linux as of
+ * version 6.17 (October 2025).
  */
 
 #include <c-rbtree.h>
