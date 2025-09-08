@@ -155,6 +155,9 @@ rbus_generated = static_library(
                         'generated': bindgen_generated,
                 },
         ),
+        dependencies: [
+                dep_libc_rs,
+        ],
 )
 
 rbus_crate = static_library(

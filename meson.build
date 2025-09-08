@@ -47,6 +47,7 @@ dep_clist = dependency('libclist-3', version: '>=3.1.0')
 dep_crbtree = dependency('libcrbtree-3', version: '>=3.2.0')
 dep_cshquote = dependency('libcshquote-1', version: '>=1.1.0')
 dep_cstdaux = dependency('libcstdaux-1', version: '>=1.5.0')
+dep_libc_rs = dependency('libc-rs-0.2', version: '>=0.2.175')
 dep_math = cc.find_library('m')
 dep_thread = dependency('threads')
 
