@@ -1,7 +1,11 @@
-//! # C-Rust Bridge
+//! # Rust C Bridge
 //!
-//! This module implements a C API for the rust library bundles with the
-//! bus broker.
+//! This Rust crate is linked into a static library (rather than Rust crate)
+//! ready to be linked into the C code-base.
+//!
+//! This bridge defines the entry-points for the C API of the Rust crate. They
+//! are intentionally kept simple, moving almost all complexity into the Rust
+//! code.
 
 extern crate alloc;
 extern crate core;
@@ -25,15 +29,15 @@ macro_rules! type_eq {
 mod acct {
     use alloc::rc;
     use core::{ffi, mem, ptr};
-    use rbus::generated::util_acct;
     use rbus::util::acct;
+    use rbus_generated::util_acct;
 
     #[unsafe(export_name = "acct_new")]
-    pub unsafe extern "C" fn acct_new(
+    pub unsafe extern "C" fn new(
         acctp: *mut *mut util_acct::Acct,
         maxima_c: *const [util_acct::acct_value_t; acct::N_SLOTS],
     ) -> ffi::c_int {
-        type_eq!(acct_new, util_acct::acct_new);
+        type_eq!(new, util_acct::acct_new);
 
         let maxima = unsafe { &*maxima_c };
         let acct = acct::Acct::new(maxima);
@@ -43,10 +47,10 @@ mod acct {
     }
 
     #[unsafe(export_name = "acct_free")]
-    pub unsafe extern "C" fn acct_free(
+    pub unsafe extern "C" fn free(
         acct_c: *mut util_acct::Acct,
     ) -> *mut util_acct::Acct {
-        type_eq!(acct_free, util_acct::acct_free);
+        type_eq!(free, util_acct::acct_free);
 
         let acct: rc::Rc<acct::Acct> = unsafe { rc::Rc::from_raw(acct_c as _) };
         drop(acct);
@@ -55,12 +59,12 @@ mod acct {
     }
 
     #[unsafe(export_name = "acct_ref_user")]
-    pub unsafe extern "C" fn acct_ref_user(
+    pub unsafe extern "C" fn ref_user(
         acct_c: *mut util_acct::Acct,
         userp: *mut *mut util_acct::AcctUser,
         id_c: util_acct::acct_id_t,
     ) -> ffi::c_int {
-        type_eq!(acct_ref_user, util_acct::acct_ref_user);
+        type_eq!(ref_user, util_acct::acct_ref_user);
 
         let acct: rc::Rc<acct::Acct> = unsafe { rc::Rc::from_raw(acct_c as _) };
         let user = acct.get_user(id_c);
@@ -71,10 +75,10 @@ mod acct {
     }
 
     #[unsafe(export_name = "acct_user_ref")]
-    pub unsafe extern "C" fn acct_user_ref(
+    pub unsafe extern "C" fn user_ref(
         user_c: *mut util_acct::AcctUser,
     ) -> *mut util_acct::AcctUser {
-        type_eq!(acct_user_ref, util_acct::acct_user_ref);
+        type_eq!(user_ref, util_acct::acct_user_ref);
 
         let user: rc::Rc<acct::User> = unsafe { rc::Rc::from_raw(user_c as _) };
         mem::forget(user.clone());
@@ -83,10 +87,10 @@ mod acct {
     }
 
     #[unsafe(export_name = "acct_user_unref")]
-    pub unsafe extern "C" fn acct_user_unref(
+    pub unsafe extern "C" fn user_unref(
         user_c: *mut util_acct::AcctUser,
     ) -> *mut util_acct::AcctUser {
-        type_eq!(acct_user_unref, util_acct::acct_user_unref);
+        type_eq!(user_unref, util_acct::acct_user_unref);
 
         let user: rc::Rc<acct::User> = unsafe { rc::Rc::from_raw(user_c as _) };
         drop(user);
@@ -95,11 +99,11 @@ mod acct {
     }
 
     #[unsafe(export_name = "acct_user_new_actor")]
-    pub unsafe extern "C" fn acct_user_new_actor(
+    pub unsafe extern "C" fn user_new_actor(
         user_c: *mut util_acct::AcctUser,
         actorp: *mut *mut util_acct::AcctActor,
     ) -> ffi::c_int {
-        type_eq!(acct_user_new_actor, util_acct::acct_user_new_actor);
+        type_eq!(user_new_actor, util_acct::acct_user_new_actor);
 
         let user: rc::Rc<acct::User> = unsafe { rc::Rc::from_raw(user_c as _) };
         let actor = acct::Actor::with(&user);
@@ -110,13 +114,13 @@ mod acct {
     }
 
     #[unsafe(export_name = "acct_user_charge")]
-    pub unsafe extern "C" fn acct_user_charge(
+    pub unsafe extern "C" fn user_charge(
         user_c: *mut util_acct::AcctUser,
         charge_raw_c: *mut util_acct::AcctCharge,
         claimant_c: *mut util_acct::AcctActor,
         amount_c: *const [util_acct::acct_value_t; acct::N_SLOTS],
     ) -> ffi::c_int {
-        type_eq!(acct_user_charge, util_acct::acct_user_charge);
+        type_eq!(user_charge, util_acct::acct_user_charge);
 
         let user: rc::Rc<acct::User> = unsafe { rc::Rc::from_raw(user_c as _) };
         let claimant: rc::Rc<acct::Actor> = unsafe { rc::Rc::from_raw(claimant_c as _) };
@@ -140,10 +144,10 @@ mod acct {
     }
 
     #[unsafe(export_name = "acct_actor_ref")]
-    pub unsafe extern "C" fn acct_actor_ref(
+    pub unsafe extern "C" fn actor_ref(
         actor_c: *mut util_acct::AcctActor,
     ) -> *mut util_acct::AcctActor {
-        type_eq!(acct_actor_ref, util_acct::acct_actor_ref);
+        type_eq!(actor_ref, util_acct::acct_actor_ref);
 
         let actor: rc::Rc<acct::Actor> = unsafe { rc::Rc::from_raw(actor_c as _) };
         mem::forget(actor.clone());
@@ -152,10 +156,10 @@ mod acct {
     }
 
     #[unsafe(export_name = "acct_actor_unref")]
-    pub unsafe extern "C" fn acct_actor_unref(
+    pub unsafe extern "C" fn actor_unref(
         actor_c: *mut util_acct::AcctActor,
     ) -> *mut util_acct::AcctActor {
-        type_eq!(acct_actor_unref, util_acct::acct_actor_unref);
+        type_eq!(actor_unref, util_acct::acct_actor_unref);
 
         let actor: rc::Rc<acct::Actor> = unsafe { rc::Rc::from_raw(actor_c as _) };
         drop(actor);
@@ -164,18 +168,18 @@ mod acct {
     }
 
     #[unsafe(export_name = "acct_actor_charge")]
-    pub unsafe extern "C" fn acct_actor_charge(
+    pub unsafe extern "C" fn actor_charge(
         actor_c: *mut util_acct::AcctActor,
         charge: *mut util_acct::AcctCharge,
         claimant: *mut util_acct::AcctActor,
         amount: *const [util_acct::acct_value_t; acct::N_SLOTS],
     ) -> ffi::c_int {
-        type_eq!(acct_actor_charge, util_acct::acct_actor_charge);
+        type_eq!(actor_charge, util_acct::acct_actor_charge);
 
         let actor: rc::Rc<acct::Actor> = unsafe { rc::Rc::from_raw(actor_c as _) };
         let user_raw = rc::Rc::as_ptr(actor.user());
 
-        let r = acct_user_charge(
+        let r = user_charge(
             user_raw as _,
             charge,
             claimant,
