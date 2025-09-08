@@ -32,7 +32,7 @@
 
 use alloc::{collections::btree_map, rc};
 use core::{cell, convert};
-use crate::generated::util_acct;
+use rbus_generated::util_acct;
 
 /// Representation of user IDs in the accounting system. This is guaranteed to
 /// be a primitive unsigned integer big enough to hold Linux UIDs. Currently

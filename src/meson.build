@@ -141,25 +141,33 @@ foreach i : bindgen_bus
         )
 endforeach
 
-rust_bus = static_library(
-        'rbus',
+rbus_generated = static_library(
+        'rbus_generated',
         structured_sources(
                 [
-                        'rlib.rs',
+                        'lib-generated.rs',
                 ],
                 {
                         'generated': bindgen_generated,
-                        'util': [
-                                'util/acct.rs',
-                        ],
                 },
         ),
 )
 
-crust_bus = static_library(
-        'crbus',
-        ['clib.rs'],
-        link_with: rust_bus,
+rbus_crate = static_library(
+        'rbus',
+        ['lib-crate.rs'],
+        link_with: [
+                rbus_generated,
+        ],
+)
+
+rbus_static = static_library(
+        'rbus_static',
+        ['lib-static.rs'],
+        link_with: [
+                rbus_crate,
+                rbus_generated,
+        ],
         rust_abi: 'c',
 )
 
@@ -171,7 +179,7 @@ static_bus = static_library(
                 '-fno-common',
         ],
         dependencies: deps_bus,
-        link_with: crust_bus,
+        link_with: rbus_static,
         pic: true,
 )
 
@@ -232,14 +240,14 @@ endif
 
 mod_rust.test(
         'rbus-tests',
-        rust_bus,
+        rbus_crate,
         suite: 'unit',
 )
 
 if use_doctest and meson.version().version_compare('>=1.8')
         mod_rust.doctest(
                 'rbus-doctests',
-                rust_bus,
+                rbus_crate,
                 suite: 'doctest',
         )
 endif
