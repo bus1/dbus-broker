@@ -133,6 +133,10 @@ foreach i : bindgen_bus
                 args: bindgen_args + [
                         '--allowlist-file=.*/' + i,
                 ],
+                c_args: [
+                        # MSMV(1.9.1): With 1.9.1 this is set by Meson.
+                        '-D_FILE_OFFSET_BITS=64',
+                ],
                 dependencies: deps_bus,
                 include_directories: incs_bus,
                 input: i,
