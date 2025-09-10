@@ -1,0 +1,6 @@
+[wrap-git]
+url = https://github.com/bus1/sys.git
+revision = v1
+
+[provide]
+dependency_names = libosi-1, libsys-1, libtmp-1
