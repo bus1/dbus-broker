@@ -11,12 +11,7 @@
 extern crate alloc;
 extern crate core;
 
-/// # Utilities
-///
-/// A collection of independent utilities for the bus broker.
-pub mod util {
-    pub mod acct;
-}
+pub mod util;
 
 #[cfg(test)]
 mod test {
