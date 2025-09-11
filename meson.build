@@ -18,7 +18,7 @@ add_languages('rust', native: false)
 
 bindgen_msv = '0.60'
 rust_edition = '2021'
-rust_msv = '1.74'
+rust_msv = '1.84'
 
 cc = meson.get_compiler('c')
 conf = configuration_data()
