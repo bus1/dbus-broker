@@ -31,8 +31,8 @@ releases.
 The requirements for dbus-broker are:
 
 ```
-  Linux kernel >= 4.17
   glibc >= 2.16
+  linux kernel >= 4.17
   libaudit >= 3.0               (optional)
   libcap-ng >= 0.6              (optional)
   libselinux >= 3.2             (optional)
@@ -41,18 +41,20 @@ The requirements for dbus-broker are:
 Additionally, the compatibility launcher requires:
 
 ```
-  systemd >= 230
   expat >= 2.2
+  systemd >= 230
 ```
 
 At build-time, the following software is required:
 
 ```
+  linux-api-headers >= 4.13
   meson >= 1.3
   pkg-config >= 0.29
-  python-docutils >= 0.13
-  linux-api-headers >= 4.13
+  rust >= 1.84
+  rust-bindgen >= 0.60
   dbus >= 1.10                (optional: only for tests)
+  python-docutils >= 0.13     (optional: only for docs)
 ```
 
 ## Install
