@@ -79,8 +79,12 @@ jobs:
           ./build \
           .
 
-    - name: "Compile Project"
-      run: ninja -C "./build" clippy
+    # FIXME: Meson integration of clippy does not allow to skip subprojects.
+    #        This is very unfortunate, since they do not necessarily use
+    #        clippy, and thus do not carry annotations.
+    #
+    #- name: "Compile Project"
+    #  run: ninja -C "./build" clippy
 
   #
   # A complete but basic build of the project, running on common x86-64 ubuntu
