@@ -9,7 +9,6 @@ Conflicts=shutdown.target
 
 [Service]
 Type=notify-reload
-Sockets=dbus.socket
 OOMScoreAdjust=-900
 LimitNOFILE=16384
 ProtectSystem=full
