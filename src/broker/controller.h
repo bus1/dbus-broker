@@ -20,6 +20,7 @@ typedef struct Bus Bus;
 typedef struct Controller Controller;
 typedef struct ControllerName ControllerName;
 typedef struct ControllerListener ControllerListener;
+typedef struct ControllerMetrics ControllerMetrics;
 typedef struct ControllerReload ControllerReload;
 typedef struct Message Message;
 
@@ -49,9 +50,12 @@ enum {
         CONTROLLER_E_NAME_EXISTS,
         CONTROLLER_E_NAME_IS_ACTIVATABLE,
         CONTROLLER_E_NAME_INVALID,
+        CONTROLLER_E_METRICS_EXISTS,
+        CONTROLLER_E_METRICS_INVALID_FD,
 
         CONTROLLER_E_LISTENER_NOT_FOUND,
         CONTROLLER_E_NAME_NOT_FOUND,
+        CONTROLLER_E_METRICS_NOT_FOUND,
 };
 
 enum {
@@ -81,6 +85,13 @@ struct ControllerListener {
         char path[];
 };
 
+struct ControllerMetrics {
+        Controller *controller;
+        CRBNode controller_node;
+        int fd;
+        char path[];
+};
+
 struct ControllerReload {
         Controller *controller;
         UserCharge charge;
@@ -101,6 +112,7 @@ struct Controller {
         Connection connection;
         CRBTree name_tree;
         CRBTree listener_tree;
+        CRBTree metrics_tree;
         CRBTree reload_tree;
         uint32_t serial;
 };
@@ -109,6 +121,7 @@ struct Controller {
                 .connection = CONNECTION_NULL((_x).connection),                 \
                 .name_tree = C_RBTREE_INIT,                                     \
                 .listener_tree = C_RBTREE_INIT,                                 \
+                .metrics_tree = C_RBTREE_INIT,                                  \
                 .reload_tree = C_RBTREE_INIT,                                   \
         }
 
@@ -127,7 +140,14 @@ int controller_listener_set_policy(ControllerListener *listener, PolicyRegistry 
 
 C_DEFINE_CLEANUP(ControllerListener *, controller_listener_free);
 
+/* metrics */
+
+ControllerMetrics *controller_metrics_free(ControllerMetrics *metrics);
+
+C_DEFINE_CLEANUP(ControllerMetrics *, controller_metrics_free);
+
 /* reload */
+
 ControllerReload *controller_reload_free(ControllerReload *reload);
 int controller_reload_completed(ControllerReload *reload);
 int controller_reload_invalid(ControllerReload *reload);
@@ -149,12 +169,17 @@ int controller_add_listener(Controller *controller,
                             const char *path,
                             int listener_fd,
                             PolicyRegistry *policy);
+int controller_add_metrics(Controller *controller,
+                           ControllerMetrics **metricsp,
+                           const char *path,
+                           int metrics_fd);
 int controller_request_reload(Controller *controller,
                               User *user,
                               uint64_t sender_id,
                               uint32_t sender_serial);
 ControllerName *controller_find_name(Controller *controller, const char *path);
 ControllerListener *controller_find_listener(Controller *controller, const char *path);
+ControllerMetrics *controller_find_metrics(Controller *controller, const char *path);
 ControllerReload *controller_find_reload(Controller *controller, uint32_t serial);
 
 int controller_dbus_dispatch(Controller *controller, Message *message);
