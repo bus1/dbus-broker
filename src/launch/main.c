@@ -22,6 +22,7 @@ static bool             main_arg_audit = false;
 static const char *     main_arg_configfile = NULL;
 static bool             main_arg_user_scope = false;
 static int              main_fd_listen = -1;
+static int              main_fd_metrics = -1;
 
 static void help(void) {
         printf("%s [GLOBALS...] ...\n\n"
@@ -144,6 +145,32 @@ static int inherit_fds(void) {
                                 return error_origin(-errno);
 
                         main_fd_listen = fd;
+                } else if (string_equal(name, "dbus-metrics.socket")) {
+                        if (main_fd_metrics >= 0) {
+                                fprintf(stderr, "Ignoring additional inherited metrics socket #%d (%s)\n", fd, name);
+                                c_close(fd);
+                                continue;
+                        }
+
+                        r = sd_is_socket(fd, PF_UNIX, SOCK_STREAM, 1);
+                        if (r < 0)
+                                return error_origin(r);
+
+                        if (!r) {
+                                fprintf(stderr, "Ignoring inherited non-unix metrics socket #%d (%s)\n", fd, name);
+                                c_close(fd);
+                                continue;
+                        }
+
+                        r = fcntl(fd, F_GETFL);
+                        if (r < 0)
+                                return error_origin(-errno);
+
+                        r = fcntl(fd, F_SETFL, r | O_NONBLOCK);
+                        if (r < 0)
+                                return error_origin(-errno);
+
+                        main_fd_metrics = fd;
                 } else {
                         /*
                          * Close any FDs we get passed but do not recognize.
@@ -168,7 +195,14 @@ static int run(void) {
         _c_cleanup_(launcher_freep) Launcher *launcher = NULL;
         int r;
 
-        r = launcher_new(&launcher, main_fd_listen, main_arg_audit, main_arg_configfile, main_arg_user_scope);
+        r = launcher_new(
+                &launcher,
+                main_fd_listen,
+                main_fd_metrics,
+                main_arg_audit,
+                main_arg_configfile,
+                main_arg_user_scope
+        );
         if (r)
                 return error_fold(r);
 

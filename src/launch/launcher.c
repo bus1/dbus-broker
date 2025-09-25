@@ -200,7 +200,14 @@ static int launcher_open_log(Launcher *launcher) {
         return 0;
 }
 
-int launcher_new(Launcher **launcherp, int fd_listen, bool audit, const char *configfile, bool user_scope) {
+int launcher_new(
+        Launcher **launcherp,
+        int fd_listen,
+        int fd_metrics,
+        bool audit,
+        const char *configfile,
+        bool user_scope
+) {
         _c_cleanup_(launcher_freep) Launcher *launcher = NULL;
         int r;
 
@@ -210,6 +217,7 @@ int launcher_new(Launcher **launcherp, int fd_listen, bool audit, const char *co
 
         launcher->log = (Log)LOG_NULL;
         launcher->fd_listen = fd_listen;
+        launcher->fd_metrics = fd_metrics;
         launcher->uid = -1;
         launcher->gid = -1;
         launcher->audit = audit;
@@ -259,6 +267,7 @@ Launcher *launcher_free(Launcher *launcher) {
 
         sd_event_source_unref(launcher->dirwatch_src);
         dirwatch_free(launcher->dirwatch);
+        c_close(launcher->fd_metrics);
         c_close(launcher->fd_listen);
         free(launcher->configfile);
         log_deinit(&launcher->log);
