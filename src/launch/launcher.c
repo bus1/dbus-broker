@@ -1161,6 +1161,35 @@ static int launcher_add_listener(Launcher *launcher, Policy *policy, uint32_t *s
         return 0;
 }
 
+static int launcher_add_metrics(Launcher *launcher) {
+        _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *m = NULL;
+        int r;
+
+        if (launcher->fd_metrics < 0)
+                return 0;
+
+        r = sd_bus_message_new_method_call(launcher->bus_controller,
+                                           &m,
+                                           NULL,
+                                           "/org/bus1/DBus/Broker",
+                                           "org.bus1.DBus.Broker",
+                                           "AddMetrics");
+        if (r < 0)
+                return error_origin(r);
+
+        r = sd_bus_message_append(m, "oh",
+                                  "/org/bus1/DBus/Metrics/0",
+                                  launcher->fd_metrics);
+        if (r < 0)
+                return error_origin(r);
+
+        r = sd_bus_call(launcher->bus_controller, m, 0, NULL, NULL);
+        if (r < 0)
+                return error_origin(r);
+
+        return 0;
+}
+
 static int launcher_set_policy(Launcher *launcher, Policy *policy, uint32_t *system_console_users, size_t n_system_console_users) {
         _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *m = NULL;
         int r;
@@ -1441,6 +1470,10 @@ int launcher_run(Launcher *launcher) {
                 return error_trace(r);
 
         r = launcher_add_listener(launcher, &policy, system_console_users, n_system_console_users);
+        if (r)
+                return error_trace(r);
+
+        r = launcher_add_metrics(launcher);
         if (r)
                 return error_trace(r);
 
