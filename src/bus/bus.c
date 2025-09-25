@@ -14,6 +14,7 @@
 #include "dbus/address.h"
 #include "util/error.h"
 #include "util/log.h"
+#include "util/sampler.h"
 #include "util/user.h"
 
 int bus_init(Bus *bus,
@@ -57,7 +58,7 @@ void bus_deinit(Bus *bus) {
         bus->pid = 0;
         bus->pid_fd = c_close(bus->pid_fd);
         bus->user = user_unref(bus->user);
-        metrics_deinit(&bus->metrics);
+        sampler_deinit(&bus->sampler);
         peer_registry_deinit(&bus->peers);
         user_registry_deinit(&bus->users);
         name_registry_deinit(&bus->names);
