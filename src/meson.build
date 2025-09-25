@@ -21,6 +21,7 @@ sources_bus = [
         'bus/driver.c',
         'bus/listener.c',
         'bus/match.c',
+        'bus/metrics.c',
         'bus/name.c',
         'bus/peer.c',
         'bus/policy.c',

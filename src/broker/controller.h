@@ -10,6 +10,7 @@
 #include <sys/types.h>
 #include "bus/activation.h"
 #include "bus/listener.h"
+#include "bus/metrics.h"
 #include "bus/policy.h"
 #include "dbus/connection.h"
 #include "util/string.h"
@@ -88,7 +89,7 @@ struct ControllerListener {
 struct ControllerMetrics {
         Controller *controller;
         CRBNode controller_node;
-        int fd;
+        Metrics metrics;
         char path[];
 };
 
