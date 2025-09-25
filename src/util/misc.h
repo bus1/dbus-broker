@@ -30,3 +30,25 @@ unsigned int util_t2u_saturating(uint64_t v);
 int util_drop_permissions(uint32_t uid, uint32_t gid);
 
 void util_peak_update(size_t *peak, size_t update);
+
+/**
+ * misc_vfreep() - Cleanup helper for NULL-terminated arrays of allocations
+ * v:           Pointer to the array of allocated objects (i.e., `void ***p`)
+ *
+ * This interprets `v` as `void ***`, assuming it points to an array of
+ * allocated objects. `v` must not be NULL.
+ *
+ * If `*v` is NULL, this is a no-op. Otherwise, `*v` is iterated as array of
+ * pointers, terminated by a NULL entry. All entries are passed to free(), with
+ * a final call to `*v` itself.
+ */
+static inline void misc_vfreep(void *v) {
+        void ***p = v;
+        size_t i;
+
+        if (*p) {
+                for (i = 0; (*p)[i]; ++i)
+                        free((*p)[i]);
+                free(*p);
+        }
+}
