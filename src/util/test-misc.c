@@ -188,9 +188,33 @@ static void test_casts(void) {
         }
 }
 
+static void test_vfreep(void) {
+        char **v;
+
+        /* No-op on NULL. */
+        v = NULL;
+        misc_vfreep(&v);
+
+        /* Single free(*v) for empty array. */
+        v = calloc(1, sizeof(*v));
+        c_assert(v);
+        misc_vfreep(&v);
+
+        /* Full iterated release for filled array, stopping at NULL. */
+        v = calloc(4, sizeof(*v));
+        c_assert(v);
+        v[0] = strdup("foo");
+        v[1] = strdup("bar");
+        v[2] = NULL;
+        v[3] = (void *)0x1; /* garbage after NULL must be ignored */
+        c_assert(v[0] && v[1]);
+        misc_vfreep(&v);
+}
+
 int main(int argc, char **argv) {
         test_memfd();
         test_umul_saturating();
         test_casts();
+        test_vfreep();
         return 0;
 }
