@@ -28,6 +28,7 @@ struct Launcher {
         sd_bus *bus_regular;
         Log log;
         int fd_listen;
+        int fd_metrics;
         bool audit;
         bool user_scope;
         char *configfile;
@@ -44,7 +45,14 @@ struct Launcher {
         bool at_console;
 };
 
-int launcher_new(Launcher **launcherp, int listen_fd, bool audit, const char *configfile, bool user_scope);
+int launcher_new(
+        Launcher **launcherp,
+        int listen_fd,
+        int metrics_fd,
+        bool audit,
+        const char *configfile,
+        bool user_scope
+);
 Launcher *launcher_free(Launcher *launcher);
 
 C_DEFINE_CLEANUP(Launcher *, launcher_free);
