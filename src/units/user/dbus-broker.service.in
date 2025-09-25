@@ -9,7 +9,6 @@ Conflicts=shutdown.target
 
 [Service]
 Type=notify-reload
-Sockets=dbus.socket
 ExecStart=@bindir@/dbus-broker-launch --scope user
 Slice=session.slice
 
