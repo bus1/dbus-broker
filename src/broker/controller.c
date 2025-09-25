@@ -192,6 +192,7 @@ static int controller_listener_new(ControllerListener **listenerp, Controller *c
 
         listener->controller = controller;
         listener->controller_node = (CRBNode)C_RBNODE_INIT(listener->controller_node);
+        listener->listener = (Listener)LISTENER_NULL(listener->listener);
         c_memcpy(listener->path, path, n_path + 1);
 
         c_rbtree_add(&controller->listener_tree, parent, slot, &listener->controller_node);
