@@ -12,6 +12,7 @@
 #include "bus/bus.h"
 #include "bus/driver.h"
 #include "bus/listener.h"
+#include "bus/metrics.h"
 #include "bus/policy.h"
 #include "dbus/connection.h"
 #include "dbus/message.h"
@@ -220,7 +221,7 @@ ControllerMetrics *controller_metrics_free(ControllerMetrics *metrics) {
         if (!metrics)
                 return NULL;
 
-        c_close(metrics->fd);
+        metrics_deinit(&metrics->metrics);
         c_rbnode_unlink(&metrics->controller_node);
         free(metrics);
 
@@ -243,7 +244,7 @@ static int controller_metrics_new(ControllerMetrics **metricsp, Controller *cont
 
         metrics->controller = controller;
         metrics->controller_node = (CRBNode)C_RBNODE_INIT(metrics->controller_node);
-        metrics->fd = -1;
+        metrics->metrics = (Metrics)METRICS_NULL(metrics->metrics);
         c_memcpy(metrics->path, path, n_path + 1);
 
         c_rbtree_add(&controller->metrics_tree, parent, slot, &metrics->controller_node);
@@ -411,7 +412,12 @@ int controller_add_metrics(Controller *controller,
         if (r)
                 return error_trace(r);
 
-        metrics->fd = metrics_fd;
+        r = metrics_init_with_fd(&metrics->metrics,
+                                 &controller->broker->bus,
+                                 &controller->broker->dispatcher,
+                                 metrics_fd);
+        if (r)
+                return error_fold(r);
 
         *metricsp = metrics;
         metrics = NULL;
