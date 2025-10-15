@@ -29,7 +29,7 @@
 int fdlist_new_with_fds(FDList **listp, const int *fds, size_t n_fds) {
         FDList *list;
 
-        list = malloc(sizeof(*list) + CMSG_SPACE(n_fds * sizeof(int)));
+        list = calloc(1, sizeof(*list) + CMSG_SPACE(n_fds * sizeof(int)));
         if (!list)
                 return error_origin(-ENOMEM);
 
