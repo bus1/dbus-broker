@@ -49,3 +49,26 @@ and is therefore disconnected. The message in question could be a method
 error or reply or a broadcast the peer has subscribed to.
 
 Disconnecting the peer ensures that no messages are silently dropped.
+
+-- 2809c31175b84192b574d2a3da9fa8da
+Subject: "Peer @DBUS_BROKER_SENDER_UNIQUE_NAME@ is being disconnected as it does not have the resources to queue further messages."
+Defined-By: dbus-broker
+Support: https://groups.google.com/forum/#!forum/bus1-devel
+
+The peer @DBUS_BROKER_SENDER_UNIQUE_NAME@ exceeded its quota and thus its
+attempt to queue a message on the bus was declined by the broker. The message
+in question could be any type of D-Bus message (method-call, reply, signal,
+error).
+
+Disconnecting the peer ensures that no messages are silently dropped.
+
+-- 0691c10b72b14341955a75873c867e29
+Subject: "Peer @DBUS_BROKER_RECEIVER_UNIQUE_NAME@ is being disconnected as it does not have the resources to receive a reply it requested."
+Defined-By: dbus-broker
+Support: https://groups.google.com/forum/#!forum/bus1-devel
+
+The peer @DBUS_BROKER_RECEIVER_UNIQUE_NAME@ exceeded its quota and thus it
+cannot receiver a reply from @DBUS_BROKER_SENDER_UNIQUE_NAME@, which it
+requested earlier.
+
+Disconnecting the receiver ensures that no messages are silently dropped.
