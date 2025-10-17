@@ -2,14 +2,15 @@
 Description=D-Bus System Message Bus
 Documentation=man:dbus-broker-launch(1)
 DefaultDependencies=false
-After=dbus.socket
+
+After=dbus.socket dbus-metrics.socket
 Before=basic.target shutdown.target
-Requires=dbus.socket
 Conflicts=shutdown.target
+Requires=dbus.socket
+Wants=dbus-metrics.socket
 
 [Service]
 Type=notify-reload
-Sockets=dbus.socket
 OOMScoreAdjust=-900
 LimitNOFILE=16384
 ProtectSystem=full

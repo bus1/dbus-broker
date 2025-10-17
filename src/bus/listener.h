@@ -34,7 +34,6 @@ int listener_init_with_fd(Listener *listener,
                           DispatchContext *dispatcher,
                           int socket_fd,
                           PolicyRegistry *policy);
-Listener *listener_free(Listener *free);
 void listener_deinit(Listener *listener);
 
 int listener_set_policy(Listener *listener, PolicyRegistry *policy);

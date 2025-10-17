@@ -12,6 +12,7 @@
 #include "bus/bus.h"
 #include "bus/driver.h"
 #include "bus/listener.h"
+#include "bus/metrics.h"
 #include "bus/policy.h"
 #include "dbus/connection.h"
 #include "dbus/message.h"
@@ -192,6 +193,7 @@ static int controller_listener_new(ControllerListener **listenerp, Controller *c
 
         listener->controller = controller;
         listener->controller_node = (CRBNode)C_RBNODE_INIT(listener->controller_node);
+        listener->listener = (Listener)LISTENER_NULL(listener->listener);
         c_memcpy(listener->path, path, n_path + 1);
 
         c_rbtree_add(&controller->listener_tree, parent, slot, &listener->controller_node);
@@ -204,6 +206,50 @@ static int controller_listener_new(ControllerListener **listenerp, Controller *c
  */
 int controller_listener_set_policy(ControllerListener *listener, PolicyRegistry *policy) {
         return error_fold(listener_set_policy(&listener->listener, policy));
+}
+
+static int controller_metrics_compare(CRBTree *t, void *k, CRBNode *rb) {
+        ControllerMetrics *metrics = c_container_of(rb, ControllerMetrics, controller_node);
+
+        return strcmp(k, metrics->path);
+}
+
+/**
+ * controller_metrics_free() - XXX
+ */
+ControllerMetrics *controller_metrics_free(ControllerMetrics *metrics) {
+        if (!metrics)
+                return NULL;
+
+        metrics_deinit(&metrics->metrics);
+        c_rbnode_unlink(&metrics->controller_node);
+        free(metrics);
+
+        return NULL;
+}
+
+static int controller_metrics_new(ControllerMetrics **metricsp, Controller *controller, const char *path) {
+        CRBNode **slot, *parent;
+        ControllerMetrics *metrics;
+        size_t n_path;
+
+        slot = c_rbtree_find_slot(&controller->metrics_tree, controller_metrics_compare, path, &parent);
+        if (!slot)
+                return CONTROLLER_E_METRICS_EXISTS;
+
+        n_path = strlen(path);
+        metrics = calloc(1, sizeof(*metrics) + n_path + 1);
+        if (!metrics)
+                return error_origin(-ENOMEM);
+
+        metrics->controller = controller;
+        metrics->controller_node = (CRBNode)C_RBNODE_INIT(metrics->controller_node);
+        metrics->metrics = (Metrics)METRICS_NULL(metrics->metrics);
+        c_memcpy(metrics->path, path, n_path + 1);
+
+        c_rbtree_add(&controller->metrics_tree, parent, slot, &metrics->controller_node);
+        *metricsp = metrics;
+        return 0;
 }
 
 static int controller_dispatch_connection(DispatchFile *file) {
@@ -270,11 +316,15 @@ int controller_init(Controller *c, Broker *broker, int controller_fd) {
  */
 void controller_deinit(Controller *controller) {
         ControllerListener *listener, *listener_safe;
+        ControllerMetrics *metrics, *metrics_safe;
         ControllerName *name, *name_safe;
         ControllerReload *reload, *reload_safe;
 
         c_rbtree_for_each_entry_safe_postorder_unlink(reload, reload_safe, &controller->reload_tree, controller_node)
                 controller_reload_free(reload);
+
+        c_rbtree_for_each_entry_safe_postorder_unlink(metrics, metrics_safe, &controller->metrics_tree, controller_node)
+                controller_metrics_free(metrics);
 
         c_rbtree_for_each_entry_safe_postorder_unlink(name, name_safe, &controller->name_tree, controller_node)
                 controller_name_free(name);
@@ -349,6 +399,32 @@ int controller_add_listener(Controller *controller,
 }
 
 /**
+ * controller_add_metrics() - XXX
+ */
+int controller_add_metrics(Controller *controller,
+                           ControllerMetrics **metricsp,
+                           const char *path,
+                           int metrics_fd) {
+        _c_cleanup_(controller_metrics_freep) ControllerMetrics *metrics = NULL;
+        int r;
+
+        r = controller_metrics_new(&metrics, controller, path);
+        if (r)
+                return error_trace(r);
+
+        r = metrics_init_with_fd(&metrics->metrics,
+                                 &controller->broker->bus,
+                                 &controller->broker->dispatcher,
+                                 metrics_fd);
+        if (r)
+                return error_fold(r);
+
+        *metricsp = metrics;
+        metrics = NULL;
+        return 0;
+}
+
+/**
  * controller_request_reload() - XXX
  */
 int controller_request_reload(Controller *controller,
@@ -392,6 +468,17 @@ ControllerListener *controller_find_listener(Controller *controller, const char 
                                                  controller_listener_compare,
                                                  path),
                               ControllerListener,
+                              controller_node);
+}
+
+/**
+ * controller_find_metrics() - XXX
+ */
+ControllerMetrics *controller_find_metrics(Controller *controller, const char *path) {
+        return c_container_of(c_rbtree_find_node(&controller->metrics_tree,
+                                                 controller_metrics_compare,
+                                                 path),
+                              ControllerMetrics,
                               controller_node);
 }
 

@@ -6,7 +6,7 @@
 #include <c-stdaux.h>
 #include <math.h>
 #include <stdlib.h>
-#include "util/metrics.h"
+#include "util/sampler.h"
 #include "util-broker.h"
 #include "util-message.h"
 #include "dbus/protocol.h"
@@ -40,7 +40,7 @@ static void test_connect_blocking_fd(Broker *broker, int *fdp) {
         fd = -1;
 }
 
-static void test_message_transaction(Metrics *metrics, size_t n_matches, size_t n_replies, void *input, ssize_t n_input, ssize_t n_output) {
+static void test_message_transaction(Sampler *sampler, size_t n_matches, size_t n_replies, void *input, ssize_t n_input, ssize_t n_output) {
         _c_cleanup_(util_broker_freep) Broker *broker = NULL;
         _c_cleanup_(sd_bus_unrefp) sd_bus *bus = NULL;
         _c_cleanup_(c_closep) int fd1 = -1;
@@ -92,7 +92,7 @@ static void test_message_transaction(Metrics *metrics, size_t n_matches, size_t 
         }
 
         for (unsigned int i = 0; i < TEST_N_ITERATIONS; ++i) {
-                metrics_sample_start(metrics);
+                sampler_sample_start(sampler);
 
                 len = write(fd1, input, n_input);
                 c_assert(len == (ssize_t)n_input);
@@ -100,7 +100,7 @@ static void test_message_transaction(Metrics *metrics, size_t n_matches, size_t 
                 len = recv(fd1, output, sizeof(output), MSG_WAITALL);
                 c_assert(len == (ssize_t)sizeof(output));
 
-                metrics_sample_end(metrics);
+                sampler_sample_end(sampler);
         }
 
         util_broker_terminate(broker);
@@ -108,39 +108,39 @@ static void test_message_transaction(Metrics *metrics, size_t n_matches, size_t 
 
 static void test_broadcast(void) {
         for (unsigned int j = 0; j <= 18; ++j) {
-                _c_cleanup_(metrics_deinit) Metrics metrics = METRICS_INIT(CLOCK_MONOTONIC_RAW);
+                _c_cleanup_(sampler_deinit) Sampler sampler = SAMPLER_INIT(CLOCK_MONOTONIC_RAW);
                 _c_cleanup_(c_freep) void *buf = NULL;
                 size_t n_buf = 0;
 
                 test_message_append_broadcast(&buf, &n_buf, 1);
                 test_message_append_signal(&buf, &n_buf, 1, 1);
 
-                test_message_transaction(&metrics, 1 << j, 0, buf, n_buf, 120);
+                test_message_transaction(&sampler, 1 << j, 0, buf, n_buf, 120);
 
                 fprintf(stderr, "Broadcast emmission to %u failing matches + message transaction completed in %"PRIu64" (+/- %.0f) us\n",
-                        1 << j, metrics.average / 1000, metrics_read_standard_deviation(&metrics) / 1000);
+                        1 << j, sampler.average / 1000, sampler_read_standard_deviation(&sampler) / 1000);
         }
 }
 
 static void test_replies(void) {
         for (unsigned int j = 0; j <= 18; ++j) {
-                _c_cleanup_(metrics_deinit) Metrics metrics = METRICS_INIT(CLOCK_MONOTONIC_RAW);
+                _c_cleanup_(sampler_deinit) Sampler sampler = SAMPLER_INIT(CLOCK_MONOTONIC_RAW);
                 _c_cleanup_(c_freep) void *buf = NULL;
                 size_t n_buf = 0;
 
                 test_message_append_ping(&buf, &n_buf, 1, 1, 1);
                 test_message_append_pong(&buf, &n_buf, 2, 1, 1, 1);
 
-                test_message_transaction(&metrics, 0, 1 << j, buf, n_buf, n_buf);
+                test_message_transaction(&sampler, 0, 1 << j, buf, n_buf, n_buf);
 
                 fprintf(stderr, "Message transaction with %u outstanding replies on the bus completed in %"PRIu64" (+/- %.0f) us\n",
-                        1 << j, metrics.average / 1000, metrics_read_standard_deviation(&metrics) / 1000);
+                        1 << j, sampler.average / 1000, sampler_read_standard_deviation(&sampler) / 1000);
         }
 }
 
 static void test_pipelining(void) {
         for (unsigned int j = 0; j <= 8; ++j) {
-                _c_cleanup_(metrics_deinit) Metrics metrics = METRICS_INIT(CLOCK_MONOTONIC_RAW);
+                _c_cleanup_(sampler_deinit) Sampler sampler = SAMPLER_INIT(CLOCK_MONOTONIC_RAW);
                 _c_cleanup_(c_freep) void *buf = NULL;
                 size_t n_buf = 0;
                 uint32_t serial = 0;
@@ -149,10 +149,10 @@ static void test_pipelining(void) {
                         test_message_append_ping(&buf, &n_buf, ++serial, 1, 1);
                 }
 
-                test_message_transaction(&metrics, 0, 0, buf, n_buf, n_buf);
+                test_message_transaction(&sampler, 0, 0, buf, n_buf, n_buf);
 
                 fprintf(stderr, "%u pipelined message transaction completed in %"PRIu64" (+/- %.0f) us\n",
-                        (1 << j), metrics.average / 1000 / (1 << j), metrics_read_standard_deviation(&metrics) / 1000);
+                        (1 << j), sampler.average / 1000 / (1 << j), sampler_read_standard_deviation(&sampler) / 1000);
         }
 }
 

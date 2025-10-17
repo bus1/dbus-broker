@@ -561,6 +561,19 @@ impl Config {
                         _ => Ok(()),
                     }?;
 
+                    match libc::setenv(
+                        c"LISTEN_FDNAMES".as_ptr(),
+                        c"dbus.socket".as_ptr(),
+                        1,
+                    ) {
+                        r if r < 0 => {
+                            let e = std::io::Error::last_os_error();
+                            Cli::error_self(format_args!("Cannot set LISTEN_FDNAMES: {}", e));
+                            Err(e)
+                        },
+                        _ => Ok(()),
+                    }?;
+
                     match libc::dup2(
                         <
                             std::os::fd::OwnedFd as std::os::fd::AsRawFd

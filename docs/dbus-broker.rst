@@ -157,6 +157,18 @@ the broker. See the section below for a list of interfaces on the controller.
 |         # details.
 |         **method** AddListener(**o** *path*, **h** *socket*, **v** *policy*) -> ()
 |
+|         # Add a metrics listener socket to this bus. The listener socket must
+|         # be ready in listening mode and specified as @socket. As soon as
+|         # this call returns, incoming client connection attempts will be
+|         # served on this socket.
+|         # The listener is exposed by the controller as @path (which must fit
+|         # the template */org/bus1/DBus/Metrics/%*).
+|         # Any client connecting to this socket will immediately receive a
+|         # dump of the internal metrics of the message broker, followed by a
+|         # shutdown of the client socket. The data dump uses the OpenMetrics
+|         # standard.
+|         **method** AddMetrics(**o** *path*, **h** *socket*) -> ()
+|
 |         # This signal is raised according to client-requests of
 |         # **org.freedesktop.DBus.UpdateActivationEnvironment()**.
 |         **signal** SetActivationEnvironment(**a{ss}** *environment*)
@@ -224,6 +236,18 @@ the broker. See the section below for a list of interfaces on the controller.
 |         # unique for each event, and is never reused. A serial number of 0
 |         # is never sent and considered invalid.
 |         **signal** Activate(**t** *serial*)
+|
+|     }
+| }
+|
+| **node** /org/bus1/DBus/Metrics/% {
+|     **interface** org.bus1.DBus.Metrics {
+|
+|         # Release this metrics listener. It will immediately be removed by
+|         # the broker and no more connections will be served on it. All
+|         # clients connected through this listener are forcefully
+|         # disconnected.
+|         **method** Release() -> ()
 |
 |     }
 | }

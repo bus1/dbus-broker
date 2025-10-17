@@ -9,6 +9,8 @@
 #include <systemd/sd-daemon.h>
 #include "launch/launcher.h"
 #include "util/error.h"
+#include "util/misc.h"
+#include "util/string.h"
 
 enum {
         _MAIN_SUCCESS,
@@ -20,6 +22,7 @@ static bool             main_arg_audit = false;
 static const char *     main_arg_configfile = NULL;
 static bool             main_arg_user_scope = false;
 static int              main_fd_listen = -1;
+static int              main_fd_metrics = -1;
 
 static void help(void) {
         printf("%s [GLOBALS...] ...\n\n"
@@ -102,41 +105,89 @@ static int parse_argv(int argc, char *argv[]) {
 }
 
 static int inherit_fds(void) {
-        int s, r, n;
+        _c_cleanup_(misc_vfreep) char **names = NULL;
+        size_t i, n;
+        int r, fd;
+        char *name;
 
-        n = sd_listen_fds(true);
-        if (n < 0)
-                return error_origin(n);
-
-        if (n == 0) {
-                fprintf(stderr, "No listener socket inherited\n");
-                return MAIN_FAILED;
-        }
-        if (n > 1) {
-                fprintf(stderr, "More than one listener socket passed\n");
-                return MAIN_FAILED;
-        }
-
-        s = SD_LISTEN_FDS_START;
-
-        r = sd_is_socket(s, PF_UNIX, SOCK_STREAM, 1);
+        r = sd_listen_fds_with_names(true, &names);
         if (r < 0)
                 return error_origin(r);
+        n = r;
 
-        if (!r) {
-                fprintf(stderr, "Non unix-domain-socket passed as listener\n");
+        for (i = 0; i < n; ++i) {
+                fd = SD_LISTEN_FDS_START + i;
+                name = names[i];
+
+                if (string_equal(name, "dbus.socket")) {
+                        if (main_fd_listen >= 0) {
+                                fprintf(stderr, "Ignoring additional inherited listener socket #%d (%s)\n", fd, name);
+                                c_close(fd);
+                                continue;
+                        }
+
+                        r = sd_is_socket(fd, PF_UNIX, SOCK_STREAM, 1);
+                        if (r < 0)
+                                return error_origin(r);
+
+                        if (!r) {
+                                fprintf(stderr, "Ignoring inherited non-unix listener socket #%d (%s)\n", fd, name);
+                                c_close(fd);
+                                continue;
+                        }
+
+                        r = fcntl(fd, F_GETFL);
+                        if (r < 0)
+                                return error_origin(-errno);
+
+                        r = fcntl(fd, F_SETFL, r | O_NONBLOCK);
+                        if (r < 0)
+                                return error_origin(-errno);
+
+                        main_fd_listen = fd;
+                } else if (string_equal(name, "dbus-metrics.socket")) {
+                        if (main_fd_metrics >= 0) {
+                                fprintf(stderr, "Ignoring additional inherited metrics socket #%d (%s)\n", fd, name);
+                                c_close(fd);
+                                continue;
+                        }
+
+                        r = sd_is_socket(fd, PF_UNIX, SOCK_STREAM, 1);
+                        if (r < 0)
+                                return error_origin(r);
+
+                        if (!r) {
+                                fprintf(stderr, "Ignoring inherited non-unix metrics socket #%d (%s)\n", fd, name);
+                                c_close(fd);
+                                continue;
+                        }
+
+                        r = fcntl(fd, F_GETFL);
+                        if (r < 0)
+                                return error_origin(-errno);
+
+                        r = fcntl(fd, F_SETFL, r | O_NONBLOCK);
+                        if (r < 0)
+                                return error_origin(-errno);
+
+                        main_fd_metrics = fd;
+                } else {
+                        /*
+                         * Close any FDs we get passed but do not recognize.
+                         * This can happen on live downgrades, if the newer
+                         * version used the FD store of systemd, or added new
+                         * socket units.
+                         */
+                        fprintf(stderr, "Ignoring unknown inherited file-descriptor #%d (%s)\n", fd, name);
+                        c_close(fd);
+                }
+        }
+
+        if (main_fd_listen < 0) {
+                fprintf(stderr, "No suitable listener socket inherited\n");
                 return MAIN_FAILED;
         }
 
-        r = fcntl(s, F_GETFL);
-        if (r < 0)
-                return error_origin(-errno);
-
-        r = fcntl(s, F_SETFL, r | O_NONBLOCK);
-        if (r < 0)
-                return error_origin(-errno);
-
-        main_fd_listen = s;
         return 0;
 }
 
@@ -144,7 +195,14 @@ static int run(void) {
         _c_cleanup_(launcher_freep) Launcher *launcher = NULL;
         int r;
 
-        r = launcher_new(&launcher, main_fd_listen, main_arg_audit, main_arg_configfile, main_arg_user_scope);
+        r = launcher_new(
+                &launcher,
+                main_fd_listen,
+                main_fd_metrics,
+                main_arg_audit,
+                main_arg_configfile,
+                main_arg_user_scope
+        );
         if (r)
                 return error_fold(r);
 

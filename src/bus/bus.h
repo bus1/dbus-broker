@@ -12,7 +12,7 @@
 #include "bus/match.h"
 #include "bus/name.h"
 #include "bus/peer.h"
-#include "util/metrics.h"
+#include "util/sampler.h"
 #include "util/user.h"
 
 enum {
@@ -56,7 +56,7 @@ struct Bus {
         uint64_t activation_ids;
         uint64_t stats_ids;
 
-        Metrics metrics;
+        Sampler sampler;
 };
 
 #define BUS_NULL(_x) {                                                          \
@@ -67,7 +67,7 @@ struct Bus {
                 .wildcard_matches = MATCH_REGISTRY_INIT((_x).wildcard_matches), \
                 .sender_matches = MATCH_REGISTRY_INIT((_x).sender_matches),     \
                 .peers = PEER_REGISTRY_INIT,                                    \
-                .metrics = METRICS_INIT(CLOCK_THREAD_CPUTIME_ID),               \
+                .sampler = SAMPLER_INIT(CLOCK_THREAD_CPUTIME_ID),               \
         }
 
 int bus_init(Bus *bus,

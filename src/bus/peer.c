@@ -24,7 +24,7 @@
 #include "util/error.h"
 #include "util/fdlist.h"
 #include "util/log.h"
-#include "util/metrics.h"
+#include "util/sampler.h"
 #include "util/sockopt.h"
 #include "util/user.h"
 
@@ -125,9 +125,9 @@ static int peer_dispatch_connection(Peer *peer, uint32_t events) {
 
                 message_stitch_sender(m, peer->id);
 
-                metrics_sample_start(&peer->bus->metrics);
+                sampler_sample_start(&peer->bus->sampler);
                 r = driver_dispatch(peer, m);
-                metrics_sample_end(&peer->bus->metrics);
+                sampler_sample_end(&peer->bus->sampler);
                 if (r) {
                         NameSet peer_names = NAME_SET_INIT_FROM_OWNER(&peer->owned_names);
 
@@ -205,9 +205,9 @@ int peer_dispatch(DispatchFile *file) {
 
         if (r) {
                 if (r == PEER_E_EOF) {
-                        metrics_sample_start(&peer->bus->metrics);
+                        sampler_sample_start(&peer->bus->sampler);
                         r = driver_goodbye(peer, false);
-                        metrics_sample_end(&peer->bus->metrics);
+                        sampler_sample_end(&peer->bus->sampler);
                         if (r)
                                 return error_fold(r);
 
@@ -216,9 +216,9 @@ int peer_dispatch(DispatchFile *file) {
                            r == PEER_E_PROTOCOL_VIOLATION) {
                         connection_close(&peer->connection);
 
-                        metrics_sample_start(&peer->bus->metrics);
+                        sampler_sample_start(&peer->bus->sampler);
                         r = driver_goodbye(peer, false);
-                        metrics_sample_end(&peer->bus->metrics);
+                        sampler_sample_end(&peer->bus->sampler);
                         if (r)
                                 return error_fold(r);
                 } else {

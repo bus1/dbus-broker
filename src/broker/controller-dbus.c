@@ -69,6 +69,14 @@ static const CDVarType controller_type_in_v[] = {
                 )
         )
 };
+static const CDVarType controller_type_in_oh[] = {
+        C_DVAR_T_INIT(
+                C_DVAR_T_TUPLE2(
+                        C_DVAR_T_o,
+                        C_DVAR_T_h
+                )
+        )
+};
 static const CDVarType controller_type_in_ohv[] = {
         C_DVAR_T_INIT(
                 C_DVAR_T_TUPLE3(
@@ -278,6 +286,47 @@ static int controller_method_add_listener(Controller *controller, const char *_p
         return 0;
 }
 
+static int controller_method_add_metrics(Controller *controller, const char *_path, CDVar *in_v, FDList *fds, CDVar *out_v) {
+        const char *path;
+        ControllerMetrics *metrics;
+        int r, metrics_fd, v1, v2;
+        uint32_t fd_index;
+        socklen_t n;
+
+        c_dvar_read(in_v, "(oh)", &path, &fd_index);
+
+        r = controller_end_read(in_v);
+        if (r)
+                return error_trace(r);
+
+        if (strncmp(path, "/org/bus1/DBus/Metrics/", strlen("/org/bus1/DBus/Metrics/")) != 0)
+                return CONTROLLER_E_UNEXPECTED_PATH;
+
+        metrics_fd = fdlist_get(fds, fd_index);
+        if (metrics_fd < 0)
+                return CONTROLLER_E_METRICS_INVALID_FD;
+
+        n = sizeof(v1);
+        r = getsockopt(metrics_fd, SOL_SOCKET, SO_DOMAIN, &v1, &n);
+        n = sizeof(v2);
+        r = r ?: getsockopt(metrics_fd, SOL_SOCKET, SO_TYPE, &v2, &n);
+
+        if (r < 0)
+                return (errno == EBADF || errno == ENOTSOCK) ? CONTROLLER_E_METRICS_INVALID_FD : error_origin(-errno);
+        if (v1 != AF_UNIX || v2 != SOCK_STREAM)
+                return CONTROLLER_E_METRICS_INVALID_FD;
+
+        r = controller_add_metrics(controller, &metrics, path, metrics_fd);
+        if (r)
+                return error_trace(r);
+
+        fdlist_steal(fds, fd_index);
+
+        c_dvar_write(out_v, "()");
+
+        return 0;
+}
+
 static int controller_method_listener_release(Controller *controller, const char *path, CDVar *in_v, FDList *fds, CDVar *out_v) {
         ControllerListener *listener;
         int r;
@@ -318,6 +367,27 @@ static int controller_method_name_release(Controller *controller, const char *pa
                 return error_trace(r);
 
         controller_name_free(name);
+
+        c_dvar_write(out_v, "()");
+
+        return 0;
+}
+
+static int controller_method_metrics_release(Controller *controller, const char *path, CDVar *in_v, FDList *fds, CDVar *out_v) {
+        ControllerMetrics *metrics;
+        int r;
+
+        c_dvar_read(in_v, "()");
+
+        r = controller_end_read(in_v);
+        if (r)
+                return error_trace(r);
+
+        metrics = controller_find_metrics(controller, path);
+        if (!metrics)
+                return CONTROLLER_E_METRICS_NOT_FOUND;
+
+        controller_metrics_free(metrics);
 
         c_dvar_write(out_v, "()");
 
@@ -459,6 +529,7 @@ static int controller_dispatch_controller(Controller *controller, uint32_t seria
         static const ControllerMethod methods[] = {
                 { "AddName",            controller_method_add_name,     controller_type_in_osu, controller_type_out_unit },
                 { "AddListener",        controller_method_add_listener, controller_type_in_ohv, controller_type_out_unit },
+                { "AddMetrics",         controller_method_add_metrics,  controller_type_in_oh,  controller_type_out_unit },
         };
 
         for (size_t i = 0; i < C_ARRAY_SIZE(methods); i++) {
@@ -503,6 +574,21 @@ static int controller_dispatch_listener(Controller *controller, uint32_t serial,
         return CONTROLLER_E_UNEXPECTED_METHOD;
 }
 
+static int controller_dispatch_metrics(Controller *controller, uint32_t serial, const char *method, const char *path, const char *signature, Message *message) {
+        static const ControllerMethod methods[] = {
+                { "Release",    controller_method_metrics_release,      c_dvar_type_unit,       controller_type_out_unit },
+        };
+
+        for (size_t i = 0; i < C_ARRAY_SIZE(methods); i++) {
+                if (strcmp(methods[i].name, method) != 0)
+                        continue;
+
+                return controller_handle_method(&methods[i], controller, path, serial, signature, message);
+        }
+
+        return CONTROLLER_E_UNEXPECTED_METHOD;
+}
+
 static int controller_dispatch_object(Controller *controller, uint32_t serial, const char *interface, const char *member, const char *path, const char *signature, Message *message) {
         if (strcmp(path, "/org/bus1/DBus/Broker") == 0) {
                 if (interface && _c_unlikely_(strcmp(interface, "org.bus1.DBus.Broker") != 0))
@@ -519,6 +605,11 @@ static int controller_dispatch_object(Controller *controller, uint32_t serial, c
                         return CONTROLLER_E_UNEXPECTED_INTERFACE;
 
                 return controller_dispatch_listener(controller, serial, member, path, signature, message);
+        } else if (strncmp(path, "/org/bus1/DBus/Metrics/", strlen("/org/bus1/DBus/Metrics/")) == 0) {
+                if (interface && _c_unlikely_(strcmp(interface, "org.bus1.DBus.Metrics") != 0))
+                        return CONTROLLER_E_UNEXPECTED_INTERFACE;
+
+                return controller_dispatch_metrics(controller, serial, member, path, signature, message);
         }
 
         return CONTROLLER_E_UNEXPECTED_PATH;
@@ -636,11 +727,20 @@ int controller_dbus_dispatch(Controller *controller, Message *message) {
         case CONTROLLER_E_NAME_INVALID:
                 r = controller_send_error(connection, message_read_serial(message), "org.bus1.DBus.Name.Invalid");
                 break;
+        case CONTROLLER_E_METRICS_EXISTS:
+                r = controller_send_error(connection, message_read_serial(message), "org.bus1.DBus.Metrics.Exists");
+                break;
+        case CONTROLLER_E_METRICS_INVALID_FD:
+                r = controller_send_error(connection, message_read_serial(message), "org.bus1.DBus.Metrics.InvalidFD");
+                break;
         case CONTROLLER_E_LISTENER_NOT_FOUND:
                 r = controller_send_error(connection, message_read_serial(message), "org.bus1.DBus.Listener.NotFound");
                 break;
         case CONTROLLER_E_NAME_NOT_FOUND:
                 r = controller_send_error(connection, message_read_serial(message), "org.bus1.DBus.Name.NotFound");
+                break;
+        case CONTROLLER_E_METRICS_NOT_FOUND:
+                r = controller_send_error(connection, message_read_serial(message), "org.bus1.DBus.Metrics.NotFound");
                 break;
         default:
                 break;
