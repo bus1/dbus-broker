@@ -1,5 +1,4 @@
 [wrap-git]
-diff_files = libc-rs/0001-clippy-allow-all.patch
 patch_directory = libc-rs
 revision = libc-0.2
 url = https://github.com/rust-lang/libc.git
