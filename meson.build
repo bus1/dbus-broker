@@ -47,10 +47,25 @@ dep_clist = dependency('libclist-3', version: '>=3.1.0')
 dep_crbtree = dependency('libcrbtree-3', version: '>=3.2.0')
 dep_cshquote = dependency('libcshquote-1', version: '>=1.1.0')
 dep_cstdaux = dependency('libcstdaux-1', version: '>=1.5.0')
-dep_libc_rs = dependency('libc-rs-0.2', version: '>=0.2.175')
 dep_math = cc.find_library('m')
-dep_osi = dependency('libosi-1', default_options: {'libc': true, 'std': true}, version: '>=1.0.0')
 dep_thread = dependency('threads')
+
+dep_libc_rs = dependency(
+        'libc-rs-0.2',
+        default_options: {
+                'warning_level': '0',
+        },
+        version: '>=0.2.175',
+)
+
+dep_osi = dependency(
+        'libosi-1',
+        default_options: {
+                'libc': true,
+                'std': true,
+        },
+        version: '>=1.0.0',
+)
 
 #
 # Default CFLAGS
