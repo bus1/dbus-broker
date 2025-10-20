@@ -14,7 +14,7 @@
 #include "broker/controller.h"
 #include "broker/main.h"
 #include "bus/bus.h"
-#include "catalog/catalog-ids.h"
+#include "bus/diag.h"
 #include "dbus/connection.h"
 #include "dbus/message.h"
 #include "util/dispatch.h"
@@ -154,35 +154,6 @@ Broker *broker_free(Broker *broker) {
         return NULL;
 }
 
-static int broker_log_metrics(Broker *broker) {
-        Sampler *sampler = &broker->bus.sampler;
-        double stddev;
-        int r;
-
-        stddev = sampler_read_standard_deviation(sampler);
-        log_appendf(broker->bus.log,
-                    "DBUS_BROKER_METRICS_DISPATCH_COUNT=%"PRIu64"\n"
-                    "DBUS_BROKER_METRICS_DISPATCH_MIN=%"PRIu64"\n"
-                    "DBUS_BROKER_METRICS_DISPATCH_MAX=%"PRIu64"\n"
-                    "DBUS_BROKER_METRICS_DISPATCH_AVG=%"PRIu64"\n"
-                    "DBUS_BROKER_METRICS_DISPATCH_STDDEV=%.0f\n",
-                    sampler->count,
-                    sampler->minimum,
-                    sampler->maximum,
-                    sampler->average,
-                    stddev);
-        log_append_here(broker->bus.log, LOG_INFO, 0, DBUS_BROKER_CATALOG_DISPATCH_STATS);
-        r = log_commitf(broker->bus.log,
-                       "Dispatched %"PRIu64" messages @ %"PRIu64"(±%.0f)μs / message.",
-                       sampler->count,
-                       sampler->average / 1000,
-                       stddev / 1000);
-        if (r)
-                return error_fold(r);
-
-        return 0;
-}
-
 int broker_run(Broker *broker) {
         sigset_t signew, sigold;
         int r, k;
@@ -211,7 +182,7 @@ int broker_run(Broker *broker) {
 
         peer_registry_flush(&broker->bus.peers);
 
-        k = broker_log_metrics(broker);
+        k = diag_dispatch_stats(&broker->bus, LOG_PROVENANCE_HERE);
         if (k)
                 r = error_fold(k);
 
