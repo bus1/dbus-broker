@@ -11,6 +11,7 @@
 #include "dbus/message.h"
 #include "util/error.h"
 #include "util/log.h"
+#include "util/sampler.h"
 
 static void diag_append_message(Log *log, Message *message) {
         log_appendf(
@@ -236,5 +237,37 @@ int diag_quota_dequeue(Peer *peer, LogProvenance prov) {
                 peer->bus->log,
                 "Peer :1.%llu is being disconnected as it does not have the resources to queue further messages.",
                 peer->id
+        );
+}
+
+int diag_dispatch_stats(Bus *bus, LogProvenance prov) {
+        Sampler *sampler = &bus->sampler;
+        double stddev;
+
+        stddev = sampler_read_standard_deviation(sampler);
+        log_appendf(bus->log,
+                    "DBUS_BROKER_METRICS_DISPATCH_COUNT=%"PRIu64"\n"
+                    "DBUS_BROKER_METRICS_DISPATCH_MIN=%"PRIu64"\n"
+                    "DBUS_BROKER_METRICS_DISPATCH_MAX=%"PRIu64"\n"
+                    "DBUS_BROKER_METRICS_DISPATCH_AVG=%"PRIu64"\n"
+                    "DBUS_BROKER_METRICS_DISPATCH_STDDEV=%.0f\n",
+                    sampler->count,
+                    sampler->minimum,
+                    sampler->maximum,
+                    sampler->average,
+                    stddev);
+        log_append_common(
+                bus->log,
+                LOG_INFO,
+                0,
+                DBUS_BROKER_CATALOG_DISPATCH_STATS,
+                prov
+        );
+        return log_commitf(
+                bus->log,
+                "Dispatched %"PRIu64" messages @ %"PRIu64"(±%.0f)μs / message.",
+                sampler->count,
+                sampler->average / 1000,
+                stddev / 1000
         );
 }
