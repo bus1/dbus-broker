@@ -13,3 +13,5 @@ typedef struct Peer Peer;
 
 int diag_quota_queue_reply(Peer *sender, Peer *receiver, Message *m, LogProvenance prov);
 int diag_quota_dequeue(Peer *peer, LogProvenance prov);
+
+int diag_dispatch_stats(Bus *bus, LogProvenance prov);

@@ -67,7 +67,7 @@ static int metrics_client_dispatch(DispatchFile *file) {
                         default:
                                 return error_origin(-errno);
                         }
-                } else if (len >= 0) {
+                } else {
                         client->i_buffer += len;
                         if (client->i_buffer >= client->n_buffer)
                                 hup = true;
