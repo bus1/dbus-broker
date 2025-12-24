@@ -240,7 +240,8 @@ static int build_message_query_name(
         len += strlen(receiver_context) + 1;
         len += strlen(name) + 1;
         len += strlen(path) + 1;
-        len += strlen(interface) + 1;
+        if (interface)
+                len += strlen(interface) + 1;
         len += strlen(method) + 1;
 
         qstr = malloc(len);
@@ -259,8 +260,10 @@ static int build_message_query_name(
         i += strlen(name) + 1;
         strcpy(qstr+i, path);
         i += strlen(path) + 1;
-        strcpy(qstr+i, interface);
-        i += strlen(interface) + 1;
+        if (interface) {
+                strcpy(qstr+i, interface);
+                i += strlen(interface) + 1;
+        }
         strcpy(qstr+i, method);
 
         *queryp = qstr;
