@@ -166,6 +166,7 @@ rbus_crate = static_library(
         dependencies: [
                 dep_libc_rs,
                 dep_osi,
+                dep_tmp,
         ],
         link_with: [
                 rbus_generated,

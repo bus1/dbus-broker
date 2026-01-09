@@ -38,6 +38,7 @@ struct Socket {
         User *user;
         int fd;
 
+        bool json : 1;
         bool shutdown : 1;
         bool reset : 1;
         bool hup_in : 1;
@@ -62,7 +63,7 @@ struct Socket {
                 .out.pending = C_LIST_INIT((_x).out.pending),           \
         }
 
-void socket_init(Socket *socket, User *user, int fd);
+void socket_init(Socket *socket, User *user, int fd, bool json);
 void socket_deinit(Socket *socket);
 
 int socket_dequeue_line(Socket *socket, const char **linep, size_t *np);

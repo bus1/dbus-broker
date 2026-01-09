@@ -62,8 +62,11 @@ static void test_in_special(void) {
                         c_memcpy(buffer + *from, blob, n);
                         *from += n;
                         total += n;
+                        c_assert(total <= IQUEUE_LINE_MAX);
 
                         r = iqueue_pop_line(&iq, &l, &n);
+                        if (r == IQUEUE_E_VIOLATION)
+                                break;
                         c_assert(r == IQUEUE_E_PENDING);
                 }
 

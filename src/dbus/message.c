@@ -91,6 +91,39 @@ int message_new_incoming(Message **messagep, MessageHeader header) {
 }
 
 /**
+ * message_new_incoming_json() - create new incoming message object from JSON
+ * @messagep:           output pointer to new message object
+ * @ztv:                zero terminated value
+ * @n_ztv:              length of `ztv` without the terminating zero
+ *
+ * This creates a new message object in @messagep, to hold an incoming message
+ * converted from the JSON message in `ztv`.
+ *
+ * Return: 0 on success, MESSAGE_E_TOO_LARGE if the declared message size
+ *         violates the spec, or a negative error code on failure.
+ */
+int message_new_incoming_json(Message **messagep, const char *ztv, size_t n_ztv) {
+        _c_cleanup_(c_freep) void *data = NULL;
+        size_t n_data = 0;
+        int r;
+
+        /*
+         * XXX: convert `ztv` to `data`
+         * must be native-endian, so: big_endian if (__BYTE_ORDER == __BIG_ENDIAN)
+         */
+
+        if (n_data > MESSAGE_SIZE_MAX)
+                return MESSAGE_E_TOO_LARGE;
+
+        r = message_new_outgoing(messagep, data, n_data);
+        if (r)
+                return error_trace(r);
+        data = NULL;
+
+        return 0;
+}
+
+/**
  * message_new_outgoing() - create a new outgoing message object
  * @messagep:           return pointer to new message object
  * @data:               the message contents
