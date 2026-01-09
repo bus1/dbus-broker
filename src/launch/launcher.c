@@ -606,7 +606,7 @@ static int launcher_ini_reader_parse_file(Launcher *launcher, CIniGroup **groupp
                 log_append_here(&launcher->log, LOG_ERR, 0, DBUS_BROKER_CATALOG_SERVICE_INVALID);
                 log_append_service_path(&launcher->log, path);
 
-                r = log_commitf(&launcher->log, "Missing 'D-Bus Service' section in service file '%s'\n", path);
+                r = log_commitf(&launcher->log, "Missing 'D-BUS Service' section in service file '%s'\n", path);
                 if (r)
                         return error_fold(r);
 
