@@ -22,7 +22,7 @@ static int connection_init(Connection *c,
         int r;
 
         *connection = (Connection)CONNECTION_NULL(*connection);
-        socket_init(&connection->socket, user, fd);
+        socket_init(&connection->socket, user, fd, false);
 
         r = dispatch_file_init(&connection->socket_file,
                                dispatch_ctx,

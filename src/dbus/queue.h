@@ -82,6 +82,7 @@ int iqueue_get_cursor(IQueue *iq,
                       UserCharge **charge_fdsp);
 
 int iqueue_pop_line(IQueue *iq, const char **linep, size_t *np);
+int iqueue_pop_ztv(IQueue *iq, const char **ztvp, size_t *np, FDList **fdsp);
 int iqueue_pop_data(IQueue *iq, FDList **fds);
 
 /* inline helpers */

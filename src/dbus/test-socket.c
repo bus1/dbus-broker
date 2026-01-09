@@ -14,8 +14,8 @@
 static void test_setup(void) {
         _c_cleanup_(socket_deinit) Socket server = SOCKET_NULL(server), client = SOCKET_NULL(client);
 
-        socket_init(&server, NULL, -1);
-        socket_init(&client, NULL, -1);
+        socket_init(&server, NULL, -1, false);
+        socket_init(&client, NULL, -1, false);
 }
 
 static void test_line(void) {
@@ -27,8 +27,8 @@ static void test_line(void) {
         r = socketpair(AF_UNIX, SOCK_STREAM, 0, pair);
         c_assert(r >= 0);
 
-        socket_init(&client, NULL, pair[0]);
-        socket_init(&server, NULL, pair[1]);
+        socket_init(&client, NULL, pair[0], false);
+        socket_init(&server, NULL, pair[1], false);
 
         r = socket_dequeue_line(&server, &line, &n_bytes);
         c_assert(!r && !line);
@@ -69,8 +69,8 @@ static void test_message(void) {
         r = socketpair(AF_UNIX, SOCK_STREAM, 0, pair);
         c_assert(r >= 0);
 
-        socket_init(&client, NULL, pair[0]);
-        socket_init(&server, NULL, pair[1]);
+        socket_init(&client, NULL, pair[0], false);
+        socket_init(&server, NULL, pair[1], false);
 
         r = socket_dequeue(&server, &message2);
         c_assert(!r && !message2);

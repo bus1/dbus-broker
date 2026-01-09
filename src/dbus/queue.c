@@ -103,6 +103,7 @@ int iqueue_get_cursor(IQueue *iq,
                       size_t *top,
                       FDList ***fdsp,
                       UserCharge **charge_fdsp) {
+        size_t n;
         void *p;
         int r;
 
@@ -112,10 +113,8 @@ int iqueue_get_cursor(IQueue *iq,
          * behind a partial line is by filling the whole buffer, in that case
          * at most IQUEUE_RECV_MAX bytes need to be moved. And for the
          * message-parser, there can be at most one message header left
-         * behind (16 bytes).
-         *
-         * Long story short: We never shift more than 16 bytes in a fast-path,
-         *                   or you are doing something wrong.
+         * behind (16 bytes). Lastly, for zero-terminated data, we only ever
+         * shift at most a single receive-line.
          */
         memmove(iq->data,
                 iq->data + iq->data_start,
@@ -137,22 +136,20 @@ int iqueue_get_cursor(IQueue *iq,
                 return IQUEUE_E_PENDING;
 
         /*
-         * In case our input buffer is full, we need to resize it. This can
-         * only happen for the line-reader, since otherwise we always read into
-         * separate buffers.
-         * The line-reader, however, parses the entire line into the input
-         * buffer. Hence, in case the normal buffer size is exceeded, we
-         * re-allocate to its maximum *ONCE*.
+         * In case our input buffer is (almost) full, we need to resize it.
+         * This can happen for the line-reader, or for zero-terminated data.
+         * Simply double the buffer size to make room for another read.
          *
          * Once we finished reading lines *AND* we processed all the data in
          * the input buffer, we can safely de-allocate the buffer and fall back
          * to the input buffer again.
          */
         if (_c_unlikely_(iq->data_size <= iq->data_end)) {
-                if (iq->data_size >= IQUEUE_LINE_MAX)
-                        return IQUEUE_E_VIOLATION;
+                n = c_max(IQUEUE_LINE_MAX, iq->data_size * 2);
+                if (n <= iq->data_size)
+                        return IQUEUE_E_QUOTA;
 
-                p = malloc(IQUEUE_LINE_MAX);
+                p = malloc(n);
                 if (!p)
                         return error_origin(-ENOMEM);
 
@@ -160,7 +157,7 @@ int iqueue_get_cursor(IQueue *iq,
                                 &iq->charge_data,
                                 NULL,
                                 USER_SLOT_BYTES,
-                                IQUEUE_LINE_MAX);
+                                iq->data_size - n);
                 if (r) {
                         free(p);
                         return (r == USER_E_QUOTA) ? IQUEUE_E_QUOTA : error_fold(r);
@@ -168,11 +165,12 @@ int iqueue_get_cursor(IQueue *iq,
 
                 /* we always shift so data_start must be 0 */
                 c_assert(!iq->data_start);
-                c_assert(iq->data == iq->buffer);
 
                 c_memcpy(p, iq->data, iq->data_end);
+                if (iq->data != iq->buffer)
+                        c_free(iq->data);
                 iq->data = p;
-                iq->data_size = IQUEUE_LINE_MAX;
+                iq->data_size = n;
         } else if (_c_unlikely_(iq->data != iq->buffer && iq->pending.data)) {
                 c_assert(!iq->data_start);
                 c_assert(iq->data_end <= sizeof(iq->buffer));
@@ -262,6 +260,14 @@ int iqueue_pop_line(IQueue *iq, const char **linep, size_t *np) {
                 }
 
                 /*
+                 * Maximum line length is `IQUEUE_LINE_MAX` (including \r\n).
+                 * So ensure we never exceed that.
+                 */
+                if (iq->data_cursor - iq->data_start + 2 > IQUEUE_LINE_MAX) {
+                        return IQUEUE_E_VIOLATION;
+                }
+
+                /*
                  * If we find an \r\n, return the pointer and length to the
                  * caller and cut out the line.
                  * We do NOT copy the line. We leave it in the buffer untouched
@@ -286,6 +292,69 @@ int iqueue_pop_line(IQueue *iq, const char **linep, size_t *np) {
                         line[n] = 0;
                         *linep = (const char *)line;
                         *np = n;
+                        return 0;
+                }
+        }
+
+        return IQUEUE_E_PENDING;
+}
+
+/**
+ * iqueue_pop_ztv() - XXX
+ */
+int iqueue_pop_ztv(IQueue *iq, const char **ztvp, size_t *np, FDList **fdsp) {
+        c_assert(ztvp && np && fdsp);
+        c_assert(!iq->pending.data);
+
+        /*
+         * Advance our cursor byte by byte and look for an end-of-line. We
+         * remember the cursor position, so no byte is ever parsed twice.
+         */
+        for ( ; iq->data_cursor < iq->data_end; ++iq->data_cursor) {
+                /*
+                 * If we are at the end of the input-queue, we must consume
+                 * any possible FD array that we received alongside it.
+                 * The kernel always breaks _after_ skbs with FDs, but not
+                 * before them. Hence, FDs are attached to the LAST byte of our
+                 * input-queue, rather than the first.
+                 *
+                 * During line-handling, we consider receiving FDs a protocl
+                 * violation, and the DBus spec clearly states that no
+                 * extension shall pass FDs during authentication.
+                 */
+                if (iq->data_cursor + 1 >= iq->data_end) {
+                        if (_c_unlikely_(fdlist_count(iq->fds) > 0))
+                                return IQUEUE_E_VIOLATION;
+                }
+
+                /*
+                 * If we find an \r\n, return the pointer and length to the
+                 * caller and cut out the line.
+                 * We do NOT copy the line. We leave it in the buffer untouched
+                 * and return a direct pointer into the buffer. The pointer is
+                 * only valid until the next call into this object.
+                 * While we replace \r by NUL, this is not meant to be relied
+                 * upon by the caller. It is a pure safety belt. The caller
+                 * better not accesses the buffer beyond the returned line
+                 * length.
+                 */
+                if (iq->data[iq->data_cursor] == '\0') {
+                        /* remember start and length without \0 */
+                        *ztvp = (const char *)(iq->data + iq->data_start);
+                        *np = iq->data_cursor - iq->data_start;
+
+                        /* advance cursor and cut buffer */
+                        iq->data_start = ++iq->data_cursor;
+
+                        /* FDs belong to the last byte */
+                        if (iq->data_cursor >= iq->data_end) {
+                                *fdsp = iq->fds;
+                                iq->fds = NULL;
+                                user_charge_deinit(&iq->charge_fds);
+                        } else {
+                                *fdsp = NULL;
+                        }
+
                         return 0;
                 }
         }

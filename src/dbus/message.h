@@ -109,6 +109,7 @@ struct MessageHeader {
 } _c_packed_;
 
 int message_new_incoming(Message **messagep, MessageHeader header);
+int message_new_incoming_json(Message **messagep, const char *ztv, size_t n_ztv);
 int message_new_outgoing(Message **messagep, void *data, size_t n_data);
 void message_free(_Atomic unsigned long *n_refs, void *userdata);
 

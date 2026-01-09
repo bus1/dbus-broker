@@ -33,6 +33,7 @@ struct SocketBuffer {
 
         size_t n_total;
         Message *message;
+        void *data;
 
         size_t n_vecs;
         struct iovec *writer;
@@ -50,6 +51,7 @@ static SocketBuffer *socket_buffer_free(SocketBuffer *buffer) {
         user_charge_deinit(&buffer->charges[1]);
         user_charge_deinit(&buffer->charges[0]);
         c_list_unlink(&buffer->link);
+        c_free(buffer->data);
         message_unref(buffer->message);
         free(buffer);
 
@@ -70,6 +72,7 @@ static int socket_buffer_new_internal(SocketBuffer **bufferp, size_t n_vecs, siz
         user_charge_init(&buffer->charges[1]);
         buffer->n_total = n_line;
         buffer->message = NULL;
+        buffer->data = NULL;
         buffer->n_vecs = n_vecs;
         buffer->writer = NULL;
 
@@ -98,6 +101,46 @@ static int socket_buffer_new_line(SocketBuffer **bufferp,
         if (r)
                 return (r == USER_E_QUOTA) ? SOCKET_E_QUOTA : error_fold(r);
 
+        *bufferp = buffer;
+        buffer = NULL;
+        return 0;
+}
+
+static int socket_buffer_new_json(
+        SocketBuffer **bufferp,
+        Socket *socket,
+        User *user,
+        Message *message,
+        void *json,
+        size_t n_json
+) {
+        _c_cleanup_(socket_buffer_freep) SocketBuffer *buffer = NULL;
+        int r;
+
+        r = socket_buffer_new_internal(&buffer, 1, 0);
+        if (r)
+                return error_trace(r);
+
+        buffer->message = message_ref(message);
+        buffer->vecs[0] = (struct iovec){ json, n_json };
+
+        r = user_charge(socket->user,
+                        &buffer->charges[0],
+                        user,
+                        USER_SLOT_BYTES,
+                        sizeof(SocketBuffer) + sizeof(Message) + n_json);
+        if (r)
+                return (r == USER_E_QUOTA) ? SOCKET_E_QUOTA : error_fold(r);
+
+        r = user_charge(socket->user,
+                        &buffer->charges[1],
+                        user,
+                        USER_SLOT_FDS,
+                        fdlist_count(buffer->message->fds));
+        if (r)
+                return (r == USER_E_QUOTA) ? SOCKET_E_QUOTA : error_fold(r);
+
+        buffer->data = json;
         *bufferp = buffer;
         buffer = NULL;
         return 0;
@@ -157,7 +200,7 @@ static void socket_buffer_get_line_cursor(SocketBuffer *buffer, char **datap, si
         *posp = &buffer->vecs[0].iov_len;
 }
 
-static bool socket_buffer_is_uncomsumed(SocketBuffer *buffer) {
+static bool socket_buffer_is_unconsumed(SocketBuffer *buffer) {
         return !buffer->writer;
 }
 
@@ -206,16 +249,18 @@ static void socket_discard_output(Socket *socket) {
  * @socket:             socket to operate on
  * @user:               socket owner, or NULL
  * @fd:                 socket file descriptor
+ * @json:               whether to proxy to json
  *
  * This initializes the new socket @socket. The socket will be owned by @user
  * (and accounted on it), and @fd will be used as socket file descriptor. Not
  * that @fd is still owned by the caller and must not be closed while the
  * socket is used.
  */
-void socket_init(Socket *socket, User *user, int fd) {
+void socket_init(Socket *socket, User *user, int fd, bool json) {
         *socket = (Socket)SOCKET_NULL(*socket);
         socket->user = user_ref(user);
         socket->fd = fd;
+        socket->json = json;
         iqueue_init(&socket->in.queue, user);
 }
 
@@ -350,30 +395,46 @@ int socket_dequeue_line(Socket *socket, const char **linep, size_t *np) {
         return 0;
 }
 
-/**
- * socket_dequeue() - fetch message from input buffer
- * @socket:             socket to operate on
- * @messagep:           output argument for read message
- *
- * This fetches a message from the input buffer. If a full message was parsed,
- * the @messagep argument will now point to it and own a single reference to be
- * released by the caller.
- * If no more messages can be fetched from the input buffer, NULL is put into
- * @messagep.
- *
- * If the input stream was shutdown, SOCKET_E_EOF is returned and no further
- * data can be read.
- *
- * Return: On success, 0 is returned and @messagep will point to the read
- *         message (now owned by the caller). If no more messages can be
- *         fetched, NULL is put into @messagep.
- *         If the input-stream was closed and no more data is to be read,
- *         SOCKET_E_EOF is returned.
- *         If the incoming message would exceed the quota of the caller, then
- *         SOCKET_E_QUOTA is returned.
- *         On fatal errors, a negative error code is returned.
- */
-int socket_dequeue(Socket *socket, Message **messagep) {
+static int socket_dequeue_json(Socket *socket, Message **messagep) {
+        _c_cleanup_(fdlist_freep) FDList *fds = NULL;
+        Message *message;
+        const char *ztv;
+        size_t n;
+        int r;
+
+        r = iqueue_pop_ztv(&socket->in.queue, &ztv, &n, &fds);
+        if (r) {
+                if (r == IQUEUE_E_PENDING) {
+                        socket_might_reset(socket);
+                        if (_c_unlikely_(socket->hup_in))
+                                return SOCKET_E_EOF;
+
+                        *messagep = NULL;
+                        return 0;
+                } else if (r == IQUEUE_E_VIOLATION) {
+                        socket_close(socket);
+                        return SOCKET_E_EOF;
+                }
+
+                return error_fold(r);
+        }
+
+        r = message_new_incoming_json(&message, ztv, n);
+        if (r == MESSAGE_E_TOO_LARGE) {
+                socket_close(socket);
+                return SOCKET_E_EOF;
+        } else if (r) {
+                return error_fold(r);
+        }
+
+        message->fds = fds;
+        fds = NULL;
+        *messagep = message;
+        message = NULL;
+        return 0;
+}
+
+static int socket_dequeue_dvar(Socket *socket, Message **messagep) {
         Message *message;
         int r;
 
@@ -442,6 +503,36 @@ nodata:
 }
 
 /**
+ * socket_dequeue() - fetch message from input buffer
+ * @socket:             socket to operate on
+ * @messagep:           output argument for read message
+ *
+ * This fetches a message from the input buffer. If a full message was parsed,
+ * the @messagep argument will now point to it and own a single reference to be
+ * released by the caller.
+ * If no more messages can be fetched from the input buffer, NULL is put into
+ * @messagep.
+ *
+ * If the input stream was shutdown, SOCKET_E_EOF is returned and no further
+ * data can be read.
+ *
+ * Return: On success, 0 is returned and @messagep will point to the read
+ *         message (now owned by the caller). If no more messages can be
+ *         fetched, NULL is put into @messagep.
+ *         If the input-stream was closed and no more data is to be read,
+ *         SOCKET_E_EOF is returned.
+ *         If the incoming message would exceed the quota of the caller, then
+ *         SOCKET_E_QUOTA is returned.
+ *         On fatal errors, a negative error code is returned.
+ */
+int socket_dequeue(Socket *socket, Message **messagep) {
+        if (socket->json)
+                return socket_dequeue_json(socket, messagep);
+        else
+                return socket_dequeue_dvar(socket, messagep);
+}
+
+/**
  * socket_queue_line() - queue line on socket
  * @socket:             socket to operate on
  * @user:               user to account for, or NULL
@@ -500,14 +591,27 @@ int socket_queue_line(Socket *socket, User *user, const char *line_in, size_t n)
  */
 int socket_queue(Socket *socket, User *user, Message *message) {
         _c_cleanup_(socket_buffer_freep) SocketBuffer *buffer = NULL;
+        _c_cleanup_(c_freep) void *json = NULL;
+        size_t n_json = 0;
         int r;
 
         if (_c_unlikely_(socket->hup_out || socket->shutdown))
                 return SOCKET_E_SHUTDOWN;
 
-        r = socket_buffer_new_message(&buffer, socket, user, message);
-        if (r)
-                return error_trace(r);
+        if (socket->json) {
+                /*
+                 * XXX: Convert to JSON.
+                 */
+
+                r = socket_buffer_new_json(&buffer, socket, user, message, json, n_json);
+                if (r)
+                        return error_trace(r);
+                json = NULL;
+        } else {
+                r = socket_buffer_new_message(&buffer, socket, user, message);
+                if (r)
+                        return error_trace(r);
+        }
 
         c_list_link_tail(&socket->out.queue, &buffer->link);
         buffer = NULL;
@@ -808,7 +912,7 @@ static int socket_dispatch_write(Socket *socket) {
                 msg->msg_iovlen = buffer->n_vecs;
                 if (buffer->message &&
                     buffer->message->fds &&
-                    socket_buffer_is_uncomsumed(buffer)) {
+                    socket_buffer_is_unconsumed(buffer)) {
                         msg->msg_control = buffer->message->fds->cmsg;
                         msg->msg_controllen = fdlist_size(buffer->message->fds);
                 } else {
