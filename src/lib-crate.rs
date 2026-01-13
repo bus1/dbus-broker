@@ -5,6 +5,7 @@
 //! garbage collection to drop any unneeded code.
 
 #![allow(
+    clippy::new_without_default,
     clippy::redundant_field_names,
 )]
 
