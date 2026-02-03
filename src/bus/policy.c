@@ -738,6 +738,7 @@ int policy_snapshot_new(PolicySnapshot **snapshotp,
 
         snapshot->apparmor = bus_apparmor_registry_ref(registry->apparmor);
         snapshot->selinux = bus_selinux_registry_ref(registry->selinux);
+        snapshot->uid = uid;
 
         snapshot->seclabel = strdup(seclabel);
         if (!snapshot->seclabel)
@@ -806,6 +807,7 @@ int policy_snapshot_dup(PolicySnapshot *snapshot, PolicySnapshot **newp) {
 
         new->apparmor = bus_apparmor_registry_ref(snapshot->apparmor);
         new->selinux = bus_selinux_registry_ref(snapshot->selinux);
+        new->uid = snapshot->uid;
 
         new->seclabel = strdup(snapshot->seclabel);
         if (!new->seclabel)
@@ -844,7 +846,12 @@ int policy_snapshot_check_own(PolicySnapshot *snapshot, const char *name_str) {
         size_t i;
         int v, r;
 
-        r = bus_apparmor_check_own(snapshot->apparmor, snapshot->seclabel, name_str);
+        r = bus_apparmor_check_own(
+                snapshot->apparmor,
+                snapshot->seclabel,
+                snapshot->uid,
+                name_str
+        );
         if (r) {
                 if (r == BUS_APPARMOR_E_DENIED)
                         return POLICY_E_APPARMOR_ACCESS_DENIED;
@@ -1064,8 +1071,17 @@ int policy_snapshot_check_send(PolicySnapshot *snapshot,
         size_t i;
         int r;
 
-        r = bus_apparmor_check_send(snapshot->apparmor, snapshot->seclabel, subject_seclabel,
-                                    subject, subject_id, path, interface, method);
+        r = bus_apparmor_check_send(
+                snapshot->apparmor,
+                snapshot->seclabel,
+                snapshot->uid,
+                subject_seclabel,
+                subject,
+                subject_id,
+                path,
+                interface,
+                method
+        );
         if (r) {
                 if (r == BUS_APPARMOR_E_DENIED)
                         return POLICY_E_APPARMOR_ACCESS_DENIED;

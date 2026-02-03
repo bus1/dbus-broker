@@ -430,7 +430,8 @@ static int apparmor_message_query(
 /**
  * bus_apparmor_check_own() - check if the given transaction is allowed
  * @registry:           AppArmor registry to operate on
- * @owner_context:      security context requesting the name
+ * @context:            security context requesting the name
+ * @uid:                uid of the requester
  * @name:               name to be owned
  *
  * Check if the given owner context is allowed to own the given name.
@@ -438,9 +439,12 @@ static int apparmor_message_query(
  * Return: 0 if the ownership is allowed, BUS_APPARMOR_E_DENIED if it is not,
  *         or a negative error code on failure.
  */
-int bus_apparmor_check_own(struct BusAppArmorRegistry *registry,
-                           const char *owner_context,
-                           const char *name) {
+int bus_apparmor_check_own(
+        BusAppArmorRegistry *registry,
+        const char *context,
+        uid_t uid,
+        const char *name
+) {
         _c_cleanup_(c_freep) char *condup = NULL, *qstr = NULL;
         char *security_label, *security_mode;
         int r, allow, audit;
@@ -449,7 +453,7 @@ int bus_apparmor_check_own(struct BusAppArmorRegistry *registry,
         if (!registry->bustype)
                 return 0;
 
-        condup = strdup(owner_context);
+        condup = strdup(context);
         if (!condup)
                 return error_origin(-ENOMEM);
 
@@ -492,6 +496,7 @@ int bus_apparmor_check_own(struct BusAppArmorRegistry *registry,
  * bus_apparmor_check_send() - check if the given transaction is allowed
  * @registry:           AppArmor registry to operate on
  * @sender_context:     security context of the sender
+ * @sender_uid:         uid of the sender
  * @receiver_context:   security context of the receiver, or NULL
  * @subject:            List of names
  * @subject_id:         Unique ID of the subject
@@ -509,14 +514,17 @@ int bus_apparmor_check_own(struct BusAppArmorRegistry *registry,
  * Return: 0 if the transaction is allowed, BUS_APPARMOR_E_DENIED if it is not,
  *         or a negative error code on failure.
  */
-int bus_apparmor_check_send(BusAppArmorRegistry *registry,
-                            const char *sender_context,
-                            const char *receiver_context,
-                            NameSet *subject,
-                            uint64_t subject_id,
-                            const char *path,
-                            const char *interface,
-                            const char *method) {
+int bus_apparmor_check_send(
+        BusAppArmorRegistry *registry,
+        const char *sender_context,
+        uid_t sender_uid,
+        const char *receiver_context,
+        NameSet *subject,
+        uint64_t subject_id,
+        const char *path,
+        const char *interface,
+        const char *method
+) {
         _c_cleanup_(c_freep) char *sender_context_dup = NULL;
         _c_cleanup_(c_freep) char *receiver_context_dup = NULL;
         char *sender_security_label, *sender_security_mode;
@@ -607,15 +615,18 @@ int bus_apparmor_check_send(BusAppArmorRegistry *registry,
  * bus_apparmor_check_eavesdrop() - check if the given context may eavesdrop
  * @registry:           AppArmor registry to operate on
  * @context:            security context that wants to eavesdrop
+ * @uid:                uid of the calling user
  *
  * Check if the given sender context is allowed to do eavesdropping.
  *
  * Return: 0 if the transaction is allowed, BUS_APPARMOR_E_DENIED if it is not,
  *         or a negative error code on failure.
  */
-int bus_apparmor_check_eavesdrop(BusAppArmorRegistry *registry,
-                                 const char *context)
-{
+int bus_apparmor_check_eavesdrop(
+        BusAppArmorRegistry *registry,
+        const char *context,
+        uid_t uid
+) {
         _c_cleanup_(c_freep) char *condup = NULL, *qstr = NULL;
         char *security_label, *security_mode;
         int r, allow, audit;
