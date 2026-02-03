@@ -216,9 +216,10 @@ static int build_service_query(
         strcpy(qstr+i, bustype);
         i += strlen(bustype) + 1;
         strcpy(qstr+i, name);
+        i += strlen(name) + 1;
 
         *queryp = qstr;
-        *n_queryp = len - 1;
+        *n_queryp = i - 1;
         return 0;
 }
 
@@ -242,10 +243,12 @@ static int build_message_query_name(
         len += strlen(bustype) + 1;
         len += strlen(receiver_context) + 1;
         len += strlen(name) + 1;
-        len += strlen(path) + 1;
+        if (path)
+                len += strlen(path) + 1;
         if (interface)
                 len += strlen(interface) + 1;
-        len += strlen(method) + 1;
+        if (method)
+                len += strlen(method) + 1;
 
         qstr = malloc(len);
         if (!qstr)
@@ -261,16 +264,21 @@ static int build_message_query_name(
         i += strlen(receiver_context) + 1;
         strcpy(qstr+i, name);
         i += strlen(name) + 1;
-        strcpy(qstr+i, path);
-        i += strlen(path) + 1;
+        if (path) {
+                strcpy(qstr+i, path);
+                i += strlen(path) + 1;
+        }
         if (interface) {
                 strcpy(qstr+i, interface);
                 i += strlen(interface) + 1;
         }
-        strcpy(qstr+i, method);
+        if (method) {
+                strcpy(qstr+i, method);
+                i += strlen(method) + 1;
+        }
 
         *queryp = qstr;
-        *n_queryp = len - 1;
+        *n_queryp = i - 1;
         return 0;
 }
 
@@ -296,9 +304,10 @@ static int build_eavesdrop_query(
         i += strlen(security_label) + 1;
         qstr[i++] = AA_CLASS_DBUS;
         strcpy(qstr+i, bustype);
+        i += strlen(bustype) + 1;
 
         *queryp = qstr;
-        *n_queryp = len - 1;
+        *n_queryp = i - 1;
         return 0;
 }
 
