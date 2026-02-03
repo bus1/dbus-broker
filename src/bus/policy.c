@@ -1057,16 +1057,19 @@ static void policy_snapshot_check_xmit(PolicyBatch *batch,
 /**
  * policy_snapshot_check_send() - XXX
  */
-int policy_snapshot_check_send(PolicySnapshot *snapshot,
-                               const char *subject_seclabel,
-                               NameSet *subject,
-                               uint64_t subject_id,
-                               const char *interface,
-                               const char *method,
-                               const char *path,
-                               unsigned int type,
-                               bool broadcast,
-                               size_t n_fds) {
+int policy_snapshot_check_send(
+        PolicySnapshot *snapshot,
+        uint64_t sender_id,
+        const char *recv_seclabel,
+        NameSet *recv_names,
+        const char *destination,
+        const char *interface,
+        const char *method,
+        const char *path,
+        unsigned int type,
+        bool broadcast,
+        size_t n_fds
+) {
         PolicyVerdict verdict = POLICY_VERDICT_INIT;
         size_t i;
         int r;
@@ -1075,9 +1078,9 @@ int policy_snapshot_check_send(PolicySnapshot *snapshot,
                 snapshot->apparmor,
                 snapshot->seclabel,
                 snapshot->uid,
-                subject_seclabel,
-                subject,
-                subject_id,
+                sender_id,
+                recv_seclabel,
+                destination,
                 path,
                 interface,
                 method,
@@ -1090,7 +1093,7 @@ int policy_snapshot_check_send(PolicySnapshot *snapshot,
                 return error_fold(r);
         }
 
-        r = bus_selinux_check_send(snapshot->selinux, snapshot->seclabel, subject_seclabel);
+        r = bus_selinux_check_send(snapshot->selinux, snapshot->seclabel, recv_seclabel);
         if (r) {
                 if (r == SELINUX_E_DENIED)
                         return POLICY_E_SELINUX_ACCESS_DENIED;
@@ -1102,7 +1105,7 @@ int policy_snapshot_check_send(PolicySnapshot *snapshot,
                 policy_snapshot_check_xmit(snapshot->batches[i],
                                            true,
                                            &verdict,
-                                           subject,
+                                           recv_names,
                                            interface,
                                            method,
                                            path,
@@ -1116,16 +1119,16 @@ int policy_snapshot_check_send(PolicySnapshot *snapshot,
 /**
  * policy_snapshot_check_receive() - XXX
  */
-int policy_snapshot_check_receive(PolicySnapshot *snapshot,
-                                  const char *subject_seclabel,
-                                  NameSet *subject,
-                                  uint64_t subject_id,
-                                  const char *interface,
-                                  const char *method,
-                                  const char *path,
-                                  unsigned int type,
-                                  bool broadcast,
-                                  size_t n_fds) {
+int policy_snapshot_check_receive(
+        PolicySnapshot *snapshot,
+        NameSet *sender_names,
+        const char *interface,
+        const char *method,
+        const char *path,
+        unsigned int type,
+        bool broadcast,
+        size_t n_fds
+) {
         PolicyVerdict verdict = POLICY_VERDICT_INIT;
         size_t i;
 
@@ -1133,7 +1136,7 @@ int policy_snapshot_check_receive(PolicySnapshot *snapshot,
                 policy_snapshot_check_xmit(snapshot->batches[i],
                                            false,
                                            &verdict,
-                                           subject,
+                                           sender_names,
                                            interface,
                                            method,
                                            path,

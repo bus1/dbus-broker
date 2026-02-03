@@ -773,16 +773,16 @@ int peer_queue_unicast(PolicySnapshot *sender_policy, NameSet *sender_names, Rep
                         return error_fold(r);
         }
 
-        r = policy_snapshot_check_receive(receiver->policy,
-                                          sender_policy->seclabel,
-                                          sender_names,
-                                          sender_id,
-                                          message->metadata.fields.interface,
-                                          message->metadata.fields.member,
-                                          message->metadata.fields.path,
-                                          message->header->type,
-                                          false,
-                                          message->metadata.fields.unix_fds);
+        r = policy_snapshot_check_receive(
+                receiver->policy,
+                sender_names,
+                message->metadata.fields.interface,
+                message->metadata.fields.member,
+                message->metadata.fields.path,
+                message->header->type,
+                false,
+                message->metadata.fields.unix_fds
+        );
         if (r) {
                 if (r == POLICY_E_ACCESS_DENIED ||
                     r == POLICY_E_SELINUX_ACCESS_DENIED ||
@@ -805,16 +805,19 @@ int peer_queue_unicast(PolicySnapshot *sender_policy, NameSet *sender_names, Rep
                 return error_fold(r);
         }
 
-        r = policy_snapshot_check_send(sender_policy,
-                                       receiver->seclabel,
-                                       &receiver_names,
-                                       receiver->id,
-                                       message->metadata.fields.interface,
-                                       message->metadata.fields.member,
-                                       message->metadata.fields.path,
-                                       message->header->type,
-                                       false,
-                                       message->metadata.fields.unix_fds);
+        r = policy_snapshot_check_send(
+                sender_policy,
+                sender_id,
+                receiver->seclabel,
+                &receiver_names,
+                message->metadata.fields.destination,
+                message->metadata.fields.interface,
+                message->metadata.fields.member,
+                message->metadata.fields.path,
+                message->header->type,
+                false,
+                message->metadata.fields.unix_fds
+        );
         if (r) {
                 if (r == POLICY_E_ACCESS_DENIED ||
                     r == POLICY_E_SELINUX_ACCESS_DENIED ||

@@ -173,6 +173,7 @@ MESON_SETUP		= \
 		-D "debug=true" \
 		-D "errorlogs=true" \
 		\
+		-D "apparmor=true" \
 		-D "audit=true" \
 		-D "docs=true" \
 		-D "launcher=true" \
