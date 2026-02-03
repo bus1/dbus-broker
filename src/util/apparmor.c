@@ -108,7 +108,7 @@ int bus_apparmor_dbus_supported(bool *supportedp) {
  *
  * Return: 0 on success, or a negative error code on failure.
  */
-int bus_apparmor_registry_new(struct BusAppArmorRegistry **registryp, const char *fallback_context) {
+int bus_apparmor_registry_new(BusAppArmorRegistry **registryp, const char *fallback_context) {
         _c_cleanup_(bus_apparmor_registry_unrefp) BusAppArmorRegistry *registry = NULL;
         size_t n_fallback_context;
 
