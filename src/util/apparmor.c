@@ -161,7 +161,12 @@ int bus_apparmor_set_bus_type(BusAppArmorRegistry *registry, const char *bustype
         return 0;
 }
 
-static int bus_apparmor_log(BusAppArmorRegistry *registry, const char *fmt, ...) {
+static int bus_apparmor_log(
+        BusAppArmorRegistry *registry,
+        uid_t uid,
+        const char *fmt,
+        ...
+) {
         _c_cleanup_(c_freep) char *message = NULL;
         va_list ap;
         int r;
@@ -172,10 +177,7 @@ static int bus_apparmor_log(BusAppArmorRegistry *registry, const char *fmt, ...)
         if (r < 0)
                 return error_origin(-errno);
 
-        /* XXX: we don't have access to any context, so can't find
-         * the right UID to use, follow dbus-daemon(1) and use our
-         * own. */
-        r = util_audit_log(UTIL_AUDIT_TYPE_AVC, message, getuid());
+        r = util_audit_log(UTIL_AUDIT_TYPE_AVC, message, uid);
         if (r != UTIL_AUDIT_E_UNAVAILABLE) // XXX: use a log fallback
                 return error_fold(r);
 
@@ -479,15 +481,19 @@ int bus_apparmor_check_own(
         if (string_equal(security_mode, "complain"))
                 allow = true;
 
-        if (audit)
-                bus_apparmor_log(
+        if (audit) {
+                r = bus_apparmor_log(
                         registry,
+                        uid,
                         "apparmor=\"%s\" operation=\"dbus_bind\" "
                         "bus=\"%s\" name=\"%s\" mask=\"bind\"",
                         allow ? "ALLOWED" : "DENIED",
                         registry->bustype,
                         name
                 );
+                if (r)
+                        return error_fold(r);
+        }
 
         return allow ? 0 : BUS_APPARMOR_E_DENIED;
 }
@@ -579,7 +585,9 @@ int bus_apparmor_check_send(
                 dst_allow = 1;
 
         if (src_audit) {
-                bus_apparmor_log(registry,
+                r = bus_apparmor_log(
+                        registry,
+                        sender_uid,
                         "apparmor=\"%s\" operation=\"dbus_method_call\" "
                         "bus=\"%s\" path=\"%s\" interface=\"%s\" method=\"%s\" "
                         "mask=\"send\" label=\"%s\" peer_label=\"%s\"",
@@ -591,10 +599,14 @@ int bus_apparmor_check_send(
                         sender_security_label,
                         receiver_security_label
                 );
+                if (r)
+                        return error_fold(r);
         }
 
         if (dst_audit) {
-                bus_apparmor_log(registry,
+                r = bus_apparmor_log(
+                        registry,
+                        sender_uid,
                         "apparmor=\"%s\" operation=\"dbus_method_call\" "
                         "bus=\"%s\" path=\"%s\" interface=\"%s\" method=\"%s\" "
                         "mask=\"receive\" label=\"%s\" peer_label=\"%s\"",
@@ -606,6 +618,8 @@ int bus_apparmor_check_send(
                         receiver_security_label,
                         sender_security_label
                 );
+                if (r)
+                        return error_fold(r);
         }
 
         return (src_allow && dst_allow) ? 0 : BUS_APPARMOR_E_DENIED;
@@ -660,15 +674,19 @@ int bus_apparmor_check_eavesdrop(
         if (string_equal(security_mode, "complain"))
                 allow = 1;
 
-        if (audit)
-                bus_apparmor_log(
+        if (audit) {
+                r = bus_apparmor_log(
                         registry,
+                        uid,
                         "apparmor=\"%s\" operation=\"dbus_eavesdrop\" "
                         "bus=\"%s\" label=\"%s\"",
                         allow ? "ALLOWED" : "DENIED",
                         registry->bustype,
                         context
                 );
+                if (r)
+                        return error_fold(r);
+        }
 
         return allow ? 0 : BUS_APPARMOR_E_DENIED;
 }
