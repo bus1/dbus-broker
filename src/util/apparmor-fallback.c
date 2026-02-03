@@ -75,7 +75,8 @@ int bus_apparmor_check_send(
         uint64_t subject_id,
         const char *path,
         const char *interface,
-        const char *method
+        const char *method,
+        unsigned int type
 ) {
         return 0;
 }

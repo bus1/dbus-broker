@@ -43,7 +43,8 @@ int bus_apparmor_check_send(
         uint64_t subject_id,
         const char *path,
         const char *interface,
-        const char *method
+        const char *method,
+        unsigned int type
 );
 int bus_apparmor_check_eavesdrop(
         BusAppArmorRegistry *registry,

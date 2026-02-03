@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <sys/apparmor.h>
 #include "bus/name.h"
+#include "dbus/protocol.h"
 #include "util/apparmor.h"
 #include "util/audit.h"
 #include "util/error.h"
@@ -485,11 +486,16 @@ int bus_apparmor_check_own(
                 r = bus_apparmor_log(
                         registry,
                         uid,
-                        "apparmor=\"%s\" operation=\"dbus_bind\" "
-                        "bus=\"%s\" name=\"%s\" mask=\"bind\"",
+                        "apparmor=\"%s\""
+                        " operation=\"dbus_bind\""
+                        " bus=\"%s\""
+                        " name=\"%s\""
+                        " mask=\"bind\"",
+                        " label=\"%s\"",
                         allow ? "ALLOWED" : "DENIED",
                         registry->bustype,
-                        name
+                        name,
+                        security_label
                 );
                 if (r)
                         return error_fold(r);
@@ -507,8 +513,9 @@ int bus_apparmor_check_own(
  * @subject:            List of names
  * @subject_id:         Unique ID of the subject
  * @path:               Dbus object path
- * @interface:          DBus method interface
- * @method:             DBus method that is being called
+ * @interface:          DBus method interface, or NULL
+ * @method:             DBus method that is being called, or NULL
+ * @type:               DBus message type
  *
  * Check if the given sender context is allowed to send/receive a message
  * to the given receiver context. If the any context is given as NULL,
@@ -529,10 +536,12 @@ int bus_apparmor_check_send(
         uint64_t subject_id,
         const char *path,
         const char *interface,
-        const char *method
+        const char *method,
+        unsigned int type
 ) {
         _c_cleanup_(c_freep) char *sender_context_dup = NULL;
         _c_cleanup_(c_freep) char *receiver_context_dup = NULL;
+        const char *op = NULL;
         char *sender_security_label, *sender_security_mode;
         char *receiver_security_label, *receiver_security_mode;
         int r, src_allow = false, src_audit = true, dst_allow = false, dst_audit = true;
@@ -584,18 +593,42 @@ int bus_apparmor_check_send(
         if (string_equal(receiver_security_mode, "complain"))
                 dst_allow = 1;
 
+        switch (type) {
+        case DBUS_MESSAGE_TYPE_METHOD_CALL:
+                op = "method_call";
+                break;
+        case DBUS_MESSAGE_TYPE_METHOD_RETURN:
+                op = "method_return";
+                break;
+        case DBUS_MESSAGE_TYPE_ERROR:
+                op = "error";
+                break;
+        case DBUS_MESSAGE_TYPE_SIGNAL:
+                op = "signal";
+                break;
+        default:
+                return error_origin(-ENOTRECOVERABLE);
+        }
+
         if (src_audit) {
                 r = bus_apparmor_log(
                         registry,
                         sender_uid,
-                        "apparmor=\"%s\" operation=\"dbus_method_call\" "
-                        "bus=\"%s\" path=\"%s\" interface=\"%s\" method=\"%s\" "
-                        "mask=\"send\" label=\"%s\" peer_label=\"%s\"",
+                        "apparmor=\"%s\""
+                        " operation=\"dbus_%s\""
+                        " bus=\"%s\""
+                        " path=\"%s\""
+                        " interface=\"%s\""
+                        " member=\"%s\""
+                        " mask=\"send\""
+                        " label=\"%s\""
+                        " peer_label=\"%s\"",
                         src_allow ? "ALLOWED" : "DENIED",
+                        op,
                         registry->bustype,
-                        path,
-                        interface,
-                        method,
+                        path ?: "",
+                        interface ?: "",
+                        method ?: "",
                         sender_security_label,
                         receiver_security_label
                 );
@@ -607,14 +640,21 @@ int bus_apparmor_check_send(
                 r = bus_apparmor_log(
                         registry,
                         sender_uid,
-                        "apparmor=\"%s\" operation=\"dbus_method_call\" "
-                        "bus=\"%s\" path=\"%s\" interface=\"%s\" method=\"%s\" "
-                        "mask=\"receive\" label=\"%s\" peer_label=\"%s\"",
+                        "apparmor=\"%s\""
+                        " operation=\"dbus_%s\""
+                        " bus=\"%s\""
+                        " path=\"%s\""
+                        " interface=\"%s\""
+                        " member=\"%s\""
+                        " mask=\"receive\""
+                        " label=\"%s\""
+                        " peer_label=\"%s\"",
                         dst_allow ? "ALLOWED" : "DENIED",
+                        op,
                         registry->bustype,
-                        path,
-                        interface,
-                        method,
+                        path ?: "",
+                        interface ?: "",
+                        method ?: "",
                         receiver_security_label,
                         sender_security_label
                 );
@@ -678,11 +718,14 @@ int bus_apparmor_check_eavesdrop(
                 r = bus_apparmor_log(
                         registry,
                         uid,
-                        "apparmor=\"%s\" operation=\"dbus_eavesdrop\" "
-                        "bus=\"%s\" label=\"%s\"",
+                        "apparmor=\"%s\""
+                        " operation=\"dbus_eavesdrop\""
+                        " bus=\"%s\""
+                        " mask=\"eavesdrop\""
+                        " label=\"%s\"",
                         allow ? "ALLOWED" : "DENIED",
                         registry->bustype,
-                        context
+                        security_label
                 );
                 if (r)
                         return error_fold(r);
