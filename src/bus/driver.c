@@ -1896,7 +1896,11 @@ static int driver_method_become_monitor(Peer *peer, const char *path, CDVar *in_
         if (!peer_is_privileged(peer))
                 return DRIVER_E_PEER_NOT_PRIVILEGED;
 
-        r = bus_apparmor_check_eavesdrop(peer->policy->apparmor, peer->policy->seclabel);
+        r = bus_apparmor_check_eavesdrop(
+                peer->policy->apparmor,
+                peer->policy->seclabel,
+                peer->user->uid
+        );
         if (r == BUS_APPARMOR_E_DENIED)
                 return DRIVER_E_PEER_NOT_PRIVILEGED;
         else if (r)

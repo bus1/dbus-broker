@@ -131,6 +131,7 @@ struct PolicySnapshot {
         BusAppArmorRegistry *apparmor;
         BusSELinuxRegistry *selinux;
         char *seclabel;
+        uid_t uid;
         size_t n_batches;
         PolicyBatch *batches[];
 };
