@@ -166,26 +166,29 @@ int policy_snapshot_dup(PolicySnapshot *snapshot, PolicySnapshot **newp);
 
 int policy_snapshot_check_connect(PolicySnapshot *snapshot);
 int policy_snapshot_check_own(PolicySnapshot *snapshot, const char *name);
-int policy_snapshot_check_send(PolicySnapshot *snapshot,
-                               const char *subject_seclabel,
-                               NameSet *subject,
-                               uint64_t subject_id,
-                               const char *interface,
-                               const char *method,
-                               const char *path,
-                               unsigned int type,
-                               bool broadcast,
-                               size_t n_fds);
-int policy_snapshot_check_receive(PolicySnapshot *snapshot,
-                                  const char *subject_seclabel,
-                                  NameSet *subject,
-                                  uint64_t subject_id,
-                                  const char *interface,
-                                  const char *method,
-                                  const char *path,
-                                  unsigned int type,
-                                  bool broadcast,
-                                  size_t n_fds);
+int policy_snapshot_check_send(
+        PolicySnapshot *snapshot,
+        uint64_t sender_id,
+        const char *recv_seclabel,
+        NameSet *recv_names,
+        const char *destination,
+        const char *interface,
+        const char *method,
+        const char *path,
+        unsigned int type,
+        bool broadcast,
+        size_t n_fds
+);
+int policy_snapshot_check_receive(
+        PolicySnapshot *snapshot,
+        NameSet *sender_names,
+        const char *interface,
+        const char *method,
+        const char *path,
+        unsigned int type,
+        bool broadcast,
+        size_t n_fds
+);
 
 C_DEFINE_CLEANUP(PolicySnapshot *, policy_snapshot_free);
 
