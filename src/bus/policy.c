@@ -1080,7 +1080,8 @@ int policy_snapshot_check_send(PolicySnapshot *snapshot,
                 subject_id,
                 path,
                 interface,
-                method
+                method,
+                type
         );
         if (r) {
                 if (r == BUS_APPARMOR_E_DENIED)
