@@ -42,7 +42,7 @@ int bus_apparmor_is_enabled(bool *enabledp) {
                 errno = 0;
                 if (!fgets(buffer, sizeof(buffer), f)) {
                         if (ferror(f))
-                                return error_origin(-c_errno());
+                                return error_origin(-errno);
                 }
 
                 switch (buffer[0]) {
@@ -84,7 +84,7 @@ int bus_apparmor_dbus_supported(bool *supportedp) {
                 errno = 0;
                 if (!fgets(buffer, sizeof(buffer), f)) {
                         if (ferror(f))
-                                return error_origin(-c_errno());
+                                return error_origin(-errno);
                 }
 
                 if (strstr(buffer, "acquire") && strstr(buffer, "send") && strstr(buffer, "receive"))
@@ -337,7 +337,7 @@ static int apparmor_message_query_name(
                 audit
         );
         if (r)
-                return error_origin(-c_errno());
+                return error_origin(-errno);
 
         return 0;
 }
@@ -470,7 +470,7 @@ int bus_apparmor_check_own(struct BusAppArmorRegistry *registry,
 
         r = aa_query_label(AA_DBUS_BIND, qstr, n_qstr, &allow, &audit);
         if (r)
-                return error_origin(-c_errno());
+                return error_origin(-errno);
 
         if (string_equal(security_mode, "complain"))
                 allow = true;
@@ -644,7 +644,7 @@ int bus_apparmor_check_eavesdrop(BusAppArmorRegistry *registry,
 
         r = aa_query_label(AA_DBUS_EAVESDROP, qstr, n_qstr, &allow, &audit);
         if (r)
-                return error_origin(-c_errno());
+                return error_origin(-errno);
 
         if (string_equal(security_mode, "complain"))
                 allow = 1;
