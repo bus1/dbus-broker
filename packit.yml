@@ -22,7 +22,7 @@ actions:
     # Drop "sources" so rebase-helper does not treat this as dist-git
     - rm -fv ".dist-git/sources"
     # Drop backported patches
-    - sed -ri '/^Patch.*\\:.+\\.patch/d' ".dist-git/dbus-broker.spec"
+    - sed -ri '/^Patch.*\:.+\.patch$/d' ".dist-git/dbus-broker.spec"
 
   create-archive:
     # Override `git archive`, since we use subprojects.
