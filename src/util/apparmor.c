@@ -463,7 +463,7 @@ int bus_apparmor_check_send(
         _c_cleanup_(c_freep) char *sender_context_dup = NULL;
         _c_cleanup_(c_freep) char *receiver_context_dup = NULL;
         struct Address sender_addr;
-        const char *op = NULL;
+        const char *op = NULL, *sender_name = NULL;
         char *sender_security_label, *sender_security_mode;
         char *receiver_security_label, *receiver_security_mode;
         int r, src_allow = false, src_audit = true, dst_allow = false, dst_audit = true;
@@ -472,6 +472,7 @@ int bus_apparmor_check_send(
                 return 0;
 
         address_init_from_id(&sender_addr, sender_id);
+        sender_name = address_to_string(&sender_addr);
 
         /*
          * dbus-daemon(1) uses this fallback, so we follow suit.
@@ -519,7 +520,7 @@ int bus_apparmor_check_send(
                         receiver_security_label,
                         registry->bustype,
                         sender_security_label,
-                        address_to_string(&sender_addr),
+                        sender_name,
                         path,
                         interface,
                         method,
@@ -563,6 +564,7 @@ int bus_apparmor_check_send(
                         " interface=\"%s\""
                         " member=\"%s\""
                         " mask=\"send\""
+                        " name=\"%s\""
                         " label=\"%s\""
                         " peer_label=\"%s\"",
                         src_allow ? "ALLOWED" : "DENIED",
@@ -571,6 +573,7 @@ int bus_apparmor_check_send(
                         path ?: "",
                         interface ?: "",
                         method ?: "",
+                        destination,
                         sender_security_label,
                         receiver_security_label
                 );
@@ -589,6 +592,7 @@ int bus_apparmor_check_send(
                         " interface=\"%s\""
                         " member=\"%s\""
                         " mask=\"receive\""
+                        " name=\"%s\""
                         " label=\"%s\""
                         " peer_label=\"%s\"",
                         dst_allow ? "ALLOWED" : "DENIED",
@@ -597,6 +601,7 @@ int bus_apparmor_check_send(
                         path ?: "",
                         interface ?: "",
                         method ?: "",
+                        sender_name,
                         receiver_security_label,
                         sender_security_label
                 );
