@@ -320,7 +320,7 @@ static int policy_import_connect(Policy *policy, ConfigNode *cnode) {
 
                 c_list_link_tail(&node->entries.connect_list, &record->link);
         } else if (cnode->allow_deny.group && cnode->allow_deny.gid != (uint32_t)-1) {
-                r = policy_at_gid(policy, &node, cnode->allow_deny.uid);
+                r = policy_at_gid(policy, &node, cnode->allow_deny.gid);
                 if (r)
                         return error_trace(r);
 

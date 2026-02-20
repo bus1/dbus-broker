@@ -216,7 +216,7 @@ static bool log_alloc(Log *log) {
         void *p;
         int r;
 
-        if (log->error)
+        if (log->error || log->truncated)
                 return false;
         if (log->map != MAP_FAILED)
                 return true;
@@ -333,6 +333,11 @@ static int log_stream_send(Log *log) {
          * suitably sized log messages are used.
          */
 
+        if (log->truncated) {
+                log_warn = true;
+                goto out;
+        }
+
         if (log->lossy) {
                 if (log->n_dropped) {
                         r = ioctl(log->log_fd, SIOCOUTQ, &v);
@@ -357,15 +362,15 @@ static int log_stream_send(Log *log) {
                 blob += l;
                 n_blob -= l;
 
-                if (!log->n_dropped++)
-                        log_warn = true;
+                log_warn = true;
         }
 
         r = log_loop_send(log->log_fd, blob, n_blob);
         if (r)
                 return error_trace(r);
 
-        if (log_warn) {
+out:
+        if (log_warn && !log->n_dropped++) {
                 r = log_loop_send(log->log_fd,
                                   LOG_WARNING_DROPPED,
                                   strlen(LOG_WARNING_DROPPED));
@@ -380,6 +385,9 @@ static int log_journal_send(Log *log) {
         _c_cleanup_(c_closep) int mfd = -1;
         ssize_t l;
         int r;
+
+        if (log->truncated)
+                goto out_drop;
 
         l = send(log->log_fd,
                  log->map,
@@ -558,6 +566,7 @@ int log_vcommitf(Log *log, const char *format, va_list args) {
                 break;
         }
 
+        log->truncated = 0;
         log->error = 0;
         log->level = 0;
         log->offset = 0;
@@ -581,7 +590,7 @@ void log_append(Log *log, const void *data, size_t n_data) {
                 return;
 
         if (log->map_size - log->offset < n_data) {
-                log->error = LOG_E_TRUNCATED;
+                log->truncated = true;
                 return;
         }
 
@@ -609,7 +618,7 @@ void log_vappendf(Log *log, const char *format, va_list args) {
                       format,
                       args);
         if (r < 0 || r >= (ssize_t)(log->map_size - log->offset)) {
-                log->error = LOG_E_TRUNCATED;
+                log->truncated = true;
                 return;
         }
 
