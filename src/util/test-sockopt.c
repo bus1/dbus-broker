@@ -28,7 +28,11 @@ static void create_server(int fd) {
         struct sockaddr_un address = { .sun_family = AF_UNIX };
         int r;
 
-        r = bind(fd, &address, offsetof(struct sockaddr_un, sun_path));
+        r = bind(
+                fd,
+                (const struct sockaddr *)&address,
+                offsetof(struct sockaddr_un, sun_path)
+        );
         c_assert(r >= 0);
 
         r = listen(fd, 256);
@@ -46,7 +50,11 @@ static void create_client(
         fd = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
         c_assert(fd >= 0);
 
-        r = connect(fd, address, n_address);
+        r = connect(
+                fd,
+                (const struct sockaddr *)address,
+                n_address
+        );
         c_assert(r >= 0);
 
         *fdp = fd;
@@ -169,7 +177,11 @@ static void test_peerpidfd(void) {
         c_assert(l == 1 && c == '!');
 
         n_address = sizeof(address);
-        r = getsockname(fd_server, &address, &n_address);
+        r = getsockname(
+                fd_server,
+                (struct sockaddr *)&address,
+                &n_address
+        );
         c_assert(r >= 0);
 
         /*
