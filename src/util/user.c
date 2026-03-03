@@ -82,6 +82,27 @@ static UserUsage *user_usage_unref(UserUsage *usage) {
 
 C_DEFINE_CLEANUP(UserUsage *, user_usage_unref);
 
+static int user_override_compare(CRBTree *tree, void *k, CRBNode *rb) {
+        UserQuotaOverride *override = c_container_of(rb, UserQuotaOverride, registry_node);
+        uid_t uid = *(uid_t *)k;
+
+        if (uid < override->uid)
+                return -1;
+        if (uid > override->uid)
+                return 1;
+
+        return 0;
+}
+
+static UserQuotaOverride *user_registry_find_override(UserRegistry *registry, uid_t uid) {
+        CRBNode *node = c_rbtree_find_node(&registry->override_tree, user_override_compare, &uid);
+
+        if (!node)
+                return NULL;
+
+        return c_container_of(node, UserQuotaOverride, registry_node);
+}
+
 static int user_usage_compare(CRBTree *tree, void *k, CRBNode *rb) {
         UserUsage *usage = c_container_of(rb, UserUsage, user_node);
         uid_t uid = *(uid_t*)k;
@@ -167,6 +188,7 @@ static void user_unlink(User *user) {
 }
 
 static int user_new(User **userp, UserRegistry *registry, uid_t uid) {
+        UserQuotaOverride *override;
         User *user;
         size_t i;
 
@@ -180,8 +202,9 @@ static int user_new(User **userp, UserRegistry *registry, uid_t uid) {
         user->registry_node = (CRBNode)C_RBNODE_INIT(user->registry_node);
         user->usage_tree = (CRBTree)C_RBTREE_INIT;
 
+        override = user_registry_find_override(registry, uid);
         for (i = 0; i < registry->n_slots; ++i) {
-                user->slots[i].max = registry->maxima[i];
+                user->slots[i].max = override ? override->maxima[i] : registry->maxima[i];
                 user->slots[i].n = user->slots[i].max;
         }
 
@@ -403,7 +426,12 @@ int user_registry_init(UserRegistry *registry,
  * have been destroyed before the registry is deinitialized.
  */
 void user_registry_deinit(UserRegistry *registry) {
+        UserQuotaOverride *override, *override_safe;
+
         c_assert(c_rbtree_is_empty(&registry->user_tree));
+
+        c_rbtree_for_each_entry_safe_postorder_unlink(override, override_safe, &registry->override_tree, registry_node)
+                free(override);
 
         free(registry->maxima);
         *registry = (UserRegistry)USER_REGISTRY_NULL;
@@ -438,5 +466,72 @@ int user_registry_ref_user(UserRegistry *registry, User **userp, uid_t uid) {
         }
 
         *userp = user;
+        return 0;
+}
+
+/**
+ * user_registry_set_user_limits() - set per-UID quota overrides
+ * @registry:           registry to operate on
+ * @uid:                uid of user to set limits for
+ * @maxima:             new maxima for each accounting slot
+ *
+ * This stores per-UID quota overrides in the registry. The override is applied
+ * when a new user object is created for @uid. If a user object for @uid already
+ * exists, its limits are updated immediately: the remaining quota is adjusted
+ * by the same delta as the maximum, preserving any resources already consumed.
+ * If the new maximum is less than the amount already consumed, the maximum is
+ * clamped to the consumed amount so the accounting invariant is maintained.
+ *
+ * Return: 0 on success, negative error code on failure.
+ */
+int user_registry_set_user_limits(UserRegistry *registry, uid_t uid, const unsigned int *maxima) {
+        UserQuotaOverride *override;
+        CRBNode **slot, *parent;
+        User *user;
+        size_t i;
+
+        slot = c_rbtree_find_slot(&registry->override_tree, user_override_compare, &uid, &parent);
+        if (slot) {
+                override = calloc(1, sizeof(*override) + registry->n_slots * sizeof(*override->maxima));
+                if (!override)
+                        return error_origin(-ENOMEM);
+
+                override->uid = uid;
+                override->registry_node = (CRBNode)C_RBNODE_INIT(override->registry_node);
+                c_rbtree_add(&registry->override_tree, parent, slot, &override->registry_node);
+        } else {
+                override = c_container_of(parent, UserQuotaOverride, registry_node);
+        }
+
+        c_memcpy(override->maxima, maxima, registry->n_slots * sizeof(*override->maxima));
+
+        /* If the user already exists, update their limits immediately. */
+        {
+                CRBNode *unode = c_rbtree_find_node(&registry->user_tree, user_compare, &uid);
+
+                if (unode) {
+                        user = c_container_of(unode, User, registry_node);
+
+                        for (i = 0; i < registry->n_slots; ++i) {
+                                unsigned int old_max = user->slots[i].max;
+                                unsigned int old_n = user->slots[i].n;
+                                unsigned int consumed = old_max - old_n;
+                                unsigned int new_max = maxima[i];
+
+                                /*
+                                 * Clamp new_max to consumed to maintain the
+                                 * invariant that n == max when all resources
+                                 * are released (i.e., n == max - consumed
+                                 * once all charges are freed).
+                                 */
+                                if (new_max < consumed)
+                                        new_max = consumed;
+
+                                user->slots[i].max = new_max;
+                                user->slots[i].n = new_max - consumed;
+                        }
+                }
+        }
+
         return 0;
 }

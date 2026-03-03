@@ -14,6 +14,7 @@ typedef struct Log Log;
 typedef struct UserCharge UserCharge;
 typedef struct UserUsage UserUsage;
 typedef struct User User;
+typedef struct UserQuotaOverride UserQuotaOverride;
 typedef struct UserRegistry UserRegistry;
 
 /* XXX: move this to some global broker header file */
@@ -93,22 +94,33 @@ struct User {
 void user_free(_Atomic unsigned long *n_refs, void *userdata);
 int user_charge(User *user, UserCharge *charge, User *actor, size_t slot, unsigned int amount);
 
+/* quota override */
+
+struct UserQuotaOverride {
+        uid_t uid;
+        CRBNode registry_node;
+        unsigned int maxima[];
+};
+
 /* registry */
 
 struct UserRegistry {
         Log *log;
         CRBTree user_tree;
+        CRBTree override_tree;
         size_t n_slots;
         unsigned int *maxima;
 };
 
 #define USER_REGISTRY_NULL {                                                    \
                 .user_tree = C_RBTREE_INIT,                                     \
+                .override_tree = C_RBTREE_INIT,                                 \
         }
 
 int user_registry_init(UserRegistry *registry, Log *log, size_t n_slots, const unsigned int *maxima);
 void user_registry_deinit(UserRegistry *registry);
 int user_registry_ref_user(UserRegistry *registry, User **userp, uid_t uid);
+int user_registry_set_user_limits(UserRegistry *registry, uid_t uid, const unsigned int *maxima);
 
 /* inline helpers */
 

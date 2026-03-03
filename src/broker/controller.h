@@ -174,6 +174,12 @@ int controller_add_metrics(Controller *controller,
                            ControllerMetrics **metricsp,
                            const char *path,
                            int metrics_fd);
+int controller_set_user_quota(Controller *controller,
+                              uid_t uid,
+                              unsigned int max_bytes,
+                              unsigned int max_fds,
+                              unsigned int max_matches,
+                              unsigned int max_objects);
 int controller_request_reload(Controller *controller,
                               User *user,
                               uint64_t sender_id,
