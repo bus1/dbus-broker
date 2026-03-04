@@ -34,6 +34,7 @@ static const char *test_type2str[_CONFIG_NODE_N] = {
         [CONFIG_NODE_ALLOW]             = "allow",
         [CONFIG_NODE_DENY]              = "deny",
         [CONFIG_NODE_ASSOCIATE]         = "associate",
+        [CONFIG_NODE_USER_QUOTA]        = "user_quota",
 };
 
 static int config_memfd(const char *data) {
@@ -144,6 +145,82 @@ static void test_config_sample1(void) {
         c_assert(r == CONFIG_E_INVALID);
 }
 
+static void test_config_user_quota(void) {
+        _c_cleanup_(config_root_freep) ConfigRoot *root = NULL;
+        ConfigNode *node;
+        const char *data;
+        bool found_quota = false;
+        int r;
+
+        /* Valid user_quota element for root (uid 0, always resolvable). */
+        data =
+"<?xml version=\"1.0\"?>\
+<busconfig>\
+  <user_quota user=\"root\" max_bytes=\"10485760\" max_fds=\"256\" max_matches=\"2048\" max_objects=\"4096\"/>\
+</busconfig>";
+
+        r = parse_config_inline(&root, data);
+        c_assert(!r);
+
+        c_list_for_each_entry(node, &root->node_list, root_link) {
+                if (node->type != CONFIG_NODE_USER_QUOTA)
+                        continue;
+
+                /* root UID is always 0 and resolvable */
+                c_assert(node->user_quota.uid_valid);
+                c_assert(node->user_quota.uid == 0);
+                c_assert(node->user_quota.max_bytes == 10485760);
+                c_assert(node->user_quota.max_fds == 256);
+                c_assert(node->user_quota.max_matches == 2048);
+                c_assert(node->user_quota.max_objects == 4096);
+                found_quota = true;
+        }
+
+        c_assert(found_quota);
+        config_root_free(root);
+        root = NULL;
+
+        /* Multiple user_quota elements are all collected. */
+        data =
+"<?xml version=\"1.0\"?>\
+<busconfig>\
+  <user_quota user=\"root\" max_bytes=\"1024\" max_fds=\"16\" max_matches=\"128\" max_objects=\"256\"/>\
+  <user_quota user=\"root\" max_bytes=\"2048\" max_fds=\"32\" max_matches=\"256\" max_objects=\"512\"/>\
+</busconfig>";
+
+        r = parse_config_inline(&root, data);
+        c_assert(!r);
+
+        {
+                unsigned int n_quota = 0;
+                c_list_for_each_entry(node, &root->node_list, root_link) {
+                        if (node->type == CONFIG_NODE_USER_QUOTA)
+                                ++n_quota;
+                }
+                c_assert(n_quota == 2);
+        }
+
+        config_root_free(root);
+        root = NULL;
+
+        /* Unknown user resolves with uid_valid=false but does not fail the parse. */
+        data =
+"<?xml version=\"1.0\"?>\
+<busconfig>\
+  <user_quota user=\"no-such-user-xyz\" max_bytes=\"1024\" max_fds=\"16\" max_matches=\"128\" max_objects=\"256\"/>\
+</busconfig>";
+
+        r = parse_config_inline(&root, data);
+        c_assert(!r);
+
+        c_list_for_each_entry(node, &root->node_list, root_link) {
+                if (node->type != CONFIG_NODE_USER_QUOTA)
+                        continue;
+
+                c_assert(!node->user_quota.uid_valid);
+        }
+}
+
 int main(int argc, char **argv) {
         if (argc > 1) {
                 print_config(argv[1]);
@@ -153,6 +230,7 @@ int main(int argc, char **argv) {
         test_config_base();
         test_config_sample0();
         test_config_sample1();
+        test_config_user_quota();
 
         return 0;
 }
