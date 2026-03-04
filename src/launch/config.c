@@ -428,6 +428,50 @@ static int config_parser_attrs_apparmor(ConfigState *state, ConfigNode *node, co
         return 0;
 }
 
+static int config_parser_attrs_user_quota(ConfigState *state, ConfigNode *node, const XML_Char **attrs) {
+        const char *k, *v;
+        int r;
+
+        while (*attrs) {
+                k = *(attrs++);
+                v = *(attrs++);
+
+                if (!strcmp(k, "user")) {
+                        r = nss_cache_get_uid(state->nss, &node->user_quota.uid, NULL, v);
+                        if (r) {
+                                if (r == NSS_CACHE_E_INVALID_NAME) {
+                                        CONFIG_ERR(state, "Invalid user-name", ": %s=\"%s\"", k, v);
+                                        node->user_quota.uid_valid = false;
+                                } else {
+                                        return error_fold(r);
+                                }
+                        } else {
+                                node->user_quota.uid_valid = true;
+                        }
+                } else if (!strcmp(k, "max_bytes")) {
+                        r = util_strtou64(&node->user_quota.max_bytes, v);
+                        if (r)
+                                CONFIG_ERR(state, "Invalid value", ": %s=\"%s\"", k, v);
+                } else if (!strcmp(k, "max_fds")) {
+                        r = util_strtou64(&node->user_quota.max_fds, v);
+                        if (r)
+                                CONFIG_ERR(state, "Invalid value", ": %s=\"%s\"", k, v);
+                } else if (!strcmp(k, "max_matches")) {
+                        r = util_strtou64(&node->user_quota.max_matches, v);
+                        if (r)
+                                CONFIG_ERR(state, "Invalid value", ": %s=\"%s\"", k, v);
+                } else if (!strcmp(k, "max_objects")) {
+                        r = util_strtou64(&node->user_quota.max_objects, v);
+                        if (r)
+                                CONFIG_ERR(state, "Invalid value", ": %s=\"%s\"", k, v);
+                } else {
+                        CONFIG_ERR(state, "Unknown attribute", ": %s=\"%s\"", k, v);
+                }
+        }
+
+        return 0;
+}
+
 static int config_parser_attrs_allow_deny(ConfigState *state, ConfigNode *node, const XML_Char **attrs) {
         const char *k, *v;
         char *t;
@@ -943,6 +987,19 @@ static void config_parser_begin_fn(void *userdata, const XML_Char *name, const X
                 if (r)
                         goto failed;
 
+        } else if (!strcmp(name, "user_quota")) {
+
+                if (state->current->type != CONFIG_NODE_BUSCONFIG)
+                        goto failed;
+
+                r = config_node_new(&node, state->current, CONFIG_NODE_USER_QUOTA);
+                if (r)
+                        goto failed;
+
+                r = config_parser_attrs_user_quota(state, node, attrs);
+                if (r)
+                        goto failed;
+
         } else if (!strcmp(name, "allow")) {
 
                 if (state->current->type != CONFIG_NODE_POLICY)
@@ -1186,6 +1243,7 @@ static void config_parser_end_fn(void *userdata, const XML_Char *name) {
         case CONFIG_NODE_ALLOW:
         case CONFIG_NODE_DENY:
         case CONFIG_NODE_ASSOCIATE:
+        case CONFIG_NODE_USER_QUOTA:
                 /* fallthrough */
         default:
                 if (state->current->cdata &&

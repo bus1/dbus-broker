@@ -169,6 +169,18 @@ the broker. See the section below for a list of interfaces on the controller.
 |         # standard.
 |         **method** AddMetrics(**o** *path*, **h** *socket*) -> ()
 |
+|         # Override the per-user resource quota for the user identified by
+|         # @uid. The four limits replace the global defaults:
+|         # @max_bytes: maximum bytes the user may have queued
+|         # @max_fds: maximum file descriptors the user may have queued
+|         # @max_matches: maximum match rules the user may install
+|         # @max_objects: maximum total kernel objects (names, peers, etc.)
+|         # the user may own.  The override is applied immediately to any
+|         # already-connected peers of that user and persists for newly
+|         # connecting peers.  Passing UINT32_MAX for a limit resets it to
+|         # the global default.
+|         **method** SetUserQuota(**u** *uid*, **u** *max_bytes*, **u** *max_fds*, **u** *max_matches*, **u** *max_objects*) -> ()
+|
 |         # This signal is raised according to client-requests of
 |         # **org.freedesktop.DBus.UpdateActivationEnvironment()**.
 |         **signal** SetActivationEnvironment(**a{ss}** *environment*)

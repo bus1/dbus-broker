@@ -425,6 +425,32 @@ int controller_add_metrics(Controller *controller,
 }
 
 /**
+ * controller_set_user_quota() - set per-UID quota overrides
+ * @controller:         controller to operate on
+ * @uid:                uid of user to set limits for
+ * @max_bytes:          maximum bytes quota for the user
+ * @max_fds:            maximum file descriptors quota for the user
+ * @max_matches:        maximum match rules quota for the user
+ * @max_objects:        maximum objects quota for the user
+ *
+ * This sets per-UID quota overrides for the specified user. The new limits
+ * apply immediately if the user already exists, and are used when the user
+ * first connects if they do not yet exist.
+ *
+ * Return: 0 on success, error code on failure.
+ */
+int controller_set_user_quota(Controller *controller,
+                              uid_t uid,
+                              unsigned int max_bytes,
+                              unsigned int max_fds,
+                              unsigned int max_matches,
+                              unsigned int max_objects) {
+        unsigned int maxima[] = { max_bytes, max_fds, max_matches, max_objects };
+
+        return error_fold(user_registry_set_user_limits(&controller->broker->bus.users, uid, maxima));
+}
+
+/**
  * controller_request_reload() - XXX
  */
 int controller_request_reload(Controller *controller,
