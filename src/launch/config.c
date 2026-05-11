@@ -1328,6 +1328,13 @@ static int config_parser_include(ConfigParser *parser, ConfigRoot *root, ConfigN
 
                 r = XML_Parse(parser->xml, buffer, len, len ? XML_FALSE : XML_TRUE);
                 if (r != XML_STATUS_OK) {
+                        // Ignore empty configurations to avoid breaking the upgrade path
+                        // https://github.com/bus1/dbus-broker/issues/404
+                        if (XML_GetErrorCode(parser->xml) == XML_ERROR_NO_ELEMENTS) {
+                            CONFIG_ERR(&parser->state, "Ignoring invalid but empty configuration", ": %s",
+                                       XML_ErrorString(XML_GetErrorCode(parser->xml)));
+                            return 0;
+                        }
                         CONFIG_ERR(&parser->state, "Invalid XML", ": %s",
                                    XML_ErrorString(XML_GetErrorCode(parser->xml)));
                         return CONFIG_E_INVALID;
