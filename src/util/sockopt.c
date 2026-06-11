@@ -240,6 +240,8 @@ int sockopt_get_peerpidfd(int fd, int *pidfdp) {
                         return SOCKOPT_E_UNAVAILABLE;
                 if (errno == EINVAL || errno == ESRCH)
                         return SOCKOPT_E_REAPED;
+                if (errno == EMFILE || errno == ENFILE)
+                        return SOCKOPT_E_UNAVAILABLE;
 
                 return error_origin(-errno);
         }

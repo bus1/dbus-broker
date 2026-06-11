@@ -4,7 +4,9 @@
 
 #undef NDEBUG
 #include <c-stdaux.h>
+#include <fcntl.h>
 #include <stdlib.h>
+#include <sys/resource.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <sys/un.h>
@@ -216,7 +218,68 @@ static void test_peerpidfd(void) {
         wait_and_verify(pid_client);
 }
 
+static void test_peerpidfd_fd_exhaustion_child(void) {
+        _c_cleanup_(c_closep) int fd0 = -1, fd1 = -1, pidfd = -1;
+        int fillers[64], sockets[2];
+        struct rlimit rl;
+        size_t i;
+        int r;
+
+        for (i = 0; i < C_ARRAY_SIZE(fillers); ++i)
+                fillers[i] = -1;
+
+        r = socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, sockets);
+        c_assert(r >= 0);
+        fd0 = sockets[0];
+        fd1 = sockets[1];
+
+        /* Skip on kernels or socket types without SO_PEERPIDFD support. */
+        r = sockopt_get_peerpidfd(fd0, &pidfd);
+        if (r == SOCKOPT_E_UNSUPPORTED ||
+            r == SOCKOPT_E_UNAVAILABLE ||
+            r == SOCKOPT_E_REAPED)
+                return;
+
+        c_assert(!r);
+        c_assert(pidfd >= 0);
+        pidfd = c_close(pidfd);
+
+        r = getrlimit(RLIMIT_NOFILE, &rl);
+        c_assert(r >= 0);
+        rl.rlim_cur = 32;
+        r = setrlimit(RLIMIT_NOFILE, &rl);
+        c_assert(r >= 0);
+
+        for (i = 0; i < C_ARRAY_SIZE(fillers); ++i) {
+                fillers[i] = open("/dev/null", O_RDONLY | O_CLOEXEC);
+                if (fillers[i] < 0) {
+                        c_assert(errno == EMFILE);
+                        break;
+                }
+        }
+        c_assert(i < C_ARRAY_SIZE(fillers));
+
+        r = sockopt_get_peerpidfd(fd0, &pidfd);
+        c_assert(r == SOCKOPT_E_UNAVAILABLE);
+        c_assert(pidfd < 0);
+}
+
+
+static void test_peerpidfd_fd_exhaustion(void) {
+        pid_t pid;
+
+        pid = fork();
+        c_assert(pid >= 0);
+        if (!pid) {
+                test_peerpidfd_fd_exhaustion_child();
+                _exit(0);
+        }
+
+        wait_and_verify(pid);
+}
+
 int main(int argc, char **argv) {
         test_peerpidfd();
+        test_peerpidfd_fd_exhaustion();
         return 0;
 }
