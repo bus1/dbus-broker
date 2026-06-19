@@ -183,8 +183,15 @@ static int bus_apparmor_log(
                 return error_origin(-errno);
 
         r = util_audit_log(UTIL_AUDIT_TYPE_AVC, message, uid);
-        if (r != UTIL_AUDIT_E_UNAVAILABLE) // XXX: use a log fallback
+        if (r != UTIL_AUDIT_E_UNAVAILABLE)
                 return error_fold(r);
+
+        if (registry->log) {
+                log_append_here(registry->log, LOG_NOTICE, 0, NULL);
+                r = log_commitf(registry->log, "%s", message);
+                if (r)
+                        return error_fold(r);
+        }
 
         return 0;
 }
