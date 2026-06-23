@@ -404,7 +404,7 @@ static int policy_registry_node_new(PolicyRegistryNode **nodep, uint32_t uidgid_
 /**
  * policy_registry_new() - XXX
  */
-int policy_registry_new(PolicyRegistry **registryp, const char *fallback_seclabel) {
+int policy_registry_new(PolicyRegistry **registryp, Log *log, const char *fallback_seclabel) {
         _c_cleanup_(policy_registry_freep) PolicyRegistry *registry = NULL;
         int r;
 
@@ -414,7 +414,7 @@ int policy_registry_new(PolicyRegistry **registryp, const char *fallback_seclabe
 
         *registry = (PolicyRegistry)POLICY_REGISTRY_NULL;
 
-        r = bus_apparmor_registry_new(&registry->apparmor, fallback_seclabel);
+        r = bus_apparmor_registry_new(&registry->apparmor, log, fallback_seclabel);
         if (r)
                 return error_fold(r);
 

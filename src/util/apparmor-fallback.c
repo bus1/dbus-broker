@@ -40,7 +40,7 @@ int bus_apparmor_dbus_supported(bool *supportedp) {
         return 0;
 }
 
-int bus_apparmor_registry_new(BusAppArmorRegistry **registryp, const char *fallback_context) {
+int bus_apparmor_registry_new(BusAppArmorRegistry **registryp, Log *log, const char *fallback_context) {
         *registryp = NULL;
         return 0;
 }
