@@ -241,7 +241,7 @@ static int controller_method_add_listener(Controller *controller, const char *_p
         uint32_t fd_index;
         socklen_t n;
 
-        r = policy_registry_new(&policy, controller->broker->bus.seclabel);
+        r = policy_registry_new(&policy, controller->broker->log, controller->broker->bus.seclabel);
         if (r)
                 return error_fold(r);
 
@@ -399,7 +399,7 @@ static int controller_method_listener_set_policy(Controller *controller, const c
         ControllerListener *listener;
         int r;
 
-        r = policy_registry_new(&policy, controller->broker->bus.seclabel);
+        r = policy_registry_new(&policy, controller->broker->log, controller->broker->bus.seclabel);
         if (r)
                 return error_fold(r);
 

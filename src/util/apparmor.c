@@ -15,11 +15,13 @@
 #include "util/apparmor.h"
 #include "util/audit.h"
 #include "util/error.h"
+#include "util/log.h"
 #include "util/ref.h"
 #include "util/string.h"
 
 struct BusAppArmorRegistry {
         _Atomic unsigned long n_refs;
+        Log *log;
         char *bustype;
         char fallback_context[];
 };
@@ -105,11 +107,12 @@ int bus_apparmor_dbus_supported(bool *supportedp) {
 /**
  * bus_apparmor_registry_new() - create a new AppArmor registry
  * @registryp:          output pointer to the new registry
+ * @log:                log context to use for audit fallback messages
  * @fallback_context:   fallback security context for queries against this registry
  *
  * Return: 0 on success, or a negative error code on failure.
  */
-int bus_apparmor_registry_new(BusAppArmorRegistry **registryp, const char *fallback_context) {
+int bus_apparmor_registry_new(BusAppArmorRegistry **registryp, Log *log, const char *fallback_context) {
         _c_cleanup_(bus_apparmor_registry_unrefp) BusAppArmorRegistry *registry = NULL;
         size_t n_fallback_context;
 
@@ -119,6 +122,7 @@ int bus_apparmor_registry_new(BusAppArmorRegistry **registryp, const char *fallb
                 return error_origin(-ENOMEM);
 
         registry->n_refs = REF_INIT;
+        registry->log = log;
         strcpy(registry->fallback_context, fallback_context);
 
         *registryp = registry;
