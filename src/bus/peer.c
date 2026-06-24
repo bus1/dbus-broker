@@ -258,7 +258,7 @@ int peer_new_with_fd(Peer **peerp,
         _c_cleanup_(c_freep) char *seclabel = NULL;
         _c_cleanup_(c_closep) int pid_fd = -1;
         CRBNode **slot, *parent;
-        size_t n_seclabel, n_gids = 0;
+        size_t n_fds, n_seclabel, n_gids = 0;
         struct ucred ucred;
         socklen_t socklen = sizeof(ucred);
         int r;
@@ -308,8 +308,9 @@ int peer_new_with_fd(Peer **peerp,
         seclabel = NULL;
         peer->n_seclabel = n_seclabel;
 
+        n_fds = 1 + !!(peer->pid_fd >= 0);
         r = user_charge(peer->user, &peer->charges[0], NULL, USER_SLOT_BYTES, sizeof(Peer));
-        r = r ?: user_charge(peer->user, &peer->charges[1], NULL, USER_SLOT_FDS, 1);
+        r = r ?: user_charge(peer->user, &peer->charges[1], NULL, USER_SLOT_FDS, n_fds);
         r = r ?: user_charge(peer->user, &peer->charges[2], NULL, USER_SLOT_OBJECTS, 1);
         if (r) {
                 if (r == USER_E_QUOTA)
