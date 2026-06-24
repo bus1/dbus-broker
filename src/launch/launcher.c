@@ -1214,6 +1214,45 @@ static int launcher_set_policy(Launcher *launcher, Policy *policy, uint32_t *sys
         return 0;
 }
 
+static int launcher_set_user_quotas(Launcher *launcher, ConfigRoot *root) {
+        ConfigNode *cnode;
+        int r;
+
+        c_list_for_each_entry(cnode, &root->node_list, root_link) {
+                _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *m = NULL;
+
+                if (cnode->type != CONFIG_NODE_USER_QUOTA)
+                        continue;
+
+                if (!cnode->user_quota.uid_valid)
+                        continue;
+
+                r = sd_bus_message_new_method_call(launcher->bus_controller,
+                                                   &m,
+                                                   NULL,
+                                                   "/org/bus1/DBus/Broker",
+                                                   "org.bus1.DBus.Broker",
+                                                   "SetUserQuota");
+                if (r < 0)
+                        return error_origin(r);
+
+                r = sd_bus_message_append(m, "uuuuu",
+                                          cnode->user_quota.uid,
+                                          util_t2u_saturating(cnode->user_quota.max_bytes),
+                                          util_t2u_saturating(cnode->user_quota.max_fds),
+                                          util_t2u_saturating(cnode->user_quota.max_matches),
+                                          util_t2u_saturating(cnode->user_quota.max_objects));
+                if (r < 0)
+                        return error_origin(r);
+
+                r = sd_bus_call(launcher->bus_controller, m, 0, NULL, NULL);
+                if (r < 0)
+                        return error_origin(r);
+        }
+
+        return 0;
+}
+
 static int launcher_apparmor_apply(unsigned int *apparmor_mode) {
         bool enabled, supported;
         int r;
@@ -1305,6 +1344,10 @@ static int launcher_reload_config(Launcher *launcher) {
                 goto out;
 
         r = launcher_set_policy(launcher, &policy, system_console_users, n_system_console_users);
+        if (r)
+                goto out;
+
+        r = launcher_set_user_quotas(launcher, root);
         if (r)
                 goto out;
 
@@ -1470,6 +1513,10 @@ int launcher_run(Launcher *launcher) {
                 return error_trace(r);
 
         r = launcher_add_listener(launcher, &policy, system_console_users, n_system_console_users);
+        if (r)
+                return error_trace(r);
+
+        r = launcher_set_user_quotas(launcher, root);
         if (r)
                 return error_trace(r);
 

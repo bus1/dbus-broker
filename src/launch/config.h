@@ -51,6 +51,7 @@ enum {
         CONFIG_NODE_ALLOW,
         CONFIG_NODE_DENY,
         CONFIG_NODE_ASSOCIATE,
+        CONFIG_NODE_USER_QUOTA,
 
         _CONFIG_NODE_N,
 };
@@ -165,6 +166,15 @@ struct ConfigNode {
                 struct {
                         unsigned int mode;
                 } apparmor;
+
+                struct {
+                        uint32_t uid;
+                        bool uid_valid : 1;
+                        uint64_t max_bytes;
+                        uint64_t max_fds;
+                        uint64_t max_matches;
+                        uint64_t max_objects;
+                } user_quota;
 
                 struct {
                         char *send_interface;

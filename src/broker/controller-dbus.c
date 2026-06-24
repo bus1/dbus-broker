@@ -86,6 +86,17 @@ static const CDVarType controller_type_in_ohv[] = {
                 )
         )
 };
+static const CDVarType controller_type_in_uuuuu[] = {
+        C_DVAR_T_INIT(
+                C_DVAR_T_TUPLE5(
+                        C_DVAR_T_u,
+                        C_DVAR_T_u,
+                        C_DVAR_T_u,
+                        C_DVAR_T_u,
+                        C_DVAR_T_u
+                )
+        )
+};
 static const CDVarType controller_type_in_osu[] = {
         C_DVAR_T_INIT(
                 C_DVAR_T_TUPLE3(
@@ -459,6 +470,25 @@ static int controller_method_name_reset(Controller *controller, const char *path
         return 0;
 }
 
+static int controller_method_set_user_quota(Controller *controller, const char *_path, CDVar *in_v, FDList *fds, CDVar *out_v) {
+        uint32_t uid, max_bytes, max_fds, max_matches, max_objects;
+        int r;
+
+        c_dvar_read(in_v, "(uuuuu)", &uid, &max_bytes, &max_fds, &max_matches, &max_objects);
+
+        r = controller_end_read(in_v);
+        if (r)
+                return error_trace(r);
+
+        r = controller_set_user_quota(controller, (uid_t)uid, max_bytes, max_fds, max_matches, max_objects);
+        if (r)
+                return error_trace(r);
+
+        c_dvar_write(out_v, "()");
+
+        return 0;
+}
+
 static int controller_handle_method(const ControllerMethod *method, Controller *controller, const char *path, uint32_t serial, const char *signature_in, Message *message_in) {
         _c_cleanup_(c_dvar_deinit) CDVar var_in = C_DVAR_INIT, var_out = C_DVAR_INIT;
         _c_cleanup_(message_unrefp) Message *message_out = NULL;
@@ -527,9 +557,10 @@ static int controller_handle_method(const ControllerMethod *method, Controller *
 
 static int controller_dispatch_controller(Controller *controller, uint32_t serial, const char *method, const char *path, const char *signature, Message *message) {
         static const ControllerMethod methods[] = {
-                { "AddName",            controller_method_add_name,     controller_type_in_osu, controller_type_out_unit },
-                { "AddListener",        controller_method_add_listener, controller_type_in_ohv, controller_type_out_unit },
-                { "AddMetrics",         controller_method_add_metrics,  controller_type_in_oh,  controller_type_out_unit },
+                { "AddName",            controller_method_add_name,             controller_type_in_osu,         controller_type_out_unit },
+                { "AddListener",        controller_method_add_listener,         controller_type_in_ohv,         controller_type_out_unit },
+                { "AddMetrics",         controller_method_add_metrics,          controller_type_in_oh,          controller_type_out_unit },
+                { "SetUserQuota",       controller_method_set_user_quota,       controller_type_in_uuuuu,       controller_type_out_unit },
         };
 
         for (size_t i = 0; i < C_ARRAY_SIZE(methods); i++) {

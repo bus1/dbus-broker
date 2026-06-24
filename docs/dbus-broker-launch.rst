@@ -79,6 +79,35 @@ The selected scope does not have any further effect. It is only needed to
 define the activation environment for loaded service definitions. If no
 activatable services are declared, the scope will have no effect at all.
 
+PER-USER QUOTA OVERRIDES
+========================
+
+By default all users share the same resource quotas (``--max-bytes``,
+``--max-fds``, ``--max-matches``, ``--max-objects``) set globally on the
+broker command-line. Individual users can be granted different limits via the
+``<user_quota>`` element in any drop-in configuration file (e.g. a file under
+``/etc/dbus-1/system.d/``).
+
+Example (place in ``/etc/dbus-1/system.d/monitord.conf``):
+
+.. code-block:: xml
+
+    <busconfig>
+      <user_quota user="monitord"
+                  max_bytes="52428800"
+                  max_fds="512"
+                  max_matches="4096"
+                  max_objects="8192"/>
+    </busconfig>
+
+The ``user`` attribute is a username resolved via NSS. An unresolvable name
+logs a warning and is silently skipped. Omitted limit attributes retain the
+global default. Overrides take effect immediately on the already-connected
+peers of that user without requiring a broker restart. They are re-applied
+automatically whenever the configuration is reloaded, including reloads
+triggered by inotify when a drop-in file in a watched directory is added,
+modified, or removed.
+
 SOCKETS
 =======
 
