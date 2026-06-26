@@ -13,6 +13,7 @@
 typedef struct Activation Activation;
 typedef struct ActivationMessage ActivationMessage;
 typedef struct ActivationRequest ActivationRequest;
+typedef struct Broker Broker;
 typedef struct Bus Bus;
 typedef struct Message Message;
 typedef struct Name Name;
@@ -50,11 +51,14 @@ struct Activation {
         CList activation_messages;
         CList activation_requests;
         uint64_t pending;
+        CList timeout_link;
+        uint64_t deadline;
 };
 
 #define ACTIVATION_NULL(_x) {                                                   \
                 .activation_messages = C_LIST_INIT((_x).activation_messages),   \
                 .activation_requests = C_LIST_INIT((_x).activation_requests),   \
+                .timeout_link = C_LIST_INIT((_x).timeout_link),                 \
         }
 
 /* requests */
@@ -69,6 +73,10 @@ ActivationMessage *activation_message_free(ActivationMessage *message);
 
 int activation_init(Activation *activation, Bus *bus, Name *name, User *user);
 void activation_deinit(Activation *activation);
+
+int activation_timer_init(Broker *broker);
+void activation_timer_deinit(Broker *broker);
+int activation_timeout_disarm(Activation *activation);
 
 void activation_get_stats_for(Activation *activation,
                               uint64_t owner_id,

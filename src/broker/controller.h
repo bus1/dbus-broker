@@ -69,6 +69,7 @@ enum {
         CONTROLLER_NAME_ERROR_STARTUP_FAILURE           = 6,
         CONTROLLER_NAME_ERROR_STARTUP_SKIPPED           = 7,
         CONTROLLER_NAME_ERROR_NAME_RELEASED             = 8,
+        CONTROLLER_NAME_ERROR_ACTIVATION_TIMEOUT        = 9,
         _CONTROLLER_NAME_ERROR_N,
 };
 
@@ -216,6 +217,7 @@ static const char *const controller_name_error_table[_CONTROLLER_NAME_ERROR_N] =
         [CONTROLLER_NAME_ERROR_STARTUP_FAILURE]         = "org.bus1.DBus.Name.Error.StartupFailure",
         [CONTROLLER_NAME_ERROR_STARTUP_SKIPPED]         = "org.bus1.DBus.Name.Error.StartupSkipped",
         [CONTROLLER_NAME_ERROR_NAME_RELEASED]           = "org.bus1.DBus.Name.Error.NameReleased",
+        [CONTROLLER_NAME_ERROR_ACTIVATION_TIMEOUT]      = "org.bus1.DBus.Name.Error.ActivationTimeout",
 };
 
 static const char *const controller_name_error_table_human_readable[_CONTROLLER_NAME_ERROR_N] = {
@@ -227,6 +229,7 @@ static const char *const controller_name_error_table_human_readable[_CONTROLLER_
         [CONTROLLER_NAME_ERROR_STARTUP_FAILURE]         = "startup job failed",
         [CONTROLLER_NAME_ERROR_STARTUP_SKIPPED]         = "startup job skipped",
         [CONTROLLER_NAME_ERROR_NAME_RELEASED]           = "activation request cancelled: bus name was released",
+        [CONTROLLER_NAME_ERROR_ACTIVATION_TIMEOUT]      = "activation request timed out: service did not claim its name in time",
 };
 
 static inline const char *controller_name_error_to_string(unsigned int error) {

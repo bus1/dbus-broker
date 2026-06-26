@@ -4,15 +4,23 @@
 
 #include <c-list.h>
 #include <c-stdaux.h>
+#include <errno.h>
 #include <stdlib.h>
+#include <sys/epoll.h>
+#include <sys/timerfd.h>
+#include <unistd.h>
+#include "broker/broker.h"
 #include "broker/controller.h"
 #include "bus/activation.h"
 #include "bus/bus.h"
+#include "bus/driver.h"
 #include "bus/name.h"
 #include "bus/policy.h"
 #include "dbus/message.h"
+#include "util/dispatch.h"
 #include "util/error.h"
 #include "util/fdlist.h"
+#include "util/nsec.h"
 #include "util/user.h"
 
 ActivationRequest *activation_request_free(ActivationRequest *request) {
@@ -72,6 +80,8 @@ void activation_deinit(Activation *activation) {
         ActivationRequest *request;
         ActivationMessage *message;
 
+        activation_timeout_disarm(activation);
+
         while ((message = c_list_first_entry(&activation->activation_messages, ActivationMessage, link)))
                 activation_message_free(message);
 
@@ -112,6 +122,143 @@ void activation_get_stats_for(Activation *activation,
         *n_fdsp = n_fds;
 }
 
+static int activation_timeout_rearm(Broker *broker) {
+        struct itimerspec spec = {};
+        Activation *head;
+
+        if (broker->activation_timer_fd < 0)
+                return 0;
+
+        /*
+         * Arm the timerfd to the head (oldest/soonest) deadline, or leave the
+         * spec all-zero to disarm it when no activation is pending.
+         */
+        head = c_list_first_entry(&broker->pending_activations, Activation, timeout_link);
+        if (head) {
+                spec.it_value.tv_sec = head->deadline / UINT64_C(1000000000);
+                spec.it_value.tv_nsec = head->deadline % UINT64_C(1000000000);
+        }
+
+        if (timerfd_settime(broker->activation_timer_fd, TFD_TIMER_ABSTIME, &spec, NULL) < 0)
+                return error_origin(-errno);
+
+        return 0;
+}
+
+static int activation_timeout_dispatch(DispatchFile *file) {
+        Broker *broker = c_container_of(file, Broker, activation_timer_file);
+        Bus *bus = &broker->bus;
+        Activation *activation, *activation_safe;
+        uint64_t now, v;
+        ssize_t l;
+        int r;
+
+        c_assert(dispatch_file_events(file) == EPOLLIN);
+
+        /*
+         * The timerfd is edge-triggered, so we must drain it and clear the
+         * cached event, or the dispatcher busy-loops on the ready-list.
+         */
+        l = read(broker->activation_timer_fd, &v, sizeof(v));
+        if (l < 0) {
+                if (errno == EAGAIN) {
+                        dispatch_file_clear(file, EPOLLIN);
+                        return 0;
+                }
+
+                return error_origin(-errno);
+        }
+
+        c_assert(l == sizeof(v));
+        dispatch_file_clear(file, EPOLLIN);
+
+        now = nsec_now(CLOCK_MONOTONIC);
+
+        /*
+         * Walk the FIFO head-first and fail every activation whose deadline has
+         * passed. driver_name_activation_failed() clears `pending`, flushes the
+         * queued requests/messages (releasing their fd/byte charges and closing
+         * fds), and via the disarm hook in driver.c unlinks the node from
+         * `broker->pending_activations` and re-arms the timer to the new head.
+         * Because the timeout is constant, deadlines are sorted, so we can stop
+         * at the first entry that has not yet aged out.
+         */
+        c_list_for_each_entry_safe(activation, activation_safe, &broker->pending_activations, timeout_link) {
+                if (activation->deadline > now)
+                        break;
+
+                r = driver_name_activation_failed(bus, activation, activation->pending,
+                                                  CONTROLLER_NAME_ERROR_ACTIVATION_TIMEOUT);
+                if (r)
+                        return error_fold(r);
+        }
+
+        return 0;
+}
+
+int activation_timer_init(Broker *broker) {
+        int r;
+
+        /* a zero timeout disables the activation timeout entirely */
+        if (!broker->activation_timeout_nsec)
+                return 0;
+
+        /*
+         * A single broker-wide timerfd multiplexes all pending-activation
+         * deadlines. It is created once for the broker's lifetime and wrapped
+         * in a DispatchFile, mirroring the signalfd in broker.c. It is armed
+         * (always to the head/soonest deadline) and disarmed as activations
+         * come and go, so an idle broker never wakes up for it.
+         */
+        broker->activation_timer_fd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC);
+        if (broker->activation_timer_fd < 0)
+                return error_origin(-errno);
+
+        r = dispatch_file_init(&broker->activation_timer_file,
+                               &broker->dispatcher,
+                               activation_timeout_dispatch,
+                               broker->activation_timer_fd,
+                               EPOLLIN,
+                               0);
+        if (r)
+                return error_fold(r);
+
+        dispatch_file_select(&broker->activation_timer_file, EPOLLIN);
+        return 0;
+}
+
+void activation_timer_deinit(Broker *broker) {
+        if (broker->activation_timer_fd < 0)
+                return;
+
+        dispatch_file_deinit(&broker->activation_timer_file);
+        broker->activation_timer_fd = c_close(broker->activation_timer_fd);
+}
+
+static int activation_timeout_arm(Activation *activation) {
+        Broker *broker = BROKER(activation->bus);
+
+        /* timeout disabled: no timerfd was created, nothing to arm */
+        if (broker->activation_timer_fd < 0)
+                return 0;
+
+        /*
+         * Append to the tail. The timeout is constant, so append order ==
+         * deadline order: the head is always the oldest/soonest to expire.
+         */
+        activation->deadline = nsec_now(CLOCK_MONOTONIC) + broker->activation_timeout_nsec;
+        c_list_link_tail(&broker->pending_activations, &activation->timeout_link);
+        return activation_timeout_rearm(broker);
+}
+
+int activation_timeout_disarm(Activation *activation) {
+        if (!c_list_is_linked(&activation->timeout_link))
+                return 0;
+
+        c_list_unlink(&activation->timeout_link);
+        return activation_timeout_rearm(BROKER(activation->bus));
+}
+
 static int activation_request(Activation *activation) {
         int r;
 
@@ -124,6 +271,11 @@ static int activation_request(Activation *activation) {
                 return error_fold(r);
 
         activation->pending = activation->bus->activation_ids;
+
+        r = activation_timeout_arm(activation);
+        if (r)
+                return error_trace(r);
+
         return 0;
 }
 
