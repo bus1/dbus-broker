@@ -121,6 +121,7 @@ int sockopt_get_peergroups(int fd, Log *log, uid_t uid, gid_t primary_gid, gid_t
                                 if (gids[i] != gids[j])
                                         gids[++j] = gids[i];
                         }
+                        n_gids = j + 1;
 
                         if (gidsp) {
                                 *gidsp = gids;
