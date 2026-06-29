@@ -71,66 +71,43 @@ int sockopt_get_peergroups(int fd, Log *log, uid_t uid, gid_t primary_gid, gid_t
         int r, n_gids, i, j;
         void *tmp;
 
-        /*
-         * For compatibility to dbus-daemon(1), we need to know the auxiliary
-         * groups a peer is in. Otherwise, we would be unable to apply group
-         * policies. We use the SO_PEERGROUPS socket option to retrieve this
-         * data alongside the uid+gid we got via SO_PEERCREDS.
-         * SO_PEERGROUPS support was added in:
-         *
-         *     commit 28b5ba2aa0f55d80adb2624564ed2b170c19519e
-         *     Author: David Herrmann <dh.herrmann@gmail.com>
-         *     Commit: David S. Miller <davem@davemloft.net>
-         *     Date:   Wed Jun 21 10:47:15 2017 +0200
-         *
-         *         net: introduce SO_PEERGROUPS getsockopt
-         *
-         * You are highly recommended to run >=linux-4.13.
-         */
-        {
-                n_gids = 8;
-                socklen = n_gids * sizeof(*gids);
+        n_gids = 8;
+        socklen = n_gids * sizeof(*gids);
 
-                gids = malloc(sizeof(*gids) + socklen);
-                if (!gids)
+        gids = malloc(sizeof(*gids) + socklen);
+        if (!gids)
+                return error_origin(-ENOMEM);
+        gids[0] = primary_gid;
+
+        r = getsockopt(fd, SOL_SOCKET, SO_PEERGROUPS, gids + 1, &socklen);
+        if (r < 0 && errno == ERANGE) {
+                tmp = realloc(gids, sizeof(*gids) + socklen);
+                if (!tmp)
                         return error_origin(-ENOMEM);
+                gids = tmp;
                 gids[0] = primary_gid;
 
                 r = getsockopt(fd, SOL_SOCKET, SO_PEERGROUPS, gids + 1, &socklen);
-                if (r < 0 && errno == ERANGE) {
-                        tmp = realloc(gids, sizeof(*gids) + socklen);
-                        if (!tmp)
-                                return error_origin(-ENOMEM);
-                        gids = tmp;
-                        gids[0] = primary_gid;
-
-                        r = getsockopt(fd, SOL_SOCKET, SO_PEERGROUPS, gids + 1, &socklen);
-                }
-                if (r < 0) {
-                        return error_origin(-errno);
-                } else if (r >= 0) {
-                        n_gids = 1 + socklen / sizeof(*gids);
-
-                        /* Sort and deduplicate for deterministic behavior. */
-                        qsort(gids, n_gids, sizeof(*gids), gid_compare);
-                        for (i = 1, j = 0; i < n_gids; ++i) {
-                                if (gids[i] != gids[j])
-                                        gids[++j] = gids[i];
-                        }
-                        n_gids = j + 1;
-
-                        if (gidsp) {
-                                *gidsp = gids;
-                                gids = NULL;
-                        }
-                        if (n_gidsp)
-                                *n_gidsp = n_gids;
-                        return 0;
-                }
-
-                /* fallthrough */
         }
+        if (r < 0)
+                return error_origin(-errno);
 
+        n_gids = 1 + socklen / sizeof(*gids);
+
+        /* Sort and deduplicate for deterministic behavior. */
+        qsort(gids, n_gids, sizeof(*gids), gid_compare);
+        for (i = 1, j = 0; i < n_gids; ++i) {
+                if (gids[i] != gids[j])
+                        gids[++j] = gids[i];
+        }
+        n_gids = j + 1;
+
+        if (gidsp) {
+                *gidsp = gids;
+                gids = NULL;
+        }
+        if (n_gidsp)
+                *n_gidsp = n_gids;
         return 0;
 }
 
