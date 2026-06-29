@@ -1951,7 +1951,7 @@
                   accompany the message.  If omitted, it is assumed
                   that no Unix file descriptors accompany the
                   message. The actual file descriptors need to be
-                  transferred via platform specific mechanism
+                  transferred via a platform specific mechanism
                   out-of-band. They must be sent at the same time as
                   part of the message itself. They may not be sent
                   before the first byte of the message itself is
