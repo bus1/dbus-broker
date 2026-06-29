@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-FileCopyrightText: D-Bus Broker Developers
+
 -- 7fc63312330b479bb32e598d47cef1a8
 Subject: Activation request failed due to missing unit
 Defined-By: dbus-broker

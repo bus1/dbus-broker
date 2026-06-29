@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: D-Bus Broker Developers
+
 //! # Generated Rust Code
 //!
 //! This Rust crate bundles all generated Rust artifacts (mainly from

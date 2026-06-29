@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-FileCopyrightText: D-Bus Broker Developers
 option('apparmor', type: 'boolean', value: false, description: 'AppArmor support')
 option('audit', type: 'boolean', value: false, description: 'Audit support')
 option('docs', type: 'boolean', value: false, description: 'Build documentation')

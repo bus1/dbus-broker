@@ -814,3 +814,8 @@
                             Tom Gundersen
 
         - Tübingen, 2017-08-03
+
+# License
+
+SPDX-License-Identifier: GPL-3.0-or-later
+SPDX-FileCopyrightText: D-Bus Broker Developers
