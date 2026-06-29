@@ -1956,7 +1956,9 @@
                   part of the message itself. They may not be sent
                   before the first byte of the message itself is
                   transferred or after the last byte of the message
-                  itself.
+                  itself. All file descriptors must be sent together
+                  as a single set. Subsequent sets of file descriptors
+                  within a message are to be ignored.
                   This header field is controlled by the message sender.
                   </entry>
                 </row>
