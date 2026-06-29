@@ -1,5 +1,21 @@
 # dbus-broker - Linux D-Bus Message Broker
 
+## CHANGES WITH 38:
+
+    Breaking Changes:
+
+        * Kernel version 4.17 is now a hard requirement. Fallback code for
+          older kernel releases is no longer in place.
+
+        * linux-api-headers-6.5 is now a hard requirement at build time.
+
+        * The project is now distributed under GPL-3.0-or-later (changed from
+          Apache-2.0).
+
+    Other Changes:
+
+        * TBD
+
 ## CHANGES WITH 37:
 
         * Add `/etc` and `/run` to the search-paths for system services. This
