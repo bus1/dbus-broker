@@ -74,5 +74,8 @@ For custom configuration options see meson_options.txt.
 
 ## License
 
-Apache Software License 2.0
+General Public License 3.0 or later
 See AUTHORS for details.
+
+SPDX-License-Identifier: GPL-3.0-or-later
+SPDX-FileCopyrightText: D-Bus Broker Developers
