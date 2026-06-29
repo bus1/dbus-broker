@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-FileCopyrightText: D-Bus Broker Developers
+
 -- 8af3357071af4153af414daae07d38e7
 Subject: Dispatched @DBUS_BROKER_METRICS_DISPATCH_COUNT@ messages
 Defined-By: dbus-broker

@@ -1,3 +1,7 @@
+..
+    SPDX-License-Identifier: GPL-3.0-or-later
+    SPDX-FileCopyrightText: D-Bus Broker Developers
+
 ===========
 dbus-broker
 ===========

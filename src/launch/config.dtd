@@ -1,3 +1,6 @@
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!-- SPDX-FileCopyrightText: D-Bus Broker Developers -->
+
 <!--
   -- This DTD is for documentational purposes only! It defines the allowed
   -- syntax for dbus-daemon(1) XML configuration files. It is not used for

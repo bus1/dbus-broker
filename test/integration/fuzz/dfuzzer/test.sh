@@ -1,5 +1,7 @@
 #!/bin/bash
-# vi: set sw=4 ts=4 et tw=110:
+
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-FileCopyrightText: D-Bus Broker Developers
 
 set -eux
 set -o pipefail
