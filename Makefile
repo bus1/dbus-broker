@@ -40,6 +40,8 @@ help:
 	@echo "    meson-setup:        Reconfigure the Meson setup"
 	@echo "    meson-test:         Run the Meson-based test suite"
 	@echo
+	@echo "    spec-build:         Build the specification as html"
+	@echo
 	@echo "    system-build:       Build system test-image"
 	@echo "    system-run:         Run system test-image"
 
@@ -262,6 +264,21 @@ release-github:
 	@echo "       git push <remote> v${VNEXT}"
 	@echo " * Upload tarball to github via custom release"
 	@echo
+
+#
+# Target: spec-*
+#
+
+$(BUILDDIR)/spec/dbus-specification.html: $(SRCDIR)/src/spec/dbus-specification.xml | $(BUILDDIR)/spec/
+	xsltproc \
+		--nonet \
+		--output "$@" \
+		--xinclude \
+		"/usr/share/xml/docbook/xsl-stylesheets/html/docbook.xsl" \
+		"$<"
+
+.PHONY: spec-build
+spec-build: $(BUILDDIR)/spec/dbus-specification.html
 
 #
 # Target: system-*
