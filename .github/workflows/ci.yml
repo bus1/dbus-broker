@@ -349,6 +349,26 @@ jobs:
       run: meson test -C "./build"
 
   #
+  # Run the REUSE linter to check for licensing and attribution compatibility
+  # and flag any missing annotations.
+  #
+  ext_reuse:
+    name: "Ext: REUSE"
+    needs: ext_guard
+
+    container:
+      image: "ghcr.io/readaheadeu/rae-ci-archlinux:latest"
+      options: "--user root"
+    runs-on: "ubuntu-latest"
+
+    steps:
+    - name: "Fetch Sources"
+      uses: actions/checkout@v4
+
+    - name: "Run Linter"
+      run: reuse lint
+
+  #
   # A release build running through valgrind. We disable all features
   # that currently do not support valgrind runs (in particular sd-bus in
   # the launcher).
