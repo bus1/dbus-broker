@@ -635,14 +635,14 @@ static int socket_recvmsg(Socket *socket,
         }
 
         if (_c_unlikely_(*fdsp && n_fds)) {
-                /* XXX: this is a protocol violation, but for now simply drop the
-                 *      spurios fds as sd-bus is broken and passes us this.
-                 *      This whole conditional should simply be dropped.
+                /*
+                 * If a single message contains more than one set of
+                 * file-descriptors, all but the first set is discarded. Some
+                 * bugs in systemd/sd-bus trigger this, and have not been fixed
+                 * to this day.
                  */
                 while (n_fds)
                         close(fds[--n_fds]);
-
-                fprintf(stderr, "socket: discarded unexpected file descriptors.\n");
         }
 
         if (_c_unlikely_(n_fds)) {
