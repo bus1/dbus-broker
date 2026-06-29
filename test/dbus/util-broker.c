@@ -183,7 +183,7 @@ const sd_bus_vtable util_vtable[] = {
         SD_BUS_VTABLE_END
 };
 
-void util_fork_broker(sd_bus **busp, sd_event *event, int listener_fd, pid_t *pidp) {
+void util_fork_broker(sd_bus **busp, sd_event *event, int listener_fd, pid_t *pidp, bool activatable) {
         _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
         _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *message = NULL;
         _c_cleanup_(c_freep) char *fdstr = NULL;
@@ -216,6 +216,7 @@ void util_fork_broker(sd_bus **busp, sd_event *event, int listener_fd, pid_t *pi
                           "--max-matches", "1000000",
                           "--max-objects", "1000000",
                           "--max-bytes", "1000000000",
+                          "--activation-timeout-ms", "500",
                           (char *)NULL);
                 /* execl(2) only returns on error */
                 c_assert(r >= 0);
@@ -264,6 +265,34 @@ void util_fork_broker(sd_bus **busp, sd_event *event, int listener_fd, pid_t *pi
 
         r = sd_bus_call(bus, message, -1, NULL, NULL);
         c_assert(r >= 0);
+
+        /*
+         * Optionally register an activatable name. The controller stub never
+         * answers the resulting `Activate` signal, so any message sent to this
+         * name stays a pending activation forever -- exactly the scenario the
+         * activation-timeout regression test needs.
+         */
+        if (activatable) {
+                _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *message2 = NULL;
+
+                r = sd_bus_message_new_method_call(bus,
+                                                   &message2,
+                                                   NULL,
+                                                   "/org/bus1/DBus/Broker",
+                                                   "org.bus1.DBus.Broker",
+                                                   "AddName");
+                c_assert(r >= 0);
+
+                r = sd_bus_message_append(message2,
+                                          "osu",
+                                          "/org/bus1/DBus/Name/0",
+                                          UTIL_BROKER_ACTIVATABLE_NAME,
+                                          (uint32_t)0);
+                c_assert(r >= 0);
+
+                r = sd_bus_call(bus, message2, -1, NULL, NULL);
+                c_assert(r >= 0);
+        }
 
         *busp = bus;
         bus = NULL;
@@ -394,7 +423,7 @@ static void *util_broker_thread(void *userdata) {
         c_assert(r >= 0);
 
         if (broker->listener_fd >= 0) {
-                util_fork_broker(&bus, event, broker->listener_fd, &broker->child_pid);
+                util_fork_broker(&bus, event, broker->listener_fd, &broker->child_pid, broker->activatable);
                 /* dbus-broker reports its controller in GetConnectionUnixProcessID */
                 broker->pid = getpid();
                 broker->listener_fd = c_close(broker->listener_fd);

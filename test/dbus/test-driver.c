@@ -4,6 +4,7 @@
 
 #undef NDEBUG
 #include <c-stdaux.h>
+#include <fcntl.h>
 #include <stdlib.h>
 #include "dbus/protocol.h"
 #include "util/proc.h"
@@ -889,6 +890,65 @@ static void test_start_service_by_name(void) {
                                        "su", "org", 0);
                 c_assert(r < 0);
                 c_assert(!strcmp(error.name, "org.freedesktop.DBus.Error.ServiceUnknown"));
+        }
+
+        util_broker_terminate(broker);
+}
+
+static void test_activation_timeout(void) {
+        _c_cleanup_(util_broker_freep) Broker *broker = NULL;
+        int r;
+
+        /*
+         * This test drives the broker's controller stub to register an
+         * activatable name and deliberately never answers its `Activate`
+         * signal. The reference dbus-daemon(1) has no such name, so skip it
+         * when running against the reference implementation.
+         */
+        if (util_is_reference())
+                return;
+
+        util_broker_new(&broker);
+        broker->activatable = true;
+        util_broker_spawn(broker);
+
+        /*
+         * Send an fd-bearing message to an activatable name whose activation
+         * never completes (the controller stub ignores the `Activate` signal).
+         * The message is queued on the pending activation, charging the
+         * activatable user's USER_SLOT_FDS. Once --activation-timeout elapses,
+         * the broker must fail the activation and flush the queued message,
+         * replying with NameHasNoOwner (and releasing the fd charge).
+         */
+        {
+                _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+                _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *m = NULL;
+                _c_cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
+                _c_cleanup_(c_closep) int fd = -1;
+
+                util_broker_connect(broker, &bus);
+
+                fd = open("/dev/null", O_RDONLY | O_CLOEXEC);
+                c_assert(fd >= 0);
+
+                r = sd_bus_message_new_method_call(bus,
+                                                   &m,
+                                                   UTIL_BROKER_ACTIVATABLE_NAME,
+                                                   "/com/example/activatable",
+                                                   "com.example.Activatable",
+                                                   "Foo");
+                c_assert(r >= 0);
+
+                r = sd_bus_message_append(m, "h", fd);
+                c_assert(r >= 0);
+
+                /*
+                 * Blocks until the broker fails the stuck activation after the
+                 * timeout and replies with an error.
+                 */
+                r = sd_bus_call(bus, m, -1, &error, NULL);
+                c_assert(r < 0);
+                c_assert(!strcmp(error.name, "org.freedesktop.DBus.Error.NameHasNoOwner"));
         }
 
         util_broker_terminate(broker);
@@ -2622,6 +2682,7 @@ int main(int argc, char **argv) {
         test_get_name_owner();
         test_name_has_owner();
         test_start_service_by_name();
+        test_activation_timeout();
         test_update_activation_environment();
         test_list_names();
         test_list_activatable_names();

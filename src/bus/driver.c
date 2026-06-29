@@ -784,6 +784,9 @@ int driver_name_activation_failed(Bus *bus, Activation *activation, uint64_t ser
                 return error_origin(-errno);
 
         activation->pending = 0;
+        r = activation_timeout_disarm(activation);
+        if (r)
+                return error_trace(r);
 
         c_list_for_each_entry_safe(request, request_safe, &activation->activation_requests, link) {
                 Peer *sender;
@@ -824,6 +827,9 @@ static int driver_name_activated(Activation *activation, Peer *receiver) {
 
         /* in case the name is dropped again in the future, we should request it again */
         activation->pending = 0;
+        r = activation_timeout_disarm(activation);
+        if (r)
+                return error_trace(r);
 
         c_list_for_each_entry_safe(request, request_safe, &activation->activation_requests, link) {
                 Peer *sender;

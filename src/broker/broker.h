@@ -28,12 +28,17 @@ struct Broker {
         int signals_fd;
         DispatchFile signals_file;
 
+        uint64_t activation_timeout_nsec;
+        CList pending_activations;
+        int activation_timer_fd;
+        DispatchFile activation_timer_file;
+
         Controller controller;
 };
 
 /* broker */
 
-int broker_new(Broker **brokerp, Log *log, const char *machine_id, int controller_fd, uint64_t max_bytes, uint64_t max_fds, uint64_t max_matches, uint64_t max_objects);
+int broker_new(Broker **brokerp, Log *log, const char *machine_id, int controller_fd, uint64_t max_bytes, uint64_t max_fds, uint64_t max_matches, uint64_t max_objects, uint64_t activation_timeout_ms);
 Broker *broker_free(Broker *broker);
 
 int broker_run(Broker *broker);

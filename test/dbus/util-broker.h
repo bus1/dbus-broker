@@ -16,6 +16,9 @@
 
 typedef struct Broker Broker;
 
+/* well-known name the controller stub registers as activatable when requested */
+#define UTIL_BROKER_ACTIVATABLE_NAME "com.example.activatable"
+
 struct Broker {
         pthread_t thread;
         struct sockaddr_un address;
@@ -24,6 +27,7 @@ struct Broker {
         int pipe_fds[2];
         pid_t pid;
         pid_t child_pid;
+        bool activatable;
 };
 
 #define BROKER_NULL {                                                           \
@@ -38,7 +42,7 @@ struct Broker {
 
 bool util_is_reference(void);
 void util_event_new(sd_event **eventp);
-void util_fork_broker(sd_bus **busp, sd_event *event, int listener_fd, pid_t *pidp);
+void util_fork_broker(sd_bus **busp, sd_event *event, int listener_fd, pid_t *pidp, bool activatable);
 void util_fork_daemon(sd_event *event, int pipe_fd, pid_t *pidp);
 
 /* broker */

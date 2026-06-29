@@ -40,7 +40,7 @@ static int broker_dispatch_signals(DispatchFile *file) {
         return DISPATCH_E_EXIT;
 }
 
-int broker_new(Broker **brokerp, Log *log, const char *machine_id, int controller_fd, uint64_t max_bytes, uint64_t max_fds, uint64_t max_matches, uint64_t max_objects) {
+int broker_new(Broker **brokerp, Log *log, const char *machine_id, int controller_fd, uint64_t max_bytes, uint64_t max_fds, uint64_t max_matches, uint64_t max_objects, uint64_t activation_timeout_ms) {
         _c_cleanup_(broker_freep) Broker *broker = NULL;
         struct ucred ucred;
         socklen_t z;
@@ -61,6 +61,10 @@ int broker_new(Broker **brokerp, Log *log, const char *machine_id, int controlle
         broker->dispatcher = (DispatchContext)DISPATCH_CONTEXT_NULL(broker->dispatcher);
         broker->signals_fd = -1;
         broker->signals_file = (DispatchFile)DISPATCH_FILE_NULL(broker->signals_file);
+        broker->activation_timeout_nsec = activation_timeout_ms * UINT64_C(1000000);
+        broker->pending_activations = (CList)C_LIST_INIT(broker->pending_activations);
+        broker->activation_timer_fd = -1;
+        broker->activation_timer_file = (DispatchFile)DISPATCH_FILE_NULL(broker->activation_timer_file);
         broker->controller = (Controller)CONTROLLER_NULL(broker->controller);
 
         r = bus_init(&broker->bus, broker->log, machine_id, max_bytes, max_fds, max_matches, max_objects);
@@ -131,6 +135,10 @@ int broker_new(Broker **brokerp, Log *log, const char *machine_id, int controlle
 
         dispatch_file_select(&broker->signals_file, EPOLLIN);
 
+        r = activation_timer_init(broker);
+        if (r)
+                return error_fold(r);
+
         r = controller_init(&broker->controller, broker, controller_fd);
         if (r)
                 return error_fold(r);
@@ -147,6 +155,7 @@ Broker *broker_free(Broker *broker) {
         controller_deinit(&broker->controller);
         dispatch_file_deinit(&broker->signals_file);
         c_close(broker->signals_fd);
+        activation_timer_deinit(broker);
         dispatch_context_deinit(&broker->dispatcher);
         bus_deinit(&broker->bus);
         free(broker);
