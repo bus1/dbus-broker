@@ -137,17 +137,6 @@ int sockopt_get_peerpidfd(int fd, int *pidfdp) {
         socklen_t socklen = sizeof(int);
         int r, pidfd;
 
-        /* XXX: Drop this once we require `linux-api-headers >= 6.5` */
-#       ifndef SO_PEERPIDFD
-#         if defined(__parisc__)
-#           define SO_PEERPIDFD 0x404B
-#         elif defined(__sparc__)
-#           define SO_PEERPIDFD 0x0056
-#         else
-#           define SO_PEERPIDFD 77
-#         endif
-#       endif
-
         r = getsockopt(fd, SOL_SOCKET, SO_PEERPIDFD, &pidfd, &socklen);
         if (r < 0) {
                 if (errno == ENOPROTOOPT)
