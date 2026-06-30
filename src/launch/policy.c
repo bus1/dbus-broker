@@ -454,13 +454,12 @@ static int policy_import_send(Policy *policy, ConfigNode *cnode) {
         }
 
         if (cnode->allow_deny.eavesdrop == UTIL_TRISTATE_YES) {
-                if (cnode->type == CONFIG_NODE_ALLOW)
+                if (cnode->type == CONFIG_NODE_ALLOW) {
                         /* Ignore the attribute, but keep the rule, it also applies when not eavesdropping. */
-                        fprintf(stderr, "Policy to allow eavesdropping in %s +%lu: Eavesdropping is deprecated and ignored\n",
-                                cnode->file, cnode->lineno);
-                else if (cnode->type == CONFIG_NODE_DENY)
+                } else if (cnode->type == CONFIG_NODE_DENY) {
                         /* The rule applies only when eavesdropping, drop it. */
                         return 0;
+                }
         }
 
         r = policy_record_new_xmit(&record);
@@ -548,13 +547,12 @@ static int policy_import_recv(Policy *policy, ConfigNode *cnode) {
         }
 
         if (cnode->allow_deny.eavesdrop == UTIL_TRISTATE_YES) {
-                if (cnode->type == CONFIG_NODE_ALLOW)
+                if (cnode->type == CONFIG_NODE_ALLOW) {
                         /* Ignore the attribute, but keep the rule, it also applies when not eavesdropping. */
-                        fprintf(stderr, "Policy to allow eavesdropping in %s +%lu: Eavesdropping is deprecated and ignored\n",
-                                cnode->file, cnode->lineno);
-                else if (cnode->type == CONFIG_NODE_DENY)
+                } else if (cnode->type == CONFIG_NODE_DENY) {
                         /* The rule applies only when eavesdropping, drop it. */
                         return 0;
+                }
         }
 
         r = policy_record_new_xmit(&record);
