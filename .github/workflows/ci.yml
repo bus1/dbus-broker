@@ -55,6 +55,7 @@ env:
     -D docs=true
     -D launcher=true
     -D selinux=true
+    -D unstable=true
 
 jobs:
   #
@@ -241,6 +242,7 @@ jobs:
             -D docs=false
             -D launcher=false
             -D selinux=false
+            -D unstable=false
 
         # A reduced build with `-O0` to verify we do not rely on dead-code
         # elimination.
