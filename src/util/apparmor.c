@@ -627,17 +627,18 @@ int bus_apparmor_check_send(
 }
 
 /**
- * bus_apparmor_check_eavesdrop() - check if the given context may eavesdrop
+ * bus_apparmor_check_monitor() - check if the given context may monitor the bus
  * @registry:           AppArmor registry to operate on
- * @context:            security context that wants to eavesdrop
+ * @context:            security context of the subject
  * @uid:                uid of the calling user
  *
- * Check if the given sender context is allowed to do eavesdropping.
+ * Check if the given sender context is allowed to monitor the bus and all its
+ * communication.
  *
- * Return: 0 if the transaction is allowed, BUS_APPARMOR_E_DENIED if it is not,
+ * Return: 0 if the operation is allowed, BUS_APPARMOR_E_DENIED if it is not,
  *         or a negative error code on failure.
  */
-int bus_apparmor_check_eavesdrop(
+int bus_apparmor_check_monitor(
         BusAppArmorRegistry *registry,
         const char *context,
         uid_t uid

@@ -50,7 +50,7 @@ int bus_apparmor_check_send(
         const char *method,
         unsigned int type
 );
-int bus_apparmor_check_eavesdrop(
+int bus_apparmor_check_monitor(
         BusAppArmorRegistry *registry,
         const char *context,
         uid_t uid
