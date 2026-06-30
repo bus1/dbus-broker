@@ -8,6 +8,7 @@
 #include <c-stdaux.h>
 #include <stdlib.h>
 #include "bus/bus.h"
+#include "bus/match.h"
 #include "bus/name.h"
 #include "bus/peer.h"
 #include "catalog/catalog-ids.h"
@@ -15,6 +16,50 @@
 #include "util/error.h"
 #include "util/log.h"
 #include "util/sampler.h"
+
+static void diag_append_match_rule(Log *log, MatchRule *rule) {
+        size_t i;
+
+        log_appendf(
+                log,
+                "DBUS_BROKER_MATCH_RULE_DESTINATION=%s\n"
+                "DBUS_BROKER_MATCH_RULE_SENDER=%s\n"
+                "DBUS_BROKER_MATCH_RULE_PATH_NAMESPACE=%s\n"
+                "DBUS_BROKER_MATCH_RULE_ARG0_NAMESPACE=%s\n"
+                "DBUS_BROKER_MATCH_RULE_TYPE=%"PRIu8"\n"
+                "DBUS_BROKER_MATCH_RULE_SENDER_ID=%"PRIu64"\n"
+                "DBUS_BROKER_MATCH_RULE_INTERFACE=%s\n"
+                "DBUS_BROKER_MATCH_RULE_MEMBER=%s\n"
+                "DBUS_BROKER_MATCH_RULE_PATH=%s\n",
+                rule->keys.destination ?: "",
+                rule->keys.sender ?: "",
+                rule->keys.path_namespace ?: "",
+                rule->keys.arg0namespace ?: "",
+                rule->keys.filter.type,
+                rule->keys.filter.sender,
+                rule->keys.filter.interface ?: "",
+                rule->keys.filter.member ?: "",
+                rule->keys.filter.path ?: ""
+        );
+
+        for (i = 0; i < rule->keys.filter.n_args; ++i) {
+                log_appendf(
+                        log,
+                        "DBUS_BROKER_MATCH_RULE_ARG%zu=%s\n",
+                        i,
+                        rule->keys.filter.args[i] ?: ""
+                );
+        }
+
+        for (i = 0; i < rule->keys.filter.n_argpaths; ++i) {
+                log_appendf(
+                        log,
+                        "DBUS_BROKER_MATCH_RULE_ARG%zu=%s\n",
+                        i,
+                        rule->keys.filter.argpaths[i] ?: ""
+                );
+        }
+}
 
 static void diag_append_message(Log *log, Message *message) {
         log_appendf(
@@ -273,4 +318,38 @@ int diag_dispatch_stats(Bus *bus, LogProvenance prov) {
                 sampler->average / 1000,
                 stddev / 1000
         );
+}
+
+_c_unused_ static int diag_match_without_sender_internal(
+        Peer *peer,
+        MatchRule *rule,
+        LogProvenance prov
+) {
+        diag_append_match_rule(peer->bus->log, rule);
+        log_append_common(
+                peer->bus->log,
+                LOG_INFO,
+                0,
+                NULL,
+                prov
+        );
+        return log_commitf(
+                peer->bus->log,
+                "Match rule without sender-key"
+        );
+}
+
+int diag_match_without_sender(Peer *peer, MatchRule *rule, LogProvenance prov) {
+#ifdef DBUS_BROKER_UNSTABLE
+        // Match rules without sender field require expensive matching on every
+        // message of every client. Furthermore, it hampers decentralization of
+        // bus mechanisms, because those match rules require coordination
+        // and synchronization between all bus clients.
+        // When unstable mode is activated, we explicitly warn about such rules
+        // to better understand the remaining users and work towards a
+        // deprecation.
+        return diag_match_without_sender_internal(peer, rule, prov);
+#else
+        return 0;
+#endif
 }

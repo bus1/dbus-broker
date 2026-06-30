@@ -491,6 +491,9 @@ static int peer_link_match(Peer *peer, MatchRule *rule, bool monitor) {
                 counters = &peer->bus->match_counters;
 
         if (!rule->keys.sender) {
+                r = diag_match_without_sender(peer, rule, LOG_PROVENANCE_HERE);
+                if (r)
+                        return error_fold(r);
                 r = match_rule_link(rule, counters, &peer->bus->wildcard_matches, monitor);
                 if (r)
                         return error_fold(r);
