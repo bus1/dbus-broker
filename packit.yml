@@ -26,6 +26,8 @@ actions:
     - rm -fv ".dist-git/sources"
     # Drop backported patches
     - sed -ri '/^Patch.*\:.+\.patch$/d' ".dist-git/dbus-broker.spec"
+    # Change licensing line
+    - sed -ri 's/^%license LICENSE$/%license LICENSES\/\*/' ".dist-git/dbus-broker.spec"
 
   create-archive:
     # Override `git archive`, since we use subprojects.
