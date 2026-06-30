@@ -168,6 +168,15 @@ use_tests = get_option('tests')
 conf.set('testdir', get_option('prefix') / 'lib/dbus-broker/tests')
 
 #
+# Config: unstable
+#
+
+use_unstable = get_option('unstable')
+if use_unstable
+        add_project_arguments('-DDBUS_BROKER_UNSTABLE=1', language: 'c')
+endif
+
+#
 # Global Parameters
 #
 
