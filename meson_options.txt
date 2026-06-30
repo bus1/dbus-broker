@@ -10,3 +10,4 @@ option('reference-test', type: 'boolean', value: false, description: 'Run test s
 option('selinux', type: 'boolean', value: false, description: 'SELinux support')
 option('system-console-users', type: 'array', value: [], description: 'Additional set of names of system-users to be considered at-console')
 option('tests', type: 'boolean', value: false, description: 'Include tests in the distribution')
+option('unstable', type: 'boolean', value: false, description: 'Enable unstable features')
