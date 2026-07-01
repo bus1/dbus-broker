@@ -368,18 +368,23 @@ static int message_parse_header(Message *message, MessageMetadata *metadata) {
 static int message_parse_body(Message *message, MessageMetadata *metadata) {
         _c_cleanup_(c_dvar_deinit) CDVar v = C_DVAR_INIT;
         const char *signature = metadata->fields.signature;
+        CDVarType types[256];
         size_t i, n_signature, n_types;
-        CDVarType *t, *types;
+        CDVarType *t;
         int r;
 
         /*
-         * Parse body-signature into CDVarType array. We use a single array
-         * with all the argument-types concatenated.
+         * Parse body-signature into a single CDVarType array with all the
+         * argument-types concatenated. A D-Bus signature is limited to 255
+         * characters and maps to exactly one CDVarType entry per character, so
+         * this fixed on-stack array is always sufficient. It avoids a
+         * variable-length stack allocation on this untrusted-input path and
+         * keeps the bound enforced even when assertions are compiled out.
          */
 
         n_signature = strlen(signature);
-        c_assert(n_signature < 256);
-        types = alloca(n_signature * sizeof(CDVarType));
+        if (n_signature >= C_ARRAY_SIZE(types))
+                return MESSAGE_E_INVALID_HEADER;
         n_types = 0;
 
         for (i = 0; i < n_signature; i += types[i].length) {
