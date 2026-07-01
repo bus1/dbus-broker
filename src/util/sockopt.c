@@ -69,10 +69,25 @@ static int gid_compare(const void *va, const void *vb) {
                 return 0;
 }
 
+size_t sockopt_sort_unique_gids(gid_t *gids, size_t n_gids) {
+        size_t i, unique;
+
+        if (!n_gids)
+                return 0;
+
+        qsort(gids, n_gids, sizeof(*gids), gid_compare);
+        unique = 1;
+        for (i = 1; i < n_gids; ++i)
+                if (gids[i] != gids[unique - 1])
+                        gids[unique++] = gids[i];
+
+        return unique;
+}
+
 int sockopt_get_peergroups(int fd, Log *log, uid_t uid, gid_t primary_gid, gid_t **gidsp, size_t *n_gidsp) {
         _c_cleanup_(c_freep) gid_t *gids = NULL;
         socklen_t socklen;
-        int r, n_gids, i, j;
+        int r, n_gids;
         void *tmp;
 
         /*
@@ -113,13 +128,13 @@ int sockopt_get_peergroups(int fd, Log *log, uid_t uid, gid_t primary_gid, gid_t
                 if (r < 0 && errno != ENOPROTOOPT) {
                         return error_origin(-errno);
                 } else if (r >= 0) {
-                        n_gids = 1 + socklen / sizeof(*gids);
+                        size_t n_alloc = 1 + socklen / sizeof(*gids);
+                        n_gids = (int)sockopt_sort_unique_gids(gids, n_alloc);
 
-                        /* Sort and deduplicate for deterministic behavior. */
-                        qsort(gids, n_gids, sizeof(*gids), gid_compare);
-                        for (i = 1, j = 0; i < n_gids; ++i) {
-                                if (gids[i] != gids[j])
-                                        gids[++j] = gids[i];
+                        if ((size_t)n_gids < n_alloc) {
+                                tmp = realloc(gids, (size_t)n_gids * sizeof(*gids));
+                                if (tmp)
+                                        gids = tmp;
                         }
 
                         if (gidsp) {

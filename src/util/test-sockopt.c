@@ -228,7 +228,17 @@ static void test_peerpidfd(void) {
         wait_and_verify(pid_client);
 }
 
+static void test_peergroups(void) {
+        gid_t gids[] = { 4, 2, 4, 3, 2 };
+
+        c_assert(sockopt_sort_unique_gids(gids, sizeof(gids) / sizeof(gids[0])) == 3);
+        c_assert(gids[0] == 2);
+        c_assert(gids[1] == 3);
+        c_assert(gids[2] == 4);
+}
+
 int main(int argc, char **argv) {
+        test_peergroups();
         test_peerpidfd();
         return 0;
 }

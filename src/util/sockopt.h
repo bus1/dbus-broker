@@ -19,4 +19,5 @@ typedef struct Log Log;
 
 int sockopt_get_peersec(int fd, char **labelp, size_t *lenp);
 int sockopt_get_peergroups(int fd, Log *log, uid_t uid, gid_t primary_gid, gid_t **gidsp, size_t *n_gidsp);
+size_t sockopt_sort_unique_gids(gid_t *gids, size_t n_gids);
 int sockopt_get_peerpidfd(int fd, int *ret_pidfd);
