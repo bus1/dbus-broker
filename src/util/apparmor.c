@@ -166,7 +166,8 @@ int bus_apparmor_set_bus_type(BusAppArmorRegistry *registry, const char *bustype
         return 0;
 }
 
-static int bus_apparmor_log(
+/* Annotated as printf-like so -Wformat validates the audit records built below. */
+static int _c_printf_(3, 4) bus_apparmor_log(
         BusAppArmorRegistry *registry,
         uid_t uid,
         const char *fmt,
@@ -425,7 +426,7 @@ int bus_apparmor_check_own(
                         " operation=\"dbus_bind\""
                         " bus=\"%s\""
                         " name=\"%s\""
-                        " mask=\"bind\"",
+                        " mask=\"bind\""
                         " label=\"%s\"",
                         allow ? "ALLOWED" : "DENIED",
                         registry->bustype,
