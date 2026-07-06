@@ -1,0 +1,11 @@
+build/
+subprojects/libc-rs-0.2/
+subprojects/libcdvar-1/
+subprojects/libcini-1/
+subprojects/libclist-3/
+subprojects/libcrbtree-3/
+subprojects/libcshquote-1/
+subprojects/libcstdaux-1/
+subprojects/libcutf8-1/
+subprojects/sys-1/
+subprojects/.wraplock
