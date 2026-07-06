@@ -29,6 +29,7 @@ uint64_t main_arg_max_bytes = 512 * 1024 * 1024;
 uint64_t main_arg_max_fds = 128;
 uint64_t main_arg_max_matches = 16 * 1024;
 uint64_t main_arg_max_objects = 16 * 1024 * 1024;
+uint64_t main_arg_activation_timeout_ms = 25000;
 
 static void help(void) {
         printf("%s [GLOBALS...] ...\n\n"
@@ -43,6 +44,7 @@ static void help(void) {
                "     --max-fds FDS              Maximum number of file descriptors each user may allocate in the broker\n"
                "     --max-matches MATCHES      Maximum number of match rules each user may allocate in the broker\n"
                "     --max-objects OBJECTS      Maximum total number of names, peers, pending replies, etc each user may allocate in the broker\n"
+               "     --activation-timeout-ms MS Maximum time in milliseconds a name activation may stay pending before it is failed (0 disables)\n"
                , program_invocation_short_name);
 }
 
@@ -57,6 +59,7 @@ static int parse_argv(int argc, char *argv[]) {
                 ARG_MAX_FDS,
                 ARG_MAX_MATCHES,
                 ARG_MAX_OBJECTS,
+                ARG_ACTIVATION_TIMEOUT,
         };
         static const struct option options[] = {
                 { "help",               no_argument,            NULL,   'h'                     },
@@ -69,6 +72,7 @@ static int parse_argv(int argc, char *argv[]) {
                 { "max-fds",            required_argument,      NULL,   ARG_MAX_FDS             },
                 { "max-matches",        required_argument,      NULL,   ARG_MAX_MATCHES         },
                 { "max-objects",        required_argument,      NULL,   ARG_MAX_OBJECTS         },
+                { "activation-timeout-ms", required_argument,   NULL,   ARG_ACTIVATION_TIMEOUT  },
                 {}
         };
         int r, c;
@@ -158,6 +162,15 @@ static int parse_argv(int argc, char *argv[]) {
                         r = util_strtou64(&main_arg_max_objects, optarg);
                         if (r) {
                                 fprintf(stderr, "%s: invalid max number of objects -- '%s'\n", program_invocation_name, optarg);
+                                return MAIN_FAILED;
+                        }
+
+                        break;
+
+                case ARG_ACTIVATION_TIMEOUT:
+                        r = util_strtou64(&main_arg_activation_timeout_ms, optarg);
+                        if (r) {
+                                fprintf(stderr, "%s: invalid activation timeout -- '%s'\n", program_invocation_name, optarg);
                                 return MAIN_FAILED;
                         }
 
@@ -283,7 +296,7 @@ static int run(Log *log) {
         _c_cleanup_(broker_freep) Broker *broker = NULL;
         int r;
 
-        r = broker_new(&broker, log, main_arg_machine_id, main_arg_controller, main_arg_max_bytes, main_arg_max_fds, main_arg_max_matches, main_arg_max_objects);
+        r = broker_new(&broker, log, main_arg_machine_id, main_arg_controller, main_arg_max_bytes, main_arg_max_fds, main_arg_max_matches, main_arg_max_objects, main_arg_activation_timeout_ms);
         if (!r)
                 r = broker_run(broker);
 
