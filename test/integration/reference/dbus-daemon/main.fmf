@@ -1,0 +1,8 @@
+summary: Run reference tests against both dbus-daemon and dbus-broker
+test: ./test.sh
+recommend:
+    - dbus-broker-tests
+    - dbus-daemon
+    - systemd
+    - util-linux
+duration: 30m
