@@ -318,6 +318,9 @@ test('Utility File-Desciptor Lists', test_fdlist, suite: 'unit')
 test_fs = executable('test-fs', sources: ['util/test-fs.c'], kwargs: test_kwargs)
 test('File System Helpers', test_fs, suite: 'unit')
 
+test_log = executable('test-log', sources: ['util/test-log.c'], kwargs: test_kwargs)
+test('Log Context', test_log, suite: 'unit')
+
 test_match = executable('test-match', sources: ['bus/test-match.c'], kwargs: test_kwargs)
 test('D-Bus Match Handling', test_match, suite: 'unit')
 

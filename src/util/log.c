@@ -409,6 +409,23 @@ static int log_journal_send(Log *log) {
                 return LOG_E_TRUNCATED;
         } else if (errno == EAGAIN) {
                 goto out_drop;
+        } else if (log->lossy && (errno == ECONNREFUSED ||
+                                  errno == ECONNRESET ||
+                                  errno == ENOTCONN ||
+                                  errno == ENOENT ||
+                                  errno == EPIPE ||
+                                  errno == ENOBUFS ||
+                                  errno == ESHUTDOWN)) {
+                /*
+                 * The journal peer is gone or refuses us: journald may be
+                 * restarting, or a past restart recreated its sockets and
+                 * left this long-connected socket permanently attached to
+                 * the dead peer. In lossy mode we are explicitly allowed
+                 * to drop diagnostics, and losing a log message must never
+                 * escalate into a fatal error that takes the message bus
+                 * down with it.
+                 */
+                goto out_drop;
         } else if (errno != EMSGSIZE) {
                 return error_origin(-errno);
         }
@@ -465,8 +482,15 @@ out_drop:
                 l = send(log->log_fd,
                          LOG_WARNING_DROPPED,
                          strlen(LOG_WARNING_DROPPED),
-                         MSG_NOSIGNAL);
-                if (l < 0)
+                         MSG_NOSIGNAL | (log->lossy ? MSG_DONTWAIT : 0));
+                /*
+                 * The dropped-messages marker is best-effort in lossy mode:
+                 * if the journal cannot take it either, dropping it is
+                 * exactly what lossy mode promises. Failing here would
+                 * reintroduce the fatal-log-write path this label exists to
+                 * avoid. In non-lossy mode, keep surfacing the error.
+                 */
+                if (l < 0 && !log->lossy)
                         return error_origin(-errno);
         }
 
