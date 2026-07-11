@@ -388,9 +388,18 @@ static int launcher_on_child_exit(sd_event_source *source, const siginfo_t *si, 
         log_append_here(&launcher->log, LOG_INFO, si->si_errno, DBUS_BROKER_CATALOG_BROKER_EXITED);
         log_append_siginfo(&launcher->log, si);
 
+        /*
+         * The diagnostic is best-effort: if committing it fails (e.g., the
+         * journal socket is orphaned or unavailable), the launcher must
+         * still exit. Returning the log error here used to skip
+         * sd_event_exit(), leaving the launcher alive with a dead broker:
+         * the service unit then keeps masquerading as running, and the
+         * service manager keeps reconnecting to a bus socket nobody will
+         * ever answer.
+         */
         r = log_commitf(&launcher->log, "Caught SIGCHLD of broker.\n");
         if (r)
-                return error_fold(r);
+                error_trace(r);
 
         return sd_event_exit(sd_event_source_get_event(source),
                              (si->si_code == CLD_EXITED) ? si->si_status : EXIT_FAILURE);
