@@ -60,8 +60,10 @@ int reply_slot_new(ReplySlot **replyp, ReplyRegistry *registry, ReplyOwner *owne
         reply->serial = serial;
 
         r = user_charge(user, &reply->charge, actor, USER_SLOT_OBJECTS, 1);
-        if (r)
+        if (r) {
+                free(reply);
                 return (r == USER_E_QUOTA) ? REPLY_E_QUOTA : error_fold(r);
+        }
 
         c_rbtree_add(&registry->reply_tree, parent, slot, &reply->registry_node);
         c_list_link_tail(&owner->reply_list, &reply->owner_link);
