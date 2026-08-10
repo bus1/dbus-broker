@@ -567,6 +567,7 @@ static int config_parser_attrs_allow_deny(ConfigState *state, ConfigNode *node, 
                                 if (r) {
                                         if (r == NSS_CACHE_E_INVALID_NAME) {
                                                 CONFIG_ERR(state, "Invalid user-name", ": %s=\"%s\"", k, v);
+                                                node->allow_deny.invalid = true;
                                                 continue;
                                         }
 
@@ -584,6 +585,7 @@ static int config_parser_attrs_allow_deny(ConfigState *state, ConfigNode *node, 
                                 if (r) {
                                         if (r == NSS_CACHE_E_INVALID_NAME) {
                                                 CONFIG_ERR(state, "Invalid group-name", ": %s=\"%s\"", k, v);
+                                                node->allow_deny.invalid = true;
                                                 continue;
                                         }
 

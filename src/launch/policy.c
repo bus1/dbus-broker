@@ -672,6 +672,9 @@ int policy_import(Policy *policy, ConfigRoot *root) {
                     i_cnode->type != CONFIG_NODE_DENY)
                         continue;
 
+                if (i_cnode->allow_deny.invalid)
+                        continue;
+
                 if (!i_cnode->parent ||
                     i_cnode->parent->type != CONFIG_NODE_POLICY ||
                     !i_cnode->parent->policy.context) {
