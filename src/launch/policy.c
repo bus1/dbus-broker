@@ -1119,6 +1119,9 @@ int policy_export(Policy *policy, sd_bus_message *m, uint32_t *at_console_uids, 
                         --n_at_console_uids;
 
                 for (size_t i = 0; i < n_at_console_uids; ++i) {
+                        if (at_console_uids[i] < next_uid)
+                                continue;
+
                         r = policy_export_console(policy, m, &policy->no_console_entries, next_uid, at_console_uids[i] - next_uid);
                         if (r < 0)
                                 return error_trace(r);
