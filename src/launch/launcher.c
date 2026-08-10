@@ -1074,11 +1074,11 @@ static int launcher_parse_config(Launcher *launcher, ConfigRoot **rootp, NSSCach
         c_list_for_each_entry(cnode, &(*rootp)->node_list, root_link) {
                 switch (cnode->type) {
                 case CONFIG_NODE_USER:
-                        if (cnode->user.valid) {
-                                launcher->uid = cnode->user.uid;
-                                launcher->gid = cnode->user.gid;
-                        }
+                        if (!cnode->user.valid)
+                                return error_origin(-EINVAL);
 
+                        launcher->uid = cnode->user.uid;
+                        launcher->gid = cnode->user.gid;
                         break;
                 case CONFIG_NODE_LIMIT:
                         switch (cnode->limit.name) {
