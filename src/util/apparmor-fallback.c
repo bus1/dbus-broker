@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+/* SPDX-FileCopyrightText: D-Bus Broker Developers */
+
 /*
  * Bus AppArmor Fallback Helpers
  *
@@ -40,7 +43,7 @@ int bus_apparmor_dbus_supported(bool *supportedp) {
         return 0;
 }
 
-int bus_apparmor_registry_new(BusAppArmorRegistry **registryp, const char *fallback_context) {
+int bus_apparmor_registry_new(BusAppArmorRegistry **registryp, Log *log, const char *fallback_context) {
         *registryp = NULL;
         return 0;
 }
@@ -81,7 +84,7 @@ int bus_apparmor_check_send(
         return 0;
 }
 
-int bus_apparmor_check_eavesdrop(
+int bus_apparmor_check_monitor(
         BusAppArmorRegistry *registry,
         const char *context,
         uid_t uid

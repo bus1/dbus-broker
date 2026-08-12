@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-FileCopyrightText: D-Bus Broker Developers
+
 [wrap-git]
 url = https://github.com/c-util/c-ini.git
 revision = v1

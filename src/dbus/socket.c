@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+/* SPDX-FileCopyrightText: D-Bus Broker Developers */
+
 /*
  * D-Bus Socket Abstraction
  *
@@ -635,14 +638,14 @@ static int socket_recvmsg(Socket *socket,
         }
 
         if (_c_unlikely_(*fdsp && n_fds)) {
-                /* XXX: this is a protocol violation, but for now simply drop the
-                 *      spurios fds as sd-bus is broken and passes us this.
-                 *      This whole conditional should simply be dropped.
+                /*
+                 * If a single message contains more than one set of
+                 * file-descriptors, all but the first set is discarded. Some
+                 * bugs in systemd/sd-bus trigger this, and have not been fixed
+                 * to this day.
                  */
                 while (n_fds)
                         close(fds[--n_fds]);
-
-                fprintf(stderr, "socket: discarded unexpected file descriptors.\n");
         }
 
         if (_c_unlikely_(n_fds)) {
@@ -850,37 +853,6 @@ static int socket_dispatch_write(Socket *socket) {
                 switch (errno) {
                 case EAGAIN:
                         return 0;
-                case ETOOMANYREFS:
-                        /*
-                         * The kernel used to return ETOOMANYREFS if we exceed
-                         * the fd-passing recursion limit. This was dropped in
-                         * commit:
-                         *
-                         *     commit 27eac47b00789522ba00501b0838026e1ecb6f05
-                         *     Author: David Herrmann <dh.herrmann@gmail.com>
-                         *     Commit: David S. Miller <davem@davemloft.net>
-                         *     Date:   Mon Jul 17 11:35:54 2017 +0200
-                         *
-                         *         net/unix: drop obsolete fd-recursion limits
-                         *
-                         * Since then the kernel no longer limits the recursion
-                         * depth, thus we will not trigger ETOOMANYREFS. You
-                         * are highly recommended to run >=linux-4.14,
-                         * otherwise clients can exploit this by modifying
-                         * file-descriptors while inflight.
-                         *
-                         * Note that the kernel also returns ETOOMANYREFS if we
-                         * exceeded our per-user limit of maximum inflight
-                         * file-descriptors. Since we employ quota-accounting,
-                         * ETOOMANYREFS should never occur, unless you
-                         * misconfigured your broker. Hence, we treat this as
-                         * fatal error.
-                         *
-                         * XXX: At one point in the future, we should remove
-                         *      this switch-case. We leave it here purely for
-                         *      documenting the history of this error-code.
-                         */
-                        break;
                 case ECOMM:
                 case ECONNABORTED:
                 case ECONNRESET:

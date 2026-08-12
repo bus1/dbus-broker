@@ -1,5 +1,8 @@
 #pragma once
 
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+/* SPDX-FileCopyrightText: D-Bus Broker Developers */
+
 /*
  * Log Context
  */
@@ -30,6 +33,7 @@ struct Log {
         unsigned short mode;
         bool consumed : 1;
         bool lossy : 1;
+        bool truncated : 1;
         uint64_t n_dropped;
 
         int error;

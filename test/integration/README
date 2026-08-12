@@ -51,4 +51,7 @@ the local machine. As in previous cases, check the `tmt` documentation [0] and e
 
 [2] https://tmt.readthedocs.io/en/stable/examples.html#run
 
-<!-- vim: set syntax=markdown tw=110 : -->
+# License
+
+SPDX-License-Identifier: GPL-3.0-or-later
+SPDX-FileCopyrightText: D-Bus Broker Developers

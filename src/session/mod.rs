@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: D-Bus Broker Developers
+
 //! Session Initiation
 //!
 //! This module implements the `dbus-broker-session` functionality, which

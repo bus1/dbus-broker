@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: D-Bus Broker Developers
+
 //! # Rust Bus Crate
 //!
 //! This library combines all Rust utilities of dbus-broker. It is linked to

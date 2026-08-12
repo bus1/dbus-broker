@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-FileCopyrightText: D-Bus Broker Developers
+
 #
 # Continuous Integration
 #
@@ -52,6 +55,7 @@ env:
     -D docs=true
     -D launcher=true
     -D selinux=true
+    -D unstable=true
 
 jobs:
   #
@@ -68,7 +72,7 @@ jobs:
 
     steps:
     - name: "Fetch Sources"
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
 
     - name: "Setup Meson"
       run: |
@@ -98,7 +102,7 @@ jobs:
 
     steps:
     - name: "Fetch Sources"
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
 
     - name: "Setup Meson"
       run: meson setup ${CI_MESON_ARGS} ./build .
@@ -139,7 +143,7 @@ jobs:
 
     steps:
     - name: "Fetch Sources"
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
 
     - name: "Setup Meson"
       run: meson setup ${CI_MESON_ARGS} ./build .
@@ -178,7 +182,7 @@ jobs:
 
     steps:
     - name: "Fetch Sources"
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
 
     - name: "Setup Meson"
       run: |
@@ -238,6 +242,7 @@ jobs:
             -D docs=false
             -D launcher=false
             -D selinux=false
+            -D unstable=false
 
         # A reduced build with `-O0` to verify we do not rely on dead-code
         # elimination.
@@ -329,7 +334,7 @@ jobs:
 
     steps:
     - name: "Fetch Sources"
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
 
     - name: "Setup Meson"
       run: |
@@ -344,6 +349,26 @@ jobs:
 
     - name: "Run Tests"
       run: meson test -C "./build"
+
+  #
+  # Run the REUSE linter to check for licensing and attribution compatibility
+  # and flag any missing annotations.
+  #
+  ext_reuse:
+    name: "Ext: REUSE"
+    needs: ext_guard
+
+    container:
+      image: "ghcr.io/readaheadeu/rae-ci-archlinux:latest"
+      options: "--user root"
+    runs-on: "ubuntu-latest"
+
+    steps:
+    - name: "Fetch Sources"
+      uses: actions/checkout@v7
+
+    - name: "Run Linter"
+      run: reuse lint
 
   #
   # A release build running through valgrind. We disable all features
@@ -361,7 +386,7 @@ jobs:
 
     steps:
     - name: "Fetch Sources"
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
 
     - name: "Setup Meson"
       run: |

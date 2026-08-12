@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-FileCopyrightText: D-Bus Broker Developers
+
 #
 # Global Project Setup
 #
@@ -8,7 +11,7 @@ project(
                 'c_std=c11',
                 'rust_std=2021',
         ],
-        license: 'Apache-2.0',
+        license: 'GPL-3.0-or-later',
         meson_version: '>=1.3',
         version: '37',
 )
@@ -163,6 +166,15 @@ add_project_arguments('-DSYSTEM_CONSOLE_USERS=' + acc_sysusers, language: 'c')
 
 use_tests = get_option('tests')
 conf.set('testdir', get_option('prefix') / 'lib/dbus-broker/tests')
+
+#
+# Config: unstable
+#
+
+use_unstable = get_option('unstable')
+if use_unstable
+        add_project_arguments('-DDBUS_BROKER_UNSTABLE=1', language: 'c')
+endif
 
 #
 # Global Parameters

@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+/* SPDX-FileCopyrightText: D-Bus Broker Developers */
+
 /*
  * Miscellaneous Helpers
  *
@@ -8,6 +11,7 @@
 #include <fcntl.h>
 #include <grp.h>
 #include <stdlib.h>
+#include <sys/resource.h>
 #include <sys/stat.h>
 #include <unistd.h>
 #include "util/error.h"
@@ -264,6 +268,25 @@ int util_drop_permissions(uint32_t uid, uint32_t gid) {
         r = setuid(uid);
         if (r < 0)
                 return error_origin(-errno);
+
+        return 0;
+}
+
+int util_bump_nofile(void) {
+        struct rlimit rl;
+        int r;
+
+        r = getrlimit(RLIMIT_NOFILE, &rl);
+        if (r < 0)
+                return error_origin(-errno);
+
+        if (rl.rlim_cur < rl.rlim_max) {
+                rl.rlim_cur = rl.rlim_max;
+
+                r = setrlimit(RLIMIT_NOFILE, &rl);
+                if (r < 0)
+                        return error_origin(-errno);
+        }
 
         return 0;
 }

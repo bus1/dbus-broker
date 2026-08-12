@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+/* SPDX-FileCopyrightText: D-Bus Broker Developers */
+
 /*
  * Bus AppArmor Helpers
  *
@@ -15,11 +18,13 @@
 #include "util/apparmor.h"
 #include "util/audit.h"
 #include "util/error.h"
+#include "util/log.h"
 #include "util/ref.h"
 #include "util/string.h"
 
 struct BusAppArmorRegistry {
         _Atomic unsigned long n_refs;
+        Log *log;
         char *bustype;
         char fallback_context[];
 };
@@ -105,11 +110,12 @@ int bus_apparmor_dbus_supported(bool *supportedp) {
 /**
  * bus_apparmor_registry_new() - create a new AppArmor registry
  * @registryp:          output pointer to the new registry
+ * @log:                log context to use for audit fallback messages
  * @fallback_context:   fallback security context for queries against this registry
  *
  * Return: 0 on success, or a negative error code on failure.
  */
-int bus_apparmor_registry_new(BusAppArmorRegistry **registryp, const char *fallback_context) {
+int bus_apparmor_registry_new(BusAppArmorRegistry **registryp, Log *log, const char *fallback_context) {
         _c_cleanup_(bus_apparmor_registry_unrefp) BusAppArmorRegistry *registry = NULL;
         size_t n_fallback_context;
 
@@ -119,6 +125,7 @@ int bus_apparmor_registry_new(BusAppArmorRegistry **registryp, const char *fallb
                 return error_origin(-ENOMEM);
 
         registry->n_refs = REF_INIT;
+        registry->log = log;
         strcpy(registry->fallback_context, fallback_context);
 
         *registryp = registry;
@@ -162,7 +169,7 @@ int bus_apparmor_set_bus_type(BusAppArmorRegistry *registry, const char *bustype
         return 0;
 }
 
-static int bus_apparmor_log(
+static int _c_printf_(3, 4) bus_apparmor_log(
         BusAppArmorRegistry *registry,
         uid_t uid,
         const char *fmt,
@@ -179,8 +186,15 @@ static int bus_apparmor_log(
                 return error_origin(-errno);
 
         r = util_audit_log(UTIL_AUDIT_TYPE_AVC, message, uid);
-        if (r != UTIL_AUDIT_E_UNAVAILABLE) // XXX: use a log fallback
+        if (r != UTIL_AUDIT_E_UNAVAILABLE)
                 return error_fold(r);
+
+        if (registry->log) {
+                log_append_here(registry->log, LOG_NOTICE, 0, NULL);
+                r = log_commitf(registry->log, "%s", message);
+                if (r)
+                        return error_fold(r);
+        }
 
         return 0;
 }
@@ -414,7 +428,7 @@ int bus_apparmor_check_own(
                         " operation=\"dbus_bind\""
                         " bus=\"%s\""
                         " name=\"%s\""
-                        " mask=\"bind\"",
+                        " mask=\"bind\""
                         " label=\"%s\"",
                         allow ? "ALLOWED" : "DENIED",
                         registry->bustype,
@@ -613,17 +627,18 @@ int bus_apparmor_check_send(
 }
 
 /**
- * bus_apparmor_check_eavesdrop() - check if the given context may eavesdrop
+ * bus_apparmor_check_monitor() - check if the given context may monitor the bus
  * @registry:           AppArmor registry to operate on
- * @context:            security context that wants to eavesdrop
+ * @context:            security context of the subject
  * @uid:                uid of the calling user
  *
- * Check if the given sender context is allowed to do eavesdropping.
+ * Check if the given sender context is allowed to monitor the bus and all its
+ * communication.
  *
- * Return: 0 if the transaction is allowed, BUS_APPARMOR_E_DENIED if it is not,
+ * Return: 0 if the operation is allowed, BUS_APPARMOR_E_DENIED if it is not,
  *         or a negative error code on failure.
  */
-int bus_apparmor_check_eavesdrop(
+int bus_apparmor_check_monitor(
         BusAppArmorRegistry *registry,
         const char *context,
         uid_t uid

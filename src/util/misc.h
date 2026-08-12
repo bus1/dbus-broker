@@ -1,5 +1,8 @@
 #pragma once
 
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+/* SPDX-FileCopyrightText: D-Bus Broker Developers */
+
 /*
  * Miscellaneous Helpers
  */
@@ -28,6 +31,7 @@ uint64_t util_umul64_saturating(uint64_t a, uint64_t b);
 unsigned int util_z2u_saturating(size_t v);
 unsigned int util_t2u_saturating(uint64_t v);
 int util_drop_permissions(uint32_t uid, uint32_t gid);
+int util_bump_nofile(void);
 
 void util_peak_update(size_t *peak, size_t update);
 

@@ -1,5 +1,8 @@
 #pragma once
 
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+/* SPDX-FileCopyrightText: D-Bus Broker Developers */
+
 /*
  * D-Bus Policy
  */
@@ -14,6 +17,7 @@
 
 typedef struct BusAppArmorRegistry BusAppArmorRegistry;
 typedef struct BusSELinuxRegistry BusSELinuxRegistry;
+typedef struct Log Log;
 typedef struct NameSet NameSet;
 typedef struct PolicyBatch PolicyBatch;
 typedef struct PolicyBatchName PolicyBatchName;
@@ -145,7 +149,7 @@ void policy_batch_free(_Atomic unsigned long *n_refs, void *userdata);
 
 /* registry */
 
-int policy_registry_new(PolicyRegistry **registryp, const char *fallback_seclabel);
+int policy_registry_new(PolicyRegistry **registryp, Log *log, const char *fallback_seclabel);
 PolicyRegistry *policy_registry_free(PolicyRegistry *registry);
 
 int policy_registry_import(PolicyRegistry *registry, CDVar *v);

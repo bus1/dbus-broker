@@ -1,5 +1,8 @@
 #pragma once
 
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+/* SPDX-FileCopyrightText: D-Bus Broker Developers */
+
 /*
  * Bus AppArmor Helpers
  */
@@ -8,6 +11,7 @@
 #include <stdlib.h>
 
 typedef struct NameSet NameSet;
+typedef struct Log Log;
 
 typedef struct BusAppArmorRegistry BusAppArmorRegistry;
 
@@ -20,7 +24,7 @@ enum {
 int bus_apparmor_is_enabled(bool *enabledp);
 int bus_apparmor_dbus_supported(bool *supportedp);
 
-int bus_apparmor_registry_new(BusAppArmorRegistry **registryp, const char *fallback_context);
+int bus_apparmor_registry_new(BusAppArmorRegistry **registryp, Log *log, const char *fallback_context);
 BusAppArmorRegistry *bus_apparmor_registry_ref(BusAppArmorRegistry *registry);
 BusAppArmorRegistry *bus_apparmor_registry_unref(BusAppArmorRegistry *registry);
 
@@ -46,7 +50,7 @@ int bus_apparmor_check_send(
         const char *method,
         unsigned int type
 );
-int bus_apparmor_check_eavesdrop(
+int bus_apparmor_check_monitor(
         BusAppArmorRegistry *registry,
         const char *context,
         uid_t uid

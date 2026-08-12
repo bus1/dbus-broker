@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: D-Bus Broker Developers
+
 //! # Rust C Bridge
 //!
 //! This Rust crate is linked into a static library (rather than Rust crate)

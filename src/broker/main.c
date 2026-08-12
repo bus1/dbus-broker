@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+/* SPDX-FileCopyrightText: D-Bus Broker Developers */
+
 /*
  * D-Bus Broker Main Entry
  */
@@ -14,6 +17,7 @@
 #include "util/audit.h"
 #include "util/error.h"
 #include "util/log.h"
+#include "util/misc.h"
 #include "util/selinux.h"
 #include "util/string.h"
 
@@ -267,6 +271,10 @@ static int setup(Log *logp) {
 
         /* XXX: make this run-time optional */
         log_set_lossy(logp, true);
+
+        r = util_bump_nofile();
+        if (r < 0)
+                return error_fold(r);
 
         return 0;
 }

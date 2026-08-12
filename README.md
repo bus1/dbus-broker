@@ -48,7 +48,7 @@ Additionally, the compatibility launcher requires:
 At build-time, the following software is required:
 
 ```
-  linux-api-headers >= 4.13
+  linux-api-headers >= 6.5
   meson >= 1.3
   pkg-config >= 0.29
   rust >= 1.84
@@ -74,5 +74,8 @@ For custom configuration options see meson_options.txt.
 
 ## License
 
-Apache Software License 2.0
+General Public License 3.0 or later
 See AUTHORS for details.
+
+SPDX-License-Identifier: GPL-3.0-or-later
+SPDX-FileCopyrightText: D-Bus Broker Developers
