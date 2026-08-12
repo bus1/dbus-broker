@@ -85,8 +85,20 @@ void nss_cache_deinit(NSSCache *cache) {
 
         c_rbtree_for_each_entry_safe_postorder_unlink(node,
                                                       safe,
+                                                      &cache->uid_tree,
+                                                      rb_by_id)
+                nss_cache_node_free(node);
+
+        c_rbtree_for_each_entry_safe_postorder_unlink(node,
+                                                      safe,
                                                       &cache->group_tree,
                                                       rb_by_name)
+                nss_cache_node_free(node);
+
+        c_rbtree_for_each_entry_safe_postorder_unlink(node,
+                                                      safe,
+                                                      &cache->gid_tree,
+                                                      rb_by_id)
                 nss_cache_node_free(node);
 
         c_assert(c_rbtree_is_empty(&cache->user_tree));

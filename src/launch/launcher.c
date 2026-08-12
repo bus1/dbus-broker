@@ -287,9 +287,9 @@ static noreturn void launcher_run_child(Launcher *launcher, int fd_controller) {
         char str_log[C_DECIMAL_MAX(int) + 1],
              str_controller[C_DECIMAL_MAX(int) + 1],
              str_machine_id[33],
-             str_max_bytes[C_DECIMAL_MAX(uint64_t)],
-             str_max_fds[C_DECIMAL_MAX(uint64_t)],
-             str_max_matches[C_DECIMAL_MAX(uint64_t)];
+             str_max_bytes[C_DECIMAL_MAX(uint64_t) + 1],
+             str_max_fds[C_DECIMAL_MAX(uint64_t) + 1],
+             str_max_matches[C_DECIMAL_MAX(uint64_t) + 1];
         const char * const argv[] = {
                 "dbus-broker",
                 "--log",
@@ -1077,11 +1077,11 @@ static int launcher_parse_config(Launcher *launcher, ConfigRoot **rootp, NSSCach
         c_list_for_each_entry(cnode, &(*rootp)->node_list, root_link) {
                 switch (cnode->type) {
                 case CONFIG_NODE_USER:
-                        if (cnode->user.valid) {
-                                launcher->uid = cnode->user.uid;
-                                launcher->gid = cnode->user.gid;
-                        }
+                        if (!cnode->user.valid)
+                                return error_origin(-EINVAL);
 
+                        launcher->uid = cnode->user.uid;
+                        launcher->gid = cnode->user.gid;
                         break;
                 case CONFIG_NODE_LIMIT:
                         switch (cnode->limit.name) {

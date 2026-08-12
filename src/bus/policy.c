@@ -893,7 +893,7 @@ int policy_snapshot_check_own(PolicySnapshot *snapshot, const char *name_str) {
                         }
 
                         if (rb) {
-                                if (verdict.priority < name->own_verdict.priority)
+                                if (!*end && verdict.priority < name->own_verdict.priority)
                                         verdict = name->own_verdict;
                                 if (verdict.priority < name->own_prefix_verdict.priority)
                                         verdict = name->own_prefix_verdict;

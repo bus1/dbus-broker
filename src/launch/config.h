@@ -195,6 +195,7 @@ struct ConfigNode {
                         bool user : 1;
                         bool group : 1;
                         bool log : 1;
+                        bool invalid : 1;
                 } allow_deny;
 
                 struct {

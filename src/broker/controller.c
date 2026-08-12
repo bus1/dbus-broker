@@ -138,8 +138,10 @@ static int controller_reload_new(ControllerReload **reloadp, User *user, Control
         reload->serial = serial;
 
         r = user_charge(controller->broker->bus.user, &reload->charge, user, USER_SLOT_BYTES, sizeof(ControllerReload));
-        if (r)
+        if (r) {
+                free(reload);
                 return (r == USER_E_QUOTA) ? CONTROLLER_E_QUOTA : error_fold(r);
+        }
 
         c_rbtree_add(&controller->reload_tree, parent, slot, &reload->controller_node);
         *reloadp = reload;
