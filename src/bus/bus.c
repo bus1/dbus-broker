@@ -26,7 +26,9 @@ int bus_init(Bus *bus,
              unsigned int max_bytes,
              unsigned int max_fds,
              unsigned int max_matches,
-             unsigned int max_objects) {
+             unsigned int max_objects,
+             nsec_t connections_rate_limit_interval,
+             unsigned int connections_rate_limit_burst) {
         unsigned int maxima[] = { max_bytes, max_fds, max_matches, max_objects };
         void *random;
         int r;
@@ -46,7 +48,7 @@ int bus_init(Bus *bus,
         c_assert(random);
         c_memcpy(bus->guid, random, sizeof(bus->guid));
 
-        r = user_registry_init(&bus->users, log, _USER_SLOT_N, maxima);
+        r = user_registry_init(&bus->users, log, _USER_SLOT_N, maxima, connections_rate_limit_interval, connections_rate_limit_burst);
         if (r)
                 return error_fold(r);
 

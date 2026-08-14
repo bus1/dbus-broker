@@ -45,6 +45,8 @@ struct Launcher {
         uint64_t max_bytes;
         uint64_t max_fds;
         uint64_t max_matches;
+        uint64_t connections_rate_limit_sec;
+        uint64_t connections_rate_limit_burst;
         bool at_console;
 };
 

@@ -79,7 +79,9 @@ int bus_init(Bus *bus,
              unsigned int max_bytes,
              unsigned int max_fds,
              unsigned int max_matches,
-             unsigned int max_objects);
+             unsigned int max_objects,
+             nsec_t connections_rate_limit_interval,
+             unsigned int connections_rate_limit_burst);
 void bus_deinit(Bus *bus);
 
 Peer *bus_find_peer_by_name(Bus *bus, Name **namep, const char *name);

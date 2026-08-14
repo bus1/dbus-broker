@@ -15,7 +15,7 @@ static void test_setup(void) {
         User *entry1, *entry2, *entry3;
         int r;
 
-        r = user_registry_init(&registry, NULL, _USER_SLOT_N, (unsigned int[]){ 1024, 1024, 1024, 1024, 1024 });
+        r = user_registry_init(&registry, NULL, _USER_SLOT_N, (unsigned int[]){ 1024, 1024, 1024, 1024, 1024 }, 0, 0);
         c_assert(!r);
 
         r = user_registry_ref_user(&registry, &entry1, 1);
@@ -42,7 +42,7 @@ static void test_quota(void) {
         UserCharge charge1, charge2, charge3;
         int r;
 
-        r = user_registry_init(&registry, NULL, _USER_SLOT_N, (unsigned int[]){ 1024, 1024, 1024, 1024, 1024 });
+        r = user_registry_init(&registry, NULL, _USER_SLOT_N, (unsigned int[]){ 1024, 1024, 1024, 1024, 1024 }, 0, 0);
         c_assert(!r);
 
         r = user_registry_ref_user(&registry, &entry1, 1);
@@ -100,7 +100,7 @@ static void test_overflow(void) {
         UserCharge charge1;
         int r;
 
-        r = user_registry_init(&registry, NULL, _USER_SLOT_N, (unsigned int[]){ 1024, 1024, 1024, 1024, 1024 });
+        r = user_registry_init(&registry, NULL, _USER_SLOT_N, (unsigned int[]){ 1024, 1024, 1024, 1024, 1024 }, 0, 0);
         c_assert(!r);
 
         r = user_registry_ref_user(&registry, &entry1, 1);
@@ -131,9 +131,98 @@ static void test_overflow(void) {
         user_registry_deinit(&registry);
 }
 
+static void test_ratelimit(void) {
+        UserRegistry registry;
+        User *entry1, *entry2;
+        int r;
+
+        /* allow a burst of 3 connections per 100ns window */
+        r = user_registry_init(&registry, NULL, _USER_SLOT_N, (unsigned int[]){ 1024, 1024, 1024, 1024, 1024 }, 100, 3);
+        c_assert(!r);
+
+        r = user_registry_ref_user(&registry, &entry1, 1);
+        c_assert(r == 0);
+
+        r = user_registry_ref_user(&registry, &entry2, 2);
+        c_assert(r == 0);
+
+        /* the first `burst` connections in a window are accepted */
+        r = user_ratelimit_connection(entry1, 1000);
+        c_assert(!r);
+        r = user_ratelimit_connection(entry1, 1000);
+        c_assert(!r);
+        r = user_ratelimit_connection(entry1, 1000);
+        c_assert(!r);
+
+        /* further connections in the same window are rejected */
+        r = user_ratelimit_connection(entry1, 1000);
+        c_assert(r == USER_E_QUOTA);
+
+        /* a connection still inside the window is rejected as well */
+        r = user_ratelimit_connection(entry1, 1050);
+        c_assert(r == USER_E_QUOTA);
+
+        /* a different user has an independent window */
+        r = user_ratelimit_connection(entry2, 1050);
+        c_assert(!r);
+
+        /* once the window has fully elapsed, a fresh burst is accepted */
+        r = user_ratelimit_connection(entry1, 1101);
+        c_assert(!r);
+        r = user_ratelimit_connection(entry1, 1101);
+        c_assert(!r);
+        r = user_ratelimit_connection(entry1, 1101);
+        c_assert(!r);
+        r = user_ratelimit_connection(entry1, 1101);
+        c_assert(r == USER_E_QUOTA);
+
+        user_unref(entry2);
+        user_unref(entry1);
+        user_registry_deinit(&registry);
+}
+
+static void test_ratelimit_disabled(void) {
+        UserRegistry registry;
+        User *entry1;
+        size_t i;
+        int r;
+
+        /* a zero burst disables the rate-limit */
+        r = user_registry_init(&registry, NULL, _USER_SLOT_N, (unsigned int[]){ 1024, 1024, 1024, 1024, 1024 }, 100, 0);
+        c_assert(!r);
+
+        r = user_registry_ref_user(&registry, &entry1, 1);
+        c_assert(r == 0);
+
+        for (i = 0; i < 1024; ++i) {
+                r = user_ratelimit_connection(entry1, 1000);
+                c_assert(!r);
+        }
+
+        user_unref(entry1);
+        user_registry_deinit(&registry);
+
+        /* a zero interval disables the rate-limit */
+        r = user_registry_init(&registry, NULL, _USER_SLOT_N, (unsigned int[]){ 1024, 1024, 1024, 1024, 1024 }, 0, 3);
+        c_assert(!r);
+
+        r = user_registry_ref_user(&registry, &entry1, 1);
+        c_assert(r == 0);
+
+        for (i = 0; i < 1024; ++i) {
+                r = user_ratelimit_connection(entry1, 1000);
+                c_assert(!r);
+        }
+
+        user_unref(entry1);
+        user_registry_deinit(&registry);
+}
+
 int main(int argc, char **argv) {
         test_setup();
         test_quota();
         test_overflow();
+        test_ratelimit();
+        test_ratelimit_disabled();
         return 0;
 }

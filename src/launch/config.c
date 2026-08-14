@@ -376,6 +376,10 @@ static int config_parser_attrs_limit(ConfigState *state, ConfigNode *node, const
                                 node->limit.name = CONFIG_LIMIT_MAX_INCOMPLETE_CONNECTIONS;
                         else if (!strcmp(v, "max_connections_per_user"))
                                 node->limit.name = CONFIG_LIMIT_MAX_CONNECTIONS_PER_USER;
+                        else if (!strcmp(v, "connections_rate_limit_per_user_sec"))
+                                node->limit.name = CONFIG_LIMIT_CONNECTIONS_RATE_LIMIT_PER_USER_SEC;
+                        else if (!strcmp(v, "connections_rate_limit_per_user_burst"))
+                                node->limit.name = CONFIG_LIMIT_CONNECTIONS_RATE_LIMIT_PER_USER_BURST;
                         else if (!strcmp(v, "max_pending_service_starts"))
                                 node->limit.name = CONFIG_LIMIT_MAX_PENDING_SERVICE_STARTS;
                         else if (!strcmp(v, "max_names_per_connection"))

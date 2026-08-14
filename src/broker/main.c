@@ -29,6 +29,8 @@ uint64_t main_arg_max_bytes = 512 * 1024 * 1024;
 uint64_t main_arg_max_fds = 128;
 uint64_t main_arg_max_matches = 16 * 1024;
 uint64_t main_arg_max_objects = 16 * 1024 * 1024;
+uint64_t main_arg_connections_rate_limit_sec = 0;
+uint64_t main_arg_connections_rate_limit_burst = 0;
 
 static void help(void) {
         printf("%s [GLOBALS...] ...\n\n"
@@ -43,6 +45,10 @@ static void help(void) {
                "     --max-fds FDS              Maximum number of file descriptors each user may allocate in the broker\n"
                "     --max-matches MATCHES      Maximum number of match rules each user may allocate in the broker\n"
                "     --max-objects OBJECTS      Maximum total number of names, peers, pending replies, etc each user may allocate in the broker\n"
+               "     --connections-rate-limit-sec SECONDS\n"
+               "                                Length in seconds of the window used to rate-limit new connections per user (0 disables)\n"
+               "     --connections-rate-limit-burst BURST\n"
+               "                                Maximum number of new connections a user may open per rate-limit window (0 disables)\n"
                , program_invocation_short_name);
 }
 
@@ -57,18 +63,22 @@ static int parse_argv(int argc, char *argv[]) {
                 ARG_MAX_FDS,
                 ARG_MAX_MATCHES,
                 ARG_MAX_OBJECTS,
+                ARG_CONNECTIONS_RATE_LIMIT_SEC,
+                ARG_CONNECTIONS_RATE_LIMIT_BURST,
         };
         static const struct option options[] = {
-                { "help",               no_argument,            NULL,   'h'                     },
-                { "version",            no_argument,            NULL,   ARG_VERSION             },
-                { "audit",              no_argument,            NULL,   ARG_AUDIT               },
-                { "controller",         required_argument,      NULL,   ARG_CONTROLLER          },
-                { "log",                required_argument,      NULL,   ARG_LOG                 },
-                { "machine-id",         required_argument,      NULL,   ARG_MACHINE_ID          },
-                { "max-bytes",          required_argument,      NULL,   ARG_MAX_BYTES           },
-                { "max-fds",            required_argument,      NULL,   ARG_MAX_FDS             },
-                { "max-matches",        required_argument,      NULL,   ARG_MAX_MATCHES         },
-                { "max-objects",        required_argument,      NULL,   ARG_MAX_OBJECTS         },
+                { "help",                         no_argument,          NULL,   'h'                              },
+                { "version",                      no_argument,          NULL,   ARG_VERSION                      },
+                { "audit",                        no_argument,          NULL,   ARG_AUDIT                        },
+                { "controller",                   required_argument,    NULL,   ARG_CONTROLLER                   },
+                { "log",                          required_argument,    NULL,   ARG_LOG                          },
+                { "machine-id",                   required_argument,    NULL,   ARG_MACHINE_ID                   },
+                { "max-bytes",                    required_argument,    NULL,   ARG_MAX_BYTES                    },
+                { "max-fds",                      required_argument,    NULL,   ARG_MAX_FDS                      },
+                { "max-matches",                  required_argument,    NULL,   ARG_MAX_MATCHES                  },
+                { "max-objects",                  required_argument,    NULL,   ARG_MAX_OBJECTS                  },
+                { "connections-rate-limit-sec",   required_argument,    NULL,   ARG_CONNECTIONS_RATE_LIMIT_SEC   },
+                { "connections-rate-limit-burst", required_argument,    NULL,   ARG_CONNECTIONS_RATE_LIMIT_BURST },
                 {}
         };
         int r, c;
@@ -158,6 +168,24 @@ static int parse_argv(int argc, char *argv[]) {
                         r = util_strtou64(&main_arg_max_objects, optarg);
                         if (r) {
                                 fprintf(stderr, "%s: invalid max number of objects -- '%s'\n", program_invocation_name, optarg);
+                                return MAIN_FAILED;
+                        }
+
+                        break;
+
+                case ARG_CONNECTIONS_RATE_LIMIT_SEC:
+                        r = util_strtou64(&main_arg_connections_rate_limit_sec, optarg);
+                        if (r) {
+                                fprintf(stderr, "%s: invalid connections rate-limit interval -- '%s'\n", program_invocation_name, optarg);
+                                return MAIN_FAILED;
+                        }
+
+                        break;
+
+                case ARG_CONNECTIONS_RATE_LIMIT_BURST:
+                        r = util_strtou64(&main_arg_connections_rate_limit_burst, optarg);
+                        if (r) {
+                                fprintf(stderr, "%s: invalid connections rate-limit burst -- '%s'\n", program_invocation_name, optarg);
                                 return MAIN_FAILED;
                         }
 
@@ -283,7 +311,8 @@ static int run(Log *log) {
         _c_cleanup_(broker_freep) Broker *broker = NULL;
         int r;
 
-        r = broker_new(&broker, log, main_arg_machine_id, main_arg_controller, main_arg_max_bytes, main_arg_max_fds, main_arg_max_matches, main_arg_max_objects);
+        r = broker_new(&broker, log, main_arg_machine_id, main_arg_controller, main_arg_max_bytes, main_arg_max_fds, main_arg_max_matches, main_arg_max_objects,
+                       util_umul64_saturating(main_arg_connections_rate_limit_sec, UINT64_C(1000000000)), main_arg_connections_rate_limit_burst);
         if (!r)
                 r = broker_run(broker);
 

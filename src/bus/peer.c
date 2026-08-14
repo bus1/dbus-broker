@@ -29,6 +29,7 @@
 #include "util/fdlist.h"
 #include "util/log.h"
 #include "util/sampler.h"
+#include "util/nsec.h"
 #include "util/sockopt.h"
 #include "util/user.h"
 
@@ -272,6 +273,12 @@ int peer_new_with_fd(Peer **peerp,
 
         r = user_registry_ref_user(&bus->users, &user, ucred.uid);
         if (r)
+                return error_fold(r);
+
+        r = user_ratelimit_connection(user, nsec_now(CLOCK_MONOTONIC));
+        if (r == USER_E_QUOTA)
+                return PEER_E_QUOTA;
+        else if (r)
                 return error_fold(r);
 
         r = sockopt_get_peersec(fd, &seclabel, &n_seclabel);

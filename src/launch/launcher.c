@@ -45,6 +45,8 @@ static const uint64_t main_max_outgoing_bytes = 8 * 1024 * 1024; /* 127MiB */
 static const uint64_t main_max_outgoing_unix_fds = 64;
 static const uint64_t main_max_connections_per_user = 64; /* 256 */
 static const uint64_t main_max_match_rules_per_connection = 256;
+static const uint64_t main_connections_rate_limit_per_user_sec = 0; /* disabled */
+static const uint64_t main_connections_rate_limit_per_user_burst = 0; /* disabled */
 
 static const char *     main_arg_broker = BINDIR "/dbus-broker";
 
@@ -289,7 +291,9 @@ static noreturn void launcher_run_child(Launcher *launcher, int fd_controller) {
              str_machine_id[33],
              str_max_bytes[C_DECIMAL_MAX(uint64_t)],
              str_max_fds[C_DECIMAL_MAX(uint64_t)],
-             str_max_matches[C_DECIMAL_MAX(uint64_t)];
+             str_max_matches[C_DECIMAL_MAX(uint64_t)],
+             str_connections_rate_limit_sec[C_DECIMAL_MAX(uint64_t)],
+             str_connections_rate_limit_burst[C_DECIMAL_MAX(uint64_t)];
         const char * const argv[] = {
                 "dbus-broker",
                 "--log",
@@ -304,6 +308,10 @@ static noreturn void launcher_run_child(Launcher *launcher, int fd_controller) {
                 str_max_fds,
                 "--max-matches",
                 str_max_matches,
+                "--connections-rate-limit-sec",
+                str_connections_rate_limit_sec,
+                "--connections-rate-limit-burst",
+                str_connections_rate_limit_burst,
                 launcher->audit ? "--audit" : NULL, /* note that this needs to be the last argument to work */
                 NULL,
         };
@@ -373,6 +381,12 @@ static noreturn void launcher_run_child(Launcher *launcher, int fd_controller) {
 
         r = snprintf(str_max_matches, sizeof(str_max_matches), "%"PRIu64, launcher->max_matches);
         c_assert(r < (ssize_t)sizeof(str_max_matches));
+
+        r = snprintf(str_connections_rate_limit_sec, sizeof(str_connections_rate_limit_sec), "%"PRIu64, launcher->connections_rate_limit_sec);
+        c_assert(r < (ssize_t)sizeof(str_connections_rate_limit_sec));
+
+        r = snprintf(str_connections_rate_limit_burst, sizeof(str_connections_rate_limit_burst), "%"PRIu64, launcher->connections_rate_limit_burst);
+        c_assert(r < (ssize_t)sizeof(str_connections_rate_limit_burst));
 
         r = execve(main_arg_broker, (char * const *)argv, environ);
         r = error_origin(-errno);
@@ -1033,6 +1047,8 @@ static int launcher_parse_config(Launcher *launcher, ConfigRoot **rootp, NSSCach
         uint64_t max_connections_per_user = main_max_connections_per_user;
         uint64_t max_outgoing_unix_fds = main_max_outgoing_unix_fds;
         uint64_t max_outgoing_bytes = main_max_outgoing_bytes;
+        uint64_t connections_rate_limit_per_user_sec = main_connections_rate_limit_per_user_sec;
+        uint64_t connections_rate_limit_per_user_burst = main_connections_rate_limit_per_user_burst;
         bool at_console = false;
         const char *configfile;
         ConfigNode *cnode;
@@ -1094,6 +1110,12 @@ static int launcher_parse_config(Launcher *launcher, ConfigRoot **rootp, NSSCach
                         case CONFIG_LIMIT_MAX_CONNECTIONS_PER_USER:
                                 max_connections_per_user = cnode->limit.value;
                                 break;
+                        case CONFIG_LIMIT_CONNECTIONS_RATE_LIMIT_PER_USER_SEC:
+                                connections_rate_limit_per_user_sec = cnode->limit.value;
+                                break;
+                        case CONFIG_LIMIT_CONNECTIONS_RATE_LIMIT_PER_USER_BURST:
+                                connections_rate_limit_per_user_burst = cnode->limit.value;
+                                break;
                         case CONFIG_LIMIT_MAX_MATCH_RULES_PER_CONNECTION:
                                 max_match_rules_per_connection = cnode->limit.value;
                                 break;
@@ -1115,6 +1137,10 @@ static int launcher_parse_config(Launcher *launcher, ConfigRoot **rootp, NSSCach
         launcher->max_bytes = util_umul64_saturating(max_connections_per_user, max_outgoing_bytes);
         launcher->max_fds = util_umul64_saturating(max_connections_per_user, max_outgoing_unix_fds);
         launcher->max_matches = util_umul64_saturating(max_connections_per_user, max_match_rules_per_connection);
+
+        /* The connection rate-limit is applied per-user as configured. */
+        launcher->connections_rate_limit_sec = connections_rate_limit_per_user_sec;
+        launcher->connections_rate_limit_burst = connections_rate_limit_per_user_burst;
 
         /* Remember if our at_console compat logic is needed */
         launcher->at_console = at_console;

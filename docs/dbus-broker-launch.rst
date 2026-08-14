@@ -94,6 +94,40 @@ supported right now.
 Additional *<listen>%path%</listen>* attributes in the configuration are
 ignored.
 
+LIMITS
+======
+
+**dbus-broker-launch** reads the same *<limit>* configuration elements as
+**dbus-daemon**\(1). In addition to the standard limits, the following
+**dbus-broker**-specific limits control the rate at which a single user may
+open new connections to the bus:
+
+*connections_rate_limit_per_user_sec*
+        Length, in seconds, of the time window used to rate-limit new
+        connections per user. Together with
+        *connections_rate_limit_per_user_burst* it allows each user to open at
+        most *burst* new connections during every *sec* interval. A value of
+        *0* (the **Default**) disables connection rate-limiting.
+
+*connections_rate_limit_per_user_burst*
+        Maximum number of new connections a single user may open during each
+        *connections_rate_limit_per_user_sec* window. A value of *0* (the
+        **Default**) disables connection rate-limiting.
+
+Both limits must be set to a non-zero value for the rate-limit to take effect.
+Once a user exceeds its connection rate-limit, further connection attempts from
+that user are refused until the current window elapses. This complements
+*max_connections_per_user*, which caps the number of concurrent connections a
+single user may have open at any time.
+
+An example configuration snippet allowing each user to open at most 50 new
+connections every 10 seconds looks as follows::
+
+    <busconfig>
+      <limit name="connections_rate_limit_per_user_sec">10</limit>
+      <limit name="connections_rate_limit_per_user_burst">50</limit>
+    </busconfig>
+
 PRIVILEGES
 ==========
 

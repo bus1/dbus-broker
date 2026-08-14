@@ -353,6 +353,51 @@ quota:
         return USER_E_QUOTA;
 }
 
+/**
+ * user_ratelimit_connection() - apply the connection rate-limit of a user
+ * @user:       user object to operate on
+ * @timestamp:  current time in nanoseconds
+ *
+ * Account a new connection attempt of @user against its connection
+ * rate-limit and verify that the limit is not exceeded. The rate-limit
+ * allows at most `burst` connections during any `interval` window, both of
+ * which are configured on the user registry. The first connection in a
+ * window opens a new window that expires @interval nanoseconds later.
+ *
+ * @timestamp must be taken from a monotonic clock, so it never moves
+ * backwards between consecutive calls.
+ *
+ * If the rate-limit is disabled (a zero interval or a zero burst), this is a
+ * no-op and always succeeds.
+ *
+ * Return: 0 on success, USER_E_QUOTA if the rate-limit is exceeded.
+ */
+int user_ratelimit_connection(User *user, nsec_t timestamp) {
+        UserRegistry *registry = user->registry;
+
+        /* rate-limit disabled */
+        if (!registry->connections_rate_limit_interval ||
+            !registry->connections_rate_limit_burst)
+                return 0;
+
+        if (!user->connections_timestamp ||
+            timestamp - user->connections_timestamp > registry->connections_rate_limit_interval) {
+                /*
+                 * Open a fresh window on the very first connection, or
+                 * whenever the previous window has fully elapsed.
+                 */
+                user->connections_timestamp = timestamp;
+                user->n_connections = 1;
+                return 0;
+        }
+
+        if (user->n_connections >= registry->connections_rate_limit_burst)
+                return USER_E_QUOTA;
+
+        ++user->n_connections;
+        return 0;
+}
+
 static int user_compare(CRBTree *tree, void *k, CRBNode *rb) {
         User *user = c_container_of(rb, User, registry_node);
         uid_t uid = *(uid_t*)k;
@@ -367,10 +412,14 @@ static int user_compare(CRBTree *tree, void *k, CRBNode *rb) {
 
 /**
  * user_registry_init() - initialize user registry
- * @registry:           user registry to operate on
- * @log:                destination of any log messages
- * @n_slots:            number of accounting slots
- * @maxima:             maxima for each slot
+ * @registry:                        user registry to operate on
+ * @log:                             destination of any log messages
+ * @n_slots:                         number of accounting slots
+ * @maxima:                          maxima for each slot
+ * @connections_rate_limit_interval: length of the connection rate-limit
+ *                                   window in nanoseconds, or 0 to disable
+ * @connections_rate_limit_burst:    number of connections allowed in each
+ *                                   rate-limit window, or 0 to disable
  *
  * Initialize a user registry. @n_slots defines the number of distinct
  * accounting slots that will be available on all users on that registry.
@@ -380,7 +429,9 @@ static int user_compare(CRBTree *tree, void *k, CRBNode *rb) {
 int user_registry_init(UserRegistry *registry,
                        Log *log,
                        size_t n_slots,
-                       const unsigned int *maxima) {
+                       const unsigned int *maxima,
+                       nsec_t connections_rate_limit_interval,
+                       unsigned int connections_rate_limit_burst) {
         static_assert(sizeof(*maxima) == sizeof(*registry->maxima),
                       "Type mismatch for maxima");
 
@@ -392,6 +443,8 @@ int user_registry_init(UserRegistry *registry,
 
         registry->log = log;
         registry->n_slots = n_slots;
+        registry->connections_rate_limit_interval = connections_rate_limit_interval;
+        registry->connections_rate_limit_burst = connections_rate_limit_burst;
         c_memcpy(registry->maxima, maxima, n_slots * sizeof(*registry->maxima));
 
         return 0;

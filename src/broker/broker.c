@@ -43,7 +43,7 @@ static int broker_dispatch_signals(DispatchFile *file) {
         return DISPATCH_E_EXIT;
 }
 
-int broker_new(Broker **brokerp, Log *log, const char *machine_id, int controller_fd, uint64_t max_bytes, uint64_t max_fds, uint64_t max_matches, uint64_t max_objects) {
+int broker_new(Broker **brokerp, Log *log, const char *machine_id, int controller_fd, uint64_t max_bytes, uint64_t max_fds, uint64_t max_matches, uint64_t max_objects, uint64_t connections_rate_limit_interval, uint64_t connections_rate_limit_burst) {
         _c_cleanup_(broker_freep) Broker *broker = NULL;
         struct ucred ucred;
         socklen_t z;
@@ -66,7 +66,7 @@ int broker_new(Broker **brokerp, Log *log, const char *machine_id, int controlle
         broker->signals_file = (DispatchFile)DISPATCH_FILE_NULL(broker->signals_file);
         broker->controller = (Controller)CONTROLLER_NULL(broker->controller);
 
-        r = bus_init(&broker->bus, broker->log, machine_id, max_bytes, max_fds, max_matches, max_objects);
+        r = bus_init(&broker->bus, broker->log, machine_id, max_bytes, max_fds, max_matches, max_objects, connections_rate_limit_interval, connections_rate_limit_burst);
         if (r)
                 return error_fold(r);
 

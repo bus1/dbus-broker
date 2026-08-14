@@ -11,6 +11,7 @@
 #include <c-stdaux.h>
 #include <stdlib.h>
 #include <sys/types.h>
+#include "util/nsec.h"
 #include "util/ref.h"
 
 typedef struct Log Log;
@@ -87,6 +88,9 @@ struct User {
         CRBTree usage_tree;
         unsigned int n_usages;
 
+        nsec_t connections_timestamp;
+        unsigned int n_connections;
+
         struct {
                 unsigned int n;
                 unsigned int max;
@@ -95,6 +99,7 @@ struct User {
 
 void user_free(_Atomic unsigned long *n_refs, void *userdata);
 int user_charge(User *user, UserCharge *charge, User *actor, size_t slot, unsigned int amount);
+int user_ratelimit_connection(User *user, nsec_t timestamp);
 
 /* registry */
 
@@ -103,13 +108,15 @@ struct UserRegistry {
         CRBTree user_tree;
         size_t n_slots;
         unsigned int *maxima;
+        nsec_t connections_rate_limit_interval;
+        unsigned int connections_rate_limit_burst;
 };
 
 #define USER_REGISTRY_NULL {                                                    \
                 .user_tree = C_RBTREE_INIT,                                     \
         }
 
-int user_registry_init(UserRegistry *registry, Log *log, size_t n_slots, const unsigned int *maxima);
+int user_registry_init(UserRegistry *registry, Log *log, size_t n_slots, const unsigned int *maxima, nsec_t connections_rate_limit_interval, unsigned int connections_rate_limit_burst);
 void user_registry_deinit(UserRegistry *registry);
 int user_registry_ref_user(UserRegistry *registry, User **userp, uid_t uid);
 
