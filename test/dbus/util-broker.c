@@ -186,7 +186,7 @@ const sd_bus_vtable util_vtable[] = {
         SD_BUS_VTABLE_END
 };
 
-void util_fork_broker(sd_bus **busp, sd_event *event, int listener_fd, pid_t *pidp) {
+void util_fork_broker(sd_bus **busp, sd_event *event, int listener_fd, int metrics_fd, pid_t *pidp) {
         _c_cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
         _c_cleanup_(sd_bus_message_unrefp) sd_bus_message *message = NULL;
         _c_cleanup_(c_freep) char *fdstr = NULL;
@@ -267,6 +267,20 @@ void util_fork_broker(sd_bus **busp, sd_event *event, int listener_fd, pid_t *pi
 
         r = sd_bus_call(bus, message, -1, NULL, NULL);
         c_assert(r >= 0);
+
+        if (metrics_fd >= 0) {
+                r = sd_bus_call_method(bus,
+                                       NULL,
+                                       "/org/bus1/DBus/Broker",
+                                       "org.bus1.DBus.Broker",
+                                       "AddMetrics",
+                                       NULL,
+                                       NULL,
+                                       "oh",
+                                       "/org/bus1/DBus/Metrics/0",
+                                       metrics_fd);
+                c_assert(r >= 0);
+        }
 
         *busp = bus;
         bus = NULL;
@@ -397,10 +411,11 @@ static void *util_broker_thread(void *userdata) {
         c_assert(r >= 0);
 
         if (broker->listener_fd >= 0) {
-                util_fork_broker(&bus, event, broker->listener_fd, &broker->child_pid);
+                util_fork_broker(&bus, event, broker->listener_fd, broker->metrics_fd, &broker->child_pid);
                 /* dbus-broker reports its controller in GetConnectionUnixProcessID */
                 broker->pid = getpid();
                 broker->listener_fd = c_close(broker->listener_fd);
+                broker->metrics_fd = c_close(broker->metrics_fd);
         } else {
                 c_assert(broker->listener_fd < 0);
                 util_fork_daemon(event, broker->pipe_fds[1], &broker->child_pid);
@@ -517,6 +532,23 @@ void util_broker_spawn(Broker *broker) {
                 r = listen(broker->listener_fd, 256);
                 c_assert(r >= 0);
 
+                /* second, independent listener for the OpenMetrics dump */
+                broker->metrics_fd = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
+                c_assert(broker->metrics_fd >= 0);
+
+                r = bind(broker->metrics_fd,
+                         (struct sockaddr *)&broker->metrics_address,
+                         offsetof(struct sockaddr_un, sun_path));
+                c_assert(r >= 0);
+
+                r = getsockname(broker->metrics_fd,
+                                (struct sockaddr *)&broker->metrics_address,
+                                &broker->n_metrics_address);
+                c_assert(r >= 0);
+
+                r = listen(broker->metrics_fd, 16);
+                c_assert(r >= 0);
+
                 r = pthread_create(&broker->thread, NULL, util_broker_thread, broker);
                 c_assert(r >= 0);
         }
@@ -584,6 +616,47 @@ void util_broker_connect_fd(Broker *broker, int *fdp) {
 
         *fdp = fd;
         fd = -1;
+}
+
+/*
+ * Connect to the metrics listener and read the OpenMetrics document the broker
+ * dumps. The broker closes the connection once the dump is complete, so we can
+ * simply read until EOF.
+ */
+void util_broker_scrape_metrics(Broker *broker, char **bufferp) {
+        _c_cleanup_(c_closep) int fd = -1;
+        _c_cleanup_(c_freep) char *buffer = NULL;
+        size_t n_buffer = 0, z_buffer = 0;
+        int r;
+
+        fd = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
+        c_assert(fd >= 0);
+
+        r = connect(fd, (struct sockaddr *)&broker->metrics_address, broker->n_metrics_address);
+        c_assert(r >= 0);
+
+        for (;;) {
+                ssize_t len;
+
+                if (n_buffer + 4096 + 1 > z_buffer) {
+                        z_buffer = (n_buffer + 4096 + 1) * 2;
+                        buffer = realloc(buffer, z_buffer);
+                        c_assert(buffer);
+                }
+
+                len = read(fd, buffer + n_buffer, 4096);
+                c_assert(len >= 0);
+                if (!len)
+                        break;
+
+                n_buffer += len;
+        }
+
+        c_assert(buffer);
+        buffer[n_buffer] = 0;
+
+        *bufferp = buffer;
+        buffer = NULL;
 }
 
 void util_broker_connect_raw(Broker *broker, sd_bus **busp) {
