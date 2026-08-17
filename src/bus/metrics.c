@@ -109,7 +109,8 @@ static int metrics_client_new_with_fd(MetricsClient **clientp, Metrics *metrics,
                 return error_fold(r);
 
         client->socket_fd = fd;
-        dispatch_file_select(&metrics->socket_file, EPOLLHUP | EPOLLOUT);
+
+        dispatch_file_select(&client->socket_file, EPOLLHUP | EPOLLOUT);
 
         *clientp = client;
         client = NULL;
