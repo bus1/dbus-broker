@@ -129,6 +129,8 @@ static int metrics_compile(MetricsClient *client) {
         if (r < 0)
                 return error_origin(-errno);
 
+        client->n_buffer = r;
+
         return 0;
 }
 
