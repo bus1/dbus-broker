@@ -103,6 +103,9 @@ struct UserRegistry {
         CRBTree user_tree;
         size_t n_slots;
         unsigned int *maxima;
+
+        /* cumulative count of refused charges, indexed by slot */
+        uint64_t n_quota_exceeded[_USER_SLOT_N];
 };
 
 #define USER_REGISTRY_NULL {                                                    \

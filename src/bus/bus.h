@@ -15,6 +15,7 @@
 #include "bus/match.h"
 #include "bus/name.h"
 #include "bus/peer.h"
+#include "dbus/protocol.h"
 #include "util/sampler.h"
 #include "util/user.h"
 
@@ -24,6 +25,32 @@ enum {
         BUS_E_FAILURE,
 };
 
+/*
+ * Reasons a peer can be disconnected for running out of its resource quota.
+ * These are the terminal events of a peer that stopped draining its socket,
+ * so they are tracked separately to tell the different queues apart.
+ */
+enum {
+        BUS_QUOTA_DISCONNECT_DEQUEUE,
+        BUS_QUOTA_DISCONNECT_REPLY,
+        BUS_QUOTA_DISCONNECT_BROADCAST,
+        _BUS_QUOTA_DISCONNECT_N,
+};
+
+static inline const char *bus_quota_disconnect_to_string(size_t reason) {
+        switch (reason) {
+        case BUS_QUOTA_DISCONNECT_DEQUEUE:
+                return "dequeue";
+        case BUS_QUOTA_DISCONNECT_REPLY:
+                return "reply";
+        case BUS_QUOTA_DISCONNECT_BROADCAST:
+                return "broadcast";
+        default:
+                c_assert(0);
+                abort();
+        }
+}
+
 enum {
         BUS_LOG_POLICY_TYPE_INTERNAL,
         BUS_LOG_POLICY_TYPE_SELINUX,
@@ -31,9 +58,23 @@ enum {
 };
 
 typedef struct Bus Bus;
+typedef struct BusMetrics BusMetrics;
 typedef struct Log Log;
 typedef struct Message Message;
 typedef struct User User;
+
+/*
+ * Cumulative event counters. Unlike the gauges scattered across the different
+ * registries, these are monotonic and never reset, so they can be scraped as
+ * rates. The broker is single-threaded, hence plain increments suffice.
+ */
+struct BusMetrics {
+        uint64_t n_dispatched[_DBUS_MESSAGE_TYPE_N];
+        uint64_t n_dispatched_bytes;
+        uint64_t n_broadcast_deliveries;
+        uint64_t n_quota_disconnects[_BUS_QUOTA_DISCONNECT_N];
+        uint64_t n_connections_refused;
+};
 
 struct Bus {
         Log *log;
@@ -59,6 +100,7 @@ struct Bus {
         uint64_t activation_ids;
         uint64_t stats_ids;
 
+        BusMetrics metrics;
         Sampler sampler;
 };
 

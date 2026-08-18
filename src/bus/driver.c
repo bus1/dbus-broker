@@ -2688,6 +2688,9 @@ static int driver_forward_broadcast(Peer *sender, Message *message) {
                 r = connection_queue(&receiver->connection, NULL, message);
                 if (r) {
                         if (r == CONNECTION_E_QUOTA || r == CONNECTION_E_UNEXPECTED_FDS) {
+                                if (r == CONNECTION_E_QUOTA)
+                                        ++sender->bus->metrics.n_quota_disconnects[BUS_QUOTA_DISCONNECT_BROADCAST];
+
                                 connection_shutdown(&receiver->connection);
 
                                 log_append_here(sender->bus->log, LOG_WARNING, 0, DBUS_BROKER_CATALOG_RECEIVE_FAILED);
@@ -2703,6 +2706,14 @@ static int driver_forward_broadcast(Peer *sender, Message *message) {
                         } else {
                                 return error_fold(r);
                         }
+                } else {
+                        /*
+                         * Count deliveries rather than broadcasts. The ratio of
+                         * this to the number of dispatched signals is the
+                         * fan-out factor, which is what makes an unfiltered
+                         * match rule expensive.
+                         */
+                        ++sender->bus->metrics.n_broadcast_deliveries;
                 }
         }
 
@@ -2792,10 +2803,15 @@ static int driver_dispatch_internal(Peer *peer, Message *message) {
 }
 
 int driver_dispatch(Peer *peer, Message *message) {
+        uint8_t type = message->metadata.header.type;
         int r;
 
         if (peer_is_monitor(peer))
                 return DRIVER_E_MONITOR_READ_ONLY;
+
+        if (_c_likely_(type < _DBUS_MESSAGE_TYPE_N))
+                ++peer->bus->metrics.n_dispatched[type];
+        peer->bus->metrics.n_dispatched_bytes += message->n_data;
 
         r = driver_dispatch_internal(peer, message);
         switch (r) {

@@ -52,6 +52,8 @@ static int peer_dispatch_connection(Peer *peer, uint32_t events) {
                         NameSet peer_names = NAME_SET_INIT_FROM_OWNER(&peer->owned_names);
 
                         if (r == CONNECTION_E_QUOTA) {
+                                ++peer->bus->metrics.n_quota_disconnects[BUS_QUOTA_DISCONNECT_DEQUEUE];
+
                                 r = diag_quota_dequeue(peer, LOG_PROVENANCE_HERE);
                                 if (r)
                                         return error_fold(r);
@@ -316,8 +318,16 @@ int peer_new_with_fd(Peer **peerp,
         r = r ?: user_charge(peer->user, &peer->charges[1], NULL, USER_SLOT_FDS, n_fds);
         r = r ?: user_charge(peer->user, &peer->charges[2], NULL, USER_SLOT_OBJECTS, 1);
         if (r) {
-                if (r == USER_E_QUOTA)
+                if (r == USER_E_QUOTA) {
+                        /*
+                         * A connection self-charges an fd and an object. Once
+                         * the user is out of either, no peer of that user can
+                         * connect anymore, which is the terminal state of a
+                         * quota overrun: the bus is closed for that UID.
+                         */
+                        ++bus->metrics.n_connections_refused;
                         return PEER_E_QUOTA;
+                }
 
                 return error_fold(r);
         }
@@ -881,6 +891,8 @@ int peer_queue_reply(Peer *sender, const char *destination, uint32_t reply_seria
         r = connection_queue(&receiver->connection, NULL, message);
         if (r) {
                 if (r == CONNECTION_E_QUOTA) {
+                        ++receiver->bus->metrics.n_quota_disconnects[BUS_QUOTA_DISCONNECT_REPLY];
+
                         r = diag_quota_queue_reply(sender, receiver, message, LOG_PROVENANCE_HERE);
                         if (r)
                                 return error_fold(r);

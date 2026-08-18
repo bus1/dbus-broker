@@ -21,8 +21,10 @@ struct MetricsClient {
         int socket_fd;
         DispatchFile socket_file;
         uint8_t *buffer;
-        size_t i_buffer;
-        size_t n_buffer;
+        size_t i_buffer;        /* bytes already sent */
+        size_t n_buffer;        /* bytes of document */
+        int error;              /* sticky error while compiling */
+        bool truncated;         /* document hit its size limit */
 };
 
 struct Metrics {

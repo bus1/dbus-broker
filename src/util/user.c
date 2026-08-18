@@ -340,6 +340,8 @@ int user_charge(User *user, UserCharge *charge, User *actor, size_t slot, unsign
 
         return 0;
 quota:
+        ++user->registry->n_quota_exceeded[slot];
+
         if (!charge->usage) {
                 charge->slot = slot;
                 charge->usage = usage;
@@ -383,6 +385,9 @@ int user_registry_init(UserRegistry *registry,
                        const unsigned int *maxima) {
         static_assert(sizeof(*maxima) == sizeof(*registry->maxima),
                       "Type mismatch for maxima");
+
+        /* the quota counters are sized statically, so slots must fit */
+        c_assert(n_slots <= _USER_SLOT_N);
 
         *registry = (UserRegistry)USER_REGISTRY_NULL;
 
