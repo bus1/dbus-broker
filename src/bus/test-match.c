@@ -229,8 +229,7 @@ static void test_individual_matches(void) {
         c_assert(test_match("path_namespace=/com/example", &metadata));
         c_assert(!test_match("path_namespace=/com/ex", &metadata));
         c_assert(test_match("path_namespace=/com", &metadata));
-        /* XXX: This fails but shouldn't! */
-        /* c_assert(test_match("path_namespace=/", &metadata)); */
+        c_assert(test_match("path_namespace=/", &metadata));
 
         /* arg0 */
         metadata = (MessageMetadata)MESSAGE_METADATA_INIT;
