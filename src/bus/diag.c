@@ -103,17 +103,17 @@ static void diag_append_message(Log *log, Message *message) {
                 log_appendf(
                         log,
                         "DBUS_BROKER_MESSAGE_TYPE=method_return\n"
-                        "MESSAGE_REPLY_SERIAL=%"PRIu32"\n",
+                        "DBUS_BROKER_MESSAGE_REPLY_SERIAL=%"PRIu32"\n",
                         message->metadata.fields.reply_serial
                 );
                 break;
         case DBUS_MESSAGE_TYPE_ERROR:
                 log_appendf(
                         log,
-                        "DBUS_BROKER_MESSAGE_TYPE=method_return\n"
+                        "DBUS_BROKER_MESSAGE_TYPE=error\n"
                         "DBUS_BROKER_MESSAGE_ERROR_NAME=%s\n"
                         "DBUS_BROKER_MESSAGE_REPLY_SERIAL=%"PRIu32"\n",
-                        message->metadata.fields.error_name,
+                        message->metadata.fields.error_name ?: "<missing>",
                         message->metadata.fields.reply_serial
                 );
                 break;
