@@ -405,7 +405,17 @@ static bool match_string_prefix(const char *string, const char *prefix, char del
                 if (tail == string || (*tail != '\0' && *(tail - 1) != delimiter))
                         return false;
         } else {
-                if (*tail != '\0' && *tail != delimiter)
+                /*
+                 * The prefix must be followed by a delimiter, so `/foo` does
+                 * not match `/foobar`. However, if the prefix already ends in
+                 * the delimiter itself, it has been consumed as part of the
+                 * prefix and must not be required again. This is what makes
+                 * the root path-namespace `/` match every object path, as
+                 * mandated by the specification.
+                 */
+                if (*tail != '\0' &&
+                    *tail != delimiter &&
+                    !(tail > string && *(tail - 1) == delimiter))
                         return false;
         }
 
