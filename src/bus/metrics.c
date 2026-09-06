@@ -109,7 +109,7 @@ static int metrics_client_new_with_fd(MetricsClient **clientp, Metrics *metrics,
                 return error_fold(r);
 
         client->socket_fd = fd;
-        dispatch_file_select(&metrics->socket_file, EPOLLHUP | EPOLLOUT);
+        dispatch_file_select(&client->socket_file, EPOLLHUP | EPOLLOUT);
 
         *clientp = client;
         client = NULL;
@@ -123,10 +123,13 @@ static int metrics_compile(MetricsClient *client) {
 
         r = asprintf(
                 (void *)&client->buffer,
-                "# EOF"
+                "# EOF\n"
         );
         if (r < 0)
                 return error_origin(-errno);
+
+        client->n_buffer = (size_t)r;
+        client->i_buffer = 0;
 
         return 0;
 }
