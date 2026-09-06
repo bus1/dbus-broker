@@ -111,8 +111,8 @@ ControllerReload *controller_reload_free(ControllerReload *reload) {
 }
 
 static int controller_reload_new(ControllerReload **reloadp, User *user, Controller *controller) {
-        CRBNode **slot, *parent;
-        ControllerReload *reload;
+        _c_cleanup_(controller_reload_freep) ControllerReload *reload = NULL;
+        CRBNode **slot = NULL, *parent;
         uint32_t serial;
         int r;
 
@@ -143,6 +143,7 @@ static int controller_reload_new(ControllerReload **reloadp, User *user, Control
 
         c_rbtree_add(&controller->reload_tree, parent, slot, &reload->controller_node);
         *reloadp = reload;
+        reload = NULL;
         return 0;
 }
 
