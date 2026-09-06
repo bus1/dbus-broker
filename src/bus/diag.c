@@ -54,7 +54,7 @@ static void diag_append_match_rule(Log *log, MatchRule *rule) {
         for (i = 0; i < rule->keys.filter.n_argpaths; ++i) {
                 log_appendf(
                         log,
-                        "DBUS_BROKER_MATCH_RULE_ARG%zu=%s\n",
+                        "DBUS_BROKER_MATCH_RULE_ARG%zu_PATH=%s\n",
                         i,
                         rule->keys.filter.argpaths[i] ?: ""
                 );
