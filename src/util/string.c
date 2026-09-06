@@ -6,16 +6,32 @@
  */
 
 #include <c-stdaux.h>
+#include <stdbool.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 #include "util/error.h"
 #include "util/string.h"
+
+/*
+ * `strtoul()` and `strtoull()` silently accept a leading minus sign and return
+ * the negated value modulo 2^n. Since our unsigned parsers must never turn
+ * `-1` into `UINT32_MAX`/`UINT64_MAX`, reject such input explicitly. Leading
+ * whitespace is skipped by the C library, so skip it here as well before
+ * looking at the sign.
+ */
+static bool util_string_is_negative(const char *string) {
+        return string[strspn(string, " \t\n\v\f\r")] == '-';
+}
 
 int util_strtou32(uint32_t *valp, const char *string) {
         unsigned long val;
         char *end;
 
         static_assert(sizeof(val) >= sizeof(uint32_t), "unsigned long is less than 32 bits");
+
+        if (util_string_is_negative(string))
+                return UTIL_STRING_E_INVALID;
 
         errno = 0;
         val = strtoul(string, &end, 10);
@@ -40,6 +56,9 @@ int util_strtou64(uint64_t *valp, const char *string) {
         char *end;
 
         static_assert(sizeof(val) >= sizeof(uint64_t), "unsigned long long is less than 64 bits");
+
+        if (util_string_is_negative(string))
+                return UTIL_STRING_E_INVALID;
 
         errno = 0;
         val = strtoull(string, &end, 10);
