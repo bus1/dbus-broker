@@ -282,8 +282,8 @@ static int service_watch_jobs_handler(sd_bus_message *message, void *userdata, s
 static int service_watch_jobs(Service *service) {
         int r;
 
-        assert(!service->slot_watch_jobs);
-        assert(!service->job);
+        c_assert(!service->slot_watch_jobs);
+        c_assert(!service->job);
 
         r = sd_bus_match_signal_async(
                 service->launcher->bus_regular,
@@ -320,7 +320,7 @@ static int service_start_unit_handler(sd_bus_message *message, void *userdata, s
                  * JobRemoved signal).
                  */
 
-                assert(!service->job);
+                c_assert(!service->job);
 
                 r = sd_bus_message_read(message, "o", &job);
                 if (r < 0)
@@ -794,7 +794,10 @@ static int service_watch_unit_load_handler(sd_bus_message *message, void *userda
         service->slot_watch_unit = sd_bus_slot_unref(service->slot_watch_unit);
 
         if (sd_bus_message_get_error(message)) {
-                service_reset_activation(service, CONTROLLER_NAME_ERROR_UNIT_FAILURE);
+                r = service_reset_activation(service, CONTROLLER_NAME_ERROR_UNIT_FAILURE);
+                if (r)
+                        return error_trace(r);
+
                 return 1;
         }
 
@@ -835,7 +838,7 @@ static int service_watch_unit_load_handler(sd_bus_message *message, void *userda
 static int service_watch_unit(Service *service, const char *unit) {
         int r;
 
-        assert(!service->slot_watch_unit);
+        c_assert(!service->slot_watch_unit);
 
         /*
          * We first fetch the object-path for the unit in question, then we
