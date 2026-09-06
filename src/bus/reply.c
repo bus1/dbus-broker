@@ -38,7 +38,7 @@ static int reply_slot_compare(CRBTree *tree, void *k, CRBNode *rb) {
 }
 
 int reply_slot_new(ReplySlot **replyp, ReplyRegistry *registry, ReplyOwner *owner, User *user, User *actor, uint64_t id, uint32_t serial) {
-        ReplySlot *reply;
+        _c_cleanup_(reply_slot_freep) ReplySlot *reply = NULL;
         CRBNode **slot, *parent;
         ReplySlotKey key = {
                 .id = id,
@@ -70,6 +70,7 @@ int reply_slot_new(ReplySlot **replyp, ReplyRegistry *registry, ReplyOwner *owne
         c_list_link_tail(&owner->reply_list, &reply->owner_link);
 
         *replyp = reply;
+        reply = NULL;
 
         return 0;
 }
