@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-FileCopyrightText: D-Bus Broker Developers
+
+summary: Preserve service path access checks when deduplicating symlink aliases
+test: ./test.sh
+require:
+    - dbus-broker
+    - python3
+    - systemd
+    - util-linux
+duration: 2m

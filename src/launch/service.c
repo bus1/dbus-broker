@@ -152,6 +152,7 @@ Service *service_free(Service *service) {
 
         service_data_free(service->data);
         free(service->name);
+        free(service->canonical_path);
 
         free(service->job);
         free(service->active_unit);

@@ -37,6 +37,7 @@ struct Service {
         bool is_transient;
 
         char *name;
+        char *canonical_path;
         uint64_t instance;
         ServiceData *data;
         char id[];
