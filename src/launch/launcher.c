@@ -539,7 +539,7 @@ static int launcher_on_message(sd_bus_message *m, void *userdata, sd_bus_error *
         return error_trace(r);
 }
 
-static int launcher_ini_reader_parse_file(Launcher *launcher, CIniGroup **groupp, const char *path, const char *canonical_path) {
+static int launcher_ini_reader_parse_file(Launcher *launcher, CIniGroup **groupp, const char *path) {
         _c_cleanup_(c_closep) int fd = -1;
         _c_cleanup_(c_ini_reader_freep) CIniReader *reader = NULL;
         _c_cleanup_(c_ini_domain_unrefp) CIniDomain *domain = NULL;
@@ -547,7 +547,7 @@ static int launcher_ini_reader_parse_file(Launcher *launcher, CIniGroup **groupp
         ssize_t len;
         int r;
 
-        fd = open(canonical_path ?: path, O_RDONLY | O_CLOEXEC);
+        fd = open(path, O_RDONLY | O_CLOEXEC);
         if (fd < 0) {
                 /*
                  * For compatibility reasons we have to accept any failure
@@ -634,6 +634,10 @@ static int launcher_load_service_file(Launcher *launcher, const char *path, cons
         uid_t uid;
         int r;
 
+        r = launcher_ini_reader_parse_file(launcher, &group, path);
+        if (r)
+                return error_trace(r);
+
         canonical_path = realpath(path, NULL);
         if (!canonical_path && errno == ENOMEM)
                 return error_origin(-ENOMEM);
@@ -651,10 +655,6 @@ static int launcher_load_service_file(Launcher *launcher, const char *path, cons
                     strcmp(canonical_path, seen->canonical_path) == 0)
                         return 0;
         }
-
-        r = launcher_ini_reader_parse_file(launcher, &group, path, canonical_path);
-        if (r)
-                return error_trace(r);
 
         name_entry = c_ini_group_find(group, "Name", -1);
         unit_entry = c_ini_group_find(group, "SystemdService", -1);
