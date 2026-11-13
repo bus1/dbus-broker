@@ -251,18 +251,19 @@ static int build_message_query(
         char *qstr;
         int i = 0, len;
 
+        path = path ?: "";
+        interface = interface ?: "";
+        method = method ?: "";
+
         len = AA_QUERY_CMD_LABEL_SIZE;
         len += strlen(security_label) + 1;
         len += 1; /* AA_CLASS_DBUS */
         len += strlen(bustype) + 1;
         len += strlen(receiver_context) + 1;
         len += strlen(name) + 1;
-        if (path)
-                len += strlen(path) + 1;
-        if (interface)
-                len += strlen(interface) + 1;
-        if (method)
-                len += strlen(method) + 1;
+        len += strlen(path) + 1;
+        len += strlen(interface) + 1;
+        len += strlen(method) + 1;
 
         qstr = malloc(len);
         if (!qstr)
@@ -278,18 +279,12 @@ static int build_message_query(
         i += strlen(receiver_context) + 1;
         strcpy(qstr+i, name);
         i += strlen(name) + 1;
-        if (path) {
-                strcpy(qstr+i, path);
-                i += strlen(path) + 1;
-        }
-        if (interface) {
-                strcpy(qstr+i, interface);
-                i += strlen(interface) + 1;
-        }
-        if (method) {
-                strcpy(qstr+i, method);
-                i += strlen(method) + 1;
-        }
+        strcpy(qstr+i, path);
+        i += strlen(path) + 1;
+        strcpy(qstr+i, interface);
+        i += strlen(interface) + 1;
+        strcpy(qstr+i, method);
+        i += strlen(method) + 1;
 
         *queryp = qstr;
         *n_queryp = i - 1;
