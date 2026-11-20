@@ -292,6 +292,9 @@ test_kwargs = {
         'install_dir': conf.get('testdir') / 'unit',
 }
 
+test_activation = executable('test-activation', sources: ['bus/test-activation.c'], kwargs: test_kwargs)
+test('Name Activation', test_activation, suite: 'unit')
+
 test_address = executable('test-address', sources: ['dbus/test-address.c'], kwargs: test_kwargs)
 test('Address Handling', test_address, suite: 'unit')
 

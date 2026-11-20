@@ -124,7 +124,7 @@ static int activation_request(Activation *activation) {
         r = controller_name_activate(CONTROLLER_NAME(activation),
                                      ++activation->bus->activation_ids);
         if (r)
-                return error_fold(r);
+                return (r == CONTROLLER_E_QUOTA) ? ACTIVATION_E_QUOTA : error_fold(r);
 
         activation->pending = activation->bus->activation_ids;
         return 0;
