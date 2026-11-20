@@ -791,7 +791,7 @@ int controller_dbus_send_activation(Controller *controller, const char *path, ui
 
         r = connection_queue(&controller->connection, NULL, message);
         if (r)
-                return error_fold(r);
+                return (r == CONNECTION_E_QUOTA) ? CONTROLLER_E_QUOTA : error_fold(r);
 
         return 0;
 }
